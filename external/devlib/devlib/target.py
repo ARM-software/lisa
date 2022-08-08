@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+import asyncio
 import io
 import base64
 import functools
@@ -31,6 +32,8 @@ import threading
 import uuid
 import xml.dom.minidom
 import copy
+import inspect
+import itertools
 from collections import namedtuple, defaultdict
 from contextlib import contextmanager
 from pipes import quote
@@ -43,6 +46,7 @@ except ImportError:
     from collections import Mapping
 
 from enum import Enum
+from concurrent.futures import ThreadPoolExecutor
 
 from devlib.host import LocalConnection, PACKAGE_BIN_DIRECTORY
 from devlib.module import get_module
@@ -56,8 +60,10 @@ from devlib.utils.android import AdbConnection, AndroidProperties, LogcatMonitor
 from devlib.utils.misc import memoized, isiterable, convert_new_lines, groupby_value
 from devlib.utils.misc import commonprefix, merge_lists
 from devlib.utils.misc import ABI_MAP, get_cpu_name, ranges_to_list
-from devlib.utils.misc import batch_contextmanager, tls_property, nullcontext
+from devlib.utils.misc import batch_contextmanager, tls_property, _BoundTLSProperty, nullcontext
+from devlib.utils.misc import strip_bash_colors
 from devlib.utils.types import integer, boolean, bitmask, identifier, caseless_string, bytes_regex
+import devlib.utils.asyn as asyn
 
 
 FSTAB_ENTRY_REGEX = re.compile(r'(\S+) on (.+) type (\S+) \((\S+)\)')
@@ -275,10 +281,20 @@ class Target(object):
 
     @tls_property
     def _conn(self):
-        return self.get_connection()
+        try:
+            return self._unused_conns.pop()
+        except KeyError:
+            return self.get_connection()
 
     # Add a basic property that does not require calling to get the value
     conn = _conn.basic_property
+
+    @tls_property
+    def _async_manager(self):
+        return asyn.AsyncManager()
+
+    # Add a basic property that does not require calling to get the value
+    async_manager = _async_manager.basic_property
 
     def __init__(self,
                  connection_settings=None,
@@ -290,8 +306,12 @@ class Target(object):
                  load_default_modules=True,
                  shell_prompt=DEFAULT_SHELL_PROMPT,
                  conn_cls=None,
-                 is_container=False
+                 is_container=False,
+                 max_async=50,
                  ):
+        self._async_pool = None
+        self._async_pool_size = None
+        self._unused_conns = set()
 
         self._is_rooted = None
         self.connection_settings = connection_settings or {}
@@ -334,20 +354,40 @@ class Target(object):
         self.modules = merge_lists(*module_lists, duplicates='first')
         self._update_modules('early')
         if connect:
-            self.connect()
+            self.connect(max_async=max_async)
 
     def __getstate__(self):
+        # tls_property will recreate the underlying value automatically upon
+        # access and is typically used for dynamic content that cannot be
+        # pickled or should not transmitted to another thread.
+        ignored = {
+            k
+            for k, v in inspect.getmembers(self.__class__)
+            if isinstance(v, _BoundTLSProperty)
+        }
+        ignored.update((
+            '_async_pool',
+            '_unused_conns',
+        ))
         return {
             k: v
             for k, v in self.__dict__.items()
-            # Avoid sharing the connection instance with the original target,
-            # so that each target can live its own independent life
-            if k != '_conn'
+            if k not in ignored
         }
+
+    def __setstate__(self, dct):
+        self.__dict__ = dct
+        pool_size = self._async_pool_size
+        if pool_size is None:
+            self._async_pool = None
+        else:
+            self._async_pool = ThreadPoolExecutor(pool_size)
+        self._unused_conns = set()
 
     # connection and initialization
 
-    def connect(self, timeout=None, check_boot_completed=True):
+    @asyn.asyncf
+    async def connect(self, timeout=None, check_boot_completed=True, max_async=50):
         self.platform.init_target_connection(self)
         # Forcefully set the thread-local value for the connection, with the
         # timeout we want
@@ -360,37 +400,90 @@ class Target(object):
         self.execute('mkdir -p {}'.format(quote(self.executables_directory)))
         self.busybox = self.install(os.path.join(PACKAGE_BIN_DIRECTORY, self.abi, 'busybox'), timeout=30)
         self.conn.busybox = self.busybox
+        self._detect_max_async(max_async)
         self.platform.update_from_target(self)
         self._update_modules('connected')
         if self.platform.big_core and self.load_default_modules:
             self._install_module(get_module('bl'))
 
-    def check_connection(self):
+    def _detect_max_async(self, max_async):
+        self.logger.debug('Detecting max number of async commands ...')
+
+        def make_conn(_):
+            try:
+                conn = self.get_connection()
+            except Exception:
+                return None
+            else:
+                payload = 'hello'
+                # Sanity check the connection, in case we managed to connect
+                # but it's actually unusable.
+                try:
+                    res = conn.execute(f'echo {quote(payload)}')
+                except Exception:
+                    return None
+                else:
+                    if res.strip() == payload:
+                        return conn
+                    else:
+                        return None
+
+        # Logging needs to be disabled before the thread pool is created,
+        # otherwise the logging config will not be taken into account
+        logging.disable()
+        try:
+            # Aggressively attempt to create all the connections in parallel,
+            # so that this setup step does not take too much time.
+            with ThreadPoolExecutor(max_async) as pool:
+                conns = pool.map(make_conn, range(max_async))
+        # Avoid polluting the log with errors coming from broken
+        # connections.
+        finally:
+            logging.disable(logging.NOTSET)
+
+        conns = {conn for conn in conns if conn is not None}
+
+        # Keep the connection so it can be reused by future threads
+        self._unused_conns.update(conns)
+        max_conns = len(conns)
+
+        self.logger.debug(f'Detected max number of async commands: {max_conns}')
+        self._async_pool_size = max_conns
+        self._async_pool = ThreadPoolExecutor(max_conns)
+
+    @asyn.asyncf
+    async def check_connection(self):
         """
         Check that the connection works without obvious issues.
         """
-        out = self.execute('true', as_root=False)
+        out = await self.execute.asyn('true', as_root=False)
         if out.strip():
             raise TargetStableError('The shell seems to not be functional and adds content to stderr: {}'.format(out))
 
     def disconnect(self):
         connections = self._conn.get_all_values()
-        for conn in connections:
+        for conn in itertools.chain(connections, self._unused_conns):
             conn.close()
+        if self._async_pool is not None:
+            self._async_pool.__exit__(None, None, None)
 
     def get_connection(self, timeout=None):
         if self.conn_cls is None:
             raise ValueError('Connection class not specified on Target creation.')
-        return self.conn_cls(timeout=timeout, **self.connection_settings)  # pylint: disable=not-callable
+        conn = self.conn_cls(timeout=timeout, **self.connection_settings)  # pylint: disable=not-callable
+        # This allows forwarding the detected busybox for connections created in new threads.
+        conn.busybox = self.busybox
+        return conn
 
     def wait_boot_complete(self, timeout=10):
         raise NotImplementedError()
 
-    def setup(self, executables=None):
-        self._setup_shutils()
+    @asyn.asyncf
+    async def setup(self, executables=None):
+        await self._setup_shutils.asyn()
 
         for host_exe in (executables or []):  # pylint: disable=superfluous-parens
-            self.install(host_exe)
+            await self.install.asyn(host_exe)
 
         # Check for platform dependent setup procedures
         self.platform.setup(self)
@@ -398,7 +491,7 @@ class Target(object):
         # Initialize modules which requires Buxybox (e.g. shutil dependent tasks)
         self._update_modules('setup')
 
-        self.execute('mkdir -p {}'.format(quote(self._file_transfer_cache)))
+        await self.execute.asyn('mkdir -p {}'.format(quote(self._file_transfer_cache)))
 
     def reboot(self, hard=False, connect=True, timeout=180):
         if hard:
@@ -427,8 +520,8 @@ class Target(object):
 
     # file transfer
 
-    @contextmanager
-    def _xfer_cache_path(self, name):
+    @asyn.asynccontextmanager
+    async def _xfer_cache_path(self, name):
         """
         Context manager to provide a unique path in the transfer cache with the
         basename of the given name.
@@ -444,15 +537,16 @@ class Target(object):
 
         check_rm = False
         try:
-            self.makedirs(folder)
+            await self.makedirs.asyn(folder)
             # Don't check the exit code as the folder might not even exist
             # before this point, if creating it failed
             check_rm = True
             yield self.path.join(folder, name)
         finally:
-            self.execute('rm -rf -- {}'.format(quote(folder)), check_exit_code=check_rm)
+            await self.execute.asyn('rm -rf -- {}'.format(quote(folder)), check_exit_code=check_rm)
 
-    def _prepare_xfer(self, action, sources, dest, pattern=None, as_root=False):
+    @asyn.asyncf
+    async def _prepare_xfer(self, action, sources, dest, pattern=None, as_root=False):
         """
         Check the sanity of sources and destination and prepare the ground for
         transfering multiple sources.
@@ -593,28 +687,37 @@ class Target(object):
             for src in sources
         })
 
+    @asyn.asyncf
     @call_conn
-    def push(self, source, dest, as_root=False, timeout=None, globbing=False):  # pylint: disable=arguments-differ
+    async def push(self, source, dest, as_root=False, timeout=None, globbing=False):  # pylint: disable=arguments-differ
         source = str(source)
         dest = str(dest)
 
         sources = glob.glob(source) if globbing else [source]
-        mapping = self._prepare_xfer('push', sources, dest, pattern=source if globbing else None, as_root=as_root)
+        mapping = await self._prepare_xfer.asyn('push', sources, dest, pattern=source if globbing else None, as_root=as_root)
 
         def do_push(sources, dest):
+            for src in sources:
+                self.async_manager.track_access(
+                    asyn.PathAccess(namespace='host', path=src, mode='r')
+                )
+            self.async_manager.track_access(
+                asyn.PathAccess(namespace='target', path=dest, mode='w')
+            )
             return self.conn.push(sources, dest, timeout=timeout)
 
         if as_root:
             for sources, dest in mapping.items():
                 for source in sources:
-                    with self._xfer_cache_path(source) as device_tempfile:
+                    async with self._xfer_cache_path(source) as device_tempfile:
                         do_push([source], device_tempfile)
-                        self.execute("mv -f -- {} {}".format(quote(device_tempfile), quote(dest)), as_root=True)
+                        await self.execute.asyn("mv -f -- {} {}".format(quote(device_tempfile), quote(dest)), as_root=True)
         else:
             for sources, dest in mapping.items():
                 do_push(sources, dest)
 
-    def _expand_glob(self, pattern, **kwargs):
+    @asyn.asyncf
+    async def _expand_glob(self, pattern, **kwargs):
         """
         Expand the given path globbing pattern on the target using the shell
         globbing.
@@ -647,20 +750,21 @@ class Target(object):
         cmd = '{} sh -c {} 2>/dev/null'.format(quote(self.busybox), quote(cmd))
         # On some shells, match failure will make the command "return" a
         # non-zero code, even though the command was not actually called
-        result = self.execute(cmd, strip_colors=False, check_exit_code=False, **kwargs)
+        result = await self.execute.asyn(cmd, strip_colors=False, check_exit_code=False, **kwargs)
         paths = result.splitlines()
         if not paths:
             raise TargetStableError('No file matching: {}'.format(pattern))
 
         return paths
 
+    @asyn.asyncf
     @call_conn
-    def pull(self, source, dest, as_root=False, timeout=None, globbing=False, via_temp=False):  # pylint: disable=arguments-differ
+    async def pull(self, source, dest, as_root=False, timeout=None, globbing=False, via_temp=False):  # pylint: disable=arguments-differ
         source = str(source)
         dest = str(dest)
 
         if globbing:
-            sources = self._expand_glob(source, as_root=as_root)
+            sources = await self._expand_glob.asyn(source, as_root=as_root)
         else:
             sources = [source]
 
@@ -668,23 +772,31 @@ class Target(object):
         # so use a temporary copy instead.
         via_temp |= as_root
 
-        mapping = self._prepare_xfer('pull', sources, dest, pattern=source if globbing else None, as_root=as_root)
+        mapping = await self._prepare_xfer.asyn('pull', sources, dest, pattern=source if globbing else None, as_root=as_root)
 
         def do_pull(sources, dest):
+            for src in sources:
+                self.async_manager.track_access(
+                    asyn.PathAccess(namespace='target', path=src, mode='r')
+                )
+            self.async_manager.track_access(
+                asyn.PathAccess(namespace='host', path=dest, mode='w')
+            )
             self.conn.pull(sources, dest, timeout=timeout)
 
         if via_temp:
             for sources, dest in mapping.items():
                 for source in sources:
-                    with self._xfer_cache_path(source) as device_tempfile:
-                        self.execute("cp -r -- {} {}".format(quote(source), quote(device_tempfile)), as_root=as_root)
-                        self.execute("{} chmod 0644 -- {}".format(self.busybox, quote(device_tempfile)), as_root=as_root)
+                    async with self._xfer_cache_path(source) as device_tempfile:
+                        await self.execute.asyn("cp -r -- {} {}".format(quote(source), quote(device_tempfile)), as_root=as_root)
+                        await self.execute.asyn("{} chmod 0644 -- {}".format(self.busybox, quote(device_tempfile)), as_root=as_root)
                         do_pull([device_tempfile], dest)
         else:
             for sources, dest in mapping.items():
                 do_pull(sources, dest)
 
-    def get_directory(self, source_dir, dest, as_root=False):
+    @asyn.asyncf
+    async def get_directory(self, source_dir, dest, as_root=False):
         """ Pull a directory from the device, after compressing dir """
         # Create all file names
         tar_file_name = source_dir.lstrip(self.path.sep).replace(self.path.sep, '.')
@@ -698,12 +810,12 @@ class Target(object):
         tar_file_cm = self._xfer_cache_path if as_root else nullcontext
 
         # Does the folder exist?
-        self.execute('ls -la {}'.format(quote(source_dir)), as_root=as_root)
+        await self.execute.asyn('ls -la {}'.format(quote(source_dir)), as_root=as_root)
 
-        with tar_file_cm(tar_file_name) as tar_file_name:
+        async with tar_file_cm(tar_file_name) as tar_file_name:
             # Try compressing the folder
             try:
-                self.execute('{} tar -cvf {} {}'.format(
+                await self.execute.asyn('{} tar -cvf {} {}'.format(
                     quote(self.busybox), quote(tar_file_name), quote(source_dir)
                 ), as_root=as_root)
             except TargetStableError:
@@ -712,7 +824,7 @@ class Target(object):
             # Pull the file
             if not os.path.exists(dest):
                 os.mkdir(dest)
-            self.pull(tar_file_name, tmpfile)
+            await self.pull.asyn(tar_file_name, tmpfile)
             # Decompress
             with tarfile.open(tmpfile, 'r') as f:
                 f.extractall(outdir)
@@ -733,8 +845,41 @@ class Target(object):
 
         return command
 
+    class _BrokenConnection(Exception):
+        pass
+
+    @asyn.asyncf
     @call_conn
-    def execute(self, command, timeout=None, check_exit_code=True,
+    async def _execute_async(self, *args, **kwargs):
+        execute = functools.partial(
+            self._execute,
+            *args, **kwargs
+        )
+        pool = self._async_pool
+
+        if pool is None:
+            return execute()
+        else:
+
+            def thread_f():
+                # If we cannot successfully connect from the thread, it might
+                # mean that something external opened a connection on the
+                # target, so we just revert to the blocking path.
+                try:
+                    self.conn
+                except Exception:
+                    raise self._BrokenConnection
+                else:
+                    return execute()
+
+            loop = asyncio.get_running_loop()
+            try:
+                return await loop.run_in_executor(pool, thread_f)
+            except self._BrokenConnection:
+                return execute()
+
+    @call_conn
+    def _execute(self, command, timeout=None, check_exit_code=True,
                 as_root=False, strip_colors=True, will_succeed=False,
                 force_locale='C'):
 
@@ -743,9 +888,15 @@ class Target(object):
                 check_exit_code=check_exit_code, as_root=as_root,
                 strip_colors=strip_colors, will_succeed=will_succeed)
 
+    execute = asyn._AsyncPolymorphicFunction(
+        asyn=_execute_async.asyn,
+        blocking=_execute,
+    )
+
     @call_conn
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False,
                    force_locale='C', timeout=None):
+        conn = self.conn
         command = self._prepare_cmd(command, force_locale)
         bg_cmd = self.conn.background(command, stdout, stderr, as_root)
         if timeout is not None:
@@ -827,32 +978,43 @@ class Target(object):
 
     # sysfs interaction
 
-    def read_value(self, path, kind=None):
-        output = self.execute('cat {}'.format(quote(path)), as_root=self.needs_su).strip()  # pylint: disable=E1103
+    @asyn.asyncf
+    async def read_value(self, path, kind=None):
+        self.async_manager.track_access(
+            asyn.PathAccess(namespace='target', path=path, mode='r')
+        )
+        output = await self.execute.asyn('cat {}'.format(quote(path)), as_root=self.needs_su) # pylint: disable=E1103
+        output = output.strip()
         if kind:
             return kind(output)
         else:
             return output
 
-    def read_int(self, path):
-        return self.read_value(path, kind=integer)
+    @asyn.asyncf
+    async def read_int(self, path):
+        return await self.read_value.asyn(path, kind=integer)
 
-    def read_bool(self, path):
-        return self.read_value(path, kind=boolean)
+    @asyn.asyncf
+    async def read_bool(self, path):
+        return await self.read_value.asyn(path, kind=boolean)
 
-    @contextmanager
-    def revertable_write_value(self, path, value, verify=True):
+    @asyn.asynccontextmanager
+    async def revertable_write_value(self, path, value, verify=True):
         orig_value = self.read_value(path)
         try:
-            self.write_value(path, value, verify)
+            await self.write_value.asyn(path, value, verify)
             yield
         finally:
-            self.write_value(path, orig_value, verify)
+            await self.write_value.asyn(path, orig_value, verify)
 
     def batch_revertable_write_value(self, kwargs_list):
         return batch_contextmanager(self.revertable_write_value, kwargs_list)
 
-    def write_value(self, path, value, verify=True):
+    @asyn.asyncf
+    async def write_value(self, path, value, verify=True):
+        self.async_manager.track_access(
+            asyn.PathAccess(namespace='target', path=path, mode='w')
+        )
         value = str(value)
 
         if verify:
@@ -881,7 +1043,7 @@ fi
         cmd = cmd.format(busybox=quote(self.busybox), path=quote(path), value=quote(value))
 
         try:
-            self.execute(cmd, check_exit_code=True, as_root=True)
+            await self.execute.asyn(cmd, check_exit_code=True, as_root=True)
         except TargetCalledProcessError as e:
             if e.returncode == 10:
                 raise TargetStableError('Could not write "{value}" to {path}: {e.output}'.format(
@@ -932,22 +1094,26 @@ fi
 
     # files
 
-    def makedirs(self, path, as_root=False):
-        self.execute('mkdir -p {}'.format(quote(path)), as_root=as_root)
+    @asyn.asyncf
+    async def makedirs(self, path, as_root=False):
+        await self.execute.asyn('mkdir -p {}'.format(quote(path)), as_root=as_root)
 
-    def file_exists(self, filepath):
+    @asyn.asyncf
+    async def file_exists(self, filepath):
         command = 'if [ -e {} ]; then echo 1; else echo 0; fi'
-        output = self.execute(command.format(quote(filepath)), as_root=self.is_rooted)
+        output = await self.execute.asyn(command.format(quote(filepath)), as_root=self.is_rooted)
         return boolean(output.strip())
 
-    def directory_exists(self, filepath):
-        output = self.execute('if [ -d {} ]; then echo 1; else echo 0; fi'.format(quote(filepath)))
+    @asyn.asyncf
+    async def directory_exists(self, filepath):
+        output = await self.execute.asyn('if [ -d {} ]; then echo 1; else echo 0; fi'.format(quote(filepath)))
         # output from ssh my contain part of the expression in the buffer,
         # split out everything except the last word.
         return boolean(output.split()[-1])  # pylint: disable=maybe-no-member
 
-    def list_file_systems(self):
-        output = self.execute('mount')
+    @asyn.asyncf
+    async def list_file_systems(self):
+        output = await self.execute.asyn('mount')
         fstab = []
         for line in output.split('\n'):
             line = line.strip()
@@ -962,31 +1128,44 @@ fi
                 fstab.append(FstabEntry(*line.split()))
         return fstab
 
-    def list_directory(self, path, as_root=False):
+    @asyn.asyncf
+    async def list_directory(self, path, as_root=False):
+        self.async_manager.track_access(
+            asyn.PathAccess(namespace='target', path=path, mode='r')
+        )
+        return await self._list_directory(path, as_root=as_root)
+
+    def _list_directory(self, path, as_root=False):
         raise NotImplementedError()
 
     def get_workpath(self, name):
         return self.path.join(self.working_directory, name)
 
-    def tempfile(self, prefix='', suffix=''):
-        names = tempfile._get_candidate_names()  # pylint: disable=W0212
-        for _ in range(tempfile.TMP_MAX):
-            name = next(names)
-            path = self.get_workpath(prefix + name + suffix)
-            if not self.file_exists(path):
-                return path
-        raise IOError('No usable temporary filename found')
+    @asyn.asyncf
+    async def tempfile(self, prefix='', suffix=''):
+        name = '{prefix}_{uuid}_{suffix}'.format(
+            prefix=prefix,
+            uuid=uuid.uuid4().hex,
+            suffix=suffix,
+        )
+        path = self.get_workpath(name)
+        if (await self.file_exists.asyn(path)):
+            raise FileExistsError('Path already exists on the target: {}'.format(path))
+        else:
+            return path
 
-    def remove(self, path, as_root=False):
-        self.execute('rm -rf -- {}'.format(quote(path)), as_root=as_root)
+    @asyn.asyncf
+    async def remove(self, path, as_root=False):
+        await self.execute.asyn('rm -rf -- {}'.format(quote(path)), as_root=as_root)
 
     # misc
     def core_cpus(self, core):
         return [i for i, c in enumerate(self.core_names) if c == core]
 
-    def list_online_cpus(self, core=None):
+    @asyn.asyncf
+    async def list_online_cpus(self, core=None):
         path = self.path.join('/sys/devices/system/cpu/online')
-        output = self.read_value(path)
+        output = await self.read_value.asyn(path)
         all_online = ranges_to_list(output)
         if core:
             cpus = self.core_cpus(core)
@@ -996,13 +1175,16 @@ fi
         else:
             return all_online
 
-    def list_offline_cpus(self):
-        online = self.list_online_cpus()
+    @asyn.asyncf
+    async def list_offline_cpus(self):
+        online = await self.list_online_cpus.asyn()
         return [c for c in range(self.number_of_cpus)
                 if c not in online]
 
-    def getenv(self, variable):
-        return self.execute('echo ${}'.format(variable)).rstrip('\r\n')
+    @asyn.asyncf
+    async def getenv(self, variable):
+        var = await self.execute.asyn('printf "%s" ${}'.format(variable))
+        return var.rstrip('\r\n')
 
     def capture_screen(self, filepath):
         raise NotImplementedError()
@@ -1013,32 +1195,36 @@ fi
     def uninstall(self, name):
         raise NotImplementedError()
 
-    def get_installed(self, name, search_system_binaries=True):
+    @asyn.asyncf
+    async def get_installed(self, name, search_system_binaries=True):
         # Check user installed binaries first
         if self.file_exists(self.executables_directory):
-            if name in self.list_directory(self.executables_directory):
+            if name in (await self.list_directory.asyn(self.executables_directory)):
                 return self.path.join(self.executables_directory, name)
         # Fall back to binaries in PATH
         if search_system_binaries:
-            for path in self.getenv('PATH').split(self.path.pathsep):
+            PATH = await self.getenv.asyn('PATH')
+            for path in PATH.split(self.path.pathsep):
                 try:
-                    if name in self.list_directory(path):
+                    if name in (await self.list_directory.asyn(path)):
                         return self.path.join(path, name)
                 except TargetStableError:
                     pass  # directory does not exist or no executable permissions
 
     which = get_installed
 
-    def install_if_needed(self, host_path, search_system_binaries=True, timeout=None):
+    @asyn.asyncf
+    async def install_if_needed(self, host_path, search_system_binaries=True, timeout=None):
 
-        binary_path = self.get_installed(os.path.split(host_path)[1],
+        binary_path = await self.get_installed.asyn(os.path.split(host_path)[1],
                                          search_system_binaries=search_system_binaries)
         if not binary_path:
-            binary_path = self.install(host_path, timeout=timeout)
+            binary_path = await self.install.asyn(host_path, timeout=timeout)
         return binary_path
 
-    def is_installed(self, name):
-        return bool(self.get_installed(name))
+    @asyn.asyncf
+    async def is_installed(self, name):
+        return bool(await self.get_installed.asyn(name))
 
     def bin(self, name):
         return self._installed_binaries.get(name, name)
@@ -1046,30 +1232,29 @@ fi
     def has(self, modname):
         return hasattr(self, identifier(modname))
 
-    def lsmod(self):
-        lines = self.execute('lsmod').splitlines()
+    @asyn.asyncf
+    async def lsmod(self):
+        lines = (await self.execute.asyn('lsmod')).splitlines()
         entries = []
         for line in lines[1:]:  # first line is the header
             if not line.strip():
                 continue
-            parts = line.split()
-            name = parts[0]
-            size = int(parts[1])
-            use_count = int(parts[2])
-            if len(parts) > 3:
-                used_by = ''.join(parts[3:]).split(',')
+            name, size, use_count, *remainder = line.split()
+            if remainder:
+                used_by = ''.join(remainder).split(',')
             else:
                 used_by = []
             entries.append(LsmodEntry(name, size, use_count, used_by))
         return entries
 
-    def insmod(self, path):
+    @asyn.asyncf
+    async def insmod(self, path):
         target_path = self.get_workpath(os.path.basename(path))
-        self.push(path, target_path)
-        self.execute('insmod {}'.format(quote(target_path)), as_root=True)
+        await self.push.asyn(path, target_path)
+        await self.execute.asyn('insmod {}'.format(quote(target_path)), as_root=True)
 
-
-    def extract(self, path, dest=None):
+    @asyn.asyncf
+    async def extract(self, path, dest=None):
         """
         Extract the specified on-target file. The extraction method to be used
         (unzip, gunzip, bunzip2, or tar) will be based on the file's extension.
@@ -1090,27 +1275,32 @@ fi
         for ending in ['.tar.gz', '.tar.bz', '.tar.bz2',
                        '.tgz', '.tbz', '.tbz2']:
             if path.endswith(ending):
-                return self._extract_archive(path, 'tar xf {} -C {}', dest)
+                return await self._extract_archive(path, 'tar xf {} -C {}', dest)
 
         ext = self.path.splitext(path)[1]
         if ext in ['.bz', '.bz2']:
-            return self._extract_file(path, 'bunzip2 -f {}', dest)
+            return await self._extract_file(path, 'bunzip2 -f {}', dest)
         elif ext == '.gz':
-            return self._extract_file(path, 'gunzip -f {}', dest)
+            return await self._extract_file(path, 'gunzip -f {}', dest)
         elif ext == '.zip':
-            return self._extract_archive(path, 'unzip {} -d {}', dest)
+            return await self._extract_archive(path, 'unzip {} -d {}', dest)
         else:
             raise ValueError('Unknown compression format: {}'.format(ext))
 
-    def sleep(self, duration):
+    @asyn.asyncf
+    async def sleep(self, duration):
         timeout = duration + 10
-        self.execute('sleep {}'.format(duration), timeout=timeout)
+        await self.execute.asyn('sleep {}'.format(duration), timeout=timeout)
 
-    def read_tree_tar_flat(self, path, depth=1, check_exit_code=True,
+    @asyn.asyncf
+    async def read_tree_tar_flat(self, path, depth=1, check_exit_code=True,
                               decode_unicode=True, strip_null_chars=True):
+        self.async_manager.track_access(
+            asyn.PathAccess(namespace='target', path=path, mode='r')
+        )
         command = 'read_tree_tgz_b64 {} {} {}'.format(quote(path), depth,
                                                   quote(self.working_directory))
-        output = self._execute_util(command, as_root=self.is_rooted,
+        output = await self._execute_util.asyn(command, as_root=self.is_rooted,
                                     check_exit_code=check_exit_code)
 
         result = {}
@@ -1143,9 +1333,13 @@ fi
 
         return result
 
-    def read_tree_values_flat(self, path, depth=1, check_exit_code=True):
+    @asyn.asyncf
+    async def read_tree_values_flat(self, path, depth=1, check_exit_code=True):
+        self.async_manager.track_access(
+            asyn.PathAccess(namespace='target', path=path, mode='r')
+        )
         command = 'read_tree_values {} {}'.format(quote(path), depth)
-        output = self._execute_util(command, as_root=self.is_rooted,
+        output = await self._execute_util.asyn(command, as_root=self.is_rooted,
                                     check_exit_code=check_exit_code)
 
         accumulator = defaultdict(list)
@@ -1158,7 +1352,8 @@ fi
         result = {k: '\n'.join(v).strip() for k, v in accumulator.items()}
         return result
 
-    def read_tree_values(self, path, depth=1, dictcls=dict,
+    @asyn.asyncf
+    async def read_tree_values(self, path, depth=1, dictcls=dict,
                          check_exit_code=True, tar=False, decode_unicode=True,
                          strip_null_chars=True):
         """
@@ -1177,9 +1372,9 @@ fi
         :returns: a tree-like dict with the content of files as leafs
         """
         if not tar:
-            value_map = self.read_tree_values_flat(path, depth, check_exit_code)
+            value_map = await self.read_tree_values_flat.asyn(path, depth, check_exit_code)
         else:
-            value_map = self.read_tree_tar_flat(path, depth, check_exit_code,
+            value_map = await self.read_tree_tar_flat.asyn(path, depth, check_exit_code,
                                                 decode_unicode,
                                                 strip_null_chars)
         return _build_path_tree(value_map, path, self.path.sep, dictcls)
@@ -1198,42 +1393,47 @@ fi
 
     # internal methods
 
-    def _setup_shutils(self):
+    @asyn.asyncf
+    async def _setup_shutils(self):
         shutils_ifile = os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils.in')
-        tmp_dir = tempfile.mkdtemp()
-        shutils_ofile = os.path.join(tmp_dir, 'shutils')
         with open(shutils_ifile) as fh:
             lines = fh.readlines()
-        with open(shutils_ofile, 'w') as ofile:
-            for line in lines:
-                line = line.replace("__DEVLIB_BUSYBOX__", self.busybox)
-                ofile.write(line)
-        self._shutils = self.install(shutils_ofile)
-        os.remove(shutils_ofile)
-        os.rmdir(tmp_dir)
+        with tempfile.TemporaryDirectory() as folder:
+            shutils_ofile = os.path.join(folder, 'shutils')
+            with open(shutils_ofile, 'w') as ofile:
+                for line in lines:
+                    line = line.replace("__DEVLIB_BUSYBOX__", self.busybox)
+                    ofile.write(line)
+            self._shutils = await self.install.asyn(shutils_ofile)
 
+    @asyn.asyncf
     @call_conn
-    def _execute_util(self, command, timeout=None, check_exit_code=True, as_root=False):
+    async def _execute_util(self, command, timeout=None, check_exit_code=True, as_root=False):
         command = '{} sh {} {}'.format(quote(self.busybox), quote(self.shutils), command)
-        return self.conn.execute(command, timeout, check_exit_code, as_root)
+        return await self.execute.asyn(
+            command,
+            timeout=timeout,
+            check_exit_code=check_exit_code,
+            as_root=as_root
+        )
 
-    def _extract_archive(self, path, cmd, dest=None):
+    async def _extract_archive(self, path, cmd, dest=None):
         cmd = '{} ' + cmd  # busybox
         if dest:
             extracted = dest
         else:
             extracted = self.path.dirname(path)
         cmdtext = cmd.format(quote(self.busybox), quote(path), quote(extracted))
-        self.execute(cmdtext)
+        await self.execute.asyn(cmdtext)
         return extracted
 
-    def _extract_file(self, path, cmd, dest=None):
+    async def _extract_file(self, path, cmd, dest=None):
         cmd = '{} ' + cmd  # busybox
         cmdtext = cmd.format(quote(self.busybox), quote(path))
-        self.execute(cmdtext)
+        await self.execute.asyn(cmdtext)
         extracted = self.path.splitext(path)[0]
         if dest:
-            self.execute('mv -f {} {}'.format(quote(extracted), quote(dest)))
+            await self.execute.asyn('mv -f {} {}'.format(quote(extracted), quote(dest)))
             if dest.endswith('/'):
                 extracted = self.path.join(dest, self.path.basename(extracted))
             else:
@@ -1277,7 +1477,8 @@ fi
     def _resolve_paths(self):
         raise NotImplementedError()
 
-    def is_network_connected(self):
+    @asyn.asyncf
+    async def is_network_connected(self):
         self.logger.debug('Checking for internet connectivity...')
 
         timeout_s = 5
@@ -1292,7 +1493,7 @@ fi
         attempts = 5
         for _ in range(attempts):
             try:
-                self.execute(command)
+                await self.execute.asyn(command)
                 return True
             except TargetStableError as e:
                 err = str(e).lower()
@@ -1362,6 +1563,7 @@ class LinuxTarget(Target):
                  shell_prompt=DEFAULT_SHELL_PROMPT,
                  conn_cls=SshConnection,
                  is_container=False,
+                 max_async=50,
                  ):
         super(LinuxTarget, self).__init__(connection_settings=connection_settings,
                                           platform=platform,
@@ -1372,7 +1574,8 @@ class LinuxTarget(Target):
                                           load_default_modules=load_default_modules,
                                           shell_prompt=shell_prompt,
                                           conn_cls=conn_cls,
-                                          is_container=is_container)
+                                          is_container=is_container,
+                                          max_async=max_async)
 
     def wait_boot_complete(self, timeout=10):
         pass
@@ -1382,29 +1585,33 @@ class LinuxTarget(Target):
         command = 'sh -c {} 1>/dev/null 2>/dev/null &'.format(quote(command))
         return self.conn.execute(command, as_root=as_root)
 
-    def get_pids_of(self, process_name):
+    @asyn.asyncf
+    async def get_pids_of(self, process_name):
         """Returns a list of PIDs of all processes with the specified name."""
         # result should be a column of PIDs with the first row as "PID" header
-        result = self.execute('ps -C {} -o pid'.format(quote(process_name)),  # NOQA
-                              check_exit_code=False).strip().split()
+        result = await self.execute.asyn('ps -C {} -o pid'.format(quote(process_name)),  # NOQA
+                              check_exit_code=False)
+        result = result.strip().split()
         if len(result) >= 2:  # at least one row besides the header
             return list(map(int, result[1:]))
         else:
             return []
 
-    def ps(self, threads=False, **kwargs):
+    @asyn.asyncf
+    async def ps(self, threads=False, **kwargs):
         ps_flags = '-eo'
         if threads:
             ps_flags = '-eLo'
         command = 'ps {} user,pid,tid,ppid,vsize,rss,wchan,pcpu,state,fname'.format(ps_flags)
 
-        lines = iter(convert_new_lines(self.execute(command)).split('\n'))
-        next(lines)  # header
+        out = await self.execute.asyn(command)
 
         result = []
-        for line in lines:
+        lines = convert_new_lines(out).splitlines()
+        # Skip header
+        for line in lines[1:]:
             parts = re.split(r'\s+', line, maxsplit=9)
-            if parts and parts != ['']:
+            if parts:
                 result.append(PsEntry(*(parts[0:1] + list(map(int, parts[1:6])) + parts[6:])))
 
         if not kwargs:
@@ -1416,34 +1623,37 @@ class LinuxTarget(Target):
                     filtered_result.append(entry)
             return filtered_result
 
-    def list_directory(self, path, as_root=False):
-        contents = self.execute('ls -1 {}'.format(quote(path)), as_root=as_root)
+    async def _list_directory(self, path, as_root=False):
+        contents = await self.execute.asyn('ls -1 {}'.format(quote(path)), as_root=as_root)
         return [x.strip() for x in contents.split('\n') if x.strip()]
 
-    def install(self, filepath, timeout=None, with_name=None):  # pylint: disable=W0221
+    @asyn.asyncf
+    async def install(self, filepath, timeout=None, with_name=None):  # pylint: disable=W0221
         destpath = self.path.join(self.executables_directory,
                                   with_name and with_name or self.path.basename(filepath))
-        self.push(filepath, destpath, timeout=timeout)
-        self.execute('chmod a+x {}'.format(quote(destpath)), timeout=timeout)
+        await self.push.asyn(filepath, destpath, timeout=timeout)
+        await self.execute.asyn('chmod a+x {}'.format(quote(destpath)), timeout=timeout)
         self._installed_binaries[self.path.basename(destpath)] = destpath
         return destpath
 
-    def uninstall(self, name):
+    @asyn.asyncf
+    async def uninstall(self, name):
         path = self.path.join(self.executables_directory, name)
-        self.remove(path)
+        await self.remove.asyn(path)
 
-    def capture_screen(self, filepath):
-        if not self.is_installed('scrot'):
+    @asyn.asyncf
+    async def capture_screen(self, filepath):
+        if not (await self.is_installed.asyn('scrot')):
             self.logger.debug('Could not take screenshot as scrot is not installed.')
             return
         try:
 
-            tmpfile = self.tempfile()
+            tmpfile = await self.tempfile.asyn()
             cmd = 'DISPLAY=:0.0 scrot {} && {} date -u -Iseconds'
-            ts = self.execute(cmd.format(quote(tmpfile), quote(self.busybox))).strip()
+            ts = (await self.execute.asyn(cmd.format(quote(tmpfile), quote(self.busybox)))).strip()
             filepath = filepath.format(ts=ts)
-            self.pull(tmpfile, filepath)
-            self.remove(tmpfile)
+            await self.pull.asyn(tmpfile, filepath)
+            await self.remove.asyn(tmpfile)
         except TargetStableError as e:
             if "Can't open X dispay." not in e.message:
                 raise e
@@ -1560,6 +1770,7 @@ class AndroidTarget(Target):
                  conn_cls=AdbConnection,
                  package_data_directory="/data/data",
                  is_container=False,
+                 max_async=50,
                  ):
         super(AndroidTarget, self).__init__(connection_settings=connection_settings,
                                             platform=platform,
@@ -1570,7 +1781,8 @@ class AndroidTarget(Target):
                                             load_default_modules=load_default_modules,
                                             shell_prompt=shell_prompt,
                                             conn_cls=conn_cls,
-                                            is_container=is_container)
+                                            is_container=is_container,
+                                            max_async=max_async)
         self.package_data_directory = package_data_directory
         self._init_logcat_lock()
 
@@ -1589,31 +1801,39 @@ class AndroidTarget(Target):
         self.__dict__.update(dct)
         self._init_logcat_lock()
 
-    def reset(self, fastboot=False):  # pylint: disable=arguments-differ
+    @asyn.asyncf
+    async def reset(self, fastboot=False):  # pylint: disable=arguments-differ
         try:
-            self.execute('reboot {}'.format(fastboot and 'fastboot' or ''),
+            await self.execute.asyn('reboot {}'.format(fastboot and 'fastboot' or ''),
                          as_root=self.needs_su, timeout=2)
         except (DevlibTransientError, subprocess.CalledProcessError):
             # on some targets "reboot" doesn't return gracefully
             pass
         self.conn.connected_as_root = None
 
-    def wait_boot_complete(self, timeout=10):
+    @asyn.asyncf
+    async def wait_boot_complete(self, timeout=10):
         start = time.time()
-        boot_completed = boolean(self.getprop('sys.boot_completed'))
+        boot_completed = boolean(await self.getprop.asyn('sys.boot_completed'))
         while not boot_completed and timeout >= time.time() - start:
             time.sleep(5)
-            boot_completed = boolean(self.getprop('sys.boot_completed'))
+            boot_completed = boolean(await self.getprop.asyn('sys.boot_completed'))
         if not boot_completed:
             # Raise a TargetStableError as this usually happens because of
             # an issue with Android more than a timeout that is too small.
             raise TargetStableError('Connected but Android did not fully boot.')
 
-    def connect(self, timeout=30, check_boot_completed=True):  # pylint: disable=arguments-differ
+    @asyn.asyncf
+    async def connect(self, timeout=30, check_boot_completed=True, max_async=50):  # pylint: disable=arguments-differ
         device = self.connection_settings.get('device')
-        super(AndroidTarget, self).connect(timeout=timeout, check_boot_completed=check_boot_completed)
+        await super(AndroidTarget, self).connect.asyn(
+            timeout=timeout,
+            check_boot_completed=check_boot_completed,
+            max_async=max_async,
+        )
 
-    def kick_off(self, command, as_root=None):
+    @asyn.asyncf
+    async def kick_off(self, command, as_root=None):
         """
         Like execute but closes adb session and returns immediately, leaving the command running on the
         device (this is different from execute(background=True) which keeps adb connection open and returns
@@ -1623,11 +1843,12 @@ class AndroidTarget(Target):
             as_root = self.needs_su
         try:
             command = 'cd {} && {} nohup {} &'.format(quote(self.working_directory), quote(self.busybox), command)
-            self.execute(command, timeout=1, as_root=as_root)
+            await self.execute.asyn(command, timeout=1, as_root=as_root)
         except TimeoutError:
             pass
 
-    def __setup_list_directory(self):
+    @asyn.asyncf
+    async def __setup_list_directory(self):
         # In at least Linaro Android 16.09 (which was their first Android 7 release) and maybe
         # AOSP 7.0 as well, the ls command was changed.
         # Previous versions default to a single column listing, which is nice and easy to parse.
@@ -1636,44 +1857,48 @@ class AndroidTarget(Target):
         # so we try the new version, and if it fails we use the old version.
         self.ls_command = 'ls -1'
         try:
-            self.execute('ls -1 {}'.format(quote(self.working_directory)), as_root=False)
+            await self.execute.asyn('ls -1 {}'.format(quote(self.working_directory)), as_root=False)
         except TargetStableError:
             self.ls_command = 'ls'
 
-    def list_directory(self, path, as_root=False):
+    async def _list_directory(self, path, as_root=False):
         if self.ls_command == '':
-            self.__setup_list_directory()
-        contents = self.execute('{} {}'.format(self.ls_command, quote(path)), as_root=as_root)
+            await self.__setup_list_directory.asyn()
+        contents = await self.execute.asyn('{} {}'.format(self.ls_command, quote(path)), as_root=as_root)
         return [x.strip() for x in contents.split('\n') if x.strip()]
 
-    def install(self, filepath, timeout=None, with_name=None):  # pylint: disable=W0221
+    @asyn.asyncf
+    async def install(self, filepath, timeout=None, with_name=None):  # pylint: disable=W0221
         ext = os.path.splitext(filepath)[1].lower()
         if ext == '.apk':
-            return self.install_apk(filepath, timeout)
+            return await self.install_apk.asyn(filepath, timeout)
         else:
-            return self.install_executable(filepath, with_name, timeout)
+            return await self.install_executable.asyn(filepath, with_name, timeout)
 
-    def uninstall(self, name):
-        if self.package_is_installed(name):
-            self.uninstall_package(name)
+    @asyn.asyncf
+    async def uninstall(self, name):
+        if await self.package_is_installed.asyn(name):
+            await self.uninstall_package.asyn(name)
         else:
-            self.uninstall_executable(name)
+            await self.uninstall_executable.asyn(name)
 
-    def get_pids_of(self, process_name):
+    @asyn.asyncf
+    async def get_pids_of(self, process_name):
         result = []
         search_term = process_name[-15:]
-        for entry in self.ps():
+        for entry in await self.ps.asyn():
             if search_term in entry.name:
                 result.append(entry.pid)
         return result
 
-    def ps(self, threads=False, **kwargs):
+    @asyn.asyncf
+    async def ps(self, threads=False, **kwargs):
         maxsplit = 9 if threads else 8
         command = 'ps'
         if threads:
             command = 'ps -AT'
 
-        lines = iter(convert_new_lines(self.execute(command)).split('\n'))
+        lines = iter(convert_new_lines(await self.execute.asyn(command)).split('\n'))
         next(lines)  # header
         result = []
         for line in lines:
@@ -1702,37 +1927,42 @@ class AndroidTarget(Target):
                     filtered_result.append(entry)
             return filtered_result
 
-    def capture_screen(self, filepath):
+    @asyn.asyncf
+    async def capture_screen(self, filepath):
         on_device_file = self.path.join(self.working_directory, 'screen_capture.png')
         cmd = 'screencap -p  {} && {} date -u -Iseconds'
-        ts = self.execute(cmd.format(quote(on_device_file), quote(self.busybox))).strip()
+        ts = (await self.execute.asyn(cmd.format(quote(on_device_file), quote(self.busybox)))).strip()
         filepath = filepath.format(ts=ts)
-        self.pull(on_device_file, filepath)
-        self.remove(on_device_file)
+        await self.pull.asyn(on_device_file, filepath)
+        await self.remove.asyn(on_device_file)
 
     # Android-specific
 
-    def input_tap(self, x, y):
+    @asyn.asyncf
+    async def input_tap(self, x, y):
         command = 'input tap {} {}'
-        self.execute(command.format(x, y))
+        await self.execute.asyn(command.format(x, y))
 
-    def input_tap_pct(self, x, y):
+    @asyn.asyncf
+    async def input_tap_pct(self, x, y):
         width, height = self.screen_resolution
 
         x = (x * width) // 100
         y = (y * height) // 100
 
-        self.input_tap(x, y)
+        await self.input_tap.asyn(x, y)
 
-    def input_swipe(self, x1, y1, x2, y2):
+    @asyn.asyncf
+    async def input_swipe(self, x1, y1, x2, y2):
         """
         Issue a swipe on the screen from (x1, y1) to (x2, y2)
         Uses absolute screen positions
         """
         command = 'input swipe {} {} {} {}'
-        self.execute(command.format(x1, y1, x2, y2))
+        await self.execute.asyn(command.format(x1, y1, x2, y2))
 
-    def input_swipe_pct(self, x1, y1, x2, y2):
+    @asyn.asyncf
+    async def input_swipe_pct(self, x1, y1, x2, y2):
         """
         Issue a swipe on the screen from (x1, y1) to (x2, y2)
         Uses percent-based positions
@@ -1744,38 +1974,43 @@ class AndroidTarget(Target):
         x2 = (x2 * width) // 100
         y2 = (y2 * height) // 100
 
-        self.input_swipe(x1, y1, x2, y2)
+        await self.input_swipe.asyn(x1, y1, x2, y2)
 
-    def swipe_to_unlock(self, direction="diagonal"):
+    @asyn.asyncf
+    async def swipe_to_unlock(self, direction="diagonal"):
         width, height = self.screen_resolution
         if direction == "diagonal":
             start = 100
             stop = width - start
             swipe_height = height * 2 // 3
-            self.input_swipe(start, swipe_height, stop, 0)
+            await self.input_swipe.asyn(start, swipe_height, stop, 0)
         elif direction == "horizontal":
             swipe_height = height * 2 // 3
             start = 100
             stop = width - start
-            self.input_swipe(start, swipe_height, stop, swipe_height)
+            await self.input_swipe.asyn(start, swipe_height, stop, swipe_height)
         elif direction == "vertical":
             swipe_middle = width / 2
             swipe_height = height * 2 // 3
-            self.input_swipe(swipe_middle, swipe_height, swipe_middle, 0)
+            await self.input_swipe.asyn(swipe_middle, swipe_height, swipe_middle, 0)
         else:
             raise TargetStableError("Invalid swipe direction: {}".format(direction))
 
-    def getprop(self, prop=None):
-        props = AndroidProperties(self.execute('getprop'))
+    @asyn.asyncf
+    async def getprop(self, prop=None):
+        props = AndroidProperties(await self.execute.asyn('getprop'))
         if prop:
             return props[prop]
         return props
 
-    def capture_ui_hierarchy(self, filepath):
+    @asyn.asyncf
+    async def capture_ui_hierarchy(self, filepath):
         on_target_file = self.get_workpath('screen_capture.xml')
-        self.execute('uiautomator dump {}'.format(on_target_file))
-        self.pull(on_target_file, filepath)
-        self.remove(on_target_file)
+        try:
+            await self.execute.asyn('uiautomator dump {}'.format(on_target_file))
+            await self.pull.asyn(on_target_file, filepath)
+        finally:
+            await self.remove.asyn(on_target_file)
 
         parsed_xml = xml.dom.minidom.parse(filepath)
         with open(filepath, 'w') as f:
@@ -1784,26 +2019,31 @@ class AndroidTarget(Target):
             else:
                 f.write(parsed_xml.toprettyxml().encode('utf-8'))
 
-    def is_installed(self, name):
-        return super(AndroidTarget, self).is_installed(name) or self.package_is_installed(name)
+    @asyn.asyncf
+    async def is_installed(self, name):
+        return (await super(AndroidTarget, self).is_installed.asyn(name)) or (await self.package_is_installed.asyn(name))
 
-    def package_is_installed(self, package_name):
-        return package_name in self.list_packages()
+    @asyn.asyncf
+    async def package_is_installed(self, package_name):
+        return package_name in (await self.list_packages.asyn())
 
-    def list_packages(self):
-        output = self.execute('pm list packages')
+    @asyn.asyncf
+    async def list_packages(self):
+        output = await self.execute.asyn('pm list packages')
         output = output.replace('package:', '')
         return output.split()
 
-    def get_package_version(self, package):
-        output = self.execute('dumpsys package {}'.format(quote(package)))
+    @asyn.asyncf
+    async def get_package_version(self, package):
+        output = await self.execute.asyn('dumpsys package {}'.format(quote(package)))
         for line in convert_new_lines(output).split('\n'):
             if 'versionName' in line:
                 return line.split('=', 1)[1]
         return None
 
-    def get_package_info(self, package):
-        output = self.execute('pm list packages -f {}'.format(quote(package)))
+    @asyn.asyncf
+    async def get_package_info(self, package):
+        output = await self.execute.asyn('pm list packages -f {}'.format(quote(package)))
         for entry in output.strip().split('\n'):
             rest, entry_package = entry.rsplit('=', 1)
             if entry_package != package:
@@ -1811,13 +2051,15 @@ class AndroidTarget(Target):
             _, apk_path = rest.split(':')
             return installed_package_info(apk_path, entry_package)
 
-    def get_sdk_version(self):
+    @asyn.asyncf
+    async def get_sdk_version(self):
         try:
-            return int(self.getprop('ro.build.version.sdk'))
+            return int(await self.getprop.asyn('ro.build.version.sdk'))
         except (ValueError, TypeError):
             return None
 
-    def install_apk(self, filepath, timeout=None, replace=False, allow_downgrade=False):  # pylint: disable=W0221
+    @asyn.asyncf
+    async def install_apk(self, filepath, timeout=None, replace=False, allow_downgrade=False):  # pylint: disable=W0221
         ext = os.path.splitext(filepath)[1].lower()
         if ext == '.apk':
             flags = []
@@ -1833,16 +2075,17 @@ class AndroidTarget(Target):
                                    timeout=timeout, adb_server=self.adb_server)
             else:
                 dev_path = self.get_workpath(filepath.rsplit(os.path.sep, 1)[-1])
-                self.push(quote(filepath), dev_path, timeout=timeout)
-                result = self.execute("pm install {} {}".format(' '.join(flags), quote(dev_path)), timeout=timeout)
-                self.remove(dev_path)
+                await self.push.asyn(quote(filepath), dev_path, timeout=timeout)
+                result = await self.execute.asyn("pm install {} {}".format(' '.join(flags), quote(dev_path)), timeout=timeout)
+                await self.remove.asyn(dev_path)
                 return result
         else:
             raise TargetStableError('Can\'t install {}: unsupported format.'.format(filepath))
 
-    def grant_package_permission(self, package, permission):
+    @asyn.asyncf
+    async def grant_package_permission(self, package, permission):
         try:
-            return self.execute('pm grant {} {}'.format(quote(package), quote(permission)))
+            return await self.execute.asyn('pm grant {} {}'.format(quote(package), quote(permission)))
         except TargetStableError as e:
             if 'is not a changeable permission type' in e.message:
                 pass # Ignore if unchangeable
@@ -1855,61 +2098,68 @@ class AndroidTarget(Target):
             else:
                 raise
 
-    def refresh_files(self, file_list):
+    @asyn.asyncf
+    async def refresh_files(self, file_list):
         """
         Depending on the android version and root status, determine the
         appropriate method of forcing a re-index of the mediaserver cache for a given
         list of files.
         """
-        if self.is_rooted or self.get_sdk_version() < 24:  # MM and below
+        if self.is_rooted or (await self.get_sdk_version.asyn()) < 24:  # MM and below
             common_path = commonprefix(file_list, sep=self.path.sep)
-            self.broadcast_media_mounted(common_path, self.is_rooted)
+            await self.broadcast_media_mounted.asyn(common_path, self.is_rooted)
         else:
             for f in file_list:
-                self.broadcast_media_scan_file(f)
+                await self.broadcast_media_scan_file.asyn(f)
 
-    def broadcast_media_scan_file(self, filepath):
+    @asyn.asyncf
+    async def broadcast_media_scan_file(self, filepath):
         """
         Force a re-index of the mediaserver cache for the specified file.
         """
         command = 'am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d {}'
-        self.execute(command.format(quote('file://' + filepath)))
+        await self.execute.asyn(command.format(quote('file://' + filepath)))
 
-    def broadcast_media_mounted(self, dirpath, as_root=False):
+    @asyn.asyncf
+    async def broadcast_media_mounted(self, dirpath, as_root=False):
         """
         Force a re-index of the mediaserver cache for the specified directory.
         """
         command = 'am broadcast -a  android.intent.action.MEDIA_MOUNTED -d {} '\
                   '-n com.android.providers.media/.MediaScannerReceiver'
-        self.execute(command.format(quote('file://'+dirpath)), as_root=as_root)
+        await self.execute.asyn(command.format(quote('file://'+dirpath)), as_root=as_root)
 
-    def install_executable(self, filepath, with_name=None, timeout=None):
+    @asyn.asyncf
+    async def install_executable(self, filepath, with_name=None, timeout=None):
         self._ensure_executables_directory_is_writable()
         executable_name = with_name or os.path.basename(filepath)
         on_device_file = self.path.join(self.working_directory, executable_name)
         on_device_executable = self.path.join(self.executables_directory, executable_name)
-        self.push(filepath, on_device_file, timeout=timeout)
+        await self.push.asyn(filepath, on_device_file, timeout=timeout)
         if on_device_file != on_device_executable:
-            self.execute('cp {} {}'.format(quote(on_device_file), quote(on_device_executable)),
+            await self.execute.asyn('cp {} {}'.format(quote(on_device_file), quote(on_device_executable)),
                          as_root=self.needs_su, timeout=timeout)
-            self.remove(on_device_file, as_root=self.needs_su)
-        self.execute("chmod 0777 {}".format(quote(on_device_executable)), as_root=self.needs_su)
+            await self.remove.asyn(on_device_file, as_root=self.needs_su)
+        await self.execute.asyn("chmod 0777 {}".format(quote(on_device_executable)), as_root=self.needs_su)
         self._installed_binaries[executable_name] = on_device_executable
         return on_device_executable
 
-    def uninstall_package(self, package):
+    @asyn.asyncf
+    async def uninstall_package(self, package):
         if isinstance(self.conn, AdbConnection):
             adb_command(self.adb_name, "uninstall {}".format(quote(package)), timeout=30,
                         adb_server=self.adb_server)
         else:
-            self.execute("pm uninstall {}".format(quote(package)), timeout=30)
+            await self.execute.asyn("pm uninstall {}".format(quote(package)), timeout=30)
 
-    def uninstall_executable(self, executable_name):
+    @asyn.asyncf
+    async def uninstall_executable(self, executable_name):
         on_device_executable = self.path.join(self.executables_directory, executable_name)
         self._ensure_executables_directory_is_writable()
-        self.remove(on_device_executable, as_root=self.needs_su)
+        await self.remove.asyn(on_device_executable, as_root=self.needs_su)
 
-    def dump_logcat(self, filepath, filter=None, logcat_format=None, append=False,
+    @asyn.asyncf
+    async def dump_logcat(self, filepath, filter=None, logcat_format=None, append=False,
                     timeout=60):  # pylint: disable=redefined-builtin
         op = '>>' if append else '>'
         filtstr = ' -s {}'.format(quote(filter)) if filter else ''
@@ -1921,18 +2171,19 @@ class AndroidTarget(Target):
         else:
             dev_path = self.get_workpath('logcat')
             command = 'logcat {} {} {}'.format(logcat_opts, op, quote(dev_path))
-            self.execute(command, timeout=timeout)
-            self.pull(dev_path, filepath)
-            self.remove(dev_path)
+            await self.execute.asyn(command, timeout=timeout)
+            await self.pull.asyn(dev_path, filepath)
+            await self.remove.asyn(dev_path)
 
-    def clear_logcat(self):
+    @asyn.asyncf
+    async def clear_logcat(self):
         locked = self.clear_logcat_lock.acquire(blocking=False)
         if locked:
             try:
                 if isinstance(self.conn, AdbConnection):
                     adb_command(self.adb_name, 'logcat -c', timeout=30, adb_server=self.adb_server)
                 else:
-                    self.execute('logcat -c', timeout=30)
+                    await self.execute.asyn('logcat -c', timeout=30)
             finally:
                 self.clear_logcat_lock.release()
 
@@ -1947,8 +2198,9 @@ class AndroidTarget(Target):
     def reboot_bootloader(self, timeout=30):
         self.conn.reboot_bootloader()
 
-    def is_screen_on(self):
-        output = self.execute('dumpsys power')
+    @asyn.asyncf
+    async def is_screen_on(self):
+        output = await self.execute.asyn('dumpsys power')
         match = ANDROID_SCREEN_STATE_REGEX.search(output)
         if match:
             if 'DOZE' in match.group(1).upper():
@@ -1961,121 +2213,145 @@ class AndroidTarget(Target):
         else:
             raise TargetStableError('Could not establish screen state.')
 
-    def ensure_screen_is_on(self, verify=True):
-        if not self.is_screen_on():
+    @asyn.asyncf
+    async def ensure_screen_is_on(self, verify=True):
+        if not await self.is_screen_on.asyn():
             self.execute('input keyevent 26')
-        if verify and not self.is_screen_on():
+        if verify and not await self.is_screen_on.asyn():
              raise TargetStableError('Display cannot be turned on.')
 
-    def ensure_screen_is_on_and_stays(self, verify=True, mode=7):
-        self.ensure_screen_is_on(verify=verify)
-        self.set_stay_on_mode(mode)
+    @asyn.asyncf
+    async def ensure_screen_is_on_and_stays(self, verify=True, mode=7):
+        await self.ensure_screen_is_on.asyn(verify=verify)
+        await self.set_stay_on_mode.asyn(mode)
 
-    def ensure_screen_is_off(self, verify=True):
+    @asyn.asyncf
+    async def ensure_screen_is_off(self, verify=True):
         # Allow 2 attempts to help with cases of ambient display modes
         # where the first attempt will switch the display fully on.
         for _ in range(2):
-            if self.is_screen_on():
-                self.execute('input keyevent 26')
+            if await self.is_screen_on.asyn():
+                await self.execute.asyn('input keyevent 26')
                 time.sleep(0.5)
-        if verify and self.is_screen_on():
+        if verify and await self.is_screen_on.asyn():
              msg = 'Display cannot be turned off. Is always on display enabled?'
              raise TargetStableError(msg)
 
-    def set_auto_brightness(self, auto_brightness):
+    @asyn.asyncf
+    async def set_auto_brightness(self, auto_brightness):
         cmd = 'settings put system screen_brightness_mode {}'
-        self.execute(cmd.format(int(boolean(auto_brightness))))
+        await self.execute.asyn(cmd.format(int(boolean(auto_brightness))))
 
-    def get_auto_brightness(self):
+    @asyn.asyncf
+    async def get_auto_brightness(self):
         cmd = 'settings get system screen_brightness_mode'
-        return boolean(self.execute(cmd).strip())
+        return boolean((await self.execute.asyn(cmd)).strip())
 
-    def set_brightness(self, value):
+    @asyn.asyncf
+    async def set_brightness(self, value):
         if not 0 <= value <= 255:
             msg = 'Invalid brightness "{}"; Must be between 0 and 255'
             raise ValueError(msg.format(value))
-        self.set_auto_brightness(False)
+        await self.set_auto_brightness.asyn(False)
         cmd = 'settings put system screen_brightness {}'
-        self.execute(cmd.format(int(value)))
+        await self.execute.asyn(cmd.format(int(value)))
 
-    def get_brightness(self):
+    @asyn.asyncf
+    async def get_brightness(self):
         cmd = 'settings get system screen_brightness'
-        return integer(self.execute(cmd).strip())
+        return integer((await self.execute.asyn(cmd)).strip())
 
-    def set_screen_timeout(self, timeout_ms):
+    @asyn.asyncf
+    async def set_screen_timeout(self, timeout_ms):
         cmd = 'settings put system screen_off_timeout {}'
-        self.execute(cmd.format(int(timeout_ms)))
+        await self.execute.asyn(cmd.format(int(timeout_ms)))
 
-    def get_screen_timeout(self):
+    @asyn.asyncf
+    async def get_screen_timeout(self):
         cmd = 'settings get system screen_off_timeout'
-        return int(self.execute(cmd).strip())
+        return int((await self.execute.asyn(cmd)).strip())
 
-    def get_airplane_mode(self):
+    @asyn.asyncf
+    async def get_airplane_mode(self):
         cmd = 'settings get global airplane_mode_on'
-        return boolean(self.execute(cmd).strip())
+        return boolean((await self.execute.asyn(cmd)).strip())
 
-    def get_stay_on_mode(self):
+    @asyn.asyncf
+    async def get_stay_on_mode(self):
         cmd = 'settings get global stay_on_while_plugged_in'
-        return int(self.execute(cmd).strip())
+        return int((await self.execute.asyn(cmd)).strip())
 
-    def set_airplane_mode(self, mode):
-        root_required = self.get_sdk_version() > 23
+    @asyn.asyncf
+    async def set_airplane_mode(self, mode):
+        root_required = await self.get_sdk_version.asyn() > 23
         if root_required and not self.is_rooted:
             raise TargetStableError('Root is required to toggle airplane mode on Android 7+')
         mode = int(boolean(mode))
         cmd = 'settings put global airplane_mode_on {}'
-        self.execute(cmd.format(mode))
-        self.execute('am broadcast -a android.intent.action.AIRPLANE_MODE '
+        await self.execute.asyn(cmd.format(mode))
+        await self.execute.asyn('am broadcast -a android.intent.action.AIRPLANE_MODE '
                      '--ez state {}'.format(mode), as_root=root_required)
 
-    def get_auto_rotation(self):
+    @asyn.asyncf
+    async def get_auto_rotation(self):
         cmd = 'settings get system accelerometer_rotation'
-        return boolean(self.execute(cmd).strip())
+        return boolean((await self.execute.asyn(cmd)).strip())
 
-    def set_auto_rotation(self, autorotate):
+    @asyn.asyncf
+    async def set_auto_rotation(self, autorotate):
         cmd = 'settings put system accelerometer_rotation {}'
-        self.execute(cmd.format(int(boolean(autorotate))))
+        await self.execute.asyn(cmd.format(int(boolean(autorotate))))
 
-    def set_natural_rotation(self):
-        self.set_rotation(0)
+    @asyn.asyncf
+    async def set_natural_rotation(self):
+        await self.set_rotation.asyn(0)
 
-    def set_left_rotation(self):
-        self.set_rotation(1)
+    @asyn.asyncf
+    async def set_left_rotation(self):
+        await self.set_rotation.asyn(1)
 
-    def set_inverted_rotation(self):
-        self.set_rotation(2)
+    @asyn.asyncf
+    async def set_inverted_rotation(self):
+        await self.set_rotation.asyn(2)
 
-    def set_right_rotation(self):
-        self.set_rotation(3)
+    @asyn.asyncf
+    async def set_right_rotation(self):
+        await self.set_rotation.asyn(3)
 
-    def get_rotation(self):
-        output = self.execute('dumpsys input')
+    @asyn.asyncf
+    async def get_rotation(self):
+        output = await self.execute.asyn('dumpsys input')
         match = ANDROID_SCREEN_ROTATION_REGEX.search(output)
         if match:
             return int(match.group('rotation'))
         else:
             return None
 
-    def set_rotation(self, rotation):
+    @asyn.asyncf
+    async def set_rotation(self, rotation):
         if not 0 <= rotation <= 3:
             raise ValueError('Rotation value must be between 0 and 3')
-        self.set_auto_rotation(False)
+        await self.set_auto_rotation.asyn(False)
         cmd = 'settings put system user_rotation {}'
-        self.execute(cmd.format(rotation))
+        await self.execute.asyn(cmd.format(rotation))
 
-    def set_stay_on_never(self):
-        self.set_stay_on_mode(0)
+    @asyn.asyncf
+    async def set_stay_on_never(self):
+        await self.set_stay_on_mode.asyn(0)
 
-    def set_stay_on_while_powered(self):
-        self.set_stay_on_mode(7)
+    @asyn.asyncf
+    async def set_stay_on_while_powered(self):
+        await self.set_stay_on_mode.asyn(7)
 
-    def set_stay_on_mode(self, mode):
+    @asyn.asyncf
+    async def set_stay_on_mode(self, mode):
         if not 0 <= mode <= 7:
             raise ValueError('Screen stay on mode must be between 0 and 7')
         cmd = 'settings put global stay_on_while_plugged_in {}'
-        self.execute(cmd.format(mode))
+        await self.execute.asyn(cmd.format(mode))
 
-    def open_url(self, url, force_new=False):
+    @asyn.asyncf
+    async def open_url(self, url, force_new=False):
         """
         Start a view activity by specifying an URL
 
@@ -2092,10 +2368,11 @@ class AndroidTarget(Target):
             cmd = cmd + ' -f {}'.format(INTENT_FLAGS['ACTIVITY_NEW_TASK'] |
                                         INTENT_FLAGS['ACTIVITY_CLEAR_TASK'])
 
-        self.execute(cmd.format(quote(url)))
+        await self.execute.asyn(cmd.format(quote(url)))
 
-    def homescreen(self):
-        self.execute('am start -a android.intent.action.MAIN -c android.intent.category.HOME')
+    @asyn.asyncf
+    async def homescreen(self):
+        await self.execute.asyn('am start -a android.intent.action.MAIN -c android.intent.category.HOME')
 
     def _resolve_paths(self):
         if self.working_directory is None:
@@ -2104,15 +2381,16 @@ class AndroidTarget(Target):
         if self.executables_directory is None:
             self.executables_directory = '/data/local/tmp/bin'
 
-    def _ensure_executables_directory_is_writable(self):
+    @asyn.asyncf
+    async def _ensure_executables_directory_is_writable(self):
         matched = []
-        for entry in self.list_file_systems():
+        for entry in await self.list_file_systems.asyn():
             if self.executables_directory.rstrip('/').startswith(entry.mount_point):
                 matched.append(entry)
         if matched:
             entry = sorted(matched, key=lambda x: len(x.mount_point))[-1]
             if 'rw' not in entry.options:
-                self.execute('mount -o rw,remount {} {}'.format(quote(entry.device),
+                await self.execute.asyn('mount -o rw,remount {} {}'.format(quote(entry.device),
                                                                 quote(entry.mount_point)),
                              as_root=True)
         else:
@@ -2565,6 +2843,7 @@ class LocalLinuxTarget(LinuxTarget):
                  shell_prompt=DEFAULT_SHELL_PROMPT,
                  conn_cls=LocalConnection,
                  is_container=False,
+                 max_async=50,
                  ):
         super(LocalLinuxTarget, self).__init__(connection_settings=connection_settings,
                                                platform=platform,
@@ -2575,7 +2854,8 @@ class LocalLinuxTarget(LinuxTarget):
                                                load_default_modules=load_default_modules,
                                                shell_prompt=shell_prompt,
                                                conn_cls=conn_cls,
-                                               is_container=is_container)
+                                               is_container=is_container,
+                                               max_async=max_async)
 
     def _resolve_paths(self):
         if self.working_directory is None:
@@ -2648,7 +2928,8 @@ class ChromeOsTarget(LinuxTarget):
                  load_default_modules=True,
                  shell_prompt=DEFAULT_SHELL_PROMPT,
                  package_data_directory="/data/data",
-                 is_container=False
+                 is_container=False,
+                 max_async=50,
                  ):
 
         self.supports_android = None
@@ -2674,7 +2955,8 @@ class ChromeOsTarget(LinuxTarget):
                                              load_default_modules=load_default_modules,
                                              shell_prompt=shell_prompt,
                                              conn_cls=SshConnection,
-                                             is_container=is_container)
+                                             is_container=is_container,
+                                             max_async=max_async)
 
         # We can't determine if the target supports android until connected to the linux host so
         # create unconditionally.
@@ -2716,8 +2998,12 @@ class ChromeOsTarget(LinuxTarget):
             else:
                 raise
 
-    def connect(self, timeout=30, check_boot_completed=True):
-        super(ChromeOsTarget, self).connect(timeout, check_boot_completed)
+    def connect(self, timeout=30, check_boot_completed=True, max_async=50):
+        super(ChromeOsTarget, self).connect(
+            timeout=timeout,
+            check_boot_completed=check_boot_completed,
+            max_async=max_async,
+        )
 
         # Assume device supports android apps if container directory is present
         if self.supports_android is None:
