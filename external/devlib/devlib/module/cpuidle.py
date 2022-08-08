@@ -22,6 +22,7 @@ from devlib.module import Module
 from devlib.exception import TargetStableError
 from devlib.utils.types import integer, boolean
 from devlib.utils.misc import memoized
+import devlib.utils.asyn as asyn
 
 
 class CpuidleState(object):
@@ -59,19 +60,23 @@ class CpuidleState(object):
         self.id = self.target.path.basename(self.path)
         self.cpu = self.target.path.basename(self.target.path.dirname(path))
 
-    def enable(self):
-        self.set('disable', 0)
+    @asyn.asyncf
+    async def enable(self):
+        await self.set.asyn('disable', 0)
 
-    def disable(self):
-        self.set('disable', 1)
+    @asyn.asyncf
+    async def disable(self):
+        await self.set.asyn('disable', 1)
 
-    def get(self, prop):
+    @asyn.asyncf
+    async def get(self, prop):
         property_path = self.target.path.join(self.path, prop)
-        return self.target.read_value(property_path)
+        return await self.target.read_value.asyn(property_path)
 
-    def set(self, prop, value):
+    @asyn.asyncf
+    async def set(self, prop, value):
         property_path = self.target.path.join(self.path, prop)
-        self.target.write_value(property_path, value)
+        await self.target.write_value.asyn(property_path, value)
 
     def __eq__(self, other):
         if isinstance(other, CpuidleState):
@@ -96,8 +101,9 @@ class Cpuidle(Module):
     root_path = '/sys/devices/system/cpu/cpuidle'
 
     @staticmethod
-    def probe(target):
-        return target.file_exists(Cpuidle.root_path)
+    @asyn.asyncf
+    async def probe(target):
+        return await target.file_exists.asyn(Cpuidle.root_path)
 
     def __init__(self, target):
         super(Cpuidle, self).__init__(target)
@@ -148,29 +154,39 @@ class Cpuidle(Module):
                     return s
             raise ValueError('Cpuidle state {} does not exist'.format(state))
 
-    def enable(self, state, cpu=0):
-        self.get_state(state, cpu).enable()
+    @asyn.asyncf
+    async def enable(self, state, cpu=0):
+        await self.get_state(state, cpu).enable.asyn()
 
-    def disable(self, state, cpu=0):
-        self.get_state(state, cpu).disable()
+    @asyn.asyncf
+    async def disable(self, state, cpu=0):
+        await self.get_state(state, cpu).disable.asyn()
 
-    def enable_all(self, cpu=0):
-        for state in self.get_states(cpu):
-            state.enable()
+    @asyn.asyncf
+    async def enable_all(self, cpu=0):
+        await self.target.async_manager.concurrently(
+            state.enable.asyn()
+            for state in self.get_states(cpu)
+        )
 
-    def disable_all(self, cpu=0):
-        for state in self.get_states(cpu):
-            state.disable()
+    @asyn.asyncf
+    async def disable_all(self, cpu=0):
+        await self.target.async_manager.concurrently(
+            state.disable.asyn()
+            for state in self.get_states(cpu)
+        )
 
-    def perturb_cpus(self):
+    @asyn.asyncf
+    async def perturb_cpus(self):
         """
         Momentarily wake each CPU. Ensures cpu_idle events in trace file.
         """
         # pylint: disable=protected-access
-        self.target._execute_util('cpuidle_wake_all_cpus')
+        await self.target._execute_util.asyn('cpuidle_wake_all_cpus')
 
-    def get_driver(self):
-        return self.target.read_value(self.target.path.join(self.root_path, 'current_driver'))
+    @asyn.asyncf
+    async def get_driver(self):
+        return await self.target.read_value.asyn(self.target.path.join(self.root_path, 'current_driver'))
 
     @memoized
     def list_governors(self):
@@ -179,12 +195,13 @@ class Cpuidle(Module):
         output = self.target.read_value(sysfile)
         return output.strip().split()
 
-    def get_governor(self):
+    @asyn.asyncf
+    async def get_governor(self):
         """Returns the currently selected idle governor."""
         path = self.target.path.join(self.root_path, 'current_governor_ro')
-        if not self.target.file_exists(path):
+        if not await self.target.file_exists.asyn(path):
             path = self.target.path.join(self.root_path, 'current_governor')
-        return self.target.read_value(path)
+        return await self.target.read_value.asyn(path)
 
     def set_governor(self, governor):
         """
