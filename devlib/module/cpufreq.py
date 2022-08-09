@@ -163,6 +163,7 @@ class CpufreqModule(Module):
                 set_per_cpu_tunables(cpu)
                 for cpu in domains
             )
+            per_cpu_tunables.__qualname__ = 'CpufreqModule.use_governor.<locals>.per_cpu_tunables'
 
             # Non-per-cpu tunables have to be set one after the other, for each
             # governor that we had to deal with.
@@ -175,6 +176,7 @@ class CpufreqModule(Module):
                 self.set_governor_tunables.asyn(cpu, gov, per_cpu=False, **tunables)
                 for gov, (cpu, tunables) in global_tunables.items()
             )
+            global_tunables.__qualname__ = 'CpufreqModule.use_governor.<locals>.global_tunables'
 
             # Set the governor first
             await self.target.async_manager.concurrently(
@@ -280,7 +282,7 @@ class CpufreqModule(Module):
         for tunable, value in kwargs.items():
             if tunable in valid_tunables:
                 if per_cpu is not None and gov_per_cpu != per_cpu:
-                    pass
+                    continue
 
                 if gov_per_cpu:
                     path = '/sys/devices/system/cpu/{}/cpufreq/{}/{}'.format(cpu, governor, tunable)
