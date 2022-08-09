@@ -97,7 +97,7 @@ $(VMLINUX_H): $(VMLINUX_TXT) $(VMLINUX)
 # There does not seem to be any other source for the info in e.g. sysfs or
 # procfs, so we rely on that hack for now.
 $(SYMBOL_NAMESPACES_H):
-	find $(KERNEL_SRC) '(' -name '*.c' -o -name '*.h' ')' -print0 | xargs -P0 -n4096 -0 sed -n 's/MODULE_IMPORT_NS([^;]*;/\0/p' | sort -u > $@
+	find $(KERNEL_SRC) '(' -name '*.c' -o -name '*.h' ')' -print0 | xargs -0 sed -n 's/MODULE_IMPORT_NS([^;]*;/\0/p' | sort -u > $@
 
 # Make all object files depend on the generated sources
 $(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(VMLINUX_H) $(SYMBOL_NAMESPACES_H)
