@@ -363,9 +363,9 @@ class DeferredValueComputationError(ConfigKeyError):
     Raised when computing the value of :class:`DeferredValue` lead to an
     exception.
     """
-    def __init__(self, msg, excep, **kwargs):
+    def __init__(self, msg, excep, key=None, src=None):
         self.excep = excep
-        super().__init__(msg, **kwargs)
+        super().__init__(msg, key, src)
 
 
 class KeyComputationRecursionError(ConfigKeyError, RecursionError):
@@ -1464,9 +1464,9 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 else:
                     excep = DeferredValueComputationError(
                         msg,
-                        key=key_qualname,
-                        excep=e,
-                        src=src,
+                        e,
+                        key_qualname,
+                        src,
                     )
                     # Chain explicitly like "raise X from Y" in case it needs
                     # to be wrapped to be raised later
