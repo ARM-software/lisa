@@ -4075,8 +4075,14 @@ class Trace(Loggable, TraceBase):
         chunk_size = int(math.ceil(len(events) / nr_processes))
 
         # Only use multiprocessing if there is no memory limit, since the peak
-        # consumption will increase
-        use_mp = self._cache.max_mem_size >= math.inf and nr_processes > 1
+        # consumption will increase.
+        # Daemonic threads cannot have children, so we cannot create a Pool if
+        # we are already executing from a Pool.
+        use_mp = (
+            self._cache.max_mem_size >= math.inf
+            and nr_processes > 1
+            and not multiprocessing.current_process().daemon
+        )
 
         if use_mp:
             with multiprocessing.Pool(processes=nr_processes) as pool:
