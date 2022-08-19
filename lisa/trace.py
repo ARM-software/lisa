@@ -3629,7 +3629,10 @@ class Trace(Loggable, TraceBase):
 
                 if max_swap_size is None:
                     trace_size = os.stat(trace_path).st_size
-                    max_swap_size = trace_size
+                    # Use 10 times the size of the trace so that there is
+                    # enough room to store large artifacts like a JSON dump of
+                    # the trace
+                    max_swap_size = trace_size * 10
         else:
             swap_dir = None
             max_swap_size = None
