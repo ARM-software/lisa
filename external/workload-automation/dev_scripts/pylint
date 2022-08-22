@@ -37,6 +37,9 @@ if [ "x$pylint_version" == "x" ]; then
 	pylint_version=$(python3 -c 'from pylint.__pkginfo__ import version; print(version)' 2>/dev/null)
 fi
 if [ "x$pylint_version" == "x" ]; then
+	pylint_version=$(python3 -c 'from pylint import version; print(version)' 2>/dev/null)
+fi
+if [ "x$pylint_version" == "x" ]; then
 	echo "ERROR: no pylint verison found; is it installed?"
 	exit 1
 fi
