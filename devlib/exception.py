@@ -180,3 +180,11 @@ def get_traceback(exc=None):
     traceback.print_tb(tb, file=sio)
     del tb  # needs to be done explicitly see: http://docs.python.org/2/library/sys.html#sys.exc_info
     return sio.getvalue()
+
+
+class AdbRootError(TargetStableError):
+    """
+    Exception raised when it is not safe to use ``adb root`` or ``adb unroot``
+    because other connections are known to be active, and changing rootness
+    requires restarting the server.
+    """

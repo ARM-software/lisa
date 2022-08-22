@@ -1798,7 +1798,7 @@ class AndroidTarget(Target):
         }
 
     def __setstate__(self, dct):
-        self.__dict__.update(dct)
+        super().__setstate__(dct)
         self._init_logcat_lock()
 
     @asyn.asyncf

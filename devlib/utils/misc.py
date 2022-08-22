@@ -151,22 +151,16 @@ def preexec_function():
 
 
 check_output_logger = logging.getLogger('check_output')
-# Popen is not thread safe. If two threads attempt to call it at the same time,
-# one may lock up. See https://bugs.python.org/issue12739.
-check_output_lock = threading.RLock()
-
 
 def get_subprocess(command, **kwargs):
     if 'stdout' in kwargs:
         raise ValueError('stdout argument not allowed, it will be overridden.')
-    with check_output_lock:
-        process = subprocess.Popen(command,
-                                   stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE,
-                                   stdin=subprocess.PIPE,
-                                   preexec_fn=preexec_function,
-                                   **kwargs)
-    return process
+    return subprocess.Popen(command,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                stdin=subprocess.PIPE,
+                                preexec_fn=preexec_function,
+                                **kwargs)
 
 
 def check_subprocess_output(process, timeout=None, ignore=None, inputtext=None):
@@ -181,21 +175,22 @@ def check_subprocess_output(process, timeout=None, ignore=None, inputtext=None):
         message = 'Invalid value for ignore parameter: "{}"; must be an int or a list'
         raise ValueError(message.format(ignore))
 
-    try:
-        output, error = process.communicate(inputtext, timeout=timeout)
-    except subprocess.TimeoutExpired as e:
-        timeout_expired = e
-    else:
-        timeout_expired = None
+    with process:
+        try:
+            output, error = process.communicate(inputtext, timeout=timeout)
+        except subprocess.TimeoutExpired as e:
+            timeout_expired = e
+        else:
+            timeout_expired = None
 
-    # Currently errors=replace is needed as 0x8c throws an error
-    output = output.decode(sys.stdout.encoding or 'utf-8', "replace") if output else ''
-    error = error.decode(sys.stderr.encoding or 'utf-8', "replace") if error else ''
+        # Currently errors=replace is needed as 0x8c throws an error
+        output = output.decode(sys.stdout.encoding or 'utf-8', "replace") if output else ''
+        error = error.decode(sys.stderr.encoding or 'utf-8', "replace") if error else ''
 
-    if timeout_expired:
-        raise TimeoutError(process.args, output='\n'.join([output, error]))
+        if timeout_expired:
+            raise TimeoutError(process.args, output='\n'.join([output, error]))
 
-    retcode = process.poll()
+    retcode = process.returncode
     if retcode and ignore != 'all' and retcode not in ignore:
         raise subprocess.CalledProcessError(retcode, process.args, output, error)
 
