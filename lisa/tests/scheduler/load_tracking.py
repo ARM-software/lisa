@@ -18,9 +18,11 @@
 import abc
 import os
 import itertools
+import contextlib
 from statistics import mean
 from typing import TypeVar
 
+from devlib.exception import TargetStableError
 
 from lisa.tests.base import (
     Result, ResultBundle, AggregatedResultBundle, TestBundleBase, TestBundle,
@@ -567,20 +569,36 @@ class InvarianceBase(TestBundleBase, LoadTrackingHelpers, abc.ABC):
             )
         ))
 
-        for cpu, (all_freqs, freq_list) in sorted(cpu_freqs.items()):
-            for freq in freq_list:
-                item_dir = ArtifactPath.join(res_dir, f"{InvarianceItemBase.task_prefix}_{cpu}@{freq}")
-                os.makedirs(item_dir)
+        @contextlib.contextmanager
+        def deprioritize_high_prio_wq():
+            try:
+                target.write_value('/sys/kernel/debug/workqueue/high_prio_wq', '0', verify=True)
+            except TargetStableError:
+                undo = False
+            else:
+                undo = True
 
-                logger.info(f'Running experiment for CPU {cpu}@{freq}')
-                yield cls.ITEM_CLS.from_target(
-                    target,
-                    cpu=cpu,
-                    freq=freq,
-                    freq_list=all_freqs,
-                    res_dir=item_dir,
-                    **kwargs,
-                )
+            try:
+                yield
+            finally:
+                if undo:
+                    target.write_value('/sys/kernel/debug/workqueue/high_prio_wq', '1', verify=True)
+
+        with deprioritize_high_prio_wq():
+            for cpu, (all_freqs, freq_list) in sorted(cpu_freqs.items()):
+                for freq in freq_list:
+                    item_dir = ArtifactPath.join(res_dir, f"{InvarianceItemBase.task_prefix}_{cpu}@{freq}")
+                    os.makedirs(item_dir)
+
+                    logger.info(f'Running experiment for CPU {cpu}@{freq}')
+                    yield cls.ITEM_CLS.from_target(
+                        target,
+                        cpu=cpu,
+                        freq=freq,
+                        freq_list=all_freqs,
+                        res_dir=item_dir,
+                        **kwargs,
+                    )
 
     def iter_invariance_items(self) -> 'ITEM_CLS':
         yield from self.invariance_items
