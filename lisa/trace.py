@@ -2671,7 +2671,7 @@ class TraceCache(Loggable):
         self._swap_size = self._get_swap_size()
 
         self.max_mem_size = max_mem_size if max_mem_size is not None else math.inf
-        self._data_mem_swap_ratio = 7
+        self._data_mem_swap_ratio = 1
         self._metadata = metadata or {}
 
         self.trace_path = os.path.abspath(trace_path) if trace_path else trace_path
