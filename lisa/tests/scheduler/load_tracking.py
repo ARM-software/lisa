@@ -29,7 +29,7 @@ from lisa.tests.base import (
     RTATestBundle
 )
 from lisa.target import Target
-from lisa.utils import ArtifactPath, ExekallTaggable, groupby, kwargs_forwarded_to, memoized
+from lisa.utils import ArtifactPath, ExekallTaggable, groupby, kwargs_forwarded_to, memoized, ignore_exceps
 from lisa.datautils import df_refit_index, series_dereference, series_mean
 from lisa.wlgen.rta import PeriodicWload, RTAPhase
 from lisa.trace import MissingTraceEventError
@@ -569,22 +569,10 @@ class InvarianceBase(TestBundleBase, LoadTrackingHelpers, abc.ABC):
             )
         ))
 
-        @contextlib.contextmanager
-        def deprioritize_high_prio_wq():
-            try:
-                target.write_value('/sys/kernel/debug/workqueue/high_prio_wq', '0', verify=True)
-            except TargetStableError:
-                undo = False
-            else:
-                undo = True
-
-            try:
-                yield
-            finally:
-                if undo:
-                    target.write_value('/sys/kernel/debug/workqueue/high_prio_wq', '1', verify=True)
-
-        with deprioritize_high_prio_wq():
+        with ignore_exceps(
+            (FileNotFoundError, TargetStableError),
+            target.revertable_write_value('/sys/kernel/debug/workqueue/high_prio_wq', '0')
+        ):
             for cpu, (all_freqs, freq_list) in sorted(cpu_freqs.items()):
                 for freq in freq_list:
                     item_dir = ArtifactPath.join(res_dir, f"{InvarianceItemBase.task_prefix}_{cpu}@{freq}")
