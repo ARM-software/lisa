@@ -2727,6 +2727,50 @@ def nullcontext(enter_result=None):
     yield enter_result
 
 
+@contextlib.contextmanager
+def ignore_exceps(exceps, cm, callback=None):
+    """
+    Wrap a context manager and handle exceptions raised in ``__enter__()`` and
+    ``__exit__()``.
+
+    :param exceps: Tuple of exceptions to catch.
+    :type exceps: BaseException or tuple(BaseException)
+
+    :type callback: Function called in case of exception. It will be passed
+        ``"enter"`` or ``"exit"`` to indicate what part failed, then the
+        context manager then the exception. The return value will be returned
+        by the wrapped ``__enter__()`` and ``__exit__()``.
+    :type callback: collections.abc.Callable or None
+
+    .. note:: If the ``__enter__()`` method failed, ``__exit__()`` will not be
+        called.
+    """
+
+    if callback is None:
+        callback = lambda *args: None
+
+    failed_enter = False
+
+    class Wrapped:
+        def __enter__(self):
+            nonlocal failed_enter
+            try:
+                return cm.__enter__()
+            except exceps as e:
+                failed_enter = True
+                return callback('enter', cm, e)
+
+        def __exit__(self, *args, **kwargs):
+            if not failed_enter:
+                try:
+                    return cm.__exit__(*args, **kwargs)
+                except exceps as e:
+                    return callback('exit', cm, e)
+
+    with Wrapped() as x:
+        yield x
+
+
 class ExekallTaggable:
     """
     Allows tagging the objects produced in exekall expressions ID.
