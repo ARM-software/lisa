@@ -1315,13 +1315,7 @@ def df_update_duplicates(df, col=None, func=None, inplace=False):
     """
 
     def increment(series):
-        array = series.array.copy()
-
-        for i in range(len(array)):
-            arr = array[i:]
-            np.nextafter(arr, math.inf, out=arr)
-
-        return pd.Series(array, index=series.index)
+        return np.nextafter(series, math.inf)
 
     def get_duplicated(series):
         # Keep the first, so we update the second duplicates
@@ -1329,16 +1323,13 @@ def df_update_duplicates(df, col=None, func=None, inplace=False):
         return locs, series.loc[locs]
 
     use_index = col is None
-    # Indices already gets copied with to_series()
-    use_copy = inplace and not use_index
 
-    series = df.index.to_series() if use_index else df[col]
-    series = series.copy() if use_copy else series
+    series = df.index.to_series() if use_index else df[col].copy()
     func = func if func else increment
 
     # Update the values until there is no more duplication
     duplicated_locs, duplicated = get_duplicated(series)
-    while duplicated_locs.any():
+    while not duplicated.empty:
         updated = func(duplicated)
         # Change the values at the points of duplication. Otherwise, take the
         # initial value
