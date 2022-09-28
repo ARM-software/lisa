@@ -669,7 +669,12 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         params = params or {}
         for param, settings in params.items():
-            parser.add_argument(f'--{param}', **settings)
+            if settings.get('nargs') == argparse.REMAINDER:
+                _param = param
+            else:
+                _param = f'--{param}'
+            parser.add_argument(_param, **settings)
+
         custom_params = {k.replace('-', '_') for k in params.keys()}
 
         # Options that are not a key in TargetConf must be listed here
