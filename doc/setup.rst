@@ -190,11 +190,6 @@ shell :ref:`buildroot-commands`.
 Kernel modules
 --------------
 
-The following modules are required to run Lisa tests against some kernels.
-
-sched_tp
-........
-
 From Linux v5.3, sched_load_cfs_rq and sched_load_se tracepoints are present in
 mainline as bare tracepoints without any events in tracefs associated with
 them.
@@ -203,8 +198,8 @@ To help expose these tracepoints (and any additional one we might require in
 the future) as trace events, an external module is required and is provided
 under the name of sched_tp in $LISA_HOME/tools/kmodules/sched_tp
 
-Building a module
------------------
+Enabling a module
+.................
 
 LISA Python package will compile and load the module automatically when required
 for tracing so there is usually no reason to do so manually. The most reliable
@@ -243,11 +238,42 @@ way to configure LISA for building the module is:
                   # system depending on config), this should do the trick.
                   # overlay-backend: copy
 
-In case this is still required, the process is standard Linux external module
-build step. Helper scripts are provides too.
+Automatic route
+...............
+
+Once the kernel and LISA's target have been configured appropriately, the Python
+API will build and load the module automatically as required (e.g. when ftrace
+events provided by the module are required).
+
+In order to improve interoperation with other systems, a CLI tool is also
+provided to load the module easily:
+
+  .. code-block:: sh
+
+    # Compile and load the module.
+    lisa-load-kmod --conf target_conf.yml
+
+    # Runs "echo hello world" with the module loaded, then unloads it.
+    lisa-load-kmod --conf target_conf.yml -- echo hello world
+
+    # See # lisa-load-kmod --help for more options.
+
+
+.. note:: The module name may be different if it was compiled manually vs
+    compiled via the Python interface due to backward compatiblity
+    constraints.
+
+
+Manual route
+............
+
+
+In case this is still required, the module is a fairly standard Linux 3rd party
+module that can be built as such following the official kernel doc. Helper
+scripts are provides too.
 
 Build
-.....
+~~~~~
 
 .. code-block:: sh
 
@@ -264,7 +290,7 @@ This will build the module against the provided kernel tree and install it in
   could be reused in fresh builds, leading to segfaults and such.
 
 Clean
-.....
+~~~~~
 
 .. code-block:: sh
 
@@ -274,7 +300,7 @@ Highly recommended to clean when switching kernel trees to avoid unintentional
 breakage for using stale binaries.
 
 Pushing the module into the target
-..................................
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 You need to push the module into your rootfs either by installing it directly
 there or use commands like ``scp`` to copy it into your device.
@@ -284,7 +310,7 @@ there or use commands like ``scp`` to copy it into your device.
   scp -r /path/to/sched_tp.ko username@ip:/
 
 Loading the module
-..................
+~~~~~~~~~~~~~~~~~~
 
 On the target run:
 
@@ -293,7 +319,7 @@ On the target run:
   modprobe sched_tp
 
 Integrating the module in your kernel tree
-------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If you're rebuilding your kernel tree anyway, it might be easier to integrate
 the module into your kernel tree as a built-in module so that it's always
