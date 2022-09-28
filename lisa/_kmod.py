@@ -139,7 +139,7 @@ from devlib.target import KernelVersion, TypedKernelConfig, KernelConfigTristate
 from devlib.host import LocalConnection
 from devlib.exception import TargetStableError
 
-from lisa.utils import nullcontext, Loggable, LISA_CACHE_HOME, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor
+from lisa.utils import nullcontext, Loggable, LISA_CACHE_HOME, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor, destroyablecontextmanager, ContextManagerExit
 from lisa._assets import ASSETS_PATH, HOST_PATH
 from lisa._unshare import ensure_root
 import lisa._git as git
@@ -174,7 +174,7 @@ def _subprocess_log(*args, env=None, extra_env=None, **kwargs):
     return subprocess_log(*args, **kwargs, env=env)
 
 
-@contextlib.contextmanager
+@destroyablecontextmanager
 def _make_chroot(make_vars, bind_paths=None, alpine_version='3.16.0', overlay_backend=None):
     """
     Create a chroot folder ready to be used to build a kernel.
@@ -319,7 +319,7 @@ def _make_chroot(make_vars, bind_paths=None, alpine_version='3.16.0', overlay_ba
             populate(key, path, init_cache=False)
             mount_binds(path, bind_paths)
             yield path
-        finally:
+        except ContextManagerExit:
             mount_binds(path, bind_paths, mount=False)
 
 
@@ -332,7 +332,7 @@ def _make_chroot_cmd(chroot, cmd):
     return ['chroot', chroot, 'sh', '-c', cmd]
 
 
-@contextlib.contextmanager
+@destroyablecontextmanager
 def _overlay_folders(lowers, upper=None, backend=None, copy_filter=None):
     """
     Overlay folders on top of each other.
@@ -391,7 +391,7 @@ def _overlay_folders(lowers, upper=None, backend=None, copy_filter=None):
                     upper=make_dir(temp, 'upper'),
                 )
 
-        @contextlib.contextmanager
+        @destroyablecontextmanager
         def do_mount(dirs):
             dirs['lower'] = ':'.join(map(str, reversed(list(lowers))))
             cmd = ['mount', '-t', 'overlay', 'overlay', '-o', 'lowerdir={lower},workdir={work},upperdir={upper}'.format(**dirs), '--', mount_point]
@@ -399,7 +399,7 @@ def _overlay_folders(lowers, upper=None, backend=None, copy_filter=None):
 
             try:
                 yield mount_point
-            finally:
+            except ContextManagerExit:
                 # Use lazy unmount, so it will not fail if it still in use for
                 # some reason. That said, all supporting folders are going to
                 # be removed so an external user working outside of the "with"
@@ -414,7 +414,7 @@ def _overlay_folders(lowers, upper=None, backend=None, copy_filter=None):
         if copy_filter is None:
             copy_filter = lambda src, dst: True
 
-        @contextlib.contextmanager
+        @destroyablecontextmanager
         def do_copy(dirs):
             def _python_copytree(src, dst):
                 base_src = Path(src)
@@ -481,7 +481,7 @@ def _overlay_folders(lowers, upper=None, backend=None, copy_filter=None):
 
             try:
                 yield mount_point
-            finally:
+            except ContextManagerExit:
                 # If the user selected a custom upper layer, sync back the
                 # result in it
                 if upper:
@@ -1863,7 +1863,7 @@ class DynamicKmod(Loggable):
         """
         self.target.execute(f'rmmod {quote(self.src.mod_name)}')
 
-    @contextlib.contextmanager
+    @destroyablecontextmanager
     def run(self, **kwargs):
         """
         Context manager used to run the module by loading it then unloading it.
@@ -1878,7 +1878,7 @@ class DynamicKmod(Loggable):
         x = self.install(**kwargs)
         try:
             yield x
-        finally:
+        except ContextManagerExit:
             self.uninstall()
 
 

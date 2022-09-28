@@ -40,7 +40,7 @@ from devlib.exception import TargetStableError
 from devlib.utils.misc import which
 from devlib.platform.gem5 import Gem5SimulationPlatform
 
-from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath, nullcontext, ExekallTaggable, memoized
+from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath, nullcontext, ExekallTaggable, memoized, destroyablecontextmanager, ContextManagerExit
 from lisa._assets import ASSETS_PATH
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc,Configurable
 from lisa._generic import TypedList, TypedDict
@@ -939,12 +939,12 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
                 if isinstance(self.target, devlib.LocalLinuxTarget):
                     exclude.append(str(os.getpid()))
 
-                @contextlib.contextmanager
+                @destroyablecontextmanager
                 def cm():
                     logger.info(f"Freezing all tasks except: {','.join(exclude)}")
                     try:
                         yield self.cgroups.freeze(exclude)
-                    finally:
+                    except ContextManagerExit:
                         logger.info('Un-freezing userspace tasks')
                         self.cgroups.freeze(thaw=True)
 
@@ -963,13 +963,13 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             logger.warning('Could not disable idle states, cpuidle devlib module is not loaded')
             cm = nullcontext
         else:
-            @contextlib.contextmanager
+            @destroyablecontextmanager
             def cm():
                 try:
                     for cpu in range(self.plat_info['cpus-count']):
                         cpuidle.disable_all(cpu)
                     yield
-                finally:
+                except ContextManagerExit:
                     logger.info('Re-enabling idle states for all domains')
                     for cpu in range(self.plat_info['cpus-count']):
                         cpuidle.enable_all(cpu)

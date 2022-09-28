@@ -23,7 +23,6 @@ import functools
 import collections
 import warnings
 import importlib
-import contextlib
 import inspect
 from uuid import uuid4
 from itertools import starmap
@@ -42,7 +41,7 @@ from cycler import cycler as make_cycler
 from ipywidgets import widgets, Layout, interact
 from IPython.display import display
 
-from lisa.utils import is_running_ipython, order_as
+from lisa.utils import is_running_ipython, order_as, destroyablecontextmanager, ContextManagerExit
 
 pn.extension('tabulator')
 
@@ -540,7 +539,7 @@ def _hv_multi_line_title(fig):
     return fig.options(hooks=[_hv_multi_line_title_hook])
 
 
-@contextlib.contextmanager
+@destroyablecontextmanager
 def _hv_set_backend(backend):
     """
     Context manager to work around this issue:
@@ -553,7 +552,7 @@ def _hv_set_backend(backend):
         # at import time
         hv.Store.set_current_backend(backend)
         yield
-    finally:
+    except ContextManagerExit:
         if old_backend:
             hv.Store.set_current_backend(old_backend)
 
