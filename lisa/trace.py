@@ -1139,7 +1139,7 @@ class TxtTraceParserBase(TraceParserBase):
                 return fields
 
             # For each event we don't already know, get the list of all fields available
-            inferred = df.groupby('__event', observed=True)['split_fields'].apply(infer_fields).to_frame()
+            inferred = df.groupby('__event', observed=True, group_keys=False)['split_fields'].apply(infer_fields).to_frame()
             inferred['positional_field'] = df.groupby('__event', observed=True)['pos_fields'].any()
 
             def update_desc(desc):
@@ -4259,7 +4259,7 @@ class Trace(Loggable, TraceBase):
         def finalize(df, key_col, value_col, key_type, value_type):
             # Aggregate the values for each key and convert to python types
             mapping = {}
-            grouped = df.groupby([key_col], observed=True, sort=False)
+            grouped = df.groupby(key_col, observed=True, sort=False)
             for key, subdf in grouped:
                 values = subdf[value_col].apply(value_type).to_list()
                 key = key_type(key)

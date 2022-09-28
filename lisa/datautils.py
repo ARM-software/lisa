@@ -185,7 +185,17 @@ def df_split_signals(df, signal_cols, align_start=False, window=None):
         # it a list
         signal_cols = list(signal_cols)
 
-        for group, signal in df.groupby(signal_cols, observed=True, sort=False):
+        # Avoid this warning:
+        # FutureWarning: In a future version of pandas, a length 1 tuple will
+        # be returned when iterating over a groupby with a grouper equal to a
+        # list of length 1. Don't supply a list with a single grouper to avoid
+        # this warning.
+        if len(signal_cols) == 1:
+            _signal_cols = signal_cols[0]
+        else:
+            _signal_cols = signal_cols
+
+        for group, signal in df.groupby(_signal_cols, observed=True, sort=False):
             # When only one column is looked at, the group is the value instead of
             # a tuple of values
             if len(signal_cols) < 2:
@@ -826,7 +836,7 @@ def _get_loc(index, x, method):
     #
     # Also, if the index is not sorted, we need to fall back on the slow path
     # as well. Checking is_monotonic is cheap so it's ok to do it here.
-    if method == 'nearest' or not index.is_monotonic:
+    if method == 'nearest' or not index.is_monotonic_increasing:
         return index.get_indexer([x], method=method)[0]
     else:
         if index.empty:
@@ -1933,7 +1943,7 @@ def series_convert(series, dtype, nullable=None):
             # which is safe since they are immutable. This reduces the memory
             # used by the final series
             new_cat = basic_decode(cat)
-            x.cat.categories = new_cat
+            x = x.cat.rename_categories(new_cat)
             return astype('string')(x)
 
         pipelines.extend((
