@@ -2771,6 +2771,108 @@ def ignore_exceps(exceps, cm, callback=None):
         yield x
 
 
+class ContextManagerExit(Exception):
+    """
+    Dummy exception raised in the generator wrapped by
+    :func:`destroyablecontextmanager` when anything else than
+    :exc:`GeneratorExit` happened during ``yield``.
+    """
+
+
+class ContextManagerExcep(ContextManagerExit):
+    """
+    Exception raised when an exception was raised during ``yield`` in a context
+    manager created with :func:`destroyablecontextmanager`.
+
+    The ``e`` attribute holds the original exception.
+    """
+    def __init__(self, e):
+        self.e = e
+
+
+class ContextManagerNoExcep(ContextManagerExit):
+    """
+    Exception raised when no exception was raised during ``yield`` in a context
+    manager created with :func:`destroyablecontextmanager`.
+    """
+    pass
+
+
+class ContextManagerDestroyed(GeneratorExit):
+    """
+    Exception raised in context managers created by
+    :func:`destroyablecontextmanager` when no exception was raised during
+    ``yield`` per say but the context manager was destroyed without calling
+    ``__exit__``.
+    """
+
+
+class _DestroyableCM:
+    def __init__(self, f):
+        self._f = f
+        self._cm = None
+
+    @staticmethod
+    def _wrap_gen(gen):
+        e = None
+        res = gen.send(None)
+        while True:
+            try:
+                yield res
+            except GeneratorExit:
+                e = ContextManagerDestroyed()
+            except BaseException as _e:
+                e = ContextManagerExcep(_e)
+            else:
+                e = ContextManagerNoExcep()
+
+            try:
+                res = gen.throw(e)
+            except StopIteration as _e:
+                return _e.value
+
+    def __enter__(self):
+        cm = contextlib.contextmanager(lambda: self._wrap_gen(self._f()))()
+        self._cm = cm
+        return cm.__enter__()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        cm = self._cm
+        try:
+            ret = cm.__exit__(exc_type, exc_value, traceback)
+        finally:
+            self._cm = None
+
+        return ret
+
+
+def destroyablecontextmanager(f):
+    """
+    Similar to :func:`contextlib.contextmanager` but treats all cases of
+    ``yield`` as an exception.
+
+    This forces the user to handle them as such, and makes it more apparent
+    that the ``finally`` clause in ``try/yield/finally`` also catches the case
+    where the context manager is simply destroyed.
+
+    The user can handle :exc:`ContextManagerExit` to run cleanup code
+    regardless of exceptions but not when context manager is simply destroyed
+    without calling ``__exit__()`` (standard behavior of context manager not
+    created with :func:`contextlib.contextmanager`).
+
+    Handling exceptions is achieved by handling :exc:`ContextManagerExcep`,
+    with the original exception stored in the ``e`` attribute.
+
+    Handling destruction is achieved with :exc:`ContextManagerDestroyed`.
+    """
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        _f = functools.partial(f, *args, **kwargs)
+        return _DestroyableCM(_f)
+
+    return wrapper
+
+
 class ExekallTaggable:
     """
     Allows tagging the objects produced in exekall expressions ID.
