@@ -355,7 +355,7 @@ intersphinx_mapping = {
     'pandas': ('https://pandas.pydata.org/pandas-docs/stable/', None),
     'matplotlib': ('https://matplotlib.org/stable/', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
-    'holoviews': ('http://holoviews.org/', None),
+    'holoviews': ('https://holoviews.org/', None),
     # XXX: Doesn't seem to work, might be due to how devlib doc is generated
     'devlib': ('https://devlib.readthedocs.io/en/latest/', None),
     'wa': ('https://workload-automation.readthedocs.io/en/latest/', None),
