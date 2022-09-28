@@ -588,7 +588,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         return target
 
     @classmethod
-    def from_custom_cli(cls, argv=None, params=None):
+    def from_custom_cli(cls, argv=None, params=None, description=None):
         """
         Create a Target from command line arguments.
 
@@ -601,14 +601,18 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             ``{param_name: {dict of ArgumentParser.add_argument() options}}``.
         :type params: dict(str, dict)
 
+        :param description: Description passed to the argument parser. If
+            ``None``, a default one is provided.
+        :type description: str or None
+
         :return: A tuple ``(args, target)``
 
         .. note:: This method should not be relied upon to implement long-term
             scripts, it's more designed for quick scripting.
         """
-        parser = argparse.ArgumentParser(
-            formatter_class=argparse.RawDescriptionHelpFormatter,
-            description=textwrap.dedent(
+
+        if description is None:
+            description = textwrap.dedent(
                 """
                 Connect to a target using the provided configuration in order
                 to run a test.
@@ -628,7 +632,13 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
                 code execution.
                 """.format(
                     script=os.path.basename(sys.argv[0])
-                )))
+                )
+            )
+
+        parser = argparse.ArgumentParser(
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            description=description,
+        )
 
         parser.add_argument("--conf", '-c',
             help="Path to a TargetConf and PlatformInfo yaml file. Other options will override what is specified in the file."
