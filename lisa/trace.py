@@ -5415,19 +5415,25 @@ class CollectorBase(Loggable):
         # How did we get some coconuts ?
         swallow = self._collector.__exit__(*args, **kwargs)
 
-        path = self._output_path
-        if path is not None:
-            self.get_data(path)
+        try:
+            self.get_data()
+        except ValueError:
+            pass
 
         return swallow
 
-    def get_data(self, path):
+    def get_data(self, path=None):
         """
         Similar to :meth:`devlib.collector.CollectorBase.get_data` but takes
         the path directly as a parameter in order to disallow representing an
         invalid state where no path has been set.
         """
         coll = self._collector
+        path = path or self._output_path
+
+        if path is None:
+            raise ValueError('Path cannot be None')
+
         coll.set_output(path)
         return coll.get_data()
 
