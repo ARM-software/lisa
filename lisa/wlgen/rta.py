@@ -193,7 +193,6 @@ from itertools import chain, product, starmap, islice
 from operator import itemgetter
 from shlex import quote
 from statistics import mean
-import contextlib
 
 from devlib import TargetStableError
 from devlib.target import KernelConfigTristate
@@ -222,6 +221,8 @@ from lisa.utils import (
     kwargs_dispatcher,
     kwargs_forwarded_to,
     PartialInit,
+    destroyablecontextmanager,
+    ContextManagerExit,
 )
 from lisa.wlgen.workload import Workload
 from lisa.conf import DeferredValueComputationError
@@ -743,7 +744,7 @@ class RTA(Workload):
         self._late_init(conf=conf)
         return self
 
-    @contextlib.contextmanager
+    @destroyablecontextmanager
     def _setup(self):
         logger = self.logger
         plat_info = self.target.plat_info
@@ -809,7 +810,7 @@ class RTA(Workload):
             try:
                 with capa_cm:
                     yield
-            finally:
+            except ContextManagerExit:
                 target.remove(self.remote_json)
 
                 if self.log_stats:

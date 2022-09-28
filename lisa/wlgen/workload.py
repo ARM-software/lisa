@@ -30,7 +30,7 @@ import inspect
 
 from devlib.utils.misc import list_to_mask
 
-from lisa.utils import ArtifactPath, Loggable, PartialInit, deprecate
+from lisa.utils import ArtifactPath, Loggable, PartialInit, deprecate, destroyablecontextmanager, ContextManagerExit
 
 
 class _WorkloadRunCMDecorator:
@@ -353,7 +353,7 @@ class Workload(_WorkloadBase, PartialInit, Loggable):
     def _deployed(self):
         return self._setup_cm is not None
 
-    @contextlib.contextmanager
+    @destroyablecontextmanager
     def _setup(self):
         """
         Context manager function called to setup the target before the
@@ -375,7 +375,7 @@ class Workload(_WorkloadBase, PartialInit, Loggable):
         self.target.install_tools(self.REQUIRED_TOOLS)
         try:
             yield
-        finally:
+        except ContextManagerExit:
             if self._wipe_run_dir:
                 self.wipe_run_dir()
 
