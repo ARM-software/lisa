@@ -1696,6 +1696,10 @@ class DynamicKmod(Loggable):
 
         self._kernel_tree = kernel_tree
 
+    @property
+    def mod_name(self):
+        return self.src.mod_name
+
     @classmethod
     def from_target(cls, target, **kwargs):
         """
