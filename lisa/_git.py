@@ -79,8 +79,10 @@ def get_commit_message(repo, ref='HEAD', notes_ref='refs/notes/commits', format=
     :param notes_ref: Git notes reference to be displayed (if ``%N`` is in ``format``).
     :type notes_ref: str
     """
+    notes = [f'--notes={notes_ref}'] if check_ref(repo, notes_ref) else []
+
     # pylint: disable=redefined-builtin
-    return git(repo, 'show', '--notes=' + notes_ref, '--format=' + format, '-s', ref)
+    return git(repo, 'show', *notes, '--format=' + format, '-s', ref)
 
 def find_commits(repo, ref='HEAD', notes_ref='refs/notes/commits', grep=None, regex=False):
     """
@@ -105,7 +107,8 @@ def find_commits(repo, ref='HEAD', notes_ref='refs/notes/commits', grep=None, re
             '-E' if regex else '-F'
         ]
 
-    commits = git(repo, 'log', '--notes=' + notes_ref, '--format=%H', *opts, ref, '--')
+    notes = [f'--notes={notes_ref}'] if check_ref(repo, notes_ref) else []
+    commits = git(repo, 'log', *notes, '--format=%H', *opts, ref, '--')
     return commits.splitlines()
 
 def log(repo, ref='HEAD', format=None, commits_nr=1):
@@ -143,4 +146,15 @@ def find_root(repo):
     """
     root = git(repo, 'rev-parse', '--show-toplevel')
     return Path(root.strip()).resolve()
+
+def check_ref(repo, ref):
+    """
+    Check if a given reference exists.
+    """
+    try:
+        git(repo, 'rev-parse', '--quiet', '--verify', ref)
+    except subprocess.CalledProcessError:
+        return False
+    else:
+        return True
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
