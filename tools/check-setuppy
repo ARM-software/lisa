@@ -70,7 +70,7 @@ def main():
 
     parser.add_argument('--filename-pattern',
         nargs='*',
-        default=['*setup.py', *tools_path],
+        default=['*setup.py', *tools_path, os.path.join(LISA_HOME, 'tools', 'git-hooks')],
         help='git rev-list filename pattern to check'
     )
 
@@ -109,7 +109,7 @@ def main():
                     f'{pattern}: {commit}'
                     for pattern, commit in commits
                 )
-                print(f'Files have been modified in the following commits, re-run lisa-install to update dependencies and install new CLI tools:{sep}{commits}')
+                print(f'Files have been modified in the following commits, re-run lisa-install to update dependencies and install new CLI tools or git hooks:{sep}{commits}')
                 print('THIS WILL RESET YOUR VENV !')
                 return 1
             else:
