@@ -36,9 +36,9 @@ def main():
     # eachother
     default_commit_file = os.path.join(
         (
-                 os.getenv('LISA_VENV_PATH')
-            if   int(os.getenv('LISA_USE_VENV', '0'))
-            else os.getenv('LISA_HOME')
+            os.getenv('LISA_VENV_PATH')
+            if int(os.getenv('LISA_USE_VENV', '0')) else
+            os.getenv('LISA_HOME')
         ),
         '.lisa-install-commit'
     )
@@ -63,8 +63,14 @@ def main():
         help='Update the commit file using sha1 of given git ref'
     )
 
+
+    import lisa._cli_tools
+    tools_path = lisa._cli_tools.__path__
+    tools_path = tools_path if tools_path else []
+
     parser.add_argument('--filename-pattern',
-        default='*setup.py',
+        nargs='*',
+        default=['*setup.py', *tools_path],
         help='git rev-list filename pattern to check'
     )
 
@@ -84,17 +90,31 @@ def main():
         # no setup already
         except FileNotFoundError:
             return 0
+        else:
+            rev_range = '{}..{}'.format(recorded_sha1, args.current_rev)
 
-        rev_range = '{}..{}'.format(recorded_sha1, args.current_rev)
-        relevant_commits = call_git('rev-list', rev_range, '--', args.filename_pattern)
+            def check_pattern(pattern):
+                commits = call_git('rev-list', rev_range, '--', pattern).splitlines()
+                return commits
 
-        if relevant_commits:
-            print('{} files have been modified in the following commits, re-run lisa-install to update dependencies:\n{}'.format(
-                args.filename_pattern,
-                relevant_commits,
-            ))
-            print('THIS WILL RESET YOUR VENV !')
-            return 1
+            commits = [
+                (pattern, commit)
+                for pattern in args.filename_pattern
+                for commit in check_pattern(pattern)
+            ]
+
+            if commits:
+                sep = '\n    '
+                commits = sep.join(
+                    f'{pattern}: {commit}'
+                    for pattern, commit in commits
+                )
+                print(f'Files have been modified in the following commits, re-run lisa-install to update dependencies and install new CLI tools:{sep}{commits}')
+                print('THIS WILL RESET YOUR VENV !')
+                return 1
+            else:
+                return 0
+
 
 if __name__ == '__main__':
     sys.exit(main())
