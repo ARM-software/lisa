@@ -64,13 +64,17 @@ def main():
     )
 
 
-    import lisa._cli_tools
-    tools_path = lisa._cli_tools.__path__
-    tools_path = tools_path if tools_path else []
+    try:
+        import lisa._cli_tools
+    except ImportError:
+        cli_path = []
+    else:
+        cli_path = lisa._cli_tools.__path__
+        cli_path = cli_path if cli_path else []
 
     parser.add_argument('--filename-pattern',
         nargs='*',
-        default=['*setup.py', *tools_path, os.path.join(LISA_HOME, 'tools', 'git-hooks')],
+        default=['*setup.py', *cli_path, os.path.join(LISA_HOME, 'tools', 'git-hooks')],
         help='git rev-list filename pattern to check'
     )
 
