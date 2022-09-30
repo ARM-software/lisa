@@ -595,7 +595,7 @@ def get_subclasses_bullets(cls, abbrev=True, style=None, only_leaves=False):
     )
 
 
-def make_changelog(repo):
+def make_changelog(repo, since=None, head_release_name='Next release', fmt='rst'):
     """
     Generate a reStructuredText changelog to be included in the documentation.
 
@@ -607,12 +607,25 @@ def make_changelog(repo):
         up changelog entries if markers were forgotten without rewriting the
         history.
     """
+
+    if fmt == 'rst':
+        escape_fmt = escape_rst
+    else:
+        escape_fmt = lambda x: x
+
+
     notes_ref = 'refs/notes/changelog'
-    release_refs = ['HEAD'] + lisa._git.find_tags(repo, 'v*')
+    release_refs = (
+        ['HEAD'] + (
+            [since]
+            if since else
+            lisa._git.find_tags(repo, 'v*')
+        )
+    )
 
     def update_release_name(name):
         if name == 'HEAD':
-            return 'Next release'
+            return head_release_name
         else:
             return name
 
@@ -701,7 +714,7 @@ def make_changelog(repo):
         return f'{title}\n{body}'
 
     def format_msg(msg):
-        subject = escape(msg.splitlines()[0].strip())
+        subject = escape_fmt(msg.splitlines()[0].strip())
         return f'- {subject}'
 
     rst = '\n\n'.join(
@@ -719,7 +732,7 @@ class PlaceHolderRef:
     documentable.
     """
 
-def escape(s):
+def escape_rst(s):
     """
     Escape the string so that it's considered plain reStructuredText input,
     without any markup even if it contains some. This avoids having to use a
