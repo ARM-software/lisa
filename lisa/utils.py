@@ -2814,22 +2814,36 @@ class _DestroyableCM:
 
     @staticmethod
     def _wrap_gen(gen):
-        e = None
         res = gen.send(None)
-        while True:
-            try:
-                yield res
-            except GeneratorExit:
-                e = ContextManagerDestroyed()
-            except BaseException as _e:
-                e = ContextManagerExcep(_e)
-            else:
-                e = ContextManagerNoExcep()
+        re_raise = None
 
-            try:
-                res = gen.throw(e)
-            except StopIteration as _e:
-                return _e.value
+        try:
+            yield res
+        except GeneratorExit:
+            e = ContextManagerDestroyed()
+        except BaseException as _e:
+            re_raise = _e
+            e = ContextManagerExcep(_e)
+        else:
+            e = ContextManagerNoExcep()
+
+        try:
+            res = gen.throw(e)
+        except StopIteration as _e:
+            ret = _e.value
+            # If returning truthy value, we swallow any exception
+            if re_raise is None or ret:
+                return None
+            else:
+                raise re_raise
+        # If the user re-raised the exception or let it bubble, raise the
+        # initial exception instead.
+        except ContextManagerExcep as _e:
+            raise _e.e
+        except ContextManagerNoExcep:
+            return
+        else:
+            raise RuntimeError('Generator did not raise or finish, but yielded once already')
 
     def __enter__(self):
         cm = contextlib.contextmanager(lambda: self._wrap_gen(self._f()))()
@@ -2864,6 +2878,11 @@ def destroyablecontextmanager(f):
     with the original exception stored in the ``e`` attribute.
 
     Handling destruction is achieved with :exc:`ContextManagerDestroyed`.
+
+    Unlike :func:`contextlib.contextmanager` and like normal ``__exit__()``,
+    swallowing exceptions is achieved by returning a truthy value. If a falsy
+    value is returned, :func:`destroyablecontextmanager` will re-raise the
+    exception as appropriate.
     """
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
