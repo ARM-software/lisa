@@ -1205,39 +1205,37 @@ class KernelTree(Loggable, SerializeViaConstructor):
         def try_loaders(loaders):
             logger = cls.get_logger()
             exceps = []
-            inner_excep = None
             for loader in loaders:
                 logger.debug(f'Trying to load kernel tree using loader {loader.__name__} ...')
                 try:
-                    with loader() as spec:
-                        try:
-                            yield spec
-                            break
-                        except BaseException as e:
-                            inner_excep = e
-                            raise
+                    cm = loader()
+                    spec = cm.__enter__()
                 except Exception as e:
-                    if inner_excep is e:
-                        raise
-                    else:
-                        logger.debug(f'Failed to load kernel tree using loader {loader.__name__}: {e.__class__.__name__}: {e}')
-                        exceps.append((loader, e))
+                    logger.debug(f'Failed to load kernel tree using loader {loader.__name__}: {e.__class__.__name__}: {e}')
+                    exceps.append((loader, e))
                 else:
                     logger.debug(f'Loaded kernel tree using loader {loader.__name__}')
-
-            else:
-                def format_excep(e):
-                    # We expect stderr to be merged in stdout
-                    if isinstance(e, subprocess.CalledProcessError) and e.stdout:
-                        return f'{e}:\n{e.stdout}'
+                    try:
+                        yield spec
+                    except BaseException as e:
+                        cm.__exit__(type(e), e, e.__traceback__)
+                        raise
                     else:
-                        return str(e)
+                        cm.__exit__(None, None, None)
+                        return
 
-                excep_str = "\n".join(
-                    f"{loader.__name__}: {e.__class__.__name__}: {format_excep(e)}"
-                    for loader, e in exceps
-                )
-                raise ValueError(f'Could not load kernel trees:\n{excep_str}')
+            def format_excep(e):
+                # We expect stderr to be merged in stdout
+                if isinstance(e, subprocess.CalledProcessError) and e.stdout:
+                    return f'{e}:\n{e.stdout}'
+                else:
+                    return str(e)
+
+            excep_str = "\n".join(
+                f"{loader.__name__}: {e.__class__.__name__}: {format_excep(e)}"
+                for loader, e in exceps
+            )
+            raise ValueError(f'Could not load kernel trees:\n{excep_str}')
 
         # Try these loaders in the given order, until one succeeds
         loaders = [from_installed_headers, from_sysfs_headers, from_user_tree]
