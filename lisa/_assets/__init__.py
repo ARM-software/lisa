@@ -18,6 +18,8 @@
 import os
 import stat
 import platform
+import shutil
+from pathlib import Path
 
 def _get_abi():
     machine = platform.machine()
@@ -58,14 +60,49 @@ del _get_abi_bin
 
 HOST_BINARIES = ABI_BINARIES[HOST_ABI]
 
-HOST_PATH = ':'.join((
-    os.path.join(ASSETS_PATH, 'binaries', HOST_ABI),
-    os.path.join(ASSETS_PATH, 'scripts'),
-    os.environ['PATH']
-))
+def _make_path(abi=None):
+    abi = abi or HOST_ABI
+
+    compos = [
+        os.path.join(ASSETS_PATH, 'binaries', abi),
+        os.path.join(ASSETS_PATH, 'scripts'),
+    ]
+
+    if abi == HOST_ABI:
+        path = os.environ['PATH']
+        use_system = bool(int(os.environ.get('LISA_USE_SYSTEM_BIN', 0)))
+        if use_system:
+            compos = [path] + compos
+        else:
+            compos = compos + [path]
+
+    return ':'.join(compos)
+
+HOST_PATH = _make_path(HOST_ABI)
 """
 Value to be used as the ``PATH`` env var on the host.
 """
 
+def get_bin(name, abi=None):
+    """
+    Return the path to a tool bundled in LISA.
+
+    :param abi: ABI of the binary. If ``abi`` is not the host ABI,
+        ``LISA_USE_SYSTEM_BIN`` is ignored.
+    :type abi: str or None
+
+    The result is influenced by the ``LISA_USE_SYSTEM_BIN`` environment
+    variable:
+
+        * If it is set to ``0`` or unset, it will give priority to the binaries
+          bundled inside the :mod:`lisa` package.
+        * If it is set to ``1``, it will use the bundled binaries as a fallback
+          only.
+    """
+    path = shutil.which(name, path=_make_path(abi))
+    if path:
+        return Path(path).resolve()
+    else:
+        raise FileNotFoundError(f'Could not locate the tool: {name}')
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
