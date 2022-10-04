@@ -1602,6 +1602,7 @@ class TxtTraceParser(TxtTraceParserBase):
                 stderr=subprocess.DEVNULL,
                 universal_newlines=True,
             ).splitlines()
+            if not event.startswith('version =')
         }
         events = [event for event in events if event in kernel_events]
 
