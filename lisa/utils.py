@@ -1340,8 +1340,9 @@ def group_by_value(mapping, key_sort=lambda x: x):
     """
     Group a mapping by its values
 
-    :param mapping: Mapping to reverse
-    :type mapping: collections.abc.Mapping
+    :param mapping: Mapping to reverse. If a sequence is passed, it is assumed
+        to contain key/value subsequences.
+    :type mapping: collections.abc.Mapping or collections.abc.Sequence
 
     :param key_sort: The ``key`` parameter to a :func:`sorted` call on the
       mapping keys
@@ -1358,6 +1359,9 @@ def group_by_value(mapping, key_sort=lambda x: x):
     >>> group_by_value({0: 42, 1: 43, 2: 42})
     OrderedDict([(42, [0, 2]), (43, [1])])
     """
+    if isinstance(mapping, Mapping):
+        mapping = mapping.items()
+
     if not key_sort:
         # Just conserve the order
         def key_sort(_):
@@ -1365,7 +1369,7 @@ def group_by_value(mapping, key_sort=lambda x: x):
 
     return OrderedDict(
         (val, sorted((k for k, v in key_group), key=key_sort))
-        for val, key_group in groupby(mapping.items(), key=operator.itemgetter(1))
+        for val, key_group in groupby(mapping, key=operator.itemgetter(1))
     )
 
 
