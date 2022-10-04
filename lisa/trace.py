@@ -1607,43 +1607,10 @@ class TxtTraceParser(TxtTraceParserBase):
             be reused in another context (cached on disk), and the set of
             events in a :class:`Trace` object can be expanded dynamically.
         """
-        bin_ = get_bin('trace-cmd')
-
-        if not os.path.exists(path):
-            raise FileNotFoundError(f'Unable to locate specified trace file: {path}')
-
         needed_metadata = set(needed_metadata or [])
         events = set(events)
         default_event_parser_cls, event_parsers = cls._resolve_event_parsers(event_parsers, default_event_parser_cls)
-
-        def use_raw(event):
-            try:
-                parser = event_parsers[event]
-            except KeyError:
-                # If we don't have a known parser, use the raw output by
-                # default, since it will be either the same as human readable,
-                # or unparseable without a dedicated parser.
-                return True
-            else:
-                return parser.raw
-
-        raw_events = list(itertools.chain.from_iterable(
-            ('-r', event) if use_raw(event) else []
-            for event in events
-        ))
-
-        # Make sure we only ask to trace-cmd events that can exist, otherwise
-        # it might bail out and give nothing at all, especially with -F
-        kernel_events = {
-            event.split(':', 1)[1]
-            for event in subprocess.check_output(
-                [bin_, 'report', '-N', '-E', '--', path],
-                stderr=subprocess.DEVNULL,
-                universal_newlines=True,
-            ).splitlines()
-            if not event.startswith('version =')
-        }
-        events = [event for event in events if event in kernel_events]
+        event_parsers = event_parsers.values()
 
         pre_filled_metadata = {}
 
@@ -1686,10 +1653,77 @@ class TxtTraceParser(TxtTraceParserBase):
         kwargs.update(
             events=events,
             needed_metadata=needed_metadata,
-            event_parsers=event_parsers.values(),
+            event_parsers=event_parsers,
             default_event_parser_cls=default_event_parser_cls,
             pre_filled_metadata=pre_filled_metadata,
         )
+
+        cmd = cls._tracecmd_report(
+            path=path,
+            events=events,
+            event_parsers=event_parsers,
+            default_event_parser_cls=default_event_parser_cls,
+            # We unfortunately need to parse every single line in order to
+            # ensure each event has a unique timestamp in the trace, as pandas
+            # cannot deal with duplicated timestamps. Having unique timestamps
+            # inside an event dataframe is not enough as dataframes of
+            # different events can be combined.
+            filter_events=False,
+        )
+
+        # A fairly large buffer reduces the interaction overhead
+        bufsize = 10 * 1024 * 1024
+        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=bufsize) as p:
+            # Consume the lines as they come straight from the stdout object to
+            # avoid the memory overhead of storing the whole output in one
+            # gigantic string
+            return cls(lines=p.stdout, **kwargs)
+
+    @classmethod
+    def _tracecmd_report(cls, path, events, event_parsers=None, default_event_parser_cls=None, filter_events=True):
+        events = set(events)
+        bin_ = get_bin('trace-cmd')
+
+        if not os.path.exists(path):
+            raise FileNotFoundError(f'Unable to locate specified trace file: {path}')
+
+        # Make sure we only ask to trace-cmd events that can exist, otherwise
+        # it might bail out and give nothing at all, especially with -F
+        kernel_events = {
+            event.split(':', 1)[1]
+            for event in subprocess.check_output(
+                [bin_, 'report', '-N', '-E', '--', path],
+                stderr=subprocess.DEVNULL,
+                universal_newlines=True,
+            ).splitlines()
+            if not event.startswith('version =')
+        }
+        events = events & kernel_events
+
+        default_event_parser_cls, event_parsers = cls._resolve_event_parsers(event_parsers, default_event_parser_cls)
+        def use_raw(event):
+            try:
+                parser = event_parsers[event]
+            except KeyError:
+                # If we don't have a known parser, use the raw output by
+                # default, since it will be either the same as human readable,
+                # or unparseable without a dedicated parser.
+                return True
+            else:
+                return parser.raw
+
+        if filter_events:
+            filter_ = list(itertools.chain.from_iterable(
+                ('-F', event)
+                for event in events
+            ))
+        else:
+            filter_ = []
+
+        raw_events = list(itertools.chain.from_iterable(
+            ('-r', event) if use_raw(event) else []
+            for event in events
+        ))
         cmd = [
             bin_,
             'report',
@@ -1697,17 +1731,13 @@ class TxtTraceParser(TxtTraceParserBase):
             '-N',
             # Full accuracy on timestamp
             '-t',
+            # Event filter
+            *filter_,
             # All events in raw format
             *raw_events,
             '--', path
         ]
-        # A fairly large buffer reduces the interaction overhead
-        bufsize = 10 * 1024 * 1024
-        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=bufsize) as p:
-            # Consume the lines as they come straight from the stdout object to
-            # avoid the memory overhead of storing the whole output in one
-            # gigantic string
-            return cls(lines=p.stdout, **kwargs)
+        return cmd
 
     def _get_skeleton_regex(self, need_fields):
         regex = r'\] +(?P<__timestamp>{floating}): *(?P<__event>{identifier}):'.format(**TxtEventParser.PARSER_REGEX_TERMINALS)
