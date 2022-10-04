@@ -60,6 +60,7 @@ from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, 
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString, IntListFromStringInstance
 from lisa._kmod import LISAFtraceDynamicKmod
+from lisa._assets import get_bin
 
 
 class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
@@ -1567,6 +1568,8 @@ class TxtTraceParser(TxtTraceParserBase):
             be reused in another context (cached on disk), and the set of
             events in a :class:`Trace` object can be expanded dynamically.
         """
+        bin_ = get_bin('trace-cmd')
+
         if not os.path.exists(path):
             raise FileNotFoundError(f'Unable to locate specified trace file: {path}')
 
@@ -1595,7 +1598,7 @@ class TxtTraceParser(TxtTraceParserBase):
         kernel_events = {
             event.split(':', 1)[1]
             for event in subprocess.check_output(
-                ['trace-cmd', 'report', '-N', '-E', '--', path],
+                [bin_, 'report', '-N', '-E', '--', path],
                 stderr=subprocess.DEVNULL,
                 universal_newlines=True,
             ).splitlines()
@@ -1615,7 +1618,7 @@ class TxtTraceParser(TxtTraceParserBase):
             symbols_address = dict(
                 parse(line)
                 for line in subprocess.check_output(
-                    ['trace-cmd', 'report', '-N', '-f', '--', path],
+                    [bin_, 'report', '-N', '-f', '--', path],
                     stderr=subprocess.DEVNULL,
                     universal_newlines=True,
                 ).splitlines()
@@ -1629,7 +1632,7 @@ class TxtTraceParser(TxtTraceParserBase):
         if 'cpus-count' in needed_metadata:
             regex = re.compile(rb'cpus=(?P<cpus>\d+)')
             with subprocess.Popen(
-                ['trace-cmd', 'report', '-N', '--', path],
+                [bin_, 'report', '-N', '--', path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
             ) as p:
@@ -1648,7 +1651,7 @@ class TxtTraceParser(TxtTraceParserBase):
             pre_filled_metadata=pre_filled_metadata,
         )
         cmd = [
-            'trace-cmd',
+            bin_,
             'report',
             # Do not load any plugin, so that we get fully reproducible results
             '-N',
