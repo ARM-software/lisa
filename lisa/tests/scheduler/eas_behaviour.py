@@ -34,6 +34,7 @@ from lisa.target import Target
 from lisa.pelt import PELT_SCALE, pelt_swing
 from lisa.datautils import df_refit_index
 from lisa.notebook import plot_signal
+from lisa.conf import ConfigKeyError
 
 
 class EASBehaviour(RTATestBundle, TestBundle):
@@ -72,6 +73,9 @@ class EASBehaviour(RTATestBundle, TestBundle):
         The duty cycle will be chosen so that the task will not fit on the
         second to biggest CPUs in the system, thereby forcing up-migration
         while minimizing the thermal impact.
+
+        The duty cycle must also be big enough so that the OPP of the big CPUs
+        is high enough to make them less attractive than the little CPUs.
         """
         capa_classes = plat_info['capacity-classes']
         max_class = len(capa_classes) - 1
@@ -87,6 +91,34 @@ class EASBehaviour(RTATestBundle, TestBundle):
 
         capacity_margin_pct = 20
         util = get_class_util(class_, 100)
+
+        # Get the power ratio of the little CPUs when running a task
+        # at little_duty_cycle.
+        try:
+            nrg_model = plat_info['nrg-model']
+            little_cpus = cls.get_little_cpu(plat_info)
+            little_duty_cycle = cls.get_little_duty_cycle(plat_info)
+            little_cpus_freq = nrg_model.guess_freqs(
+                [little_duty_cycle] * plat_info["cpus-count"],
+                capacity_margin_pct
+            )[little_cpus]
+            s_little = nrg_model.cpu_nodes[little_cpus].active_states[little_cpus_freq]
+            little_power_ratio = s_little.power / s_little.capacity
+
+            # Find the first OPP of the big CPUs with a power ratio higher
+            # than little_power_ratio
+            big_cpus = capa_classes[class_ + 1][0]
+            min_big_capa = 0
+            for s in nrg_model.cpu_nodes[big_cpus].active_states.values():
+                s_power_ratio = s.power / s.capacity
+                if s_power_ratio > little_power_ratio:
+                    min_big_capa = s.capacity
+                    break
+            assert min_big_capa != 0
+
+            util = max(util, 100 * min_big_capa / PELT_SCALE)
+        except ConfigKeyError:
+            pass
 
         if class_ < max_class:
             higher_class_capa = get_class_util(class_ + 1, (100 - capacity_margin_pct))
