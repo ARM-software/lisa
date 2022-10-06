@@ -40,8 +40,8 @@ class RampBoostTestBase(RTATestBundle, TestBundle):
     Test schedutil's ramp boost feature.
     """
 
-    def __init__(self, res_dir, plat_info, cpu):
-        super().__init__(res_dir, plat_info)
+    def __init__(self, res_dir, plat_info, cpu, rtapp_profile_kwargs=None):
+        super().__init__(res_dir, plat_info, rtapp_profile_kwargs=rtapp_profile_kwargs)
         self.cpu = cpu
 
     @requires_events('cpu_idle', 'cpu_frequency', 'sched_wakeup')
@@ -298,12 +298,17 @@ class LargeStepUp(RampBoostTestBase):
     task_name = "step_up"
 
     def __init__(self, res_dir, plat_info, cpu, nr_steps):
-        super().__init__(res_dir, plat_info, cpu=cpu)
+        rtapp_profile_kwargs = dict(
+            cpu=cpu,
+            nr_steps=nr_steps,
+        )
+        super().__init__(
+            res_dir,
+            plat_info,
+            cpu=cpu,
+            rtapp_profile_kwargs=rtapp_profile_kwargs,
+        )
         self.nr_steps = nr_steps
-
-    @property
-    def rtapp_profile(self):
-        return self.get_rtapp_profile(self.plat_info, cpu=self.cpu, nr_steps=self.nr_steps)
 
     @classmethod
     def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, collector=None, cpu=None, nr_steps=1) -> 'LargeStepUp':
