@@ -1577,6 +1577,11 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
     """
     Abstract Base Class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
 
+    :param rtapp_profile_kwargs: Keyword arguments to pass to
+        :meth:`lisa.tests.base.RTATestBundle._get_rtapp_profile` when called from
+        the :meth:`lisa.tests.base.RTATestBundle._get_rtapp_profile` property.
+    :type rtapp_profile_kwargs: collections.abc.Mapping or None
+
     .. seealso: :class:`lisa.tests.base.FtraceTestBundle` for default
         ``FTRACE_CONF`` content.
     """
@@ -1621,6 +1626,10 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
     """
     Properties of the buffer phase, see :attr:`_BUFFER_PHASE_DURATION_S`
     """
+
+    def __init__(self, res_dir, plat_info, rtapp_profile_kwargs=None):
+        super().__init__(res_dir, plat_info)
+        self._rtapp_profile_kwargs = dict(rtapp_profile_kwargs or {})
 
     @RTAEventsAnalysis.df_rtapp_phases_start.used_events
     @RTAEventsAnalysis.df_rtapp_phases_end.used_events
@@ -1684,7 +1693,11 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         """
         Compute the RTapp profile based on ``plat_info``.
         """
-        return self.get_rtapp_profile(self.plat_info)
+
+        return self.get_rtapp_profile(
+            self.plat_info,
+            **self._rtapp_profile_kwargs,
+        )
 
     _rtapp_tasks_events = requires_events('sched_switch')
 
