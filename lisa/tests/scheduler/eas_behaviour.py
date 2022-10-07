@@ -26,7 +26,7 @@ from itertools import chain
 from lisa.wlgen.rta import RTAPhase, PeriodicWload, DutyCycleSweepPhase
 from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.analysis.tasks import TasksAnalysis
-from lisa.tests.base import ResultBundle, TestBundle, RTATestBundle
+from lisa.tests.base import ResultBundle, TestBundle, RTATestBundle, TestConfBase
 from lisa.utils import ArtifactPath, memoized
 from lisa.datautils import series_integrate, df_deduplicate
 from lisa.energy_model import EnergyModel, EnergyModelCapacityError
@@ -34,6 +34,22 @@ from lisa.target import Target
 from lisa.pelt import PELT_SCALE, pelt_swing
 from lisa.datautils import df_refit_index
 from lisa.notebook import plot_signal
+from lisa.conf import (
+    KeyDesc, TopLevelKeyDesc,
+)
+
+
+class EASBehaviourTestConf(TestConfBase):
+    """
+    Configuration class for :meth:`lisa.tests.scheduler.eas_behaviour.EASBehaviour.get_big_duty_cycle`.
+
+    {generated_help}
+    {yaml_example}
+    """
+
+    STRUCTURE = TopLevelKeyDesc('eas-behaviour', 'EAS-behaviour test configuration', (
+        KeyDesc('big-task-duty-cycle', 'Duty cycle of the big tasks for the eas-behaviour tests.', [int]),
+    ))
 
 
 class EASBehaviour(RTATestBundle, TestBundle):
@@ -64,7 +80,7 @@ class EASBehaviour(RTATestBundle, TestBundle):
         ) / PELT_SCALE * 100
 
     @classmethod
-    def get_big_duty_cycle(cls, plat_info):
+    def get_big_duty_cycle(cls, plat_info, big_task_duty_cycle=None):
         """
         Returns a duty cycle for :class:`lisa.wlgen.rta.PeriodicWload` that
         will guarantee placement on a big CPU.
@@ -73,38 +89,43 @@ class EASBehaviour(RTATestBundle, TestBundle):
         second to biggest CPUs in the system, thereby forcing up-migration
         while minimizing the thermal impact.
         """
-        capa_classes = plat_info['capacity-classes']
-        max_class = len(capa_classes) - 1
+        # big_task_duty_cycle is set when the platform requires a specific
+        # value for the big task duty cycle.
+        if big_task_duty_cycle is None:
+            capa_classes = plat_info['capacity-classes']
+            max_class = len(capa_classes) - 1
 
-        def get_class_util(class_, pct):
-            cpus = capa_classes[class_]
-            return cls.unscaled_utilization(plat_info, cpus[0], pct)
+            def get_class_util(class_, pct):
+                cpus = capa_classes[class_]
+                return cls.unscaled_utilization(plat_info, cpus[0], pct)
 
-        class_ = -2
+            class_ = -2
 
-        # Resolve to an positive index
-        class_ %= (max_class + 1)
+            # Resolve to an positive index
+            class_ %= (max_class + 1)
 
-        capacity_margin_pct = 20
-        util = get_class_util(class_, 100)
+            capacity_margin_pct = 20
+            util = get_class_util(class_, 100)
 
-        if class_ < max_class:
-            higher_class_capa = get_class_util(class_ + 1, (100 - capacity_margin_pct))
-            # If the CPU class and util we picked is too close to the capacity
-            # of the next bigger CPU, we need to take a smaller util
-            if (util + cls.get_pelt_swing(util)) >= higher_class_capa:
-                # Take a 5% margin for rounding errors
-                util = 0.95 * higher_class_capa
-                return (
-                    util -
-                    # And take extra margin to take into account the swing of
-                    # the PELT value around the average
-                    cls.get_pelt_swing(util)
-                )
+            if class_ < max_class:
+                higher_class_capa = get_class_util(class_ + 1, (100 - capacity_margin_pct))
+                # If the CPU class and util we picked is too close to the capacity
+                # of the next bigger CPU, we need to take a smaller util
+                if (util + cls.get_pelt_swing(util)) >= higher_class_capa:
+                    # Take a 5% margin for rounding errors
+                    util = 0.95 * higher_class_capa
+                    return (
+                        util -
+                        # And take extra margin to take into account the swing of
+                        # the PELT value around the average
+                        cls.get_pelt_swing(util)
+                    )
+                else:
+                    return util
             else:
                 return util
         else:
-            return util
+            return big_task_duty_cycle
 
     @classmethod
     def get_little_cpu(cls, plat_info):
@@ -191,7 +212,8 @@ class EASBehaviour(RTATestBundle, TestBundle):
             ResultBundle.raise_skip("Energy model not available")
 
     @classmethod
-    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, collector=None) -> 'EASBehaviour':
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, collector=None,
+            big_task_duty_cycle: EASBehaviourTestConf.BigTaskDutyCycle = None) -> 'EASBehaviour':
         """
         :meta public:
 
@@ -201,7 +223,9 @@ class EASBehaviour(RTATestBundle, TestBundle):
         :meth:`lisa.tests.base.RTATestBundle.get_rtapp_profile`
         """
         plat_info = target.plat_info
-        rtapp_profile = cls.get_rtapp_profile(plat_info)
+        profile_kwargs = dict(big_task_duty_cycle=big_task_duty_cycle)
+
+        rtapp_profile = cls.get_rtapp_profile(plat_info, **profile_kwargs)
 
         # EAS doesn't make a lot of sense without schedutil,
         # so make sure this is what's being used
@@ -209,7 +233,7 @@ class EASBehaviour(RTATestBundle, TestBundle):
             with target.cpufreq.use_governor("schedutil"):
                 cls.run_rtapp(target, res_dir, rtapp_profile, collector=collector)
 
-        return cls(res_dir, plat_info)
+        return cls(res_dir, plat_info, rtapp_profile_kwargs=profile_kwargs)
 
     @RTAEventsAnalysis.df_phases.used_events
     def _get_expected_task_utils_df(self):
@@ -568,7 +592,7 @@ class EASBehaviourNoEWMA(EASBehaviour):
     _BUFFER_PHASE_DURATION_S = 0 # Bypass add_buffer() default RTAPhase buffer
 
     @abc.abstractmethod
-    def _do_get_rtapp_profile(cls, plat_info):
+    def _do_get_rtapp_profile(cls, plat_info, **kwargs):
         """
         :meta public:
 
@@ -578,7 +602,7 @@ class EASBehaviourNoEWMA(EASBehaviour):
         pass
 
     @classmethod
-    def _get_rtapp_profile(cls, plat_info):
+    def _get_rtapp_profile(cls, plat_info, **kwargs):
         """
         :meta public:
 
@@ -586,7 +610,7 @@ class EASBehaviourNoEWMA(EASBehaviour):
         class rt-app profile :meth:`_do_get_rtapp_profile`. This buffer intends
         to mitigate the util_est.ewma influence.
         """
-        profile = cls._do_get_rtapp_profile(plat_info)
+        profile = cls._do_get_rtapp_profile(plat_info, **kwargs)
 
         return {
             task: RTAPhase(
@@ -609,7 +633,7 @@ class OneSmallTask(EASBehaviourNoEWMA):
     task_name = "small"
 
     @classmethod
-    def _do_get_rtapp_profile(cls, plat_info):
+    def _do_get_rtapp_profile(cls, plat_info, **kwargs):
         return {
             cls.task_name: RTAPhase(
                 prop_wload=PeriodicWload(
@@ -649,7 +673,7 @@ class ThreeSmallTasks(EASBehaviourNoEWMA):
             capacity_margin_pct=capacity_margin_pct)
 
     @classmethod
-    def _do_get_rtapp_profile(cls, plat_info):
+    def _do_get_rtapp_profile(cls, plat_info, **kwargs):
         return {
             f"{cls.task_prefix}_{i}": RTAPhase(
                 prop_wload=PeriodicWload(
@@ -670,8 +694,9 @@ class TwoBigTasks(EASBehaviourNoEWMA):
     task_prefix = "big"
 
     @classmethod
-    def _do_get_rtapp_profile(cls, plat_info):
-        duty = cls.get_big_duty_cycle(plat_info)
+    def _do_get_rtapp_profile(cls, plat_info, big_task_duty_cycle=None):
+        duty = cls.get_big_duty_cycle(plat_info, big_task_duty_cycle=big_task_duty_cycle)
+
         return {
             f"{cls.task_prefix}_{i}": RTAPhase(
                 prop_wload=PeriodicWload(
@@ -693,9 +718,9 @@ class TwoBigThreeSmall(EASBehaviourNoEWMA):
     big_prefix = "big"
 
     @classmethod
-    def _do_get_rtapp_profile(cls, plat_info):
+    def _do_get_rtapp_profile(cls, plat_info, big_task_duty_cycle=None):
         little_duty = cls.get_little_duty_cycle(plat_info)
-        big_duty = cls.get_big_duty_cycle(plat_info)
+        big_duty = cls.get_big_duty_cycle(plat_info, big_task_duty_cycle=big_task_duty_cycle)
 
         return {
             **{
@@ -738,9 +763,9 @@ class EnergyModelWakeMigration(EASBehaviourNoEWMA):
            'Cannot test migration on single capacity group')
 
     @classmethod
-    def _do_get_rtapp_profile(cls, plat_info):
+    def _do_get_rtapp_profile(cls, plat_info, big_task_duty_cycle=None):
         little = cls.get_little_cpu(plat_info)
-        end_pct = cls.get_big_duty_cycle(plat_info)
+        end_pct = cls.get_big_duty_cycle(plat_info, big_task_duty_cycle=big_task_duty_cycle)
         bigs = plat_info["capacity-classes"][-1]
 
         return {
@@ -792,10 +817,10 @@ class RampUp(EASBehaviourNoEWMA):
             capacity_margin_pct=capacity_margin_pct)
 
     @classmethod
-    def _do_get_rtapp_profile(cls, plat_info):
+    def _do_get_rtapp_profile(cls, plat_info, big_task_duty_cycle=None):
         little = cls.get_little_cpu(plat_info)
         start_pct = cls.unscaled_utilization(plat_info, little, 10)
-        end_pct = cls.get_big_duty_cycle(plat_info)
+        end_pct = cls.get_big_duty_cycle(plat_info, big_task_duty_cycle=big_task_duty_cycle)
 
         return {
             cls.task_name: DutyCycleSweepPhase(
@@ -846,7 +871,7 @@ class RampDown(EASBehaviour):
     @classmethod
     def _get_rtapp_profile(cls, plat_info):
         little = cls.get_little_cpu(plat_info)
-        start_pct = cls.get_big_duty_cycle(plat_info)
+        start_pct = cls.get_big_duty_cycle(plat_info, big_task_duty_cycle=big_task_duty_cycle)
         end_pct = cls.unscaled_utilization(plat_info, little, 10)
 
         return {
