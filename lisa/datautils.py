@@ -1302,15 +1302,12 @@ def df_deduplicate(df, keep, consecutives, cols=None, all_col=True):
 
 
 @DataFrameAccessor.register_accessor
-def df_update_duplicates(df, col=None, func=None, inplace=False):
+def series_update_duplicates(series, func=None):
     """
-    Update a given column to avoid duplicated values.
+    Update a given series to avoid duplicated values.
 
-    :param df: Dataframe to act on.
-    :type df: pandas.DataFrame
-
-    :param col: Column to update. If ``None``, the index is used.
-    :type col: str or None
+    :param series: Series to act on.
+    :type series: pandas.Series
 
     :param func: The function used to update the column. It must take a
         :class:`pandas.Series` of duplicated entries to update as parameters,
@@ -1318,12 +1315,8 @@ def df_update_duplicates(df, col=None, func=None, inplace=False):
         long as there are remaining duplicates. If ``None``, the column is
         assumed to be floating point and duplicated values will be incremented
         by the smallest amount possible.
-    :type func: collections.abc.Callable
-
-    :param inplace: If ``True``, the passed dataframe will be modified.
-    :type inplace: bool
+    :type func: collections.abc.Callable or None
     """
-
     def increment(series):
         return np.nextafter(series, math.inf)
 
@@ -1332,9 +1325,6 @@ def df_update_duplicates(df, col=None, func=None, inplace=False):
         locs = series.duplicated(keep='first')
         return locs, series.loc[locs]
 
-    use_index = col is None
-
-    series = df.index.to_series() if use_index else df[col].copy()
     func = func if func else increment
 
     # Update the values until there is no more duplication
@@ -1345,6 +1335,31 @@ def df_update_duplicates(df, col=None, func=None, inplace=False):
         # initial value
         series.loc[duplicated_locs] = updated
         duplicated_locs, duplicated = get_duplicated(series)
+
+    return series
+
+
+@DataFrameAccessor.register_accessor
+def df_update_duplicates(df, col=None, func=None, inplace=False):
+    """
+    Same as :func:`series_update_duplicates` but on a :class:`pandas.DataFrame`.
+
+    :param df: Dataframe to act on.
+    :type df: pandas.DataFrame
+
+    :param col: Column to update. If ``None``, the index is used.
+    :type col: str or None
+
+    :param func: See :func:`series_update_duplicates`.
+    :type func: collections.abc.Callable or None
+
+    :param inplace: If ``True``, the passed dataframe will be modified.
+    :type inplace: bool
+    """
+    use_index = col is None
+
+    series = df.index.to_series() if use_index else df[col].copy()
+    series = series_update_duplicates(series, func=func)
 
     df = df if inplace else df.copy()
     if use_index:
