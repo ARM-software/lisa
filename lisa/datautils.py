@@ -2017,7 +2017,7 @@ def df_find_redundant_cols(df, col, cols=None):
     return {
         _col: dict(map(
             lambda x: (x[0], x[1][0]),
-            series.iteritems()
+            series.items()
         ))
         for _col, series in (
             (
