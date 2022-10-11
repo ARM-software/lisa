@@ -134,7 +134,7 @@ class NotebookAnalysis(TraceAnalysisBase):
             def make_info_row(row, event):
                 fields = field_sep.join(
                     f'{key}={value}'
-                    for key, value in row.iteritems()
+                    for key, value in row.items()
                     if key not in fields_as_cols_set
                 )
                 return fmt.format(
