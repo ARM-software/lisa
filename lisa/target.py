@@ -171,6 +171,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
             )),
             KeyDesc('excluded-modules', 'List of devlib modules to *not* load', [TypedList[str]]),
             KeyDesc('file-xfer', 'File transfer method. Can be "sftp" (default) or "scp". (Only valid for linux targets)', [TypedList[str]]),
+            KeyDesc('max-async', 'Maximum number of asynchronous commands in flight at any time', [TypedList[int]]),
 
         ))
     ))
@@ -246,6 +247,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
     INIT_KWARGS_KEY_MAP = {
         'devlib_excluded_modules': ['devlib', 'excluded-modules'],
         'devlib_file_xfer': ['devlib', 'file-xfer'],
+        'devlib_max_async': ['devlib', 'max-async'],
         'wait_boot': ['wait-boot', 'enable'],
         'wait_boot_timeout': ['wait-boot', 'timeout'],
 
@@ -260,7 +262,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         username=None, password=None, keyfile=None, strict_host_check=None,
         devlib_platform=None, devlib_excluded_modules=[], devlib_file_xfer=None,
         wait_boot=True, wait_boot_timeout=10, kernel_src=None, kmod_build_env=None,
-        kmod_make_vars=None, kmod_overlay_backend=None,
+        kmod_make_vars=None, kmod_overlay_backend=None, devlib_max_async=None,
     ):
         # pylint: disable=dangerous-default-value
         super().__init__()
@@ -311,6 +313,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             devlib_platform=devlib_platform,
             wait_boot=wait_boot,
             wait_boot_timeout=wait_boot_timeout,
+            max_async=devlib_max_async,
         )
 
         devlib_excluded_modules = set(devlib_excluded_modules)
@@ -732,8 +735,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
     def _init_target(self, kind, name, workdir, device, host,
             port, username, password, keyfile, strict_host_check, use_scp,
-            devlib_platform,
-            wait_boot, wait_boot_timeout,
+            devlib_platform, wait_boot, wait_boot_timeout, max_async,
     ):
         """
         Initialize the Target
@@ -809,13 +811,22 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         # Create devlib Target object
         ########################################################################
 
-        target = devlib_target_cls(
+        devlib_kwargs = dict(
             platform=devlib_platform,
             load_default_modules=False,
             connection_settings=conn_settings,
             working_directory=workdir,
             connect=False,
+            max_async=max_async,
         )
+
+        devlib_kwargs = {
+            k: v
+            for k, v in devlib_kwargs.items()
+            if v is not None
+        }
+
+        target = devlib_target_cls(**devlib_kwargs)
 
         target.connect(check_boot_completed=wait_boot, timeout=wait_boot_timeout)
         logger.debug(f'Target info: {dict(abi=target.abi, cpuinfo=target.cpuinfo, workdir=target.working_directory)}')
