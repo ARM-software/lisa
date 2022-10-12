@@ -1581,6 +1581,9 @@ class KmodSrc(Loggable):
             make_vars.update(
                 M=mod_path,
                 LISA_KMOD_NAME=self.mod_name,
+                KERNEL_SRC=tree_path,
+                MODULE_SRC=mod_path,
+                MODULE_OBJ=mod_path,
             )
             make_vars = [
                 f'{name}={value}'
