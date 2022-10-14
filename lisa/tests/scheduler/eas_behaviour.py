@@ -869,7 +869,7 @@ class RampDown(EASBehaviour):
             capacity_margin_pct=capacity_margin_pct)
 
     @classmethod
-    def _get_rtapp_profile(cls, plat_info):
+    def _get_rtapp_profile(cls, plat_info, big_task_duty_cycle=None):
         little = cls.get_little_cpu(plat_info)
         start_pct = cls.get_big_duty_cycle(plat_info, big_task_duty_cycle=big_task_duty_cycle)
         end_pct = cls.unscaled_utilization(plat_info, little, 10)
