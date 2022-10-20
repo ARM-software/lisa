@@ -593,6 +593,7 @@ def _hv_link_dataframes(fig, dfs):
             height=400,
             # autosize_mode='fit_viewport',
             row_height=25,
+            pagination=None,
 
             # Only relevant for pn.widgets.Tabulator
             theme='simple',
