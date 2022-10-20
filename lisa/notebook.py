@@ -629,13 +629,19 @@ def _hv_link_dataframes(fig, dfs):
 
     def scroll_table(tables):
         def record_taps(x, y):
-            for table in tables:
-                if x is not None:
-                    df = table.value
-                    i = df.index.get_indexer([x], method='ffill')[0]
-                    # This will automatically scroll in the table.
-                    table.selection = [i]
-            return hv.Points([])
+            try:
+                for table in tables:
+                    if x is not None:
+                        df = table.value
+                        i = df.index.get_indexer([x], method='ffill')[0]
+                        # This will automatically scroll in the table.
+                        # It requires a Python int, a numpy object is not good
+                        # enough.
+                        table.selection = [int(i)]
+            # It is vital to return something, otherwise the plot will
+            # disappear, which is much worse than the selection not working
+            finally:
+                return hv.Points([])
 
         tap = hv.streams.SingleTap(transient=True)
         dmap = hv.DynamicMap(record_taps, streams=[tap])
