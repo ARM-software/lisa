@@ -54,6 +54,8 @@ else
     VMLINUX := $(_DWARF_VMLINUX)
 endif
 
+VMLINUX_H_TYPE_PREFIX=KERNEL_PRIVATE_
+
 $(VMLINUX_H): $(VMLINUX_TXT) $(VMLINUX)
 # Some options are not upstream (yet) but they have all be published on the
 # dwarves mailing list
@@ -65,18 +67,21 @@ $(VMLINUX_H): $(VMLINUX_TXT) $(VMLINUX)
 #   to make padding more visible. They are not always valid C syntax and can
 #   break build
 # --skip_missing: Keep going if one of the types is not found
-# --forward_decl: (non upstream) Include forward declaration of union and
-#   struct. Note that it is not currently used as it dumps the declaration of
-#   all types. Unfortunately, some android kernels have multiple definitions of
-#   the same type (struct map_info/union map_info) which renders the header
-#   invalid. Since it's not a type we are interested in, we don't ask pahole to
-#   generate forward_decl and instead do it manually with sed.
-# --expand_types_once: Only expand a given type once, to avoid type redefinition
+# --expand_types_once (non upstream): Only expand a given type once, to avoid type redefinition
 #   (C does not care about nesting types, there is a single namespace).
-# --expanded_prefix: Add a prefix to all the types that are expanded by -E. This
-#   avoids conflicting with type definitions that would come from public kernel
-#   headers, while still allowing easy attribute access, anonymous types etc.
-	pahole -F btf,dwarf -E --suppress_force_paddings --show_only_data_members --skip_missing --expand_types_once --expanded_prefix "KERNEL_PRIVATE_" -C file://$(VMLINUX_TXT) $(VMLINUX) > _header
+#
+# We then post-process the header to add a prefix to each type expanded by -E
+# that was not explicitly asked for. This avoids conflicting with type
+# definitions that would come from public kernel headers, while still allowing
+# easy attribute access.
+
+	pahole -F btf,dwarf -E --suppress_force_paddings --show_only_data_members --skip_missing --expand_types_once -C file://$(VMLINUX_TXT) $(VMLINUX) > _header
+
+# Rename all defined types to include the prefix
+	sed "s/\(struct\|union\|enum\)\s*\([a-zA-Z0-9_]\+\)/\1 $(VMLINUX_H_TYPE_PREFIX)\2/g" -i _header
+# Create a sed script to rename back to initial state the types that we explicitly asked for
+	sed -n "s@\(.*\)@s/\\\(struct\\\|union\\\|enum\\\)\\\s*$(VMLINUX_H_TYPE_PREFIX)\1/\\\1 \\1/;@gp" $(VMLINUX_TXT) | sed -f - -i _header
+
 # Strip comments to avoid matching them with the sed regex.
 	$(CC) -P -E - < _header > _header_no_comment
 # Create forward declaration of every type
