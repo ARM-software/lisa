@@ -2824,10 +2824,20 @@ class Operator:
         """
         ``True`` if the callable is a factory ``classmethod``, i.e. a
         classmethod that returns objects of the class it is defined in (or of a
-        subclass of it).
+        subclass of it), or has a return annotation of typing.Self.
         """
         callable_ = self._unwrapped_unbound
-        return self.is_cls_method and issubclass(callable_.__self__, self.value_type)
+        try:
+            from typing import Self
+        except ImportError:
+            returns_self = False
+        else:
+            returns_self = (self.annotations.get('return') == Self)
+
+        return self.is_cls_method and (
+            returns_self or
+            issubclass(callable_.__self__, self.value_type)
+        )
 
     def make_expr_val_iter(self, expr, param_map):
         """
