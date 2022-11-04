@@ -1911,7 +1911,7 @@ class HRTxtTraceParser(SimpleTxtTraceParser):
         ),
     }
 
-    HEADER_REGEX = r'(?P<__comm>.+)-(?P<__pid>\d+)[^[]*\[(?P<__cpu>\d*)\].*(?P<__timestamp>\d+\.\d+): +(?P<__event>\w+):'
+    HEADER_REGEX = r'\s*(?P<__comm>.+)-(?P<__pid>\d+)[^[]*\[(?P<__cpu>\d*)\][^\d]+(?P<__timestamp>\d+\.\d+): +(?P<__event>\w+):'
 
 
 class SysTraceParser(HRTxtTraceParser):
