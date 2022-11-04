@@ -658,3 +658,47 @@ class AssociatedTypesTestCase(NoExcepTestCase):
     }
     # no tags used
     EXPR_VAL_ID = EXPR_ID
+
+
+try:
+    from typing import Self
+except ImportError:
+    test_typing_self = False
+else:
+    test_typing_self = True
+
+class HavingFactoryMethod:
+    @classmethod
+    def factory_basic(cls) -> 'HavingFactoryMethod':
+        return cls()
+
+    if test_typing_self:
+        @classmethod
+        def factory_self(cls) -> typing.Self:
+            return cls()
+
+class HavingFactoryMethodDerived(HavingFactoryMethod):
+    pass
+
+def consume_HavingFactoryMethodDerived(x: HavingFactoryMethodDerived) -> Final:
+    return Final()
+
+class BasicFactoryTestCase(NoExcepTestCase):
+    CALLABLES = {HavingFactoryMethodDerived.factory_basic, consume_HavingFactoryMethodDerived}
+    EXPR_ID = {
+        (('qual', True),): 'exekall.tests.suite.HavingFactoryMethodDerived.factory_basic:exekall.tests.suite.consume_HavingFactoryMethodDerived',
+        (('qual', False),): 'HavingFactoryMethodDerived.factory_basic:consume_HavingFactoryMethodDerived',
+    }
+    # no tags used
+    EXPR_VAL_ID = EXPR_ID
+
+
+if test_typing_self:
+    class SelfFactoryTestCase(NoExcepTestCase):
+        CALLABLES = {HavingFactoryMethodDerived.factory_self, consume_HavingFactoryMethodDerived}
+        EXPR_ID = {
+            (('qual', True),): 'exekall.tests.suite.HavingFactoryMethodDerived.factory_self:exekall.tests.suite.consume_HavingFactoryMethodDerived',
+            (('qual', False),): 'HavingFactoryMethodDerived.factory_self:consume_HavingFactoryMethodDerived',
+        }
+        # no tags used
+        EXPR_VAL_ID = EXPR_ID
