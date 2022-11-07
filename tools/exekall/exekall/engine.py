@@ -2408,20 +2408,24 @@ class Operator:
         # This has functionally no use but provides a massive speedup by
         # skipping all the callables that have arguments without default values
         # but no annotation
-        code = sig_f.__code__
-        non_default_args = (
-            code.co_argcount +
-            code.co_kwonlyargcount -
-            # Discount the parameters that have a default value, as they don't
-            # necessarily need an annotation to be useful
-            len(sig_f.__defaults__ or tuple())
-        )
-        if non_default_args and not has_annotations(sig_f):
-            raise AnnotationError(
-                'Missing annotation for operator "{op}"'.format(
-                    op=self.name,
-                )
+        try:
+            code = sig_f.__code__
+        except AttributeError:
+            pass
+        else:
+            non_default_args = (
+                code.co_argcount +
+                code.co_kwonlyargcount -
+                # Discount the parameters that have a default value, as they don't
+                # necessarily need an annotation to be useful
+                len(sig_f.__defaults__ or tuple())
             )
+            if non_default_args and not has_annotations(sig_f):
+                raise AnnotationError(
+                    'Missing annotation for operator "{op}"'.format(
+                        op=self.name,
+                    )
+                )
 
         signature = inspect.signature(sig_f)
         annotations = {
@@ -2490,6 +2494,14 @@ class Operator:
             # the original annotation, we replace the annotation by the
             # subclass That allows implementing factory classmethods
             # easily.
+            try:
+                self_cls = self.resolved_callable.__self__
+            except AttributeError:
+                if inspect.isclass(self.callable_):
+                    self_cls = self.callable_
+                else:
+                    raise TypeError(f'Could not determine the return type of the factory method {self.callable_.__qualname__}')
+
             self.annotations['return'] = self.resolved_callable.__self__
             # Refresh the prototype
             self.prototype = self._get_prototype()
@@ -2516,7 +2528,11 @@ class Operator:
                 )
             return {name: obj}
 
-        globals_ = self.resolved_callable.__globals__ or {}
+        try:
+            globals_ = self.resolved_callable.__globals__ or {}
+        except AttributeError:
+            globals_ = {}
+
         if isinstance(self.callable_, UnboundMethod):
             globals_ = {
                 **globals_,
@@ -2998,7 +3014,8 @@ class Operator:
             if (
                 param not in annotation_map and
                 param not in extra_ignored_param and
-                param not in self.ignored_param
+                param not in self.ignored_param and
+                param_spec.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
             ):
                 # If some parameters are annotated but not all, we raise a
                 # slightly different exception to allow better reporting
