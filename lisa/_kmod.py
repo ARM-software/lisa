@@ -862,15 +862,16 @@ class KernelTree(Loggable, SerializeViaConstructor):
             # checksum and the check fails. This used to be a simple warning,
             # but has now been turned into an error in recent kernels.
             # We remove the SHA1 from the file so that the check is skipped.
-            for _path in (path / 'include' / 'linux' / 'atomic').iterdir():
-                content = _path.read_bytes()
-                lines = [line for line in content.split(b'\n') if line]
-                if lines and lines[-1].lstrip().startswith(b'//'):
-                    # Remove the last line, containing the sha1
-                    content = b'\n'.join(lines[:-1]) + b'\n'
-                    sha1 = hashlib.sha1(content).hexdigest()
-                    content += b'// ' + sha1.encode('ascii') + b'\n'
-                    _path.write_bytes(content)
+            with contextlib.suppress(FileNotFoundError):
+                for _path in (path / 'include' / 'linux' / 'atomic').iterdir():
+                    content = _path.read_bytes()
+                    lines = [line for line in content.split(b'\n') if line]
+                    if lines and lines[-1].lstrip().startswith(b'//'):
+                        # Remove the last line, containing the sha1
+                        content = b'\n'.join(lines[:-1]) + b'\n'
+                        sha1 = hashlib.sha1(content).hexdigest()
+                        content += b'// ' + sha1.encode('ascii') + b'\n'
+                        _path.write_bytes(content)
 
 
         if build_env == 'alpine':
