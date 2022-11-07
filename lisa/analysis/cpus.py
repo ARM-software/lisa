@@ -66,6 +66,59 @@ class CpusAnalysis(TraceAnalysisBase):
 
         return ctx_sw_df
 
+    @TraceAnalysisBase.cache
+    @requires_events('sched_switch')
+    def df_states(self):
+        """
+        Compute the state intervals on each CPU.
+
+        :returns: A :class:`pandas.DataFrame` with:
+
+          * A ``cpu`` column (the CPU the state refers to)
+          * A ``state`` column (the BUSY/IDLE state the CPU is into)
+          * A ``duration`` column (the time the CPU is in this state)
+          * A ``end_time`` column (the time the CPU will exit this state)
+        """
+        # Start from sched_switch events
+        sched_df = self.trace.df_event('sched_switch')
+        
+        # Keep only CPU transition events (IDLE to/from BUSY)
+        def switch_cpu_state(row):
+            if row.prev_pid != 0 and row.next_pid != 0:
+                return False
+            return True
+        states_df = sched_df[sched_df.apply(switch_cpu_state, axis=1)]
+        
+        # Reset index and use the event timestamp to compute deltas
+        states_df.reset_index(inplace=True)
+        
+        # Compute next transition time and deltas (by grouping events by CPU)
+        grouped = states_df.groupby('__cpu', observed=True, sort=False)
+        new_columns = dict(
+            end_time=grouped['Time'].shift(-1),
+            # GroupBy.transform() will run the function on each group, and
+            # concatenate the resulting series to create a new column.
+            # Note: We actually need transform() to chain 2 operations on
+            # the group, otherwise the first operation returns a final
+            # Series, and the 2nd is not applied on groups
+            duration=grouped['Time'].transform(lambda time: time.diff().shift(-1)),
+        )
+        states_df = states_df.assign(**new_columns)[:-1]
+        
+        # Back annotate the CPU state on each period
+        def cpu_state(prev_pid):
+            # Idle entry event
+            if prev_pid:
+                return 'IDLE'
+            # Idle exit event
+            return 'BUSY'
+        states_df['state'] = states_df['prev_pid'].apply(lambda prev_pid: cpu_state(prev_pid))
+        
+        # Reset the index and return ordered minimal set of columns
+        states_df.set_index('Time', inplace=True)
+        states_df.rename({'__cpu': 'cpu'}, axis=1, inplace=True)
+        return states_df[['cpu', 'state', 'duration', 'end_time']]
+
 ###############################################################################
 # Plotting Methods
 ###############################################################################
