@@ -119,6 +119,43 @@ class CpusAnalysis(TraceAnalysisBase):
         states_df.rename({'__cpu': 'cpu'}, axis=1, inplace=True)
         return states_df[['cpu', 'state', 'duration', 'end_time']]
 
+    @TraceAnalysisBase.cache
+    @requires_events('sched_switch')
+    @df_states.used_events
+    def df_utils(self):
+        """
+        Compute stats on utilization levels of each CPU.
+
+        :returns: A :class:`pandas.DataFrame` indexed on CPUs with:
+
+          * A ``busy`` column (the total time a CPU has been BUSY)
+          * An ``idle`` column (the total time a CPU has been IDLE)
+          * An ``unacc`` colums (the total time not accounted as BUSY/IDLE)
+          * An ``unacc_pct`` colums (the percentage of accounted time)
+          * A ``util`` colums (the fraction of time the CPU has been BUSY)
+        """
+        states_df = self.df_states()
+
+        # Busy time for each CPU
+        grouped = states_df[states_df.state == 'BUSY'].groupby('cpu')
+        stats_df = grouped[['duration']].sum()
+        stats_df.rename({'duration': 'busy'}, axis=1, inplace=True)
+        
+        # Idle time for each CPU
+        grouped = states_df[states_df.state == 'IDLE'].groupby('cpu')
+        stats_df = stats_df.join(grouped[['duration']].sum())
+        stats_df.rename({'duration': 'idle'}, axis=1, inplace=True)
+        
+        # Measure of the not accounted BUSY/IDLE time intervals
+        # i.e. due to missing initial events
+        stats_df['unacc'] = self.trace.time_range - (stats_df['busy'] + stats_df['idle'])
+        stats_df['unacc_pct'] = 100 * stats_df['unacc'] / self.trace.time_range
+        
+        # CPU utilization
+        stats_df['util'] = stats_df['busy'] / self.trace.time_range
+        
+        return stats_df
+
 ###############################################################################
 # Plotting Methods
 ###############################################################################
@@ -137,6 +174,32 @@ class CpusAnalysis(TraceAnalysisBase):
             xlabel='CPU',
             ylabel='Number of context switches',
             invert_axes=True,
+        )
+
+    @TraceAnalysisBase.plot_method
+    @df_utils.used_events
+    def plot_states(self):
+        """
+        Plot stacked histogram of BUSY/IDLE states of each CPU.
+        """
+        utils_df = self.df_utils()[['busy', 'idle', 'unacc']]
+        utils_df = utils_df.reset_index().melt(id_vars=['cpu'])
+
+        def set_color(state):
+            if state == 'busy':
+                return 'red'
+            if state == 'idle':
+                return 'green'
+            if state == 'unacc':
+                return 'yellow'  
+        utils_df['color'] = utils_df['variable'].apply(
+            lambda state: set_color(state))
+        return hv.Bars(utils_df, kdims=['cpu', 'variable']).options(
+            title='Per-CPU busy/idle time breakdown',
+            ylabel='cpu status time',
+            stacked=True,
+            invert_axes=True,
+            color='color',
         )
 
     @TraceAnalysisBase.plot_method
