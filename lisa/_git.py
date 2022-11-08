@@ -61,11 +61,15 @@ def get_sha1(repo, ref='HEAD'):
     """
     return git(repo, 'rev-list', '-1', ref).strip()
 
-def get_uncommited_patch(repo):
+def get_uncommited_patch(repo, include_binary=False):
     """
     Return the patch of non commited changes, both staged and not staged yet.
+
+    :param include_binary: If ``True``, include the diff for binary files.
+    :type include_binary: bool
     """
-    return git(repo, 'diff', 'HEAD')
+    text = ['--text'] if include_binary else []
+    return git(repo, 'diff', *text, 'HEAD')
 
 def get_commit_message(repo, ref='HEAD', notes_ref='refs/notes/commits', format='%s'):
     """
