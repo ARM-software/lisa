@@ -541,6 +541,14 @@ class RTA(Workload):
     :param json_file: Path to the rt-app json description
     :type json_file: str
 
+    :param log_level: Set rt-app log level. One of:
+        * ``critical``
+        * ``error``
+        * ``notice``
+        * ``info``
+        * ``debug``
+    :type log_level: str or None
+
     .. warning::
       The class constructor only deals with pre-constructed json files.
       For creating rt-app workloads through other means, see :meth:`from_profile`
@@ -553,7 +561,7 @@ class RTA(Workload):
     REQUIRED_TOOLS = ['rt-app']
 
     @kwargs_forwarded_to(Workload.__init__, ignore=['command'])
-    def _early_init(self, *, log_stats=False, update_cpu_capacities=None, **kwargs):
+    def _early_init(self, *, log_stats=False, update_cpu_capacities=None, log_level=None, **kwargs):
         """
         Initialize everything that is not related to the contents of the json file
         """
@@ -565,8 +573,26 @@ class RTA(Workload):
         json_file = f'{self.name}.json'
         self.local_json = ArtifactPath.join(self.res_dir, json_file)
         self.remote_json = self.target.path.join(self.run_dir, json_file)
-        self._settings['command'] = f'rt-app {quote(self.remote_json)} 2>&1'
 
+        if log_level is None:
+            log_level = ''
+        else:
+            log_level = self._resolve_log_level(log_level)
+            log_level = f'--log {log_level}'
+        self._settings['command'] = f'rt-app {log_level} {quote(self.remote_json)} 2>&1'
+
+    @staticmethod
+    def _resolve_log_level(level):
+        if level in('error', 'critical'):
+            return 10
+        elif level == 'notice':
+            return 50
+        elif level == 'info':
+            return 75
+        elif level == 'debug':
+            return 100
+        else:
+            raise ValueError(f'Unknown rt-app verbosity level: {level}')
 
     def _late_init(self, conf):
         """
@@ -911,6 +937,9 @@ class RTA(Workload):
                 # Disable CPU capacities update, since that leads to infinite
                 # recursion
                 update_cpu_capacities=False,
+                # TODO: revisit this
+                # Set level to debug to track down calibration issue.
+                log_level='debug',
             )
 
             with rta, target.freeze_userspace():
