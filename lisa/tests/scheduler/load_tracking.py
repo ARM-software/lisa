@@ -216,6 +216,9 @@ class InvarianceItemBase(RTATestBundle, LoadTrackingHelpers, TestBundle, Exekall
         # task will fit even at the lowest OPP
         duty_cycle_pct //= 2
 
+        # Catch rt-app calibration induced issues early.
+        assert duty_cycle_pct > 0
+
         return {
             f"{cls.task_prefix}{cpu}": RTAPhase(
                 prop_wload=PeriodicWload(
