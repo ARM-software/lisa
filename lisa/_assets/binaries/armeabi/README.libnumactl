@@ -7,7 +7,7 @@ Build host info:
 
 NAME="Alpine Linux"
 ID=alpine
-VERSION_ID=3.16.1
+VERSION_ID=3.16.3
 PRETTY_NAME="Alpine Linux v3.16"
 HOME_URL="https://alpinelinux.org/"
 BUG_REPORT_URL="https://gitlab.alpinelinux.org/alpine/aports/-/issues"
@@ -16,7 +16,7 @@ BUG_REPORT_URL="https://gitlab.alpinelinux.org/alpine/aports/-/issues"
 Build recipe:
 
 export ARCH=armeabi
-export BUILD_DIR=/tmp/tmpwlo34ncm/armeabi/source
+export BUILD_DIR=/tmp/tmpwk5ghb33/armeabi/source
 export LISA_ARCH_ASSETS=/lisa/_assets/binaries/armeabi
 export LISA_HOME=''
 #! /bin/bash
@@ -63,7 +63,8 @@ download() {
 
     git clone https://github.com/douglas-raillard-arm/rt-app.git
     # Branch: lisa
-    git -C rt-app checkout 341f1f944023524c18ac6d254d83315434554ee4
+    git -C rt-app checkout 857d6a6624469ba275a37493a10ebba00a50b467
+
 }
 
 build() {
