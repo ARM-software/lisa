@@ -42,7 +42,8 @@ download() {
 
     git clone https://github.com/douglas-raillard-arm/rt-app.git
     # Branch: lisa
-    git -C rt-app checkout 341f1f944023524c18ac6d254d83315434554ee4
+    git -C rt-app checkout 857d6a6624469ba275a37493a10ebba00a50b467
+
 }
 
 build() {

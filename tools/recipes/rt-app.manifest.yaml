@@ -29,6 +29,12 @@ rebase-conf:
             base: master
             tip: tracefs_path_set
 
+        -
+            remote: github
+            base: master
+            tip: log_calib
+
+
     remotes:
         github:
             url: https://github.com/douglas-raillard-arm/rt-app.git
