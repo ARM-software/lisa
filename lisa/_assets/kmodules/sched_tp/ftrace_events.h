@@ -95,6 +95,10 @@ DEFINE_EVENT(sched_pelt_rq_template, sched_pelt_irq,
 	TP_PROTO(int cpu, const struct sched_avg *avg),
 	TP_ARGS(cpu, avg));
 
+DEFINE_EVENT(sched_pelt_rq_template, sched_pelt_thermal,
+	TP_PROTO(int cpu, const struct sched_avg *avg),
+	TP_ARGS(cpu, avg));
+
 TRACE_EVENT(sched_pelt_se,
 
 	TP_PROTO(int cpu, char *path, char *comm, int pid, const struct sched_avg *avg),

@@ -165,6 +165,15 @@ static inline const struct sched_avg *sched_tp_rq_avg_irq(struct rq *rq)
 #endif
 }
 
+static inline const struct sched_avg *sched_tp_rq_avg_thermal(struct rq *rq)
+{
+#if defined(CONFIG_SMP) && defined(CONFIG_SCHED_THERMAL_PRESSURE)
+	return rq ? (struct sched_avg *)&rq->avg_thermal : NULL;
+#else
+	return NULL;
+#endif
+}
+
 static inline int sched_tp_rq_cpu(struct rq *rq)
 {
 	return rq ? cpu_of(rq) : -1;

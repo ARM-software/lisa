@@ -95,6 +95,18 @@ static void sched_pelt_irq_probe(struct feature *feature, struct rq *rq)
 }
 DEFINE_TP_EVENT_FEATURE(sched_pelt_irq, pelt_irq_tp, sched_pelt_irq_probe);
 
+static void sched_pelt_thermal_probe(struct feature *feature, struct rq *rq)
+{
+	const struct sched_avg *avg = sched_tp_rq_avg_thermal(rq);
+	int cpu = sched_tp_rq_cpu(rq);
+
+	if (!avg)
+		return;
+
+	trace_sched_pelt_thermal(cpu, avg);
+}
+DEFINE_TP_EVENT_FEATURE(sched_pelt_thermal, pelt_thermal_tp, sched_pelt_thermal_probe);
+
 static void sched_pelt_se_probe(struct feature *feature, struct sched_entity *se)
 {
 	_trace_se(se, trace_sched_pelt_se);
