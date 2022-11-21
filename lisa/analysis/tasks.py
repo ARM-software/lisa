@@ -513,9 +513,13 @@ class TasksAnalysis(TraceAnalysisBase):
             df["state_str"] = stringify_task_state_series(df["state"])
         """
         def stringify_state(state):
-            try:
-                return TaskState(state).char
-            except ValueError:
+            # Same logic as in sched_switch format string
+            if state & 0xff:
+                try:
+                    return TaskState(state).char
+                except ValueError:
+                    return TaskState.sched_switch_str(state)
+            else:
                 return TaskState.sched_switch_str(state)
 
         return series.apply(stringify_state)
