@@ -2466,6 +2466,7 @@ class Operator:
             # in classes, rather than things coming from the typing module
             param_map, value_type = prototype
             if not all(
+                (hasattr(typing, 'Self') and annot == typing.Self) or
                 isinstance(annot, type) and
                 (
                     isinstance(annot, typing.TypeVar) or
