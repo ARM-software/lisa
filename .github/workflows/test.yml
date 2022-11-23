@@ -31,12 +31,11 @@ jobs:
           #- ubuntu-18.04
           - ubuntu-20.04
         python-version:
+          # Github seems to always block 3 jobs these days, so keep at most 3
+          # versions there:
           - '3.7'
-          # Speed up the checks by skipping 3.8. Also github seems to always
-          # block 3 jobs these days, so maybe this will avoid that.
-          # - '3.8'
-          - '3.9'
-          - '3.10'
+          - '3.8'
+          - '3.11'
 
     # env:
     #   DEFAULT_BRANCH: master
