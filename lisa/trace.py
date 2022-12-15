@@ -1486,6 +1486,14 @@ class TxtTraceParser(TxtTraceParserBase):
                 'util': _KERNEL_DTYPE['util'],
             },
         ),
+        'sched_pelt_thermal': dict(
+            fields={
+                'cpu': _KERNEL_DTYPE['cpu'],
+                'load': _KERNEL_DTYPE['util'],
+                'rbl_load': _KERNEL_DTYPE['util'],
+                'util': _KERNEL_DTYPE['util'],
+            },
+        ),
         'sched_process_wait': dict(
             fields={
                 'comm': _KERNEL_DTYPE['comm'],
