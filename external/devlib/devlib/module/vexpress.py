@@ -354,7 +354,26 @@ class VersatileExpressFlashModule(FlashModule):
         validate_image_bundle(bundle)
         self.logger.debug('Extracting {} into {}...'.format(bundle, self.vemsd_mount))
         with tarfile.open(bundle) as tar:
-            tar.extractall(self.vemsd_mount)
+            def is_within_directory(directory, target):
+                
+                abs_directory = os.path.abspath(directory)
+                abs_target = os.path.abspath(target)
+            
+                prefix = os.path.commonprefix([abs_directory, abs_target])
+                
+                return prefix == abs_directory
+            
+            def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+            
+                for member in tar.getmembers():
+                    member_path = os.path.join(path, member.name)
+                    if not is_within_directory(path, member_path):
+                        raise Exception("Attempted Path Traversal in Tar File")
+            
+                tar.extractall(path, members, numeric_owner=numeric_owner) 
+                
+            
+            safe_extract(tar, self.vemsd_mount)
 
     def _overlay_images(self, images):
         for dest, src in images.items():
