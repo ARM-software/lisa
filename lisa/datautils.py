@@ -2062,6 +2062,7 @@ _SIGNALS = [
     SignalDesc('sched_pelt_irq', ['cpu']),
     SignalDesc('sched_pelt_rt', ['cpu']),
     SignalDesc('sched_pelt_dl', ['cpu']),
+    SignalDesc('sched_pelt_thermal', ['cpu']),
 
     SignalDesc('uclamp_util_se', ['pid', 'comm']),
     SignalDesc('uclamp_util_cfs', ['cpu']),
