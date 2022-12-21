@@ -24,7 +24,7 @@ cd "$LISA_HOME/doc" || exit 1
 # Build the main documentation
 ##############################
 
-make SPHINXOPTS='-n --no-color -W --keep-going -T -j auto' html || ret=1
+make SPHINXOPTS='-n --no-color --keep-going -T -j auto' html || ret=1
 
 echo
 echo "Building man pages"
