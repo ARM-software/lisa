@@ -285,7 +285,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
                 return df
 
-            df = df.groupby(['__pid', '__comm'], observed=True).apply(f)
+            df = df.groupby(['__pid', '__comm'], observed=True, group_keys=False).apply(f)
 
         return df
 
