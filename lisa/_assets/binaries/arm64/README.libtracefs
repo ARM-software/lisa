@@ -1,5 +1,5 @@
 Sources of libtracefs available at:
-Git commit: 83323ad8695d3db29cfabdb57bf12a7683119dcb
+Git commit: 3395d484eadfd8ab38311032f28e7f79c4f0e33b
 Git repository: https://git.kernel.org/pub/scm/libs/libtrace/libtracefs.git
 
 
@@ -7,10 +7,10 @@ Build host info:
 
 NAME="Alpine Linux"
 ID=alpine
-VERSION_ID=3.13.6
-PRETTY_NAME="Alpine Linux v3.13"
+VERSION_ID=3.16.3
+PRETTY_NAME="Alpine Linux v3.16"
 HOME_URL="https://alpinelinux.org/"
-BUG_REPORT_URL="https://bugs.alpinelinux.org/"
+BUG_REPORT_URL="https://gitlab.alpinelinux.org/alpine/aports/-/issues"
 
 
 Build recipe:
@@ -18,28 +18,22 @@ Build recipe:
 export ARCH=arm64
 export LISA_ARCH_ASSETS=/lisa/_assets/binaries/arm64
 export LISA_HOME=''
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH=/bin:/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/sbin
 #! /bin/bash
 
-ALPINE_VERSION=v3.13
-ALPINE_BUILD_DEPENDENCIES=(bash gcc git make linux-headers musl-dev pkgconfig)
+ALPINE_VERSION=v3.16
+ALPINE_BUILD_DEPENDENCIES=(bash gcc git make linux-headers musl-dev pkgconfig bison flex zstd-dev zstd-static)
 BROKEN_CROSS_COMPILATION=1
 
 download() {
-    # Official repo lacks some old version tags
-    # git clone git://git.kernel.org/pub/scm/utils/trace-cmd/trace-cmd.git
-    # So we use the personal one from Steven Rostedt
-    git clone git://git.kernel.org/pub/scm/linux/kernel/git/rostedt/trace-cmd.git
-
-    # Latest available commit after 2.9.1.
-    # 2.9.1 itself require some fixes.
-    git -C trace-cmd checkout 2191498dc35d629003591f727b604120fabbe02d
+    git clone git://git.kernel.org/pub/scm/utils/trace-cmd/trace-cmd.git
+    git -C trace-cmd checkout trace-cmd-v3.1.5
 
     git clone https://git.kernel.org/pub/scm/libs/libtrace/libtraceevent.git
-    git -C libtraceevent checkout libtraceevent-1.1.2
+    git -C libtraceevent checkout libtraceevent-1.7.0
 
     git clone https://git.kernel.org/pub/scm/libs/libtrace/libtracefs.git
-    git -C libtracefs checkout libtracefs-1.0.2
+    git -C libtracefs checkout libtracefs-1.6.3
 }
 
 build_libtraceevent() {
@@ -55,11 +49,10 @@ build_libtracefs() {
 build_tracecmd() {
     # Disable libaudit, to limit the amount of dependencies
     cd trace-cmd
-    make LDFLAGS="-static" NO_AUDIT=yes
+    make LDFLAGS="-static" NO_AUDIT=yes NO_PYTHON=yes
     strip "$TRACE_CMD_BIN"
 }
 
-# For trace-cmd v2.8.3
 TRACE_CMD_BIN=tracecmd/trace-cmd
 
 build() {
@@ -72,7 +65,7 @@ build() {
     export INSTALL_PATH="$(pwd)/installed_lib_dir"
     INCLUDE_PKG_PATH="$(cut -d':' -f1 <<<$(pkg-config --variable pc_path pkg-config))"
     export PKG_CONFIG="pkg-config --with-path $INSTALL_PATH/$INCLUDE_PKG_PATH --define-variable=prefix=$INSTALL_PATH/$prefix"
-    export CFLAGS="-g -Wall -I$INSTALL_PATH/$prefix/include"
+    export CFLAGS="-g -O3 -Wall -I$INSTALL_PATH/$prefix/include"
     export DESTDIR=$INSTALL_PATH
 
     (build_libtraceevent) && (build_libtracefs) && (build_tracecmd)
@@ -96,7 +89,6 @@ install() {
 # non-necessary dependencies
 download_audit() {
     git clone https://github.com/linux-audit/audit-userspace.git
-    git -C audit-userspace checkout master
 }
 
 build_audit() {

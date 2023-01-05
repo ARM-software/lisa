@@ -1,24 +1,18 @@
 #! /bin/bash
 
-ALPINE_VERSION=v3.13
-ALPINE_BUILD_DEPENDENCIES=(bash gcc git make linux-headers musl-dev pkgconfig)
+ALPINE_VERSION=v3.16
+ALPINE_BUILD_DEPENDENCIES=(bash gcc git make linux-headers musl-dev pkgconfig bison flex zstd-dev zstd-static)
 BROKEN_CROSS_COMPILATION=1
 
 download() {
-    # Official repo lacks some old version tags
-    # git clone git://git.kernel.org/pub/scm/utils/trace-cmd/trace-cmd.git
-    # So we use the personal one from Steven Rostedt
-    git clone git://git.kernel.org/pub/scm/linux/kernel/git/rostedt/trace-cmd.git
-
-    # Latest available commit after 2.9.1.
-    # 2.9.1 itself require some fixes.
-    git -C trace-cmd checkout 2191498dc35d629003591f727b604120fabbe02d
+    git clone git://git.kernel.org/pub/scm/utils/trace-cmd/trace-cmd.git
+    git -C trace-cmd checkout trace-cmd-v3.1.5
 
     git clone https://git.kernel.org/pub/scm/libs/libtrace/libtraceevent.git
-    git -C libtraceevent checkout libtraceevent-1.1.2
+    git -C libtraceevent checkout libtraceevent-1.7.0
 
     git clone https://git.kernel.org/pub/scm/libs/libtrace/libtracefs.git
-    git -C libtracefs checkout libtracefs-1.0.2
+    git -C libtracefs checkout libtracefs-1.6.3
 }
 
 build_libtraceevent() {
@@ -34,11 +28,10 @@ build_libtracefs() {
 build_tracecmd() {
     # Disable libaudit, to limit the amount of dependencies
     cd trace-cmd
-    make LDFLAGS="-static" NO_AUDIT=yes
+    make LDFLAGS="-static" NO_AUDIT=yes NO_PYTHON=yes
     strip "$TRACE_CMD_BIN"
 }
 
-# For trace-cmd v2.8.3
 TRACE_CMD_BIN=tracecmd/trace-cmd
 
 build() {
@@ -51,7 +44,7 @@ build() {
     export INSTALL_PATH="$(pwd)/installed_lib_dir"
     INCLUDE_PKG_PATH="$(cut -d':' -f1 <<<$(pkg-config --variable pc_path pkg-config))"
     export PKG_CONFIG="pkg-config --with-path $INSTALL_PATH/$INCLUDE_PKG_PATH --define-variable=prefix=$INSTALL_PATH/$prefix"
-    export CFLAGS="-g -Wall -I$INSTALL_PATH/$prefix/include"
+    export CFLAGS="-g -O3 -Wall -I$INSTALL_PATH/$prefix/include"
     export DESTDIR=$INSTALL_PATH
 
     (build_libtraceevent) && (build_libtracefs) && (build_tracecmd)
