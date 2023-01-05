@@ -1,16 +1,16 @@
 Sources of trace-cmd available at:
-Git commit: 2191498dc35d629003591f727b604120fabbe02d
-Git repository: git://git.kernel.org/pub/scm/linux/kernel/git/rostedt/trace-cmd.git
+Git commit: 18f8a5b1aac64063b1c41dd3fa1a51e58f8ba229
+Git repository: git://git.kernel.org/pub/scm/utils/trace-cmd/trace-cmd.git
 
 
 Build host info:
 
 NAME="Alpine Linux"
 ID=alpine
-VERSION_ID=3.13.6
-PRETTY_NAME="Alpine Linux v3.13"
+VERSION_ID=3.16.3
+PRETTY_NAME="Alpine Linux v3.16"
 HOME_URL="https://alpinelinux.org/"
-BUG_REPORT_URL="https://bugs.alpinelinux.org/"
+BUG_REPORT_URL="https://gitlab.alpinelinux.org/alpine/aports/-/issues"
 
 
 Build recipe:
@@ -18,63 +18,51 @@ Build recipe:
 export ARCH=x86_64
 export LISA_ARCH_ASSETS=/lisa/_assets/binaries/x86_64
 export LISA_HOME=''
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH=/bin:/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/sbin
 #! /bin/bash
 
-ALPINE_VERSION=v3.13
-ALPINE_BUILD_DEPENDENCIES=(bash gcc git make linux-headers musl-dev pkgconfig)
+ALPINE_VERSION=v3.16
+ALPINE_BUILD_DEPENDENCIES=(bash gcc git make linux-headers musl-dev pkgconfig bison flex zstd-dev zstd-static)
 BROKEN_CROSS_COMPILATION=1
 
 download() {
-    # Official repo lacks some old version tags
-    # git clone git://git.kernel.org/pub/scm/utils/trace-cmd/trace-cmd.git
-    # So we use the personal one from Steven Rostedt
-    git clone git://git.kernel.org/pub/scm/linux/kernel/git/rostedt/trace-cmd.git
-
-    # Latest available commit after 2.9.1.
-    # 2.9.1 itself require some fixes.
-    git -C trace-cmd checkout 2191498dc35d629003591f727b604120fabbe02d
+    git clone git://git.kernel.org/pub/scm/utils/trace-cmd/trace-cmd.git
+    git -C trace-cmd checkout trace-cmd-v3.1.5
 
     git clone https://git.kernel.org/pub/scm/libs/libtrace/libtraceevent.git
-    git -C libtraceevent checkout libtraceevent-1.1.2
+    # Last good commit of libtraceevent that does not break -R output:
+    # https://bugzilla.kernel.org/show_bug.cgi?id=216896
+    git -C libtraceevent checkout 424b11f6c3ab2e3bb199180e142fbcf9eebf2ac3
 
     git clone https://git.kernel.org/pub/scm/libs/libtrace/libtracefs.git
-    git -C libtracefs checkout libtracefs-1.0.2
+    git -C libtracefs checkout libtracefs-1.6.3
 }
 
 build_libtraceevent() {
     cd libtraceevent
-    make install
+    ../trace-cmd/make-trace-cmd.sh install
 }
 
 build_libtracefs() {
     cd libtracefs
-    make install
+    ../trace-cmd/make-trace-cmd.sh install
 }
 
 build_tracecmd() {
-    # Disable libaudit, to limit the amount of dependencies
+    # Disable libaudit and python support
     cd trace-cmd
-    make LDFLAGS="-static" NO_AUDIT=yes
+    # All variables need to be exported, NOT SET ON THE CLI of make-trace-cmd.sh
+    # itself. Otherwise they will internally conflict with existing ones.
+    export LDFLAGS="-static" NO_AUDIT=yes NO_PYTHON=yes CFLAGS="-O3"
+    ./make-trace-cmd.sh install install_libs
     strip "$TRACE_CMD_BIN"
 }
 
-# For trace-cmd v2.8.3
 TRACE_CMD_BIN=tracecmd/trace-cmd
 
 build() {
     export PYTHON_VERS=python3
-
-    # Do this while waiting to have the build system working.
-    # https://bugzilla.kernel.org/show_bug.cgi?id=212149
-    # When fixed, replace this by what is adviced in trace-cmd/PACKAGING
-    export prefix="/usr"
     export INSTALL_PATH="$(pwd)/installed_lib_dir"
-    INCLUDE_PKG_PATH="$(cut -d':' -f1 <<<$(pkg-config --variable pc_path pkg-config))"
-    export PKG_CONFIG="pkg-config --with-path $INSTALL_PATH/$INCLUDE_PKG_PATH --define-variable=prefix=$INSTALL_PATH/$prefix"
-    export CFLAGS="-g -Wall -I$INSTALL_PATH/$prefix/include"
-    export DESTDIR=$INSTALL_PATH
-
     (build_libtraceevent) && (build_libtracefs) && (build_tracecmd)
 }
 
@@ -96,7 +84,6 @@ install() {
 # non-necessary dependencies
 download_audit() {
     git clone https://github.com/linux-audit/audit-userspace.git
-    git -C audit-userspace checkout master
 }
 
 build_audit() {
