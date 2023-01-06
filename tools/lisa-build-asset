@@ -7,8 +7,7 @@ import tempfile
 import shutil
 import sys
 
-from lisa.utils import nullcontext
-from contextlib import contextmanager
+from contextlib import nullcontext, contextmanager
 from shlex import quote
 
 LISA_HOME = os.environ['LISA_HOME']
