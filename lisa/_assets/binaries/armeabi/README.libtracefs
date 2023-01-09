@@ -30,9 +30,9 @@ download() {
     git -C trace-cmd checkout trace-cmd-v3.1.5
 
     git clone https://git.kernel.org/pub/scm/libs/libtrace/libtraceevent.git
-    # Last good commit of libtraceevent that does not break -R output:
+    # Commit after 1.7.0 that fixes the raw trace-cmd output:
     # https://bugzilla.kernel.org/show_bug.cgi?id=216896
-    git -C libtraceevent checkout 424b11f6c3ab2e3bb199180e142fbcf9eebf2ac3
+    git -C libtraceevent checkout 0c28cec1e409653095dea0511c24fd9849b2862f
 
     git clone https://git.kernel.org/pub/scm/libs/libtrace/libtracefs.git
     git -C libtracefs checkout libtracefs-1.6.3
