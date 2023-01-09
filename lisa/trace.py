@@ -686,6 +686,7 @@ class TxtTraceParserBase(TraceParserBase):
     _KERNEL_DTYPE = {
         'timestamp': 'uint64',
         'pointer': 'uint64',
+        'symbol': 'string',
         'cpu': 'uint16',
         'pid': 'uint32',
         'signed_pid': 'int32',
@@ -1319,7 +1320,7 @@ class TxtTraceParser(TxtTraceParserBase):
                 'cpu': _KERNEL_DTYPE['cpu'],
                 'target': 'uint16',
                 'idx': 'uint16',
-                'fun': _KERNEL_DTYPE['pointer'],
+                'fun': _KERNEL_DTYPE['symbol'],
             },
         ),
         'funcgraph_entry': dict(
