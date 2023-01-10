@@ -49,7 +49,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         df = df[
             (df.curr_state == curr_state) &
             (df.next_state == next_state)
-        ][["delta"]]
+        ][["delta", "cpu", "target_cpu"]]
 
         df = df.rename(columns={'delta': name}, copy=False)
         return df
@@ -64,7 +64,9 @@ class LatencyAnalysis(TraceAnalysisBase):
 
         :returns: a :class:`pandas.DataFrame` with:
 
-          * A ``wakeup_latency`` column (the wakeup latency at that timestamp).
+          * A ``wakeup_latency`` column (the wakeup latency at that timestamp)
+          * A ``cpu`` column (the CPU where the task was on)
+          * A ``target_cpu`` column (the CPU where the task has been scheduled)
         """
         return self._df_latency(
             task,
@@ -83,14 +85,15 @@ class LatencyAnalysis(TraceAnalysisBase):
 
         :returns: a :class:`pandas.DataFrame` with:
 
-          * A ``preempt_latency`` column (the preemption latency at that timestamp).
+          * A ``preempt_latency`` column (the preemption latency at that timestamp)
+          * A ``cpu`` column (the CPU where the task was on)
         """
         return self._df_latency(
             task,
             'preempt_latency',
             TaskState.TASK_RUNNING,
             TaskState.TASK_ACTIVE
-        )
+        )[['preempt_latency', 'cpu']]
 
     @TraceAnalysisBase.cache
     @TasksAnalysis.df_task_states.used_events
