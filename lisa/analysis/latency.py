@@ -65,7 +65,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         :returns: a :class:`pandas.DataFrame` with:
 
           * A ``wakeup_latency`` column (the wakeup latency at that timestamp)
-          * A ``cpu`` column (the CPU where the task was on)
+          * A ``cpu`` column (the CPU where the event took place)
           * A ``target_cpu`` column (the CPU where the task has been scheduled)
         """
         return self._df_latency(
@@ -86,7 +86,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         :returns: a :class:`pandas.DataFrame` with:
 
           * A ``preempt_latency`` column (the preemption latency at that timestamp)
-          * A ``cpu`` column (the CPU where the task was on)
+          * A ``cpu`` column (the CPU where the event took place)
         """
         return self._df_latency(
             task,
