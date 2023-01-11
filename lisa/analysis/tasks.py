@@ -446,7 +446,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         :returns: a :class:`pandas.DataFrame` with:
 
-          * A ``cpu`` column (the CPU where the task was on)
+          * A ``cpu`` column (the CPU where the event took place)
           * A ``pid`` column (the PID of the task)
           * A ``comm`` column (the name of the task)
           * A ``target_cpu`` column (the CPU where the task has been scheduled).
@@ -479,7 +479,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         :returns: a :class:`pandas.DataFrame` with:
 
-          * A ``cpu`` column (the CPU where the task was on)
+          * A ``cpu`` column (the CPU where the event took place)
           * A ``target_cpu`` column (the CPU where the task has been scheduled).
             Will be ``-1`` for non-wakeup events
           * A ``curr_state`` column (the current task state, see :class:`~TaskState`)
