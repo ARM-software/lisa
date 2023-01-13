@@ -27,7 +27,6 @@ jobs:
       - name: Setup git
         run: |
           git config --global user.name 'GitHub action'
-          git config --global user.email 'douglas-raillard-arm@users.noreply.github.com'
 
           git remote -v
           git branch --list --remotes
