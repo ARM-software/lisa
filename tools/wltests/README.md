@@ -202,7 +202,7 @@ Once the workloads specified by the agenda have been executed for all the
 kernels specified by the series file, collected results can be post-processed
 and analyzed using a wltests companion notebook usually available under:
 
-   https://github.com/ARM-software/lisa/blob/master/ipynb/wltests
+   https://github.com/ARM-software/lisa/blob/main/ipynb/wltests
 
 An example of the report produced when comparing a kernel using WALT versus a
 kernel using PELT on Hikey960 is available here:
@@ -220,6 +220,6 @@ energy using an
 [ACME Energymeter](https://github.com/ARM-software/lisa/wiki/Energy-Meters-Requirements#iiocapture---baylibre-acme-cape).
 
 For this kind of evaluation, please use:
-- agenda: [tools/wltests/agendas/sched-evaluation-full.yaml](https://github.com/ARM-software/lisa/blob/master/tools/wltests/agendas/sched-evaluation-full.yaml)
-- notebook: [ipynb/wltests/sched-evaluation-full.ipynb](https://github.com/ARM-software/lisa/blob/master/ipynb/wltests/sched-evaluation-full.ipynb)
+- agenda: [tools/wltests/agendas/sched-evaluation-full.yaml](https://github.com/ARM-software/lisa/blob/main/tools/wltests/agendas/sched-evaluation-full.yaml)
+- notebook: [ipynb/wltests/sched-evaluation-full.ipynb](https://github.com/ARM-software/lisa/blob/main/ipynb/wltests/sched-evaluation-full.ipynb)
 

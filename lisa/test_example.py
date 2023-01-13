@@ -31,7 +31,7 @@ how to use the main APIs.
 ################################################################################
 # It's a good idea to open the online doc in your browser when reading
 # this example:
-# https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/
+# https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/
 #
 # Also, lisa.utils.show_doc() can be called on any class/function to open the
 # corresponding documentation in a browser.
@@ -99,7 +99,7 @@ class ExampleTestBundle(RTATestBundle, TestBundle):
             :meth:`lisa.tests.base.RTATestBundle.run_rtapp`
         """
         # PlatformInfo
-        # https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/target.html#lisa.platforms.platinfo.PlatformInfo
+        # https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/target.html#lisa.platforms.platinfo.PlatformInfo
         #
         # It's a central piece of LISA: it holds all the information about a
         # given device. Use it to access any data it contains rather than
@@ -119,7 +119,7 @@ class ExampleTestBundle(RTATestBundle, TestBundle):
         # https://devlib.readthedocs.io/en/latest/modules.html
         with target.cpufreq.use_governor("schedutil"):
             # RTATestBundle.run_rtapp()
-            # https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/kernel_tests.html#lisa.tests.base.RTATestBundle.run_rtapp
+            # https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/kernel_tests.html#lisa.tests.base.RTATestBundle.run_rtapp
             #
             # It allows running the rt-app profile on the target. "collector"
             # is the object used to control the recording of the trace, and is
@@ -161,7 +161,7 @@ class ExampleTestBundle(RTATestBundle, TestBundle):
 
         # The profile is a dictionary of task names (keys) to
         # lisa.wlgen.rta.RTATask instances
-        # https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/workloads.html
+        # https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/workloads.html
         profile = {}
 
         for cpu in cpus:
@@ -232,7 +232,7 @@ class ExampleTestBundle(RTATestBundle, TestBundle):
         # self.trace.analyis: A number of analysis objects are available,
         # giving df_* methods that return various dataframes, and plot_*
         # functions that can do various plots.
-        # https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/trace_analysis.html
+        # https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/trace_analysis.html
         df = self.trace.ana.load_tracking.df_tasks_signal('util')
 
         # "resolve" the task names into (pid, comm) tuples. If there is any

@@ -32,7 +32,7 @@ From GitHub
 LISA is hosted at `github <https://github.com/ARM-software/lisa>`_.
 The following references are available:
 
-    * ``master`` branch: Main development branch where pull requests are merged as they
+    * ``main`` branch: Main development branch where pull requests are merged as they
       come.
     * ``release`` branch: Branch updated upon release of the ``lisa-linux`` package on
       PyPI.
