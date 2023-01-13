@@ -5,22 +5,41 @@ on:
     branches:
       - 'master'
 
-  # If someone pushes something to a branch on the repo directly. It is useful
-  # to test new github actions
-  push: null
+  workflow_dispatch:
   pull_request: null
 
-  workflow_dispatch:
-      inputs:
-        ref:
-          description: 'git reference to clone'
-          required: false
-          default: 'master'
+permissions:
+  contents: write
+
 
 jobs:
-  mirror_job:
+  mirror:
+    name: mirror
+    # Set the type of machine to run on
+    # https://github.com/actions/virtual-environments
     runs-on: ubuntu-latest
-    name: Mirror master branch to main branch
+
+    # env:
+    #   DEFAULT_BRANCH: master
+      # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     steps:
-      -run: git remote -v
-      -run: git pull
+
+      # Checks out a copy of your repository on the virtual machine
+      - uses: actions/checkout@v2
+        with:
+          # Avoid a shallow clone, which breaks the check on external/
+          # modification and and provides inaccurate doc
+          fetch-depth: "0"
+          ref: ${{ github.sha }}
+
+      - name: Setup git
+        run: |
+          git config --global user.name 'GitHub action'
+          git config --global user.email 'douglas-raillard-arm@users.noreply.github.com'
+
+          git remote -v
+          git branch --list --remotes
+
+      # - name: Mirror branches
+        # run: git push origin origin/master:main
