@@ -1,0 +1,26 @@
+name: mirror
+
+on:
+  push:
+    branches:
+      - 'master'
+
+  # If someone pushes something to a branch on the repo directly. It is useful
+  # to test new github actions
+  push: null
+  pull_request: null
+
+  workflow_dispatch:
+      inputs:
+        ref:
+          description: 'git reference to clone'
+          required: false
+          default: 'master'
+
+jobs:
+  mirror_job:
+    runs-on: ubuntu-latest
+    name: Mirror master branch to main branch
+    steps:
+      -run: git remote -v
+      -run: git pull
