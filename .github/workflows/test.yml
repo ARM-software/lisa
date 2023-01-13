@@ -10,7 +10,7 @@ on:
         ref:
           description: 'git reference to clone'
           required: false
-          default: 'master'
+          default: 'main'
 
   # If someone pushes something to a branch on the repo directly. It is useful
   # to test new github actions
@@ -38,7 +38,6 @@ jobs:
           - '3.11'
 
     # env:
-    #   DEFAULT_BRANCH: master
       # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:

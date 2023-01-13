@@ -61,11 +61,11 @@ Documentation
 =============
 
 You should find everything on
-`ReadTheDocs <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/>`__.
+`ReadTheDocs <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/>`__.
 Here are some noteworthy sections:
 
-   * `Installation <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/setup.html>`__
-   * `Kernel tests <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/kernel_tests.html>`__
+   * `Installation <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/setup.html>`__
+   * `Kernel tests <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/kernel_tests.html>`__
 
 How to reach us
 ===============
@@ -105,9 +105,9 @@ Contributions / Pull Requests
 Contributions are accepted under Apache-2.0. Only submit contributions
 where you have authored all of the code. If you do this on work time
 make sure your employer is cool with this. We also have a `Contributor Guide
-<https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/contributors_guide.html>`__
+<https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/contributors_guide.html>`__
 
-.. |CI status| image:: https://github.com/ARM-software/lisa/workflows/test/badge.svg?branch=master
+.. |CI status| image:: https://github.com/ARM-software/lisa/workflows/test/badge.svg?branch=main
    :target: https://github.com/ARM-software/lisa/actions
-.. |Documentation Status| image:: https://readthedocs.org/projects/lisa-linux-integrated-system-analysis/badge/?version=master
-   :target: https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/
+.. |Documentation Status| image:: https://readthedocs.org/projects/lisa-linux-integrated-system-analysis/badge/?version=main
+   :target: https://lisa-linux-integrated-system-analysis.readthedocs.io/en/main/

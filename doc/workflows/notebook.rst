@@ -33,7 +33,7 @@ Once the server is started you can have a look at the provided tutorial
 notebooks are accessible by following this `link
 <http://127.0.0.1:8888/notebooks/examples/typical_experiment.ipynb>`__.
 This initial tutorial can be seen (but not executed) also on `github
-<https://github.com/ARM-software/lisa/blob/master/ipynb/examples/typical_experiment.ipynb>`__.
+<https://github.com/ARM-software/lisa/blob/main/ipynb/examples/typical_experiment.ipynb>`__.
 
 Notebooks as development environment
 ====================================

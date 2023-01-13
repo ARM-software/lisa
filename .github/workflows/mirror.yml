@@ -1,11 +1,11 @@
 name: mirror
 
 on:
-  push:
-    branches:
-      - 'master'
+  # Run the workflow when any branch is pushed
+  push: null
 
 permissions:
+  # Necessary to be able to push to the repo
   contents: write
 
 jobs:
@@ -26,10 +26,10 @@ jobs:
 
       - name: Setup git
         run: |
-          git config --global user.name 'GitHub action'
+          git config --global user.name 'GitHub Action'
 
           git remote -v
           git branch --list --remotes
 
-      - name: Mirror branches
+      - name: Mirror main
         run: git push origin origin/master:main
