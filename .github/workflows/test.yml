@@ -55,6 +55,16 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      # Add retries following suggestion in:
+      # https://github.com/actions/runner-images/issues/6894
+      - run: sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
+      # Also add the regional Ubuntu repos as fallbacks
+      - run: cp /etc/apt/sources.list .
+      - run: REGIONAL=$(sed 's/azure\.archive\.ubuntu/us.archive.ubuntu/'  sources.list); sudo sh -c "echo "$REGIONAL" >> /etc/apt/sources.list"
+      - run: REGIONAL=$(sed 's/azure\.archive\.ubuntu/uk.archive.ubuntu/'  sources.list); sudo sh -c "echo "$REGIONAL" >> /etc/apt/sources.list"
+      - run: REGIONAL=$(sed 's/azure\.archive\.ubuntu/jp.archive.ubuntu/'  sources.list); sudo sh -c "echo "$REGIONAL" >> /etc/apt/sources.list"
+      - run: REGIONAL=$(sed 's/azure\.archive\.ubuntu/aus.archive.ubuntu/' sources.list); sudo sh -c "echo "$REGIONAL" >> /etc/apt/sources.list"
+
       - run: sudo ./install_base.sh --install-all
       - run: echo "$(python3 --version)"
       - run: sudo chmod o+rx /sys/kernel/debug
