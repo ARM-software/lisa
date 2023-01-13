@@ -1,12 +1,12 @@
 name: mirror
 
 on:
-  push:
-    branches:
-      - 'master'
+  # push:
+  #   branches:
+  #     - 'master'
 
-  workflow_dispatch:
-  pull_request: null
+  # workflow_dispatch:
+  # pull_request: null
 
 permissions:
   contents: write
@@ -20,16 +20,14 @@ jobs:
     runs-on: ubuntu-latest
 
     # env:
-    #   DEFAULT_BRANCH: master
-      # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
 
       # Checks out a copy of your repository on the virtual machine
       - uses: actions/checkout@v2
         with:
-          # Avoid a shallow clone, which breaks the check on external/
-          # modification and and provides inaccurate doc
+          # Avoid a shallow clone
           fetch-depth: "0"
           ref: ${{ github.sha }}
 
@@ -42,4 +40,4 @@ jobs:
           git branch --list --remotes
 
       # - name: Mirror branches
-        # run: git push origin origin/master:main
+      #   run: git push origin origin/master:main
