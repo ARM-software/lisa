@@ -28,6 +28,12 @@ test_os_release(){
     fi
 }
 
+lower_or_equal() {
+    local x=$(printf "$1" | sed 's/\.//2g')
+    local y=$(printf "$2" | sed 's/\.//2g')
+    [[ "$(printf "$x\n$y\n" | sort -g | head -1)" == "$x" ]]
+}
+
 LISA_HOME=${LISA_HOME:-$(dirname "${BASH_SOURCE[0]}")}
 cd "$LISA_HOME" || (echo "LISA_HOME ($LISA_HOME) does not exists" && exit 1)
 
@@ -169,11 +175,6 @@ apt_packages=(
     python3-venv
     python3-tk
     python3-setuptools
-    # In order to save plots using bokeh, we need a browser usable with
-    # selenium, along with its selenium driver.
-    #
-    # Note: firefox seems to cope well without X11, unlike chromium.
-    firefox-geckodriver
 )
 
 # pacman-based distributions like Archlinux or its derivatives
@@ -204,6 +205,17 @@ case $HOST_ARCH in
         # pacman_packages+=()
         ;;
 esac
+
+
+# More recent versions of Ubuntu ship firefox as a snap package already
+# containing the geckodriver
+if test_os_release NAME "Ubuntu" && lower_or_equal "$(read_os_release VERSION_ID)" "22"; then
+    # In order to save plots using bokeh, we need a browser usable with
+    # selenium, along with its selenium driver.
+    #
+    # Note: firefox seems to cope well without X11, unlike chromium.
+    apt_packages+=(firefox-geckodriver)
+fi
 
 # Array of functions to call in order
 install_functions=(
