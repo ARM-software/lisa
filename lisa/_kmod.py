@@ -174,7 +174,7 @@ def _subprocess_log(*args, env=None, extra_env=None, **kwargs):
 
 
 @destroyablecontextmanager
-def _make_chroot(make_vars, bind_paths=None, alpine_version='3.16.0', overlay_backend=None):
+def _make_chroot(make_vars, bind_paths=None, alpine_version='3.17.1', overlay_backend=None):
     """
     Create a chroot folder ready to be used to build a kernel.
     """
