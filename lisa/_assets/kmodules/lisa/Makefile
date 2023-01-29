@@ -68,7 +68,7 @@ ifneq ($(KERNELRELEASE),)
 
 LISA_KMOD_NAME ?= lisa
 obj-m := $(LISA_KMOD_NAME).o
-$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o introspection_data.o
+$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o introspection_data.o perf_counters.o
 
 # -fno-stack-protector is needed to possibly undefined __stack_chk_guard symbol
 ccflags-y := "-I$(MODULE_SRC)" -std=gnu11 -fno-stack-protector -Wno-declaration-after-statement -Wno-error

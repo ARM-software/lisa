@@ -440,6 +440,25 @@ TRACE_EVENT(lisa__pixel6_emeter,
 		  __entry->ts, __entry->device, __entry->chan, __entry->chan_name, __entry->value)
 );
 
+TRACE_EVENT(lisa__perf_counter,
+	TP_PROTO(unsigned int cpu, unsigned int counter_id, u64 value),
+	TP_ARGS(cpu, counter_id, value),
+
+	TP_STRUCT__entry(
+		__field(	unsigned int,	cpu		)
+		__field(	unsigned int,	counter_id	)
+		__field(	u64,		value		)
+	),
+
+	TP_fast_assign(
+		__entry->cpu		= cpu;
+		__entry->counter_id	= counter_id;
+		__entry->value		= value;
+	),
+
+	TP_printk("cpu=%u counter_id=%u value=%llu",
+		  __entry->cpu, __entry->counter_id, __entry->value)
+);
 #endif /* _FTRACE_EVENTS_H */
 
 /* This part must be outside protection */
