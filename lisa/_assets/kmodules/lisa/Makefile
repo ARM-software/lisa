@@ -34,7 +34,7 @@ ifneq ($(KERNELRELEASE),)
 
 LISA_KMOD_NAME ?= lisa
 obj-m := $(LISA_KMOD_NAME).o
-$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o
+$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o perf_counters.o
 ldflags-y += -T "$(M)/features.lds"
 
 clean-files := vmlinux.h
