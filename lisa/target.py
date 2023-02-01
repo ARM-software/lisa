@@ -171,7 +171,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
             )),
             KeyDesc('excluded-modules', 'List of devlib modules to *not* load', [TypedList[str]]),
             KeyDesc('file-xfer', 'File transfer method. Can be "sftp" (default) or "scp". (Only valid for linux targets)', [TypedList[str]]),
-            KeyDesc('max-async', 'Maximum number of asynchronous commands in flight at any time', [TypedList[int]]),
+            KeyDesc('max-async', 'Maximum number of asynchronous commands in flight at any time', [int, None]),
 
         ))
     ))
