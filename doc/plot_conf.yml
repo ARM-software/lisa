@@ -118,6 +118,9 @@ doc-plot-conf:
             kwargs:
                 cpu: *cpu0
 
+        Pixel6Analysis.plot_power_meter:
+            trace: !call:lisa.trace.Trace
+                trace_path: !env:interpolate $LISA_HOME/doc/traces/trace_pixel6.dat
 
         NotebookAnalysis.plot_event_field:
             kwargs:

@@ -150,6 +150,12 @@ Thermal
 .. automodule:: lisa.analysis.thermal
    :members:
 
+Pixel 6
++++++++
+
+.. automodule:: lisa.analysis.pixel6
+   :members:
+
 Function profiling
 ++++++++++++++++++
 
