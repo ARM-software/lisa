@@ -16,3 +16,10 @@ _build
 custom_requirements.txt
 extra_requirements.txt
 tools/alpine-chroot-install
+cache/
+*.o
+*.mod
+*.ko
+*.mod.c
+*.order
+*.symvers
