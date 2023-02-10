@@ -22,7 +22,17 @@ static void worker(struct work_struct* work) {
 		queue_delayed_work(item->__wq, &item->__dwork, delay);
 }
 
-struct work_item *start_work(worker_t f, int delay, void *data) {
+static __always_inline void __start_work(struct work_item *item)
+{
+	if (item->__cpu < 0)
+		/* cpu-unbound work - try to use local */
+		queue_delayed_work(item->__wq, &item->__dwork, item->__delay);
+	else
+		queue_delayed_work_on(item->__cpu, item->__wq, &item->__dwork,
+				      item->__delay);
+}
+
+struct work_item *start_work_on(worker_t f, int delay, int cpu, void *data) {
 	struct work_item *item;
 	struct workqueue_struct *wq = FEATURE(__worqueue)->data;
 	if (!wq)
@@ -33,13 +43,25 @@ struct work_item *start_work(worker_t f, int delay, void *data) {
 		item->f = f;
 		item->data = data;
 
+		item->__cpu = cpu;
 		item->__delay = delay;
 		item->__wq = wq;
 		INIT_DELAYED_WORK(&item->__dwork, worker);
 
-		queue_delayed_work(wq, &item->__dwork, delay);
+		__start_work(item);
 	}
 	return item;
+}
+
+void restart_work(struct work_item *item, int delay)
+{
+	struct workqueue_struct *wq = FEATURE(__worqueue)->data;
+
+	if (!wq || !item)
+		return;
+
+	item->__delay = delay;
+	__start_work(item);
 }
 
 int destroy_work(struct work_item *item) {
