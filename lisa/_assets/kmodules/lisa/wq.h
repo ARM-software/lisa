@@ -36,6 +36,8 @@ struct work_item {
 	worker_t f;
 	void *data;
 
+	/* CPU to queue the work on (-1 for cpu-unbound) */
+	int __cpu;
 	/* Workqueue the item got scheduled on */
 	struct workqueue_struct *__wq;
 	/* Delayed work from kernel workqueue API */
@@ -43,6 +45,20 @@ struct work_item {
 	/* Delay of the last enqueue, used to implement WORKER_SAME_DELAY */
 	int __delay;
 };
+
+/**
+ * start_work_on() - Start a worker on a workqueue
+ * @f: User function of the worker.
+ * @delay: An amount of time (in jiffies) to wait before queueing the work
+ * @cpu: cpu id to queue the work on
+ * @data: void * passed to f()
+ *
+ * Context: The __workqueue feature must be enabled using
+ * ENABLE_FEATURE(__workqueue) before starting any work.
+ *
+ * Return struct work_item* to be passed to destroy_work().
+ */
+struct work_item *start_work_on(worker_t f, int delay, int cpu, void *data);
 
 /**
  * start_work() - Start a worker on a workqueue
@@ -54,7 +70,21 @@ struct work_item {
  *
  * Return struct work_item* to be passed to destroy_work().
  */
-struct work_item *start_work(worker_t f, int delay, void *data);
+static __always_inline
+struct work_item *start_work(worker_t f, int delay, void *data)
+{
+	return start_work_on(f, delay, -1, data);
+}
+
+/**
+ * restart_work() - Queue existing worker
+ * @wi - An existing struct work_item instance to queue
+ * @delay - An amount of time (in jiffies) to wait before queueing the work
+ *
+ * Context: The struct work_item should be properly initialised prior to
+ * re-queueing on a dedicated workqueue.
+ */
+void restart_work(struct work_item *wi, int delay);
 
 /**
  * destroy_work() - Stop a work item and deallocate it.
