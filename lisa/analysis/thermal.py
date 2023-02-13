@@ -30,7 +30,7 @@ class ThermalAnalysis(TraceAnalysisBase):
     Support for plotting Thermal Analysis data
 
     :param trace: input Trace object
-    :type trace: :class:`trace.Trace`
+    :type trace: lisa.trace.Trace
     """
 
     name = 'thermal'

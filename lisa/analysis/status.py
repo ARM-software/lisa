@@ -32,7 +32,7 @@ class StatusAnalysis(TraceAnalysisBase):
     Support for System Status analysis
 
     :param trace: input Trace object
-    :type trace: :class:`trace.Trace`
+    :type trace: lisa.trace.Trace
     """
 
     name = 'status'

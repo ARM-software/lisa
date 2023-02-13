@@ -36,7 +36,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
     Support for plotting Frequency Analysis data
 
     :param trace: input Trace object
-    :type trace: :class:`trace.Trace`
+    :type trace: lisa.trace.Trace
     """
 
     name = 'frequency'

@@ -159,7 +159,7 @@ class TasksAnalysis(TraceAnalysisBase):
     Support for Tasks signals analysis.
 
     :param trace: input Trace object
-    :type trace: :class:`trace.Trace`
+    :type trace: lisa.trace.Trace
     """
 
     name = 'tasks'
