@@ -61,6 +61,18 @@ prefix can be omitted - for instance, if you’re modifying the
 ``lisa/wlgen/rta.py`` file, we’d expect a header of the shape
 ``lisa.wlgen.rta: ...``.
 
+It should also contain a ``FIX``, ``FEATURE`` or ``BREAKING CHANGE`` tag that
+will be used to generate the changelog, such as:
+
+.. code-block:: text
+
+  lisa.foo.bar: Fix some foobar
+
+  FIX
+
+  This fix fixes fixable fixtures by affixing an postfix operator.
+
+
 When in doubt, have a look at the git log.
 
 Subtrees
