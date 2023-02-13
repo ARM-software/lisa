@@ -273,6 +273,13 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
 
     _EXPECTED_WORKLOAD_NAME = None
 
+    _PURE_GET_JOB_DF = True
+    """
+    If ``True``, :meth:`WACollectorBase._get_job_df` will be expected to be
+    pure and its result will be cached. If the result depends in any way from
+    user-provided parameters, this should be ``False``.
+    """
+
     def __init__(self, wa_output, df_postprocess=None):
         self.wa_output = wa_output
         self._df_postprocess = df_postprocess or (lambda x: x)
@@ -327,12 +334,18 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
 
                 # _get_job_df usually returns fairly large dataframes, so cache
                 # the result for faster reloading
-                try:
-                    df = pd.read_parquet(cache_path)
-                except OSError:
-                    df = self._get_job_df(job)
-                    df.to_parquet(cache_path)
-                return df
+
+                get_df = lambda: self._get_job_df(job)
+
+                if self._PURE_GET_JOB_DF:
+                    try:
+                        df = pd.read_parquet(cache_path)
+                    except OSError:
+                        df = get_df()
+                        df.to_parquet(cache_path)
+                    return df
+                else:
+                    return get_df()
 
             try:
                 df = loader(job)
@@ -584,6 +597,7 @@ class WATraceCollector(WAArtifactCollectorBase):
     """
     NAME = 'trace'
     _ARTIFACT_NAME = 'trace-cmd-bin'
+    _PURE_GET_JOB_DF = False
 
     def __init__(self, wa_output, trace_to_df, **kwargs):
         self._trace_to_df = trace_to_df
