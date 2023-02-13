@@ -47,7 +47,7 @@ Test runner
 
 PATTERNS
     All patterns are fnmatch pattern, following basic shell globbing syntax.
-    A pattern starting with "!" is used as a negative pattern.
+    A pattern starting with \(dq!\(dq is used as a negative pattern.
     
 
 optional arguments:
@@ -100,7 +100,7 @@ optional arguments:
   \-h, \-\-help            show this help message and exit
   \-s ID_PATTERN, \-\-select ID_PATTERN
                         Only run the expressions with an ID matching any of the supplied
-                        pattern. A pattern starting with "!" can be used to exclude IDs
+                        pattern. A pattern starting with \(dq!\(dq can be used to exclude IDs
                         matching it.
   \-\-list                List the expressions that will be run without running them.
   \-n N                  Run the tests for a number of iterations.
@@ -243,7 +243,7 @@ optional arguments:
 .ft C
 usage: exekall merge [\-h] \-o OUTPUT [\-\-copy] artifact_dirs [artifact_dirs ...]
 
-Merge artifact directories of "exekall run" executions.
+Merge artifact directories of \(dqexekall run\(dq executions.
 
 By default, it will use hardlinks instead of copies to improve speed and
 avoid eating up large amount of space, but that means that artifact
@@ -251,7 +251,7 @@ directories should be treated as read\-only.
     
 
 positional arguments:
-  artifact_dirs         Artifact directories created using "exekall run", or value databases
+  artifact_dirs         Artifact directories created using \(dqexekall run\(dq, or value databases
                         to merge.
 
 optional arguments:
@@ -459,7 +459,7 @@ class BaseConf(abc.ABC):
 
 class Conf(BaseConf):
    # By default, callables with an empty parameter list are ignored. They
-   # can be explicitly be used with "exekall run \-\-allow \(aq*Conf\(aq"
+   # can be explicitly be used with \(dqexekall run \-\-allow \(aq*Conf\(aq\(dq
    def __init__(self):
       self.x = 42
 
@@ -470,12 +470,12 @@ class Stage1:
    # exekall recognizes classes as a special case: the parameter annotations
    # are taken from __init__ and the return type is the class
    def __init__(self, conf:BaseConf):
-      print("building stage1")
+      print(\(dqbuilding stage1\(dq)
       self.conf = conf
 
    # first parameter of methods is automatically annotated with the right
    # class.
-   # "forward\-references are possible by using a string to annotate.
+   # \(dqforward\-references are possible by using a string to annotate.
    def process_method(self) \-> \(aqStage2\(aq:
       return Stage2(x.conf.x == 42)
 
@@ -552,7 +552,7 @@ helps avoiding cycles in expression graphs when architecturing a module.
 Not all classes need to be considered as such, only the ones that will be
 used in annotations.
 .IP \(bu 2
-Missing "spark", i.e. operator that can provide values without any
+Missing \(dqspark\(dq, i.e. operator that can provide values without any
 parameter. The adaptor in the customization module usually takes care of
 doing that based on domain\-specific command line options, but some ignored
 callables may be forcefully selected using \fB\-\-allow\fP if needed.

@@ -92,7 +92,7 @@ optional arguments:
   \-h, \-\-help            show this help message and exit
   \-\-cli\-options CLI_OPTIONS
                         YAML file containing command line option string in a
-                        "cmd\-line" toplevel key. Therefore, the same file can be used
+                        \(dqcmd\-line\(dq toplevel key. Therefore, the same file can be used
                         for \-\-steps.  The options are inserted at the location of
                         \-\-cli\-options in the command line. That can be used to control what
                         can be overriden by configuration file and what is forced by the
@@ -119,14 +119,14 @@ usage: bisector run [\-h] [\-\-cli\-options CLI_OPTIONS] [\-o OPTION] [\-\-debug
                     [\-\-early\-bailout] [\-\-upload\-report] [\-\-dbus | \-\-no\-dbus]
 
 Run the given steps in a loop and record the result in a report file. The
-report file can be inspected using the "report" subcommand. The exit status is
+report file can be inspected using the \(dqreport\(dq subcommand. The exit status is
 suitable for git bisect.
 
 optional arguments:
   \-h, \-\-help            show this help message and exit
   \-\-cli\-options CLI_OPTIONS
                         YAML file containing command line option string in a
-                        "cmd\-line" toplevel key. Therefore, the same file can
+                        \(dqcmd\-line\(dq toplevel key. Therefore, the same file can
                         be used for \-\-steps. The options are inserted at the
                         location of \-\-cli\-options in the command line. That
                         can be used to control what can be overriden by
@@ -136,14 +136,14 @@ optional arguments:
                         Step\-specific options. Can be repeated. The format is
                         <step category or name pattern>.<option>=<value>. If
                         the step name or category is omitted, it will be
-                        passed to all steps. See "step\-help" subcommand for
+                        passed to all steps. See \(dqstep\-help\(dq subcommand for
                         the available options. Options specified this way
                         override the steps definition file, and can be used to
                         modify the report when used with run \-\-resume or edit
                         subcommand.
   \-\-debug               Show Python traceback to help debugging this script.
   \-\-steps STEPS         YAML configuration of steps to run. The steps
-                        definitions lives under a "step" toplevel key.
+                        definitions lives under a \(dqstep\(dq toplevel key.
   \-\-allowed\-bad ALLOWED_BAD
                         Percentage of bad iterations that still result in a
                         good overall result.
@@ -158,14 +158,14 @@ optional arguments:
                         Class and name of inline step. Can be repeated to
                         build a list of steps in the order of appearance.
   \-n ITERATIONS, \-\-iterations ITERATIONS
-                        Number of iterations. "inf" means an infinite number
+                        Number of iterations. \(dqinf\(dq means an infinite number
                         of iterations.
   \-\-timeout TIMEOUT     Timeout after which no more itertions will be started.
-                        "inf" means infinite timeout (i.e. no timeout).
+                        \(dqinf\(dq means infinite timeout (i.e. no timeout).
   \-\-log LOG             Log all events to the log file. By default, a log file
                         is created as <report file>.log .
   \-\-report REPORT       Execution report containing output and return values
-                        for all steps. Can be displayed using the "report"
+                        for all steps. Can be displayed using the \(dqreport\(dq
                         subcommand. The {commit} placeholder is replaced with
                         the truncated sha1 of HEAD in current directory, and
                         {date} by a string built from the current date and
@@ -226,7 +226,7 @@ optional arguments:
   \-h, \-\-help            show this help message and exit
   \-\-cli\-options CLI_OPTIONS
                         YAML file containing command line option string in a
-                        "cmd\-line" toplevel key. Therefore, the same file can
+                        \(dqcmd\-line\(dq toplevel key. Therefore, the same file can
                         be used for \-\-steps. The options are inserted at the
                         location of \-\-cli\-options in the command line. That
                         can be used to control what can be overriden by
@@ -236,14 +236,14 @@ optional arguments:
                         Step\-specific options. Can be repeated. The format is
                         <step category or name pattern>.<option>=<value>. If
                         the step name or category is omitted, it will be
-                        passed to all steps. See "step\-help" subcommand for
+                        passed to all steps. See \(dqstep\-help\(dq subcommand for
                         the available options. Options specified this way
                         override the steps definition file, and can be used to
                         modify the report when used with run \-\-resume or edit
                         subcommand.
   \-\-debug               Show Python traceback to help debugging this script.
   \-\-steps STEPS         YAML configuration of steps to run. The steps
-                        definitions lives under a "step" toplevel key.
+                        definitions lives under a \(dqstep\(dq toplevel key.
   \-\-allowed\-bad ALLOWED_BAD
                         Percentage of bad iterations that still result in a
                         good overall result.
@@ -254,7 +254,7 @@ optional arguments:
                         .pickle, a Pickle file is created, otherwise YAML
                         format is used.
   \-\-cache               When loading a report, create a cache file named
-                        "{report_filename}.cache.pickle" using the fastest
+                        \(dq{report_filename}.cache.pickle\(dq using the fastest
                         format available. It is the reused until the original
                         file is modified. This is mostly useful when working
                         with big YAML files that are long to load.
@@ -307,7 +307,7 @@ Inherits from: shell
             names to list of values. A single string can be supplied instead of
             a list of values.
 
-      \-o kill\-timeout= (int or "inf") 
+      \-o kill\-timeout= (int or \(dqinf\(dq) 
             time to wait before sending SIGKILL after having sent SIGTERM
 
       \-o prune\-db= (bool) 
@@ -317,8 +317,8 @@ Inherits from: shell
       \-o shell= (non\-empty str) 
             shell to execute the command in
 
-      \-o timeout= (int or "inf") 
-            timeout in seconds before sending SIGTERM to the command, or "inf"
+      \-o timeout= (int or \(dqinf\(dq) 
+            timeout in seconds before sending SIGTERM to the command, or \(dqinf\(dq
             for infinite timeout
 
       \-o upload\-artifact= (bool) 
@@ -376,13 +376,13 @@ Inherits from: shell
       \-o show\-basic= (bool) 
             show command exit status for all iterations
 
-      \-o show\-details= ("msg" or bool) 
-            show details of results. Use "msg" for only a brief message
+      \-o show\-details= (\(dqmsg\(dq or bool) 
+            show details of results. Use \(dqmsg\(dq for only a brief message
 
       \-o show\-dist= (bool) 
             show graphical distribution of issues among iterations with a one
-            letter code: passed=".", failed="F", error="#", skipped="s",
-            undecided="u"
+            letter code: passed=\(dq.\(dq, failed=\(dqF\(dq, error=\(dq#\(dq, skipped=\(dqs\(dq,
+            undecided=\(dqu\(dq
 
       \-o show\-pass\-rate= (bool) 
             always show the pass rate of tests, even when there are failures or
@@ -433,14 +433,14 @@ Inherits from: shell
             names to list of values. A single string can be supplied instead of
             a list of values.
 
-      \-o kill\-timeout= (int or "inf") 
+      \-o kill\-timeout= (int or \(dqinf\(dq) 
             time to wait before sending SIGKILL after having sent SIGTERM
 
       \-o shell= (non\-empty str) 
             shell to execute the command in
 
-      \-o timeout= (int or "inf") 
-            timeout in seconds before sending SIGTERM to the command, or "inf"
+      \-o timeout= (int or \(dqinf\(dq) 
+            timeout in seconds before sending SIGTERM to the command, or \(dqinf\(dq
             for infinite timeout
 
       \-o trials= (int) 
@@ -495,14 +495,14 @@ Inherits from: shell
             names to list of values. A single string can be supplied instead of
             a list of values.
 
-      \-o kill\-timeout= (int or "inf") 
+      \-o kill\-timeout= (int or \(dqinf\(dq) 
             time to wait before sending SIGKILL after having sent SIGTERM
 
       \-o shell= (non\-empty str) 
             shell to execute the command in
 
-      \-o timeout= (int or "inf") 
-            timeout in seconds before sending SIGTERM to the command, or "inf"
+      \-o timeout= (int or \(dqinf\(dq) 
+            timeout in seconds before sending SIGTERM to the command, or \(dqinf\(dq
             for infinite timeout
 
       \-o trials= (int) 
@@ -547,10 +547,10 @@ macro (macro)
             start a new iteration when a step returned bisect status bad or
             untestable and skip all remaining steps
 
-      \-o iterations= (int or "inf") 
+      \-o iterations= (int or \(dqinf\(dq) 
             number of iterations
 
-      \-o timeout= (int or "inf") 
+      \-o timeout= (int or \(dqinf\(dq) 
             time after which no new iteration will be started
 
 
@@ -579,14 +579,14 @@ Inherits from: shell
             names to list of values. A single string can be supplied instead of
             a list of values.
 
-      \-o kill\-timeout= (int or "inf") 
+      \-o kill\-timeout= (int or \(dqinf\(dq) 
             time to wait before sending SIGKILL after having sent SIGTERM
 
       \-o shell= (non\-empty str) 
             shell to execute the command in
 
-      \-o timeout= (int or "inf") 
-            timeout in seconds before sending SIGTERM to the command, or "inf"
+      \-o timeout= (int or \(dqinf\(dq) 
+            timeout in seconds before sending SIGTERM to the command, or \(dqinf\(dq
             for infinite timeout
 
       \-o trials= (int) 
@@ -639,14 +639,14 @@ shell (shell)
             names to list of values. A single string can be supplied instead of
             a list of values.
 
-      \-o kill\-timeout= (int or "inf") 
+      \-o kill\-timeout= (int or \(dqinf\(dq) 
             time to wait before sending SIGKILL after having sent SIGTERM
 
       \-o shell= (non\-empty str) 
             shell to execute the command in
 
-      \-o timeout= (int or "inf") 
-            timeout in seconds before sending SIGTERM to the command, or "inf"
+      \-o timeout= (int or \(dqinf\(dq) 
+            timeout in seconds before sending SIGTERM to the command, or \(dqinf\(dq
             for infinite timeout
 
       \-o trials= (int) 
@@ -701,14 +701,14 @@ Inherits from: shell
             names to list of values. A single string can be supplied instead of
             a list of values.
 
-      \-o kill\-timeout= (int or "inf") 
+      \-o kill\-timeout= (int or \(dqinf\(dq) 
             time to wait before sending SIGKILL after having sent SIGTERM
 
       \-o shell= (non\-empty str) 
             shell to execute the command in
 
-      \-o timeout= (int or "inf") 
-            timeout in seconds before sending SIGTERM to the command, or "inf"
+      \-o timeout= (int or \(dqinf\(dq) 
+            timeout in seconds before sending SIGTERM to the command, or \(dqinf\(dq
             for infinite timeout
 
       \-o trials= (int) 
@@ -768,14 +768,14 @@ yield (yield)
             The step will be a no\-op except if the iteration number can be
             evenly divided by that value.
 
-      \-o kill\-timeout= (int or "inf") 
+      \-o kill\-timeout= (int or \(dqinf\(dq) 
             time to wait before sending SIGKILL after having sent SIGTERM
 
       \-o shell= (non\-empty str) 
             shell to execute the command in
 
-      \-o timeout= (int or "inf") 
-            timeout in seconds before sending SIGTERM to the command, or "inf"
+      \-o timeout= (int or \(dqinf\(dq) 
+            timeout in seconds before sending SIGTERM to the command, or \(dqinf\(dq
             for infinite timeout
 
       \-o trials= (int) 
@@ -806,14 +806,14 @@ usage: bisector monitor [\-h] [\-\-cli\-options CLI_OPTIONS] [\-\-status]
 Monitor and control a running instance.
 
 positional arguments:
-  PID                   Slave PID to act on or "all". Start a monitor\-server
-                        before using "all".
+  PID                   Slave PID to act on or \(dqall\(dq. Start a monitor\-server
+                        before using \(dqall\(dq.
 
 optional arguments:
   \-h, \-\-help            show this help message and exit
   \-\-cli\-options CLI_OPTIONS
                         YAML file containing command line option string in a
-                        "cmd\-line" toplevel key. Therefore, the same file can
+                        \(dqcmd\-line\(dq toplevel key. Therefore, the same file can
                         be used for \-\-steps. The options are inserted at the
                         location of \-\-cli\-options in the command line. That
                         can be used to control what can be overriden by
@@ -854,7 +854,7 @@ optional arguments:
   \-h, \-\-help            show this help message and exit
   \-\-cli\-options CLI_OPTIONS
                         YAML file containing command line option string in a
-                        "cmd\-line" toplevel key. Therefore, the same file can
+                        \(dqcmd\-line\(dq toplevel key. Therefore, the same file can
                         be used for \-\-steps. The options are inserted at the
                         location of \-\-cli\-options in the command line. That
                         can be used to control what can be overriden by
@@ -888,7 +888,7 @@ optional arguments:
                         Step\-specific options. Can be repeated. The format is
                         <step category or name pattern>.<option>=<value>. If
                         the step name or category is omitted, it will be
-                        passed to all steps. See "step\-help" subcommand for
+                        passed to all steps. See \(dqstep\-help\(dq subcommand for
                         the available options. Options specified this way
                         override the steps definition file, and can be used to
                         modify the report when used with run \-\-resume or edit
@@ -915,7 +915,7 @@ The YAML file is structured as following:
 .sp
 .nf
 .ft C
-# Top\-level "steps" key is important as the same file can be used to host other
+# Top\-level \(dqsteps\(dq key is important as the same file can be used to host other
 # information.
 steps:
 
@@ -986,15 +986,15 @@ A typical flow of \fBbisector\fP looks like that:
 .nf
 .ft C
 # Run the steps and generate a report.
-# systemd\-run will be used for all steps by using "\-o" without specifying a
+# systemd\-run will be used for all steps by using \(dq\-o\(dq without specifying a
 step name or category.
-bisector run \-\-desc "description of my report" \-\-steps bisector_steps.yaml \-\-report bisector.report.yml.gz \-ouse\-systemd\-run=yes
+bisector run \-\-desc \(dqdescription of my report\(dq \-\-steps bisector_steps.yaml \-\-report bisector.report.yml.gz \-ouse\-systemd\-run=yes
 
-# Later inspection of the report, only looking at the steps that have "test"
+# Later inspection of the report, only looking at the steps that have \(dqtest\(dq
 # name or category.
 bisector report bisector.report.yml.gz
 
-# Show steps with the "test" name or category
+# Show steps with the \(dqtest\(dq name or category
 bisector report bisector.report.yml.gz \-\-only test
 
 # Help of a exekall LISA\(aqs step options
@@ -1016,7 +1016,7 @@ bisector report bisector.report.yml.gz \-oignore\-excep=ExceptionPxssh,HostError
 # the name is as reported by exekall, so it is best to use * to match the
 # boilerplate prefix.
 # For example \-otestcase=\(aqOneSmallTask:*\(aq will match both
-# "OneSmallTask:test_slack" and "OneSmallTask:test_task_placement".
+# \(dqOneSmallTask:test_slack\(dq and \(dqOneSmallTask:test_task_placement\(dq.
 bisector report bisector.report.yml.gz \-otestcase=\(aqOneSmallTask:*\(aq
 
 # Only consider iterations 1 to 5, 42 and 56
@@ -1028,12 +1028,12 @@ bisector report bisector.report.yml.gz \-oiterations=1\-5,42,56
 bisector report bisector.report.yml.gz \-oignore\-non\-issue
 
 # Download the archives of failed tests and export stdout/sdterr logs to files in
-# the "logs" directory.
+# the \(dqlogs\(dq directory.
 # The hierarchy created is <folder to export to>/<step name>/<iteration number>
 # This will create files for commands output, xUnit files and download the result archives.
 bisector report bisector.report.yml.gz \-oexport\-logs=logs
 
-# "\-oXXXX=YYYY" options can be applied to a specific step instead of all of them using
+# \(dq\-oXXXX=YYYY\(dq options can be applied to a specific step instead of all of them using
 # \-o <step name or category>.XXXX=YYYY
 # This command will only show iteration #2 for the eas_behaviour step
 bisector report bisector.report.yml.gz \-oeas_behaviour.iterations=2
