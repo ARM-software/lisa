@@ -22,6 +22,7 @@ import abc
 import contextlib
 import sqlite3
 import pathlib
+from functools import lru_cache
 
 import pandas as pd
 
@@ -29,7 +30,7 @@ from wa import discover_wa_outputs, Status
 
 from lisa.version import VERSION_TOKEN
 from lisa.stats import Stats
-from lisa.utils import Loggable, memoized, get_subclasses
+from lisa.utils import Loggable, memoized, get_subclasses, LazyMapping
 from lisa._git import find_shortest_symref, get_commit_message
 from lisa.trace import Trace
 
@@ -250,11 +251,69 @@ class WAOutput(StatsProp, Mapping, Loggable):
         """
         parameters = list(inspect.signature(col).parameters.items())
         return any(
-            param.default == param.empty
+            param.default is param.empty and param.kind not in (param.VAR_POSITIONAL, param.VAR_KEYWORD)
             # The first parameter is provided so we can skip it
             for name, param in parameters[1:]
         )
 
+    @property
+    @memoized
+    def jobs(self):
+        """
+        List containing all the jobs present in the output of 'wa run'.
+        """
+        if len(self._jobs) > 1:
+            raise ValueError("jobs is only meant to be used with one output of 'wa run'. Please, use _jobs instead.")
+        return list(self._jobs.values())[0][1]
+
+    @property
+    @memoized
+    def _jobs(self):
+        return {
+            name: (output, [
+                job
+                for job in output.jobs
+                if job.status == Status.OK
+            ])
+            for name, output in self.outputs.items()
+        }
+
+    @property
+    @memoized
+    def outputs(self):
+        """
+        Dict containing a mapping of 'wa run' names to
+        :class:`wa.framework.RunOutput` objects.
+        """
+        wa_outputs = list(discover_wa_outputs(self.path))
+
+        wa_outputs = {
+            pathlib.Path(
+                wa_output.basepath
+            ).resolve(): wa_output
+            for wa_output in wa_outputs
+        }
+
+        if len(wa_outputs) > 1:
+            common_prefix = pathlib.Path(
+                os.path.commonpath(wa_outputs.keys())
+            )
+        elif wa_outputs:
+            path, = wa_outputs.keys()
+            common_prefix = pathlib.Path(path).parent
+        else:
+            common_prefix = None
+
+        wa_outputs = {
+            str(
+                name.relative_to(common_prefix)
+                if common_prefix else
+                name
+            ): wa_output
+            for name, wa_output in wa_outputs.items()
+        }
+
+        return wa_outputs
 
 class WACollectorBase(StatsProp, Loggable, abc.ABC):
     """
@@ -323,8 +382,6 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
     def _get_df(self):
         self.logger.debug(f"Collecting dataframe for {self.NAME}")
 
-        wa_outputs = list(discover_wa_outputs(self.wa_output.path))
-
         def load_df(job):
             def loader(job):
                 cache_path = os.path.join(
@@ -360,39 +417,12 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
             else:
                 return self._df_postprocess(df)
 
-        wa_outputs = {
-            pathlib.Path(
-                wa_output.basepath
-            ).resolve(): wa_output
-            for wa_output in wa_outputs
-        }
-
-        if len(wa_outputs) > 1:
-            common_prefix = pathlib.Path(
-                os.path.commonpath(wa_outputs.keys())
-            )
-        elif wa_outputs:
-            path, = wa_outputs.keys()
-            common_prefix = pathlib.Path(path).parent
-        else:
-            common_prefix = None
-
-        wa_outputs = {
-            str(
-                name.relative_to(common_prefix)
-                if common_prefix else
-                name
-            ): wa_output
-            for name, wa_output in wa_outputs.items()
-        }
-
         dfs = [
             self._add_output_info(wa_output, name, df)
-            for name, wa_output in wa_outputs.items()
+            for name, (wa_output, jobs) in self._jobs.items()
             for df in [
                 load_df(job)
-                for job in wa_output.jobs
-                if job.status == Status.OK
+                for job in jobs
             ]
             if df is not None
         ]
@@ -561,6 +591,8 @@ class WAEnergyCollector(WAArtifactCollectorBase):
             **kwargs,
         )
 
+def _stub_trace_to_df(df):
+    raise ValueError('trace_to_df was not specified for the TraceCollector')
 
 class WATraceCollector(WAArtifactCollectorBase):
     """
@@ -599,7 +631,7 @@ class WATraceCollector(WAArtifactCollectorBase):
     _ARTIFACT_NAME = 'trace-cmd-bin'
     _PURE_GET_JOB_DF = False
 
-    def __init__(self, wa_output, trace_to_df, **kwargs):
+    def __init__(self, wa_output, trace_to_df=_stub_trace_to_df, **kwargs):
         self._trace_to_df = trace_to_df
         self._trace_kwargs = kwargs
         super().__init__(wa_output, df_postprocess=None)
@@ -607,6 +639,18 @@ class WATraceCollector(WAArtifactCollectorBase):
     def _get_artifact_df(self, path):
         trace = Trace(path, **self._trace_kwargs)
         return self._trace_to_df(trace)
+
+    @property
+    def traces(self):
+        """
+        :class:`lisa.utils.LazyMapping` that maps job names & iteration numbers
+        to their corresponding :class:`lisa.trace.Trace`.
+        """
+        return LazyMapping({
+            f"{job.label}-{job.iteration}": lru_cache()(lambda k: Trace(job.get_artifact_path('trace-cmd-bin'), **self._trace_kwargs))
+            for job in self.wa_output.jobs
+        })
+
 
 class WAJankbenchCollector(WAArtifactCollectorBase):
     """
