@@ -34,7 +34,7 @@ class IdleAnalysis(TraceAnalysisBase):
     Support for plotting Idle Analysis data
 
     :param trace: input Trace object
-    :type trace: :class:`trace.Trace`
+    :type trace: lisa.trace.Trace
     """
 
     name = 'idle'

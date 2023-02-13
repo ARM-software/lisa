@@ -117,7 +117,7 @@ class AnalysisProxy(Loggable):
         ana.df_task_signal(task='foo', signal='util')
 
     :param trace: input Trace object
-    :type trace: :class:`trace.Trace`
+    :type trace: lisa.trace.Trace
     """
 
     def __init__(self, trace, params=None):
