@@ -188,6 +188,16 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
     :type needed_metadata: collections.abc.Iterable(str)
     """
 
+    METADATA_KEYS = [
+        'time-range',
+        'symbols-address',
+        'cpus-count',
+        'available-events',
+    ]
+    """
+    Possible metadata keys
+    """
+
     def __init__(self, events, needed_metadata=None):
         # pylint: disable=unused-argument
         self._needed_metadata = set(needed_metadata or [])
@@ -232,6 +242,21 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
         """
         # pylint: disable=no-self-use
         raise MissingMetadataError(key)
+
+    def get_all_metadata(self):
+        """
+        Collect all available metadata.
+        """
+        metadata = {}
+        for key in self.METADATA_KEYS:
+            try:
+                val = self.get_metadata(key)
+            except MissingMetadataError:
+                pass
+            else:
+                metadata[key] = val
+
+        return metadata
 
     @abc.abstractmethod
     def parse_event(self, event):
@@ -4055,7 +4080,8 @@ class Trace(Loggable, TraceBase):
 
     def _mp_parse_worker(self, event):
         # Do not update the metadata to avoid concurrency issues while updating
-        # the cache
+        # the cache. Instead, we return the metadata and let the main thread
+        # deal with it.
         parser = self._get_parser([event], update_metadata=False)
 
         try:
@@ -4065,7 +4091,8 @@ class Trace(Loggable, TraceBase):
         else:
             data = self._apply_normalize_time(data, inplace=True)
 
-        return data
+        metadata = parser.get_all_metadata()
+        return (data, metadata)
 
     def _parse_raw_events(self, events):
         if not events:
@@ -4089,17 +4116,29 @@ class Trace(Loggable, TraceBase):
 
         if use_mp:
             with multiprocessing.Pool(processes=nr_processes) as pool:
-                data_list = pool.map(self._mp_parse_worker, events, chunksize=chunk_size)
+                res_list = pool.map(self._mp_parse_worker, events, chunksize=chunk_size)
 
-            df_map = {
-                event: df
-                for event, df in zip(
-                    events,
-                    data_list,
-                )
-                # similar to best_effort=True
-                if not isinstance(df, BaseException)
-            }
+            if res_list:
+                data_list, metadata_list = zip(*res_list)
+                metadata = functools.reduce(lambda d1, d2: {**d1, **d2}, metadata_list, {})
+                metadata = {
+                    key: val
+                    for key, val in metadata.items()
+                    if key in self._CACHEABLE_METADATA
+                }
+                self._cache.update_metadata(metadata)
+
+                df_map = {
+                    event: df
+                    for event, df in zip(
+                        events,
+                        data_list,
+                    )
+                    # similar to best_effort=True
+                    if not isinstance(df, BaseException)
+                }
+            else:
+                df_map = {}
         else:
             parser = self._get_parser(events, update_metadata=True)
             df_map = parser.parse_events(events, best_effort=True)
