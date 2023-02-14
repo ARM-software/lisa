@@ -767,6 +767,8 @@ class TxtTraceParserBase(TraceParserBase):
         need_fields = (events != event_parsers.keys())
         skeleton_regex = self._get_skeleton_regex(need_fields)
 
+        self.logger.debug(f'Scanning the trace for metadata {needed_metadata} and events: {events}')
+
         events_df, skeleton_df, time_range, available_events = self._eagerly_parse_lines(
             lines=lines,
             skeleton_regex=skeleton_regex,
@@ -775,9 +777,7 @@ class TxtTraceParserBase(TraceParserBase):
         )
 
         self._events_df = events_df
-        # If the time range is not needed, the time range we computed might be
-        # wrong, so just remove it
-        self._time_range = time_range if 'time-range' in self._needed_metadata else None
+        self._time_range = time_range
         self._skeleton_df = skeleton_df
         self._available_events = available_events
 
@@ -1239,9 +1239,7 @@ class TxtTraceParserBase(TraceParserBase):
         return df
 
     def get_metadata(self, key):
-        # Only return the time-range if it was asked for, as it will otherwise
-        # not match the beginning of the trace
-        if key == 'time-range' and key in self._needed_metadata:
+        if key == 'time-range':
             return self._time_range
 
         # If we filtered some events, we are not exhaustive anymore so we
