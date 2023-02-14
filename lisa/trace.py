@@ -3561,6 +3561,8 @@ class Trace(Loggable, TraceBase):
     _CACHEABLE_METADATA = {
         'time-range',
         'cpus-count',
+        # Do not cache symbols-address as JSON is unable to store integer keys
+        # in objects, so the data will wrongly have string keys when reloaded.
     }
     """
     Parser metadata that can safely be cached, i.e. that are serializable in
