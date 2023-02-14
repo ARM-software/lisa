@@ -376,7 +376,7 @@ def make_figure(width, height, nrows, ncols, interactive=None, **kwargs):
     return (figure, axes)
 
 
-def plot_signal(series, name=None, interpolation=None, add_markers=True):
+def plot_signal(series, name=None, interpolation=None, add_markers=True, vdim=None):
     """
     Plot a signal using ``holoviews`` library.
 
@@ -393,6 +393,9 @@ def plot_signal(series, name=None, interpolation=None, add_markers=True):
 
     :param add_markers: Add markers to the plot.
     :type add_markers: bool
+
+    :param vdim: Value axis dimension.
+    :type vdim: holoviews.Dimension
     """
     if isinstance(series, pd.DataFrame):
         try:
@@ -409,12 +412,16 @@ def plot_signal(series, name=None, interpolation=None, add_markers=True):
         # We don't set the unit as this will prevent shared_axes to work if
         # the other plots do not set the unit, which is what usually
         # happens, since only name/label is taken from pandas index names.
-        hv.Dimension('Time'),
+        hv.Dimension('Time', unit='s'),
     ]
+    vdims = [
+        vdim
+    ] if vdim is not None else None
     fig = hv.Curve(
         series,
         label=label,
         kdims=kdims,
+        vdims=vdims,
     ).opts(
         interpolation=interpolation,
         title=label,
@@ -429,6 +436,7 @@ def plot_signal(series, name=None, interpolation=None, add_markers=True):
             label=label,
             group='marker',
             kdims=kdims,
+            vdims=vdims,
         )
     return fig
 
