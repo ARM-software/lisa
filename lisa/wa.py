@@ -22,6 +22,7 @@ import abc
 import contextlib
 import sqlite3
 import pathlib
+import warnings
 from functools import lru_cache
 
 import pandas as pd
@@ -286,6 +287,9 @@ class WAOutput(StatsProp, Mapping, Loggable):
         :class:`wa.framework.RunOutput` objects.
         """
         wa_outputs = list(discover_wa_outputs(self.path))
+
+        if len(wa_outputs) > 1:
+            warnings.warn('Passing a directory containing multiple outputs of "wa run" to WAOutput is deprecated. Please, create one object per run.', DeprecationWarning)
 
         wa_outputs = {
             pathlib.Path(
