@@ -34,10 +34,11 @@ from operator import attrgetter
 import typing
 
 from datetime import datetime
-from collections import OrderedDict, ChainMap
+from collections import OrderedDict, ChainMap, defaultdict, Counter
 from collections.abc import Mapping
 from inspect import signature
 
+import pandas as pd
 import IPython.display
 
 from devlib.collector.dmesg import KernelLogEntry
@@ -57,7 +58,9 @@ from lisa.utils import (
     dispatch_kwargs, Loggable, kwargs_forwarded_to, docstring_update,
     is_running_ipython,
 )
-from lisa.datautils import df_filter_task_ids
+
+from lisa.datautils import df_filter_task_ids, df_window
+
 from lisa.trace import FtraceCollector, FtraceConf, DmesgCollector, ComposedCollector
 from lisa.conf import (
     SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc,
@@ -1858,6 +1861,135 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
                   "duration (rel)": TestMetric(duration_pct, "%")}
         res.add_metric("noisiest task", metric)
 
+        return res
+
+    def df_estimated_freq(self, tasks, window=None):
+        """
+        Provide an estimated CPU(s) frequency
+
+        :pram tasks: Set of tasks to take into account when providing the
+            estimates
+        type tasks: list(lisa.trace.TaskID)
+
+        :param window: Optional, restrict the data to given window only
+        :type window: tuple(float, float)
+
+        :returns: a :class:`pandas.DataFrame` with
+
+            * CPU id as index
+            * A ``runtime`` column with total runtime reported on given CPU
+            * A ``counter`` column with CPU_CYCLES event counter
+            * A ``freq``column with the estimated frequency
+        """
+        try:
+            df_perf = self.trace.df_event('perf_counter')
+        except:
+            return pd.DataFrame()
+
+        # CPU_CYCLES counter:
+        # ARMV8_PMUV3_PERFCTR_CPU_CYCLES	0x0011
+        # ARMV[6/7]_PERFCTR_CPU_CYCLES          0xFF
+        df_perf = df_perf.query('counter_id == 17 or counter_id == 255').copy(deep=False)
+
+        if df_perf.empty:
+            self.logger.warning("CPU_CYCLES event counter missing")
+            return df_perf
+
+
+        d_perf = defaultdict(Counter)
+
+        for task in tasks:
+
+            def skip_task(task):
+                return not task.pid != 0
+
+            if skip_task(task):
+                continue
+
+            try:
+                df_act = self.trace.ana.tasks.df_task_activation(task)
+                df_act = df_act.query('active == 1').copy(deep=False)
+            except:
+                continue
+
+            if window is not None:
+                df_act = df_window(df_act, window, method='inclusive')
+
+            def __map_perf_events(entry, df_perf):
+                # Find corresponding events for sched_switch ones (activation)
+                df = df_perf.query('cpu == @entry.cpu')
+
+                __loc = df.index.get_indexer(
+                        [entry.name + entry.duration],
+                        method='nearest'
+                )
+
+                value = df.iloc[__loc[0]].value
+                __loc = df.index.get_indexer(
+                        [entry.name],
+                        method='nearest'
+                )
+                value -= df.iloc[__loc[0]].value
+                return value
+
+            df_act['counter'] = df_act.apply(
+                    lambda x: __map_perf_events(x, df_perf), axis = 1
+            )
+
+            for cpu, group_df in df_act.groupby('cpu'):
+                d_perf[cpu]['runtime'] = group_df.duration.sum()
+                d_perf[cpu]['counter'] = group_df.counter.sum()
+
+        df_freq = pd.DataFrame(d_perf).T
+        df_freq.index.name = 'cpu'
+        df_freq['freq'] = df_freq['counter'] / df_freq['runtime'] / 1000
+        return df_freq
+
+    @requires_events('perf_counter')
+    @TestBundleBase.add_undecided_filter
+    @TasksAnalysis.df_task_activation.used_events
+    def test_estiamted_freq(self, skip_verification=False, freq=None):
+        """
+        Verify expected frequency for given CPUs
+
+        :param skip_verification: Do not perform any validation
+        :type skip_verification: bool
+
+        :param freq: Expected frequency to validate estimated one against
+        :type freq: float
+
+        If freq is not specified, the estimated frequency is validated against
+        the maximum one for given CPUs.
+        """
+        df = self.df_estimated_freq(self.rtapp_task_ids, self.trace.window)
+
+        if skip_verification:
+            res = ResultBundle.from_bool(True)
+            res.add_metric("estimated frequencies", df.T.to_dict())
+            return res
+
+        if df.empty:
+            # Do not compromise the test if smth went wrong with setting up
+            # the counters
+            res = ResultBundle.from_bool(True)
+            self.logger.warning("Unable to estimate frequency")
+            return res
+
+        cpus = df.index.values
+
+        def __get_cpu_freq(cpu, freq):
+            return cpu, freq if freq is not None else self.plat_info['freqs'][cpu][-1]
+
+        df_expected = pd.DataFrame({
+            __get_cpu_freq(cpu, freq) for cpu in cpus
+            }, columns=['cpu', 'freq']).set_index('cpu')
+
+        df = df[['freq']]
+        df_expected = df / df_expected
+
+        df.reset_index(inplace=True)
+        res = ResultBundle.from_bool(df_expected.query('freq < 0.9').empty)
+        res.add_metric("estimated frequencies", df.T.to_dict())
         return res
 
     @classmethod
