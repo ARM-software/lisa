@@ -280,15 +280,6 @@ class Workload(_WorkloadBase, PartialInit, Loggable):
 
     .. note:: A :class:`Workload` instance can be used as a context manager,
       which ensures :meth:`cleanup` is eventually invoked.
-
-    **Usage example**::
-
-        >>> printer = Printer(target, "test")
-        >>> output = printer.run()
-        INFO    : Printer      : Execution start: echo 42
-        INFO    : Printer      : Execution complete
-        >>> print(output)
-        42\r\n
     """
 
     REQUIRED_TOOLS = []
