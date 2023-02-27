@@ -55,16 +55,21 @@ class Sysbench(Workload):
     """
     A sysbench workload
 
+    :param target: The Target on which to execute this workload
+    :type target: Target
+
     :param max_duration_s: Maximum duration in seconds
     :type max_duration_s: int
 
-    :param: max_requests: Maximum number of event requests
+    :param max_requests: Maximum number of event requests
     :type max_requests: int
 
     :param cli_options: Dictionary of cli_options passed to sysbench command line. Run
         ``sysbench --test=<test> help`` for available parameters. Character
         ``_`` in option names is replaced by ``-``.
     :type cli_options: dict(str, object)
+
+    :Variable keyword arguments: Forwarded to :class:`lisa.wlgen.workload.Workload`
     """
 
     REQUIRED_TOOLS = ['sysbench']
