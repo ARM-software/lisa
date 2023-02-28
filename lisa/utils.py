@@ -3845,4 +3845,34 @@ class SerializeViaConstructor(metaclass=_SerializeViaConstructorMeta):
         return (self._make_instance, (self._ctor, dct))
 
 
+class LazyMapping(Mapping):
+    """
+    Lazy Mapping dict-like class for elements evaluated on the fly.
+
+    It takes the same set of arguments as a dict with keys as the mapping keys
+    and values as closures that take a key and return the value. The class does
+    no automatic memoization but memoization can easily be achieved using
+    :func:`functools.lru_cache`, as shown in the example below.
+
+    **Example**::
+
+        LazyMapping({
+            x: lru_cache()(lambda k: k + 42)
+            for x in [1, 2, 3, 4]
+        })
+
+    """
+    def __init__(self, *args, **kwargs):
+        self._closures = dict(*args, **kwargs)
+
+    def __getitem__(self, key):
+        return self._closures[key](key)
+
+    def __iter__(self):
+        return iter(self._closures)
+
+    def __len__(self):
+        return len(self._closures)
+
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
