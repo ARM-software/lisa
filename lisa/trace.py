@@ -5292,7 +5292,7 @@ class MissingTraceEventError(RuntimeError, ValueError):
     :type missing_events: TraceEventCheckerBase or list(str)
     """
 
-    def __init__(self, missing_events, available_events=None):
+    def __init__(self, missing_events, available_events=None, msg='Trace is missing the following required events: {missing_events}{available}'):
         # pylint: disable=super-init-not-called
         if not isinstance(missing_events, TraceEventCheckerBase):
             missing = sorted(missing_events)
@@ -5305,6 +5305,7 @@ class MissingTraceEventError(RuntimeError, ValueError):
             else:
                 missing_events = TraceEventChecker(event)
 
+        self._template = msg
         self.missing_events = missing_events
         # Forcibly turn into a list, to avoid carrying around an
         # _AvailableTraceEventsSet with its Trace instance
@@ -5317,7 +5318,7 @@ class MissingTraceEventError(RuntimeError, ValueError):
         else:
             available = ''
 
-        return f"Trace is missing the following required events: {self.missing_events}{available}"
+        return self._template.format(missing_events=self.missing_events, available=available)
 
 
 class FtraceConf(SimpleMultiSrcConf, HideExekallID):
@@ -5670,17 +5671,24 @@ class FtraceCollector(CollectorBase, Configurable):
         kmod = None
         kmod_cm = None
         if needed_from_kmod and kmod_auto_load:
+            self.logger.info(f'Building kernel module to try to provide the following events that are not currently available on the target: {", ".join(sorted(needed_from_kmod))}')
             try:
-                kmod, kmod_cm= self._get_kmod(
+                kmod, kmod_cm = self._get_kmod(
                     target,
                     available_events=available_events,
                     needed_events=needed_from_kmod,
                 )
             except Exception as e:
+                msg = f'Could not build the kernel module needed for required events ({", ".join(sorted(needed_from_kmod - missing_optional_events))}) and optional events ({", ".join(sorted(missing_optional_events))})'
                 if missing_events:
-                    raise
+                    self.logger.error(msg)
+                    raise MissingTraceEventError(
+                        sorted(needed_from_kmod),
+                        available_events=available_events,
+                        msg=f'Ftrace events are missing in the kernel: {{missing_events}}{{available}}. Kernel module build was attempted to provide missing events but failed. Use kmod_auto_load=False if you want to disable automatic module building: {e}',
+                    ) from e
                 else:
-                    self.logger.error(f'Could not build the kernel module needed for optional events ({", ".join(sorted(missing_optional_events))}): {e}')
+                    self.logger.error(f'{msg}: {e}')
 
         self._kmod_cm = kmod_cm
 
@@ -5692,7 +5700,11 @@ class FtraceCollector(CollectorBase, Configurable):
         try:
             missing_events_checker.check_events(events)
         except MissingTraceEventError as e:
-            raise ValueError(f'Events are missing in the kernel. Enable kmod_auto_load=True to attempt setting them up: {str(e.missing_events)}')
+            raise MissingTraceEventError(
+                e.missing_events,
+                available_events=e.available_events,
+                msg='Ftrace events are missing in the kernel. Enable kmod_auto_load=True to attempt setting them up: {missing_events}{available}',
+            )
 
         try:
             events_checker.check_events(events, check_optional=True)
