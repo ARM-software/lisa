@@ -828,7 +828,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         target = devlib_target_cls(**devlib_kwargs)
 
-        target.connect(check_boot_completed=wait_boot, timeout=wait_boot_timeout)
+        target.connect(check_boot_completed=wait_boot, timeout=wait_boot_timeout, max_async=max_async)
         logger.debug(f'Target info: {dict(abi=target.abi, cpuinfo=target.cpuinfo, workdir=target.working_directory)}')
         target.setup()
         logger.info(f"Connected to target {(name or '')}")
