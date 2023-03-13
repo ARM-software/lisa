@@ -20,6 +20,10 @@ build:
   os: ubuntu-20.04
   tools:
     python: "3.10"
+  apt_packages:
+    - graphviz
+    - plantuml
+    - pandoc
 
 python:
   install:
