@@ -77,9 +77,9 @@ extras_require={
 }
 
 extras_require["doc"] = [
-    "sphinx >= 1.8",
     # Force ReadTheDocs to use a recent version, rather than the defaults used
     # for old projects.
+    "sphinx > 2",
     "sphinx_rtd_theme >= 0.5.2",
     "sphinxcontrib-plantuml",
     "nbsphinx",
