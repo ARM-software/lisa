@@ -18,8 +18,7 @@ import re
 import tempfile
 from datetime import datetime
 from collections import defaultdict
-
-from future.moves.itertools import zip_longest
+from itertools import zip_longest
 
 from devlib.instrument import Instrument, MeasurementsCsv, CONTINUOUS
 from devlib.exception import TargetStableError, HostError
