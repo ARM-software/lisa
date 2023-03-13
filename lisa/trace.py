@@ -3509,7 +3509,7 @@ class Trace(Loggable, TraceBase):
 
             _, extension = os.path.splitext(trace_path)
             if extension == '.html':
-                parser = SysTraceParser.from_txt_file
+                parser = SysTraceParser.from_html
             if extension == '.txt':
                 parser = HRTxtTraceParser.from_txt_file
             else:
