@@ -18,6 +18,7 @@
 Miscellaneous functions that don't fit anywhere else.
 
 """
+from __future__ import division
 from contextlib import contextmanager
 from functools import partial, reduce, wraps
 from itertools import groupby
@@ -46,7 +47,11 @@ try:
 except AttributeError:
     from contextlib2 import ExitStack
 
-from shlex import quote
+try:
+    from shlex import quote
+except ImportError:
+    from pipes import quote
+
 from past.builtins import basestring
 
 # pylint: disable=redefined-builtin
@@ -457,7 +462,7 @@ def escape_quotes(text):
     """
     Escape quotes, and escaped quotes, in the specified text.
 
-    .. note:: :func:`shlex.quote` should be favored where possible.
+    .. note:: :func:`pipes.quote` should be favored where possible.
     """
     return re.sub(r'\\("|\')', r'\\\\\1', text).replace('\'', '\\\'').replace('\"', '\\\"')
 
@@ -466,7 +471,7 @@ def escape_single_quotes(text):
     """
     Escape single quotes, and escaped single quotes, in the specified text.
 
-    .. note:: :func:`shlex.quote` should be favored where possible.
+    .. note:: :func:`pipes.quote` should be favored where possible.
     """
     return re.sub(r'\\("|\')', r'\\\\\1', text).replace('\'', '\'\\\'\'')
 
@@ -475,7 +480,7 @@ def escape_double_quotes(text):
     """
     Escape double quotes, and escaped double quotes, in the specified text.
 
-    .. note:: :func:`shlex.quote` should be favored where possible.
+    .. note:: :func:`pipes.quote` should be favored where possible.
     """
     return re.sub(r'\\("|\')', r'\\\\\1', text).replace('\"', '\\\"')
 
@@ -484,7 +489,7 @@ def escape_spaces(text):
     """
     Escape spaces in the specified text
 
-    .. note:: :func:`shlex.quote` should be favored where possible.
+    .. note:: :func:`pipes.quote` should be favored where possible.
     """
     return text.replace(' ', '\\ ')
 
@@ -986,26 +991,3 @@ def groupby_value(dct):
         tuple(map(itemgetter(0), _items)): v
         for v, _items in groupby(items, key=key)
     }
-
-
-def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
-    """
-    A wrapper around TarFile.extract all to mitigate CVE-2007-4995
-    (see https://www.trellix.com/en-us/about/newsroom/stories/research/tarfile-exploiting-the-world.html)
-    """
-
-    for member in tar.getmembers():
-        member_path = os.path.join(path, member.name)
-        if not _is_within_directory(path, member_path):
-            raise Exception("Attempted Path Traversal in Tar File")
-
-    tar.extractall(path, members, numeric_owner=numeric_owner)
-
-def _is_within_directory(directory, target):
-
-    abs_directory = os.path.abspath(directory)
-    abs_target = os.path.abspath(target)
-
-    prefix = os.path.commonprefix([abs_directory, abs_target])
-
-    return prefix == abs_directory

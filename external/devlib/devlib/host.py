@@ -20,7 +20,7 @@ import subprocess
 import logging
 from distutils.dir_util import copy_tree
 from getpass import getpass
-from shlex import quote
+from pipes import quote
 
 from devlib.exception import (
     TargetTransientError, TargetStableError,

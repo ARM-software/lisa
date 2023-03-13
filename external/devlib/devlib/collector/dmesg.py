@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+from __future__ import division
 import re
 from itertools import takewhile
 from datetime import timedelta

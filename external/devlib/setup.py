@@ -90,6 +90,7 @@ params = dict(
         'paramiko', # SSH connection
         'scp', # SSH connection file transfers
         'wrapt',  # Basic for construction of decorator functions
+        'future', # Python 2-3 compatibility
         'numpy',
         'pandas',
         'lxml', # More robust xml parsing

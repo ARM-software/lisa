@@ -32,7 +32,8 @@ import weakref
 import select
 import copy
 import functools
-from shlex import quote
+from pipes import quote
+from future.utils import raise_from
 
 from paramiko.client import SSHClient, AutoAddPolicy, RejectPolicy
 import paramiko.ssh_exception
@@ -847,8 +848,8 @@ class TelnetConnection(SshConnectionBase):
         try:
             check_output(command, timeout=timeout, shell=True)
         except subprocess.CalledProcessError as e:
-            msg = f"Failed to copy file with '{command_redacted}'. Output:\n{e.output}"
-            raise HostError(msg) from None
+            raise_from(HostError("Failed to copy file with '{}'. Output:\n{}".format(
+                command_redacted, e.output)), None)
         except TimeoutError as e:
             raise TimeoutError(command_redacted, e.output)
 
