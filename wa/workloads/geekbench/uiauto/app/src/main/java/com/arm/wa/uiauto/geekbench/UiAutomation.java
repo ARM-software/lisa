@@ -96,6 +96,7 @@ public class UiAutomation extends BaseUiAutomation {
                     break;
                 case 4:
                 case 5:
+                case 6:
                     runCpuBenchmarks(isCorporate);
                     waitForResultsv3onwards();
                     break;
