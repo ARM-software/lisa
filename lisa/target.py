@@ -811,6 +811,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         # Create devlib Target object
         ########################################################################
 
+        max_async = 50 if max_async is None else max_async
         devlib_kwargs = dict(
             platform=devlib_platform,
             load_default_modules=False,
