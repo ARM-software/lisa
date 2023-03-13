@@ -3709,7 +3709,6 @@ class Trace(Loggable, TraceBase):
 
         :Variable keyword arguments: Forwarded to :class:`Trace`.
         """
-        ftrace_coll = FtraceCollector(target, events=events, buffer_size=buffer_size)
         plat_info = target.plat_info
 
         class TraceProxy(TraceBase):
@@ -3727,9 +3726,6 @@ class Trace(Loggable, TraceBase):
 
         proxy = TraceProxy()
 
-        with ftrace_coll:
-            yield proxy
-
         if filepath:
             cm = nullcontext(filepath)
         else:
@@ -3741,7 +3737,10 @@ class Trace(Loggable, TraceBase):
             cm = cm_func()
 
         with cm as path:
-            ftrace_coll.get_data(path)
+            ftrace_coll = FtraceCollector(target, events=events, buffer_size=buffer_size, output_path=path)
+            with ftrace_coll:
+                yield proxy
+
             trace = cls(
                 path,
                 events=events,
