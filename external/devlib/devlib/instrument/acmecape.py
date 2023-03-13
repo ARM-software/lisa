@@ -14,7 +14,6 @@
 #
 
 #pylint: disable=attribute-defined-outside-init
-from __future__ import division
 import os
 import sys
 import time
@@ -23,7 +22,7 @@ import shlex
 from fcntl import fcntl, F_GETFL, F_SETFL
 from string import Template
 from subprocess import Popen, PIPE, STDOUT
-from pipes import quote
+from shlex import quote
 
 from devlib import Instrument, CONTINUOUS, MeasurementsCsv
 from devlib.exception import HostError

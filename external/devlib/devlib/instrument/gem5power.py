@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import division
-
 from devlib.platform.gem5 import Gem5SimulationPlatform
 from devlib.instrument import Instrument, CONTINUOUS, MeasurementsCsv
 from devlib.exception import TargetStableError
