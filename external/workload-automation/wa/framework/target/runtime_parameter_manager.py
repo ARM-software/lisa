@@ -22,7 +22,6 @@ from wa.framework.target.runtime_config import (SysfileValuesRuntimeConfig,
                                                 CpuidleRuntimeConfig,
                                                 AndroidRuntimeConfig)
 from wa.utils.types import obj_dict, caseless_string
-from wa.framework import pluginloader
 
 
 class RuntimeParameterManager(object):
@@ -38,15 +37,8 @@ class RuntimeParameterManager(object):
 
     def __init__(self, target):
         self.target = target
-        self.runtime_params = {}
-
-        try:
-            for rt_cls in pluginloader.list_plugins(kind='runtime-config'):
-                if rt_cls not in self.runtime_config_cls:
-                    self.runtime_config_cls.append(rt_cls)
-        except ValueError:
-            pass
         self.runtime_configs = [cls(self.target) for cls in self.runtime_config_cls]
+        self.runtime_params = {}
 
         runtime_parameter = namedtuple('RuntimeParameter', 'cfg_point, rt_config')
         for cfg in self.runtime_configs:

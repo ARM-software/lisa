@@ -21,7 +21,7 @@ import tempfile
 import threading
 import time
 from collections import namedtuple
-from shlex import quote
+from pipes import quote
 
 # pylint: disable=redefined-builtin
 from devlib.exception  import WorkerThreadError, TargetNotRespondingError, TimeoutError

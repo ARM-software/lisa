@@ -19,7 +19,7 @@ import shutil
 import time
 import types
 import shlex
-from shlex import quote
+from pipes import quote
 
 from devlib.exception import TargetStableError
 from devlib.host import PACKAGE_BIN_DIRECTORY

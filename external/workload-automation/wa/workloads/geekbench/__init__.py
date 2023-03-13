@@ -53,8 +53,8 @@ class Geekbench(ApkUiautoWorkload):
     """
     summary_metrics = ['score', 'multicore_score']
 
-    supported_versions = ['6', '5', '4.4.2', '4.4.0', '4.3.4', '4.3.2', '4.3.1', '4.2.0', '4.0.1', '3.4.1', '3.0.0', '2']
-    package_names = ['com.primatelabs.geekbench6', 'com.primatelabs.geekbench5', 'com.primatelabs.geekbench', 'com.primatelabs.geekbench3', 'ca.primatelabs.geekbench2']
+    supported_versions = ['5', '4.4.2', '4.4.0', '4.3.4', '4.3.2', '4.3.1', '4.2.0', '4.0.1', '3.4.1', '3.0.0', '2']
+    package_names = ['com.primatelabs.geekbench5', 'com.primatelabs.geekbench', 'com.primatelabs.geekbench3', 'ca.primatelabs.geekbench2']
 
     begin_regex = re.compile(r'^\s*D/WebViewClassic.loadDataWithBaseURL\(\s*\d+\s*\)'
                              r'\s*:\s*(?P<content>\<.*)\s*$')
@@ -137,7 +137,7 @@ class Geekbench(ApkUiautoWorkload):
                 context.add_metric(namemify(section['name'] + '_multicore_score', i),
                                    section['multicore_score'])
 
-    def update_result(self, context):
+    def update_result_4(self, context):
         outfile_glob = self.target.path.join(self.target.package_data_directory, self.apk.package, 'files', '*gb*')
         on_target_output_files = [f.strip() for f in self.target.execute('ls {}'.format(outfile_glob),
                                                                          as_root=True).split('\n') if f]
@@ -151,7 +151,7 @@ class Geekbench(ApkUiautoWorkload):
             with open(host_output_file, 'w') as wfh:
                 json.dump(data, wfh, indent=4)
             context.add_artifact('geekout', host_output_file, kind='data',
-                                 description='Geekbench output from target.')
+                                 description='Geekbench 4 output from target.')
             context.add_metric(namemify('score', i), data['score'])
             context.add_metric(namemify('multicore_score', i), data['multicore_score'])
             for section in data['sections']:
@@ -161,9 +161,7 @@ class Geekbench(ApkUiautoWorkload):
                     context.add_metric(namemify(section['name'] + '_' + workload_name + '_score', i),
                                        workloads['score'])
 
-    update_result_4 = update_result
-    update_result_5 = update_result
-    update_result_6 = update_result
+    update_result_5 = update_result_4
 
 
 class GBWorkload(object):

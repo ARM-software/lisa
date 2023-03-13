@@ -30,13 +30,14 @@
 
 
 # pylint: disable=W0613,E1101,access-member-before-definition,attribute-defined-outside-init
+from __future__ import division
 import os
-import shutil
-import signal
-import tempfile
 import subprocess
-from shlex import quote
+import signal
+from pipes import quote
 
+import tempfile
+import shutil
 
 from devlib.instrument import Instrument, CONTINUOUS, MeasurementsCsv
 from devlib.exception import HostError

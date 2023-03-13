@@ -35,7 +35,11 @@ import threading
 from collections import defaultdict
 from io import StringIO
 from lxml import etree
-from shlex import quote
+
+try:
+    from shlex import quote
+except ImportError:
+    from pipes import quote
 
 from devlib.exception import TargetTransientError, TargetStableError, HostError, TargetTransientCalledProcessError, TargetStableCalledProcessError, AdbRootError
 from devlib.utils.misc import check_output, which, ABI_MAP, redirect_streams, get_subprocess

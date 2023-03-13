@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from __future__ import division
 import os
 import signal
 import tempfile
 import struct
 import subprocess
 import sys
-from shlex import quote
+from pipes import quote
 
 from devlib.instrument import Instrument, CONTINUOUS, MeasurementsCsv
 from devlib.exception import HostError
