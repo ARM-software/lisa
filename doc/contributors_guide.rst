@@ -19,9 +19,10 @@ As a rule of thumb, the code you write should follow the
 `PEP-8 <https://www.python.org/dev/peps/pep-0008/>`__.
 
 We strongly recommend using a code checker such as
-`pylint <https://www.pylint.org/>`__, as it tracks unused
-imports/variables, informs you when you can simplify a statement using
-Python features, and overall just helps you write better code.
+`pylint <https://www.pylint.org/>`__, as it tracks unused imports/variables,
+informs you when you can simplify a statement using Python features, and overall
+just helps you write better code. However, we don't enforce any linter in merged
+code.
 
 Documentation
 =============
@@ -48,6 +49,24 @@ All in all, it should look like this:
        (but be reasonable)
        """
        pass
+
+.. note:: LISA does not use type annotations as they have only been introduced
+    recently and would currently conflict with exekall use (that is a solvable
+    problem but has not been worked on yet). Parameters types must therefore be
+    documented using the ``:type the_param: the_type`` in the function
+    docstring.
+
+
+References to classes should be made using ``:class:`path.to.TheClass```, same
+goes for methods (``:meth:`...```) and functions (``:func:`...```).
+
+Examples on how to use the API can sometimes be useful. They should be
+introduced by ``**Example**::`` and located:
+
+  * In the module docstring if they involve multiple classes or functions from
+    the module.
+  * In the class docstring if they involve multiple methods of the class.
+  * In the method/function otherwise.
 
 
 Commits
@@ -118,7 +137,7 @@ Validating your changes
 =======================
 
 To ensure everything behaves as expected at all times, LISA comes with some
-self-tests, which is a mix of unit and behavioural tests.
+self-tests in ``tests/`` folder, which is a mix of unit and behavioural tests.
 
 From the root of LISA, you can run those tests like so:
 
@@ -153,19 +172,12 @@ Utilities
 .. automodule:: tests.utils
    :members:
 
-Implemented tests
------------------
 
-.. TODO:: Make those imports more generic
+Updating binary tools
+=====================
 
-.. automodule:: tests.test_test_bundle
-   :members:
-
-.. automodule:: tests.test_energy_model
-   :members:
-
-.. automodule:: tests.test_trace
-   :members:
-
-.. automodule:: tests.test_wlgen_rtapp
-   :members:
+LISA comes with a number of prebuilt static binaries in
+``lisa/_assets/binaries``. They are all built according to recipes in
+``tools/recipes/``, and can be re-built and installed using e.g.:
+``lisa-build-asset trace-cmd --native-build``. See ``lisa-build-asset --help``
+for more options.
