@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 
-from __future__ import division
 import os
 import json
 import time
@@ -21,7 +20,7 @@ import re
 import subprocess
 import sys
 import contextlib
-from pipes import quote
+from shlex import quote
 
 from devlib.collector import (CollectorBase, CollectorOutput,
                               CollectorOutputEntry)
@@ -238,7 +237,7 @@ class FtraceCollector(CollectorBase):
         return self.target.read_value(self.available_functions_file).splitlines()
 
     def reset(self):
-        self.target.execute('{} reset'.format(self.target_binary),
+        self.target.execute('{} reset -B devlib'.format(self.target_binary),
                             as_root=True, timeout=TIMEOUT)
         if self.functions:
             self.target.write_value(self.function_profile_file, 0, verify=False)
@@ -263,7 +262,7 @@ class FtraceCollector(CollectorBase):
             self.target.write_value('/proc/sys/kernel/kptr_restrict', 0)
 
         self.target.execute(
-            '{} start {buffer_size} {cmdlines_size} {clock} {events} {tracer} {functions}'.format(
+            '{} start -B devlib {buffer_size} {cmdlines_size} {clock} {events} {tracer} {functions}'.format(
                 self.target_binary,
                 events=self.event_string,
                 tracer=tracer_string,
@@ -308,7 +307,7 @@ class FtraceCollector(CollectorBase):
         self.stop_time = time.time()
         if self.automark:
             self.mark_stop()
-        self.target.execute('{} stop'.format(self.target_binary),
+        self.target.execute('{} stop -B devlib'.format(self.target_binary),
                             timeout=TIMEOUT, as_root=True)
         self._reset_needed = True
 
