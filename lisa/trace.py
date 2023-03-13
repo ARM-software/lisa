@@ -5669,7 +5669,8 @@ class FtraceCollector(CollectorBase, Configurable):
         needed_from_kmod = missing_events | missing_optional_events
         kmod = None
         kmod_cm = None
-        if needed_from_kmod and kmod_auto_load:
+        need_kmod = needed_from_kmod and kmod_auto_load
+        if need_kmod:
             self.logger.info(f'Building kernel module to try to provide the following events that are not currently available on the target: {", ".join(sorted(needed_from_kmod))}')
             try:
                 kmod, kmod_cm = self._get_kmod(
@@ -5688,7 +5689,9 @@ class FtraceCollector(CollectorBase, Configurable):
                     ) from e
                 else:
                     self.logger.error(f'{msg}: {e}')
+                    need_kmod = False
 
+        self._need_kmod = need_kmod
         self._kmod_cm = kmod_cm
 
         if kmod is not None:
@@ -5789,7 +5792,14 @@ class FtraceCollector(CollectorBase, Configurable):
             x = self._cm.__exit__(*args, **kwargs)
         finally:
             self._cm = None
+            self._kmod_cm = None
         return x
+
+    def get_data(self, *args, **kwargs):
+        if self._need_kmod and not self._kmod_cm:
+            raise ValueError('FtraceCollector.get_data() cannot be called after the kernel module was unloaded.')
+        else:
+            return super().get_data(*args, **kwargs)
 
     @staticmethod
     def _target_available_events(target, tracing_path):
