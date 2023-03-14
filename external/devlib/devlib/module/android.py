@@ -22,7 +22,7 @@ import tempfile
 from devlib.module import FlashModule
 from devlib.exception import HostError
 from devlib.utils.android import fastboot_flash_partition, fastboot_command
-from devlib.utils.misc import merge_dicts
+from devlib.utils.misc import merge_dicts, safe_extract
 
 
 class FastbootFlashModule(FlashModule):
@@ -86,7 +86,7 @@ class FastbootFlashModule(FlashModule):
         self._validate_image_bundle(image_bundle)
         extract_dir = tempfile.mkdtemp()
         with tarfile.open(image_bundle) as tar:
-            tar.extractall(path=extract_dir)
+            safe_extract(tar, path=extract_dir)
             files = [tf.name for tf in tar.getmembers()]
             if self.partitions_file_name not in files:
                 extract_dir = os.path.join(extract_dir, files[0])
