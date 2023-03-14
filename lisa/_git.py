@@ -25,7 +25,7 @@ def git(repo, *args):
     Call git in the given repo with the given arguments
     """
 
-    return subprocess.check_output(['git', '-C', repo, *args]).decode()
+    return subprocess.check_output(['git', '-C', repo, *args]).decode(errors='backslashreplace')
 
 def find_shortest_symref(repo_path, sha1):
     """
