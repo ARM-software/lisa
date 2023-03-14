@@ -492,9 +492,10 @@ Adding an Instrument
 ====================
 This is an example of how we would create a instrument which will trace device
 errors using a custom "trace" binary file. For more detailed information please see the
-:ref:`Instrument Reference <instrument-reference>`. The first thing to do is to subclass
-:class:`Instrument`, overwrite the variable name with what we want our instrument
-to be called and locate our binary for our instrument.
+:ref:`Instrument Reference <instrument-reference>`. The first thing to do is to create
+a new file under ``$WA_USER_DIRECTORY/plugins/`` and subclass
+:class:`Instrument`. Make sure to overwrite the variable name with what we want our instrument
+to be called and then locate our binary for the instrument.
 
 ::
 
@@ -502,8 +503,8 @@ to be called and locate our binary for our instrument.
 
             name = 'trace-errors'
 
-            def __init__(self, target):
-                super(TraceErrorsInstrument, self).__init__(target)
+            def __init__(self, target, **kwargs):
+                super(TraceErrorsInstrument, self).__init__(target, **kwargs)
                 self.binary_name = 'trace'
                 self.binary_file = os.path.join(os.path.dirname(__file__), self.binary_name)
                 self.trace_on_target = None
@@ -550,8 +551,9 @@ workload. The method can be passed 4 params, which are the metric `key`,
     def update_output(self, context):
         # pull the trace file from the target
         self.result = os.path.join(self.target.working_directory, 'trace.txt')
-        self.target.pull(self.result, context.working_directory)
-        context.add_artifact('error_trace', self.result, kind='export')
+        self.outfile = os.path.join(context.output_directory, 'trace.txt')
+        self.target.pull(self.result, self.outfile)
+        context.add_artifact('error_trace', self.outfile, kind='export')
 
         # parse the file if needs to be parsed, or add result directly to
         # context.
@@ -572,12 +574,14 @@ At the very end of the run we would want to uninstall the binary we deployed ear
 
 So the full example would look something like::
 
+        from wa import Instrument
+
         class TraceErrorsInstrument(Instrument):
 
             name = 'trace-errors'
 
-            def __init__(self, target):
-                super(TraceErrorsInstrument, self).__init__(target)
+            def __init__(self, target, **kwargs):
+                super(TraceErrorsInstrument, self).__init__(target, **kwargs)
                 self.binary_name = 'trace'
                 self.binary_file = os.path.join(os.path.dirname(__file__), self.binary_name)
                 self.trace_on_target = None
@@ -595,8 +599,9 @@ So the full example would look something like::
 
             def update_output(self, context):
                 self.result = os.path.join(self.target.working_directory, 'trace.txt')
-                self.target.pull(self.result, context.working_directory)
-                context.add_artifact('error_trace', self.result, kind='export')
+                self.outfile = os.path.join(context.output_directory, 'trace.txt')
+                self.target.pull(self.result, self.outfile)
+                context.add_artifact('error_trace', self.outfile, kind='export')
 
                 metric = # ..
                 context.add_metric('number_of_errors', metric, lower_is_better=True
@@ -613,8 +618,9 @@ Adding an Output Processor
 ==========================
 
 This is an example of how we would create an output processor which will format
-the run metrics  as a column-aligned table. The first thing to do is to subclass
-:class:`OutputProcessor` and overwrite the variable name with what we want our
+the run metrics as a column-aligned table. The first thing to do is to create
+a new file under ``$WA_USER_DIRECTORY/plugins/`` and subclass
+:class:`OutputProcessor`. Make sure to overwrite the variable name with what we want our
 processor to be called and provide a short description.
 
 Next we need to implement any relevant methods, (please see

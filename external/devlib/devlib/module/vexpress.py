@@ -21,6 +21,7 @@ from subprocess import CalledProcessError
 
 from devlib.module import HardRestModule, BootModule, FlashModule
 from devlib.exception import TargetError, TargetStableError, HostError
+from devlib.utils.misc import safe_extract
 from devlib.utils.serial_port import open_serial_connection, pulse_dtr, write_characters
 from devlib.utils.uefi import UefiMenu, UefiConfig
 from devlib.utils.uboot import UbootMenu
@@ -354,7 +355,7 @@ class VersatileExpressFlashModule(FlashModule):
         validate_image_bundle(bundle)
         self.logger.debug('Extracting {} into {}...'.format(bundle, self.vemsd_mount))
         with tarfile.open(bundle) as tar:
-            tar.extractall(self.vemsd_mount)
+            safe_extract(tar, self.vemsd_mount)
 
     def _overlay_images(self, images):
         for dest, src in images.items():

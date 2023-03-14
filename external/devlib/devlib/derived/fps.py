@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 
-from __future__ import division
 import os
 
 try:
