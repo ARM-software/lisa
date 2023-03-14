@@ -319,7 +319,7 @@ class FtraceCollector(CollectorBase):
     def get_data(self):
         if self.output_path is None:
             raise RuntimeError("Output path was not set.")
-        self.target.execute('{0} extract -o {1}; chmod 666 {1}'.format(self.target_binary,
+        self.target.execute('{0} extract -B devlib -o {1}; chmod 666 {1}'.format(self.target_binary,
                                                                        self.target_output_file),
                             timeout=TIMEOUT, as_root=True)
 
