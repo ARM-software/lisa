@@ -913,6 +913,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
                 (k, os.getenv(k)) for k in {
                     'CROSS_COMPILE',
                     'ARCH',
+                    'KBUILD_MODPOST_WARN'
                 }
             )
             if v is not None
@@ -942,6 +943,11 @@ class KernelTree(Loggable, SerializeViaConstructor):
                 # Disable CROSS_COMPILE as we are going to build in a "native"
                 # Alpine chroot, so there is no need for a cross compiler
                 make_vars.pop('CROSS_COMPILE', None)
+
+        # Turn errors into warnings by default, as this otherwise prevents the
+        # builds when the list of kernel symbols is not available.
+        if 'KBUILD_MODPOST_WARN' not in make_vars:
+            make_vars['KBUILD_MODPOST_WARN'] = '1'
 
         return (make_vars, cc)
 
