@@ -100,15 +100,23 @@ __attribute__((unused)) static struct tracepoint *__find_tracepoint(const char *
 #define DEFINE_TP_FEATURE(feature_name, tp_name, probe) DEFINE_EXTENDED_TP_FEATURE(feature_name, tp_name, probe, NULL, NULL)
 
 #define __EVENT_FEATURE(event_name) event__##event_name
-
 /**
  * DEFINE_TP_EVENT_FEATURE() - Same as DEFINE_TP_FEATURE() with automatic
  * "event__" prefixing of the feature name.
  */
 #define DEFINE_TP_EVENT_FEATURE(event_name, tp_name, probe) DEFINE_TP_FEATURE(__EVENT_FEATURE(event_name), tp_name, probe)
+
+/**
+ * __DEFINE_EXTENDED_TP_EVENT_FEATURE - Wrapper for
+ * DEFINE_EXTENDED_TP_EVENT_FEATURE to allow safe macro-expansion for
+ * __EVENT_FEATURE
+ */
+#define __DEFINE_EXTENDED_TP_EVENT_FEATURE(feature_name, ...) \
+	DEFINE_EXTENDED_TP_FEATURE(feature_name, ##__VA_ARGS__)
 /**
  * DEFINE_EXTENDED_TP_EVENT_FEATURE() - Same as DEFINE_EXTENDED_TP_FEATURE()
  * with automatic "event__" prefixing of the feature name.
  */
-#define DEFINE_EXTENDED_TP_EVENT_FEATURE(event_name, tp_name, probe, enable_f, disable_f) DEFINE_EXTENDED_TP_FEATURE(__EVENT_FEATURE(event_name), tp_name, probe, enable_f, disable_f)
+#define DEFINE_EXTENDED_TP_EVENT_FEATURE(event_name, tp_name, probe, enable_f, disable_f) \
+	__DEFINE_EXTENDED_TP_EVENT_FEATURE(__EVENT_FEATURE(event_name), tp_name, probe, enable_f, disable_f)
 #endif
