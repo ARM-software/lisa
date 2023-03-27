@@ -117,13 +117,19 @@ struct __tp_probe {
 #define DEFINE_TP_FEATURE(feature_name, probes) DEFINE_EXTENDED_TP_FEATURE(feature_name, probes, NULL, NULL)
 
 #define __EVENT_FEATURE(event_name) CONCATENATE(event__, event_name)
-
 /**
  * DEFINE_TP_EVENT_FEATURE() - Same as DEFINE_TP_FEATURE() with automatic
  * "event__" prefixing of the feature name.
  */
 #define DEFINE_TP_EVENT_FEATURE(event_name, probes) DEFINE_TP_FEATURE(__EVENT_FEATURE(event_name), probes)
 
+/**
+ * __DEFINE_EXTENDED_TP_EVENT_FEATURE - Wrapper for
+ * DEFINE_EXTENDED_TP_EVENT_FEATURE to allow safe macro-expansion for
+ * __EVENT_FEATURE
+ */
+#define __DEFINE_EXTENDED_TP_EVENT_FEATURE(feature_name, ...) \
+	DEFINE_EXTENDED_TP_FEATURE(feature_name, ##__VA_ARGS__)
 /**
  * DEFINE_EXTENDED_TP_EVENT_FEATURE() - Same as DEFINE_EXTENDED_TP_FEATURE()
  * with automatic "event__" prefixing of the feature name.
