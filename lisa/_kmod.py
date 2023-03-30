@@ -1180,29 +1180,30 @@ class KernelTree(Loggable, SerializeViaConstructor):
                     raise ValueError(f'Building from /lib/modules/.../build/ is only supported for local targets')
 
         @contextlib.contextmanager
-        def from_sysfs_headers():
+        def _from_target_sources(configs, pull):
             """
-            From /sys/kheaders.tar.xz
+            Overlay some content taken from the target on the user tree, such
+            as /proc/config.gz
             """
             version = kernel_info['version']
             config = kernel_info['config']
-            if not (
-                config.get('CONFIG_IKHEADERS') == KernelConfigTristate.YES and
-                config.get('CONFIG_IKCONFIG_PROC') == KernelConfigTristate.YES
+            if not all(
+                config.get(conf) == KernelConfigTristate.YES
+                for conf in configs
             ):
-                raise ValueError('Needs CONFIG_IKHEADERS=y and CONFIG_IKCONFIG_PROC=y')
+                configs = ' and '.join(
+                    f'{conf}=y'
+                    for conf in configs
+                )
+                raise ValueError(f'Needs {configs}')
             else:
                 with tempfile.TemporaryDirectory() as temp:
                     temp = Path(temp)
-                    target.cached_pull('/proc/config.gz', str(temp))
-                    target.cached_pull('/sys/kernel/kheaders.tar.xz', str(temp), via_temp=True)
+                    overlays = pull(target, temp)
 
                     with cls.from_overlays(
                         version=version,
-                        overlays={
-                            FileOverlay.from_path(temp / 'config.gz', decompress=True): '.config',
-                            TarOverlay.from_path(temp / 'kheaders.tar.xz'): '.',
-                        },
+                        overlays=overlays,
                         make_vars=make_vars,
                         cache=cache,
                         tree_path=tree_path,
@@ -1210,6 +1211,39 @@ class KernelTree(Loggable, SerializeViaConstructor):
                         overlay_backend=overlay_backend,
                     ) as tree:
                         yield tree._to_spec()
+
+        def from_sysfs_headers():
+            """
+            From /sys/kernel/kheaders.tar.xz and /proc/config.gz
+            """
+            def pull(target, temp):
+                target.cached_pull('/proc/config.gz', str(temp))
+                target.cached_pull('/sys/kernel/kheaders.tar.xz', str(temp), via_temp=True)
+
+                return {
+                    FileOverlay.from_path(temp / 'config.gz', decompress=True): '.config',
+                    TarOverlay.from_path(temp / 'kheaders.tar.xz'): '.',
+                }
+
+            return _from_target_sources(
+                configs=['CONFIG_IKHEADERS', 'CONFIG_IKCONFIG_PROC'],
+                pull=pull,
+            )
+
+        def from_proc_config():
+            """
+            From /proc/config.gz
+            """
+            def pull(target, temp):
+                target.cached_pull('/proc/config.gz', str(temp))
+                return {
+                    FileOverlay.from_path(temp / 'config.gz', decompress=True): '.config',
+                }
+
+            return _from_target_sources(
+                configs=['CONFIG_IKCONFIG_PROC'],
+                pull=pull,
+            )
 
         @contextlib.contextmanager
         def from_user_tree():
@@ -1268,7 +1302,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
             raise ValueError(f'Could not load kernel trees:\n{excep_str}')
 
         # Try these loaders in the given order, until one succeeds
-        loaders = [from_installed_headers, from_sysfs_headers, from_user_tree]
+        loaders = [from_installed_headers, from_sysfs_headers, from_proc_config, from_user_tree]
 
         return cls(
             path_cm=functools.partial(try_loaders, loaders),
