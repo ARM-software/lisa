@@ -588,7 +588,7 @@ class _CallGraph:
         return cls(
             cpu_nodes = {
                 cpu: build_graph(subdf)
-                for cpu, subdf in df.groupby('__cpu', observed=True)
+                for cpu, subdf in df.groupby('__cpu', observed=True, group_keys=False)
             }
         )
 

@@ -195,7 +195,7 @@ def df_split_signals(df, signal_cols, align_start=False, window=None):
         else:
             _signal_cols = signal_cols
 
-        for group, signal in df.groupby(_signal_cols, observed=True, sort=False):
+        for group, signal in df.groupby(_signal_cols, observed=True, sort=False, group_keys=False):
             # When only one column is looked at, the group is the value instead of
             # a tuple of values
             if len(signal_cols) < 2:
@@ -505,7 +505,7 @@ def df_delta(pre_df, post_df, group_on=None):
     # In each group, search for a faulty sequence (where pre/post events are
     # not interleaving, e.g. pre1->pre2->post1->post2).
     if group_on:
-        grouped = df.groupby(group_on, observed=True, sort=False)
+        grouped = df.groupby(group_on, observed=True, sort=False, group_keys=False)
     else:
         grouped = df
     if grouped['is_pre'].transform(lambda x: x == x.shift()).any():
@@ -2012,7 +2012,7 @@ def df_find_redundant_cols(df, col, cols=None):
         are used.
     :type cols: str or None
     """
-    grouped = df.groupby(col, observed=True)
+    grouped = df.groupby(col, observed=True, group_keys=False)
     cols = cols or (set(df.columns) - {col})
     return {
         _col: dict(map(

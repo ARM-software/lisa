@@ -57,7 +57,7 @@ class Pixel6Analysis(TraceAnalysisBase):
         """
         df = self.trace.df_event('pixel6_emeter')
         df = df[df['chan_name'].isin(Pixel6Analysis.EMETER_CHAN_NAMES)]
-        df = df.groupby(['chan_name'], observed=True).apply(
+        df = df.groupby(['chan_name'], observed=True, group_keys=False).apply(
             lambda x: df_add_delta(x, col='value_diff', src_col='value', window=self.trace.window)['value_diff'] / df_add_delta(x, col='ts_diff', src_col='ts', window=self.trace.window)['ts_diff']
         ).reset_index().rename(columns={0:'value', 'chan_name':'channel'}).dropna().set_index('Time')
         df['channel'] = df['channel'].astype('category').cat.rename_categories(Pixel6Analysis.EMETER_CHAN_NAMES)
@@ -85,7 +85,7 @@ class Pixel6Analysis(TraceAnalysisBase):
         if any(channel not in df['channel'].cat.categories for channel in channels):
             raise ValueError('Specified channel not found')
 
-        channel_data = dict(iter(df[df['channel'].isin(channels)].groupby(['channel'], observed=True)))
+        channel_data = dict(iter(df[df['channel'].isin(channels)].groupby(['channel'], group_keys=False, observed=True)))
         return hv.Overlay([
             plot_signal(channel_data[channel]['value'], name=channel, vdim=hv.Dimension('value', label='Power', unit='mW'))
             for channel in channels

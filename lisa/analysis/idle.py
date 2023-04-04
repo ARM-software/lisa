@@ -210,6 +210,7 @@ class IdleAnalysis(TraceAnalysisBase):
                 'cpu',
                 sort=False,
                 observed=True,
+                group_keys=False,
             )
             if cpu in cluster
         }
@@ -232,7 +233,7 @@ class IdleAnalysis(TraceAnalysisBase):
 
         # For each cluster state, take the sum of the delta column.
         # The resulting dataframe is indexed by group keys (cluster_state).
-        residency = df.groupby('cluster_state', sort=False, observed=True)['delta'].sum()
+        residency = df.groupby('cluster_state', sort=False, observed=True, group_keys=False)['delta'].sum()
         residency.name = 'time'
 
         residency = residency.to_frame()
