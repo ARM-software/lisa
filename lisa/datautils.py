@@ -198,10 +198,10 @@ def df_split_signals(df, signal_cols, align_start=False, window=None):
         for group, signal in df.groupby(_signal_cols, observed=True, sort=False, group_keys=False):
             # When only one column is looked at, the group is the value instead of
             # a tuple of values
-            if len(signal_cols) < 2:
-                cols_val = {signal_cols[0]: group}
-            else:
+            if isinstance(group, tuple) :
                 cols_val = dict(zip(signal_cols, group))
+            else:
+                cols_val = {signal_cols[0]: group}
 
             if window:
                 signal = df_refit_index(signal, window=window, method='inclusive')
