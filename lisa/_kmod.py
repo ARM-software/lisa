@@ -839,6 +839,9 @@ class KernelTree(Loggable, SerializeViaConstructor):
             # https://lore.kernel.org/all/YfK18x%2FXrYL4Vw8o@syu-laptop/t/#md877c45455918f8c661dc324719b91a9906dc7a3
             # We need to get rid of vmlinux file in order to prevent the kernel
             # module build from generating split BTF information.
+            # This issue should have been fixed by that patch, but requires
+            # setting MODULE_ALLOW_BTF_MISMATCH=y which is not the default:
+            # https://git.kernel.org/pub/scm/linux/kernel/git/bpf/bpf-next.git/commit/?id=5e214f2e43e4
             #
             # On top of that, a user-provided kernel tree with modules_prepare
             # already run would lead to not having e.g. some binaries stored in
