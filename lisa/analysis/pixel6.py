@@ -57,9 +57,16 @@ class Pixel6Analysis(TraceAnalysisBase):
         """
         df = self.trace.df_event('pixel6_emeter')
         df = df[df['chan_name'].isin(Pixel6Analysis.EMETER_CHAN_NAMES)]
-        df = df.groupby('chan_name', observed=True, group_keys=False).apply(
-            lambda x: df_add_delta(x, col='value_diff', src_col='value', window=self.trace.window)['value_diff'] / df_add_delta(x, col='ts_diff', src_col='ts', window=self.trace.window)['ts_diff']
-        ).reset_index().rename(columns={0:'value', 'chan_name':'channel'}).dropna().set_index('Time')
+        grouped = df.groupby('chan_name', observed=True, group_keys=False)
+
+        def make_chan_df(df):
+            value_diff = df_add_delta(df, col='value_diff', src_col='value', window=self.trace.window)['value_diff']
+            ts_diff = df_add_delta(df, col='ts_diff', src_col='ts', window=self.trace.window)['ts_diff']
+            power = value_diff / ts_diff
+            df = pd.DataFrame(dict(value=power, channel=df['chan_name']))
+            return df.dropna()
+
+        df = grouped.apply(make_chan_df)
         df['channel'] = df['channel'].astype('category').cat.rename_categories(Pixel6Analysis.EMETER_CHAN_NAMES)
 
         return df
