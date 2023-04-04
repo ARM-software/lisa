@@ -303,9 +303,10 @@ class RTAEventsAnalysis(TraceAnalysisBase):
                                 ascending=False)
         # ... keep only the newest/oldest event
         grouped = df.groupby(
-                ['__comm', '__pid', 'phase', 'event'],
-                observed=True,
-                sort=False
+            ['__comm', '__pid', 'phase', 'event'],
+            observed=True,
+            sort=False,
+            group_keys=False,
         )
         df = grouped.head(1)
 

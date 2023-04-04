@@ -89,7 +89,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
             devlib_df = rename(devlib_df)
 
         def groupby_cpu(df):
-            return df.groupby('cpu', observed=True, sort=False)
+            return df.groupby('cpu', observed=True, sort=False, group_keys=False)
 
         # Get the initial values for each CPU
         def init_freq(df, from_devlib):
@@ -198,7 +198,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         # Compute TOTAL Time
         cluster_freqs = df_add_delta(cluster_freqs, col="total_time", window=self.trace.window)
-        time_df = cluster_freqs[["total_time", "frequency"]].groupby('frequency', observed=True, sort=False).sum()
+        time_df = cluster_freqs[["total_time", "frequency"]].groupby('frequency', observed=True, sort=False, group_keys=False).sum()
 
         # Compute ACTIVE Time
         cluster_active = self.ana.idle.signal_cluster_active(cpus)

@@ -471,8 +471,11 @@ class HotplugRollback(HotplugDmesgTestBundle, FtraceTestBundle, TestBundle):
 
         df['failing_state'].ffill(inplace=True)
         df.dropna(inplace=True)
-        df = df.groupby(['up', 'failing_state'],
-                        observed=True).apply(_verify_rollback)
+        df = df.groupby(
+            ['up', 'failing_state'],
+            observed=True,
+            group_keys=False,
+        ).apply(_verify_rollback)
         df.drop_duplicates(inplace=True)
 
         res = ResultBundle.from_bool(df['result'].all())

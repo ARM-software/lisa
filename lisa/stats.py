@@ -402,7 +402,7 @@ class Stats(Loggable):
 
         # Check that tags are sufficient to describe the data, so that we don't
         # end up with 2 different values for the same set of tags
-        duplicated_tags_size = df.groupby(tag_cols, observed=True).size()
+        duplicated_tags_size = df.groupby(tag_cols, observed=True, group_keys=False).size()
         duplicated_tags_size = duplicated_tags_size[duplicated_tags_size > 1]
         if not duplicated_tags_size.empty:
             raise ValueError(f'Same tags applied to more than one value, another tag column is needed to distinguish them:\n{duplicated_tags_size}')
@@ -782,7 +782,7 @@ class Stats(Loggable):
             for name, func in stats.items()
         }
         if funcs:
-            grouped = df.groupby(tag_cols, observed=True, sort=False)
+            grouped = df.groupby(tag_cols, observed=True, sort=False, group_keys=False)
             df = grouped[self._val_col].agg(**funcs).reset_index()
             # Transform the newly created stats columns into rows
             df = self._melt(df)
@@ -925,7 +925,7 @@ class Stats(Loggable):
 
         subplots = dict(
             plot_subdf(group, subdf)
-            for group, subdf in df.groupby(group_on, observed=True)
+            for group, subdf in df.groupby(group_on, observed=True, group_keys=False)
         )
 
         kdims = sorted(set(itertools.chain.from_iterable(
