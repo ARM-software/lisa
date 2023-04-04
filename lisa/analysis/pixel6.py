@@ -52,18 +52,18 @@ class Pixel6Analysis(TraceAnalysisBase):
 
         :retuns: A :class:`pandas.DataFrame` with:
 
-            * A ``channel`` column (description of the power usage channel)
-            * A ``value`` column (average power usage in mW since the last measurement)
+            * A ``channel`` column (name of the power meter channel)
+            * A ``power`` column (average power usage in mW since the last measurement)
         """
         df = self.trace.df_event('pixel6_emeter')
         df = df[df['chan_name'].isin(Pixel6Analysis.EMETER_CHAN_NAMES)]
         grouped = df.groupby('chan_name', observed=True, group_keys=False)
 
         def make_chan_df(df):
-            value_diff = df_add_delta(df, col='value_diff', src_col='value', window=self.trace.window)['value_diff']
+            energy_diff = df_add_delta(df, col='energy_diff', src_col='value', window=self.trace.window)['energy_diff']
             ts_diff = df_add_delta(df, col='ts_diff', src_col='ts', window=self.trace.window)['ts_diff']
-            power = value_diff / ts_diff
-            df = pd.DataFrame(dict(value=power, channel=df['chan_name']))
+            power = energy_diff / ts_diff
+            df = pd.DataFrame(dict(power=power, channel=df['chan_name']))
             return df.dropna()
 
         df = grouped.apply(make_chan_df)
@@ -94,6 +94,6 @@ class Pixel6Analysis(TraceAnalysisBase):
 
         channel_data = dict(iter(df[df['channel'].isin(channels)].groupby('channel', group_keys=False, observed=True)))
         return hv.Overlay([
-            plot_signal(channel_data[channel]['value'], name=channel, vdim=hv.Dimension('value', label='Power', unit='mW'))
+            plot_signal(channel_data[channel]['power'], name=channel, vdim=hv.Dimension('power', label='Power', unit='mW'))
             for channel in channels
         ]).opts(title='Power usage per channel over time')
