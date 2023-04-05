@@ -172,7 +172,7 @@ class UtilClamp(RTATestBundle, TestBundle):
 
         df_freq = self.trace.ana.frequency.df_cpus_frequency()
         df_freq = df_freq[['cpu', 'frequency']]
-        df_freq = df_freq.pivot(index=None, columns='cpu', values='frequency')
+        df_freq = df_freq.pivot(columns='cpu', values='frequency')
         df_freq.reset_index(inplace=True)
         df_freq.set_index('Time', inplace=True)
 
