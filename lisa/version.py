@@ -21,7 +21,7 @@ from subprocess import CalledProcessError
 
 from lisa._git import get_sha1, get_uncommited_patch
 
-version_tuple = (3, 0, 1)
+version_tuple = (3, 1, 0)
 
 def format_version(version):
     return '.'.join(str(part) for part in version)
