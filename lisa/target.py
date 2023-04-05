@@ -49,6 +49,14 @@ from lisa._kmod import KernelTree, DynamicKmod
 from lisa.platforms.platinfo import PlatformInfo
 
 
+try:
+    import devlib.utils.asyn
+except ImportError:
+    _DEVLIB_HAS_ASYNC = False
+else:
+    _DEVLIB_HAS_ASYNC = True
+
+
 class PasswordKeyDesc(KeyDesc):
     def pretty_format(self, v):
         return '<password>'
@@ -818,8 +826,16 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             connection_settings=conn_settings,
             working_directory=workdir,
             connect=False,
-            max_async=max_async,
         )
+
+        connect_kwargs = dict(
+            check_boot_completed=wait_boot,
+            timeout=wait_boot_timeout,
+        )
+
+        if _DEVLIB_HAS_ASYNC:
+            devlib_kwargs['max_async'] = max_async
+            connect_kwargs['max_async'] = max_async
 
         devlib_kwargs = {
             k: v
@@ -829,7 +845,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         target = devlib_target_cls(**devlib_kwargs)
 
-        target.connect(check_boot_completed=wait_boot, timeout=wait_boot_timeout, max_async=max_async)
+        target.connect(**connect_kwargs)
         logger.debug(f'Target info: {dict(abi=target.abi, cpuinfo=target.cpuinfo, workdir=target.working_directory)}')
         target.setup()
         logger.info(f"Connected to target {(name or '')}")
