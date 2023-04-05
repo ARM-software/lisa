@@ -423,7 +423,7 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
 
         dfs = [
             self._add_output_info(wa_output, name, df)
-            for name, (wa_output, jobs) in self._jobs.items()
+            for name, (wa_output, jobs) in self.wa_output._jobs.items()
             for df in [
                 load_df(job)
                 for job in jobs
