@@ -5668,10 +5668,9 @@ class FtraceCollector(CollectorBase, Configurable):
         # If some events are not already available on that kernel, look them up
         # in custom modules
         needed_from_kmod = missing_events | missing_optional_events
-        kmod = None
+
         kmod_cm = None
-        need_kmod = needed_from_kmod and kmod_auto_load
-        if need_kmod:
+        if needed_from_kmod and kmod_auto_load:
             self.logger.info(f'Building kernel module to try to provide the following events that are not currently available on the target: {", ".join(sorted(needed_from_kmod))}')
             try:
                 kmod, kmod_cm = self._get_kmod(
@@ -5690,15 +5689,12 @@ class FtraceCollector(CollectorBase, Configurable):
                     ) from e
                 else:
                     self.logger.error(f'{msg}: {e}')
-                    need_kmod = False
+            else:
+                events.update(
+                    set(kmod.defined_events) & needed_from_kmod
+                )
 
-        self._need_kmod = need_kmod
         self._kmod_cm = kmod_cm
-
-        if kmod is not None:
-            events.update(
-                set(kmod.defined_events) & needed_from_kmod
-            )
 
         try:
             missing_events_checker.check_events(events)
@@ -5793,11 +5789,10 @@ class FtraceCollector(CollectorBase, Configurable):
             x = self._cm.__exit__(*args, **kwargs)
         finally:
             self._cm = None
-            self._kmod_cm = None
         return x
 
     def get_data(self, *args, **kwargs):
-        if self._need_kmod and not self._kmod_cm:
+        if self._kmod_cm and not self._cm:
             raise ValueError('FtraceCollector.get_data() cannot be called after the kernel module was unloaded.')
         else:
             return super().get_data(*args, **kwargs)
