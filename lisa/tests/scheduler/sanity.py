@@ -18,7 +18,7 @@
 import sys
 
 from lisa.target import Target
-from lisa.utils import ArtifactPath
+from lisa.utils import ArtifactPath, group_by_value
 from lisa.tests.base import TestMetric, ResultBundle, TestBundle
 from lisa.wlgen.sysbench import Sysbench
 
@@ -47,16 +47,19 @@ class CapacitySanity(TestBundle):
         with target.cpufreq.use_governor("performance"):
             sysbench = Sysbench(target, res_dir=res_dir)
 
+            def run(cpu):
+                output = sysbench(cpus=[cpu], max_duration_s=1).run()
+                return output.nr_events
+
             cpu_capacities = target.sched.get_capacities()
-            capa_work = {capa: sys.maxsize for capa in list(cpu_capacities.values())}
-            for cpu in list(cpu_capacities.keys()):
-                with collector:
-                    output = sysbench(cpus=[cpu], max_duration_s=1).run()
-                # We could save the work done on each CPU, but we can make
-                # things simpler and just store the smallest amount of work done
-                # per capacity value.
-                capa = cpu_capacities[cpu]
-                capa_work[capa] = min(capa_work[capa], output.nr_events)
+            capacities = group_by_value(cpu_capacities)
+
+            with collector:
+                capa_work = {
+                    capa: min(map(run, cpus))
+                    for capa, cpus in capacities.items()
+                }
+
 
         return cls(res_dir, target.plat_info, capa_work)
 
