@@ -1,5 +1,7 @@
 #! /usr/bin/env bash
 
+# ENSURE THE GIT TREE DOES NOT CONTAIN ANY EXTRA FILE, AS THEY MIGHT BE
+# INCLUDED IN THE WHEEL (especially in lisa/_assets/)
 
 # Inspired by: https://packaging.python.org/tutorials/packaging-projects/
 set -e
