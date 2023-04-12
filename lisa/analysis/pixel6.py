@@ -36,9 +36,10 @@ class Pixel6Analysis(TraceAnalysisBase):
     name = 'pixel6'
 
     EMETER_CHAN_NAMES = {
-        'S4M_VDD_CPUCL0': 'little',
-        'S3M_VDD_CPUCL1': 'mid',
-        'S2M_VDD_CPUCL2': 'big',
+        'S4M_VDD_CPUCL0': 'CPU-Little',
+        'S3M_VDD_CPUCL1': 'CPU-Mid',
+        'S2M_VDD_CPUCL2': 'CPU-Big',
+        'S2S_VDD_G3D': 'GPU',
     }
 
 ###############################################################################
