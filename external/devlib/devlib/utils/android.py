@@ -411,11 +411,11 @@ class AdbConnection(ConnectionBase):
             if 'adbd is already running as root' in e.output:
                 pass
             else:
-                raise
+                raise AdbRootError(str(e)) from e
         else:
             # Check separately as this does not cause a error exit code.
             if 'cannot run as root in production builds' in output:
-                raise TargetStableError(output)
+                raise AdbRootError(output)
         AdbConnection._connected_as_root[self.device] = enable
 
     def wait_for_device(self, timeout=30):
