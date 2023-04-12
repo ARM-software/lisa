@@ -16,8 +16,10 @@
 #define POWER_METER_SAMPLING_RATE_MS 50
 
 #define POWER_METER_SAMPLE_FILE_MAX_SIZE 1024
-#define POWER_METER_SAMPLE_FILE "/sys/bus/iio/devices/iio:device0/energy_value"
-#define POWER_METER_RATE_FILE "/sys/bus/iio/devices/iio:device0/sampling_rate"
+#define POWER_METER_SAMPLE_FILE_0 "/sys/bus/iio/devices/iio:device0/energy_value"
+#define POWER_METER_RATE_FILE_0 "/sys/bus/iio/devices/iio:device0/sampling_rate"
+#define POWER_METER_SAMPLE_FILE_1 "/sys/bus/iio/devices/iio:device1/energy_value"
+#define POWER_METER_RATE_FILE_1 "/sys/bus/iio/devices/iio:device1/sampling_rate"
 
 static PARSE_RESULT(int) parse_content(parse_buffer *);
 
@@ -64,10 +66,10 @@ static void write_str(struct file *file, char *str)
 	}
 }
 
-
 struct p6_emeter_data {
 	struct work_item *work;
-	struct file *sample_file;
+	struct file *sample_file_0;
+	struct file *sample_file_1;
 };
 
 static int free_p6_emeter_data(struct p6_emeter_data *data) {
@@ -75,7 +77,8 @@ static int free_p6_emeter_data(struct p6_emeter_data *data) {
 	if (data) {
 		ret |= destroy_work(data->work);
 
-		close_file(&ret, data->sample_file);
+		close_file(&ret, data->sample_file_0);
+		close_file(&ret, data->sample_file_1);
 
 		kfree(data);
 	}
@@ -101,19 +104,26 @@ static void process_content(unsigned char *content, size_t content_capacity, uns
 		pr_err("Failed to parse content\n");
 }
 
+static void read_and_process(char *buffer, unsigned int size, struct file *file, char *name,
+		unsigned int device) {
+	ssize_t count = 0;
+
+	count = kernel_read(file, buffer, POWER_METER_SAMPLE_FILE_MAX_SIZE - 1, 0);
+	if (count < 0 || count >= POWER_METER_SAMPLE_FILE_MAX_SIZE) {
+		pr_err("Could not read %s : %ld\n", name, count);
+	} else {
+		buffer[count] = '\0';
+		process_content(buffer, size, device);
+	}
+}
+
 static int p6_emeter_worker(void *data) {
 	struct feature *feature = data;
 	struct p6_emeter_data *p6_emeter_data = feature->data;
 	char content[POWER_METER_SAMPLE_FILE_MAX_SIZE];
-	ssize_t count = 0;
 
-	count = kernel_read(p6_emeter_data->sample_file, content, POWER_METER_SAMPLE_FILE_MAX_SIZE - 1, 0);
-	if (count < 0 || count >= POWER_METER_SAMPLE_FILE_MAX_SIZE) {
-		pr_err("Could not read " POWER_METER_SAMPLE_FILE ": %ld\n", count);
-	} else {
-		content[count] = '\0';
-		process_content(content, ARRAY_SIZE(content), 0);
-	}
+	read_and_process(content, ARRAY_SIZE(content), p6_emeter_data->sample_file_0, POWER_METER_SAMPLE_FILE_0, 0);
+	read_and_process(content, ARRAY_SIZE(content), p6_emeter_data->sample_file_1, POWER_METER_SAMPLE_FILE_1, 1);
 
 	/* Schedule the next run using the same delay as previously */
 	return WORKER_SAME_DELAY;
@@ -138,13 +148,22 @@ static int enable_p6_emeter(struct feature* feature) {
 	/* Note that this is the hardware sampling rate. Software will only see
 	 *an updated value every 8 hardware periods
 	 */
-	rate_file = open_file(&ret, POWER_METER_RATE_FILE, O_WRONLY);
+	rate_file = open_file(&ret, POWER_METER_RATE_FILE_0, O_WRONLY);
 	write_str(rate_file, "500\n");
 	close_file(&ret, rate_file);
 	HANDLE_ERR(ret);
 
-	sample_file = open_file(&ret, POWER_METER_SAMPLE_FILE, O_RDONLY);
-	data->sample_file = sample_file;
+	rate_file = open_file(&ret, POWER_METER_RATE_FILE_1, O_WRONLY);
+	write_str(rate_file, "500\n");
+	close_file(&ret, rate_file);
+	HANDLE_ERR(ret);
+
+	sample_file = open_file(&ret, POWER_METER_SAMPLE_FILE_0, O_RDONLY);
+	data->sample_file_0 = sample_file;
+	HANDLE_ERR(ret);
+
+	sample_file = open_file(&ret, POWER_METER_SAMPLE_FILE_1, O_RDONLY);
+	data->sample_file_1 = sample_file;
 	HANDLE_ERR(ret);
 
 	data->work = start_work(p6_emeter_worker, msecs_to_jiffies(POWER_METER_SAMPLING_RATE_MS), feature);
