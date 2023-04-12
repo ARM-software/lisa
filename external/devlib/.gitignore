@@ -1,9 +1,0 @@
-*.pyc
-*.pyo
-*.orig
-.ropeproject
-*.egg-info
-devlib/bin/scripts/shutils
-doc/_build/
-build/
-dist/

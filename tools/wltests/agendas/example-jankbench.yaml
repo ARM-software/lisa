@@ -1,9 +1,0 @@
-# This is an example of a simple agenda: It simply runs the jankbench workload 3
-# times. The workload parameters are left to the workload's default, and target
-# and instrumentation configuration will either be read from
-# $LISA_HOME/tools/wltests/wa_user_directory/config.yaml or the defaults will be
-# used.
-
-workloads:
-  - name: jankbench
-    iterations: 3
