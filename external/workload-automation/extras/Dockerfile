@@ -63,30 +63,30 @@ ENV TZ=Europe/London
 
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
-apache2-utils \
-bison \
-cmake \
-curl \
-emacs \
-flex \
-git \
-libcdk5-dev \
-libiio-dev \
-libxml2 \
-libxml2-dev \
-locales \
-nano \
-openjdk-8-jre-headless \
-python3 \
-python3-pip \
-ssh \
-sshpass \
-sudo \
-trace-cmd \
-usbutils \
-vim \
-wget \
-zip
+apache2-utils=2.4.* \
+bison=2:3.5.* \
+cmake=3.16.* \
+curl=7.68.* \
+emacs=1:26.3+* \
+flex=2.6.* \
+git=1:2.25.* \
+libcdk5-dev=5.0.* \
+libiio-dev=0.19-* \
+libxml2=2.9.* \
+libxml2-dev=2.9.* \
+locales=2.31-* \
+nano=4.8-* \
+openjdk-8-jre-headless=8u362-ga-* \
+python3=3.8.* \
+python3-pip=20.0.* \
+ssh=1:8.2p1-* \
+sshpass=1.06-* \
+sudo=1.8.* \
+trace-cmd=2.8.* \
+usbutils=1:012-2 \
+vim=2:8.1.* \
+wget=1.20.* \
+zip=3.0-*
 
 # Clone and download iio-capture
 RUN git clone -v https://github.com/BayLibre/iio-capture.git /tmp/iio-capture && \
