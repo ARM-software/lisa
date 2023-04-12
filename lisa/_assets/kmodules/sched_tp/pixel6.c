@@ -24,11 +24,15 @@ static PARSE_RESULT(int) parse_content(parse_buffer *);
 typedef struct sample {
 	unsigned long ts;
 	unsigned long value;
+	unsigned int device;
 	unsigned int chan;
 	char chan_name[PIXEL6_EMETER_CHAN_NAME_MAX_SIZE];
 } sample_t;
 DEFINE_PARSE_RESULT_TYPE(sample_t);
 
+typedef struct emeter_buffer_private {
+	unsigned int device;
+} emeter_buffer_private_t;
 
 static struct file *open_file(int *error, const char *path, umode_t mode)
 {
@@ -78,15 +82,20 @@ static int free_p6_emeter_data(struct p6_emeter_data *data) {
 	return ret;
 }
 
-static void process_content(unsigned char *content, size_t content_capacity)
+static void process_content(unsigned char *content, size_t content_capacity, unsigned int device)
 {
 
 	size_t size = strlen(content) + 1;
+	emeter_buffer_private_t private = {
+		.device = device,
+	};
 	parse_buffer input = {
 		.data = (u8 *)content,
 		.size = size,
 		.capacity = content_capacity,
+		.private = &private,
 	};
+
 	PARSE_RESULT(int) res = parse_content(&input);
 	if (!IS_SUCCESS(res))
 		pr_err("Failed to parse content\n");
@@ -103,7 +112,7 @@ static int p6_emeter_worker(void *data) {
 		pr_err("Could not read " POWER_METER_SAMPLE_FILE ": %ld\n", count);
 	} else {
 		content[count] = '\0';
-		process_content(content, ARRAY_SIZE(content));
+		process_content(content, ARRAY_SIZE(content), 0);
 	}
 
 	/* Schedule the next run using the same delay as previously */
@@ -172,6 +181,8 @@ TAKEWHILE(u8, parse_name, parse_name_char);
 SEQUENCE(sample_t, parse_sample, ({
 	sample_t value;
 
+	value.device = ((emeter_buffer_private_t*)private)->device;
+
 	/* CH42 */
 	PARSE(parse_string, "CH");
 	value.chan = PARSE(parse_ulong);
@@ -201,9 +212,9 @@ LEFT(sample_t, int, parse_sample_line, parse_sample, count_whitespaces)
 
 int process_sample(int nr, sample_t sample)
 {
-	/* pr_info("parsed: chan=%u, ts=%lu chan_name=%s value=%lu\n", sample.chan, */
+	/* pr_info("parsed: device=%u chan=%u, ts=%lu chan_name=%s value=%lu\n", sample.device, sample.chan, */
 	/*        sample.ts, sample.chan_name, sample.value); */
-	trace_pixel6_emeter(sample.ts, sample.chan, sample.chan_name, sample.value);
+	trace_pixel6_emeter(sample.ts, sample.device, sample.chan, sample.chan_name, sample.value);
 	return nr + 1;
 }
 
