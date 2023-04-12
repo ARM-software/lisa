@@ -137,10 +137,11 @@ class FtraceCollector(CollectorBase):
                 for _event in events
             )
 
+        available_events = self.available_events
         unavailable_events = [
             event
             for event in self.events
-            if not event_is_in_list(event, self.available_events)
+            if not event_is_in_list(event, available_events)
         ]
         if unavailable_events:
             message = 'Events not available for tracing: {}'.format(
