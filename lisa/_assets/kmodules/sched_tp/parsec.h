@@ -13,11 +13,13 @@
  * @size: Size of the data buffer.
  * @capacity: Maximum size of the data pointed. This can be larger than @size
  *            when describing a window into the buffer.
+ * @private: Pointer to additional data to be passed down the parser chain.
  */
 typedef struct parse_buffer {
 	u8 *data;
 	size_t size;
 	size_t capacity;
+	void *private;
 } parse_buffer;
 
 /**
@@ -55,11 +57,13 @@ typedef struct parse_buffer {
 /**
  * charp2parse_buffer() - Convert a null-terminated string to struct parse_buffer.
  * @s: Null terminated string.
+ * @private: Pointer to additional data to be passed down the parser chain.
  */
-static inline parse_buffer charp2parse_buffer(char *s)
+static inline parse_buffer charp2parse_buffer(char *s, void *private)
 {
 	size_t size = strlen(s) + 1;
 	return (parse_buffer){ .data = (u8 *)s,
+			       .private = private,
 			       .size = size,
 			       .capacity = size };
 }
@@ -149,6 +153,7 @@ static inline PARSE_RESULT(parse_buffer)
 				parse_buffer)){ .tag = PARSE_SUCCESS,
 						.remainder =
 							(parse_buffer){
+								.private = input->private,
 								.data = input->data +
 									len,
 								.size = input->size -
@@ -158,6 +163,7 @@ static inline PARSE_RESULT(parse_buffer)
 									len,
 							},
 						.value = {
+							.private = input->private,
 							.data = input->data,
 							.size = len,
 							.capacity =
@@ -184,6 +190,7 @@ static inline PARSE_RESULT(u8)
 					.tag = PARSE_SUCCESS,
 					.remainder =
 						(parse_buffer){
+							.private = input->private,
 							.data = input->data + 1,
 							.size = input->size - 1,
 							.capacity =
@@ -228,7 +235,8 @@ static inline PARSE_RESULT(u8)
 		return (PARSE_RESULT(u8)){
 			.tag = PARSE_SUCCESS,
 			.remainder =
-				(parse_buffer){ .data = input->data + 1,
+				(parse_buffer){ .private = input->private,
+						.data = input->data + 1,
 						.size = input->size - 1,
 						.capacity =
 							input->capacity - 1 },
@@ -423,6 +431,7 @@ static inline PARSE_RESULT(u8) parse_not_char(parse_buffer *input, u8 c)
 						.tag = PARSE_SUCCESS,                      \
 						.value =                                   \
 							(parse_buffer){                    \
+								.private = input->private, \
 								.data = input->data,       \
 								.size = res.remainder      \
 										.data -    \
@@ -543,8 +552,8 @@ static inline PARSE_RESULT(u8) parse_not_char(parse_buffer *input, u8 c)
  * @type: Return type of the sequence.
  * @name: Name of the new parser to create.
  * @body: Statement expr containing the custom logic. The last statement will be
- * the value returned by the parser.
- *
+ * the value returned by the parser. Private data from parse_buffer can be
+ * accessed inside the body through the `private` variable.
  */
 #define SEQUENCE(type, name, body, ...)                                        \
 	static inline PARSE_RESULT(type)                                       \
@@ -552,6 +561,8 @@ static inline PARSE_RESULT(u8) parse_not_char(parse_buffer *input, u8 c)
 	{                                                                      \
 		parse_buffer __seq_remainder = *input;                         \
 		parse_buffer __seq_unmodified_input = *input;                  \
+		void *private = input->private;                                \
+		(void)private;                                                 \
 		type __seq_value = (body);                                     \
 		return (PARSE_RESULT(type)){                                   \
 			.tag = PARSE_SUCCESS,                                  \
