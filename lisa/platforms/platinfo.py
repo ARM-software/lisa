@@ -51,7 +51,7 @@ def compute_rtapp_capacities(conf):
     will be used, otherwise the capacities adjusted with rtapp calibration will
     be used.
     """
-    writeable = conf['writeable']
+    writeable = conf.get('writeable')
     orig_capacities = conf['orig']
 
     rtapp_calib = conf['..']['rtapp']['calib']
