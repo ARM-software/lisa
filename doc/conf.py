@@ -112,6 +112,16 @@ extensions = [
     'nbsphinx',
 ]
 
+# Fix for the broken flyout ReadTheDocs menu as recommended here:
+# https://github.com/readthedocs/sphinx_rtd_theme/issues/1452#issuecomment-1490504991
+# https://github.com/readthedocs/readthedocs.org/issues/10242
+# https://github.com/readthedocs/sphinx_rtd_theme/issues/1452
+# https://github.com/readthedocs/sphinx_rtd_theme/pull/1448
+if RTD:
+    extensions.append(
+        "sphinxcontrib.jquery"
+    )
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
