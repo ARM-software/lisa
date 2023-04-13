@@ -438,21 +438,30 @@ def pelt_settling_time(margin=1, init=0, final=PELT_SCALE, window=PELT_WINDOW, h
     # We want to find `t` such as the output y(t) is as close as we want from
     # the input u(t):
     # A * u(t) = u(t) * (1 - exp(-t/tau))
-    # A is how close from u(t) we want the output to get after a time `t`
+    #
     # From which follows:
     # A = (1 - exp(-t/tau))
     # t = -tau * log(1-A)
 
-    # Since the equation we have is for a step response, i.e. from 0 to a final
-    # value
-    delta = abs(final - init)
-    # Since margin and delta are in the same unit, we don't have to normalize
-    # them to `scale` first.
-    relative_margin = (margin / delta)
-    A = 1 - relative_margin
+    if final > init:
+        final = final - abs(margin)
+        def compute(final):
+            A = final / scale
+            return - tau * math.log(1 - A)
+    elif final < init:
+        # y(t) = u(t) * exp(-t/tau)
+        # A * u(t) = u(t) * exp(-t/tau)
+        # A = exp(-t/tau)
+        # t = -tau * log(A)
+        def compute(final):
+            A = final / scale
+            return - tau * math.log(A)
+        final = final + abs(margin)
+    else:
+        return 0
 
-    settling_time = - tau * math.log(1 - A)
-    return settling_time
+    # Time it takes for 0=>final minus 0=>init
+    return abs(compute(final) - compute(init))
 
 
 def kernel_util_mean(util, plat_info):
