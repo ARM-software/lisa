@@ -774,7 +774,7 @@ class RTA(Workload):
     def _setup(self):
         logger = self.logger
         plat_info = self.target.plat_info
-        writeable_capacities = plat_info['cpu-capacities']['writeable']
+        writeable_capacities = plat_info['cpu-capacities'].get('writeable')
         update_cpu_capacities = self.update_cpu_capacities
         target = self.target
 
