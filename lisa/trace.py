@@ -5673,7 +5673,7 @@ class FtraceCollector(CollectorBase, Configurable):
         if needed_from_kmod and kmod_auto_load:
             self.logger.info(f'Building kernel module to try to provide the following events that are not currently available on the target: {", ".join(sorted(needed_from_kmod))}')
             try:
-                kmod, kmod_cm = self._get_kmod(
+                provided, kmod_cm = self._get_kmod(
                     target,
                     available_events=available_events,
                     needed_events=needed_from_kmod,
@@ -5690,19 +5690,22 @@ class FtraceCollector(CollectorBase, Configurable):
                 else:
                     self.logger.error(f'{msg}: {e}')
             else:
-                events.update(
-                    set(kmod.defined_events) & needed_from_kmod
-                )
+                events.update(provided)
 
         self._kmod_cm = kmod_cm
 
         try:
             missing_events_checker.check_events(events)
         except MissingTraceEventError as e:
+            if kmod_auto_load:
+                setup_help = ''
+            else:
+                setup_help = '. Enable kmod_auto_load=True to attempt setting them up'
+
             raise MissingTraceEventError(
                 e.missing_events,
                 available_events=e.available_events,
-                msg='Ftrace events are missing in the kernel. Enable kmod_auto_load=True to attempt setting them up: {missing_events}{available}',
+                msg='Ftrace events are missing in the kernel{setup_help}: {missing_events}{available}',
             )
 
         try:
@@ -5750,7 +5753,7 @@ class FtraceCollector(CollectorBase, Configurable):
                 raise ValueError(f'Events defined in {mod.src.mod_name} ({", ".join(needed)}) are needed but some events overlap with the ones already provided by the kernel: {", ".join(overlapping)}')
             else:
                 return (
-                    kmod,
+                    needed,
                     functools.partial(
                         kmod.run,
                         kmod_params={
@@ -5759,7 +5762,7 @@ class FtraceCollector(CollectorBase, Configurable):
                     )
                 )
         else:
-            return (None, None)
+            return (set(), None)
 
     @contextlib.contextmanager
     def _make_cm(self, record=True):
