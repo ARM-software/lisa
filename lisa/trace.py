@@ -4310,7 +4310,7 @@ class Trace(Loggable, TraceBase):
             return mapping
 
         mapping_df_list = []
-        def load(event, name_col, pid_col):
+        def _load(event, name_col, pid_col):
             df = self.df_event(event)
 
             # Get a Time column
@@ -4323,47 +4323,26 @@ class Trace(Loggable, TraceBase):
             mapping_df.rename({name_col: 'name', pid_col: 'pid'}, axis=1, inplace=True)
             mapping_df_list.append(mapping_df)
 
-        # Import here to avoid circular dependency
-        # pylint: disable=import-outside-toplevel
-        from lisa.analysis.load_tracking import LoadTrackingAnalysis
-        # All events with a "comm" and "pid" column
-        events = {
-            'sched_wakeup',
-            'sched_wakeup_new',
-            *LoadTrackingAnalysis._SCHED_PELT_SE_NAMES,
-        }
-        for event in events:
-            # Test each event independently, to make sure they will be parsed
-            # if necessary
+        events = set()
+        def load(event, *args, **kwargs):
+            events.add(event)
             if event in self.available_events:
-                load(event, 'comm', 'pid')
+                _load(event, *args, **kwargs)
 
-        if 'sched_switch' in self.available_events:
-            load('sched_switch', 'prev_comm', 'prev_pid')
-            load('sched_switch', 'next_comm', 'next_pid')
+        load('task_rename', 'oldcomm', 'pid')
+        load('task_rename', 'newcomm', 'pid')
+
+        load('sched_switch', 'prev_comm', 'prev_pid')
+        load('sched_switch', 'next_comm', 'next_pid')
 
         if not mapping_df_list:
-            raise MissingTraceEventError(sorted(events) + ['sched_switch'], available_events=self.available_events)
+            raise MissingTraceEventError(sorted(events), available_events=self.available_events)
 
         df = pd.concat(mapping_df_list)
         # Sort by order of appearance
         df.sort_values(by=['Time'], inplace=True)
         # Remove duplicated name/pid mapping and only keep the first appearance
         df = df_deduplicate(df, consecutives=False, keep='first', cols=['name', 'pid'])
-
-        forbidden_names = {
-            # <idle> is invented by trace-cmd, no event field contain this
-            # value, so it's useless (and actually harmful, since it will
-            # introduce a task that cannot be found in that trace)
-            '<idle>',
-            # This name appears when trace-cmd could not resolve the task name.
-            # Ignore it since it's not a valid name, and we probably managed
-            # to resolve it by looking at more events anyway.
-            '<...>',
-            # sched entity PELT events for task groups will get a comm="(null)"
-            '(null)',
-        }
-        df = df[~df['name'].isin(forbidden_names)]
 
         name_to_pid = finalize(df, 'name', 'pid', str, int)
         pid_to_name = finalize(df, 'pid', 'name', int, str)
