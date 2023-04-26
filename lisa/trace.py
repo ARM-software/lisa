@@ -4296,8 +4296,6 @@ class Trace(Loggable, TraceBase):
 
         The names or PIDs are listed in appearance order.
         """
-
-
         # Keep only the values, in appearance order according to the timestamp
         # index
         def finalize(df, key_col, value_col, key_type, value_type):
@@ -4312,7 +4310,7 @@ class Trace(Loggable, TraceBase):
             return mapping
 
         mapping_df_list = []
-        def _load(event, name_col, pid_col):
+        def load(event, name_col, pid_col):
             df = self.df_event(event)
 
             # Get a Time column
@@ -4324,11 +4322,6 @@ class Trace(Loggable, TraceBase):
             mapping_df = mapping_df[['Time', name_col, pid_col]]
             mapping_df.rename({name_col: 'name', pid_col: 'pid'}, axis=1, inplace=True)
             mapping_df_list.append(mapping_df)
-
-        def load(event, *args, **kwargs):
-            # All events have a __comm and __pid columns, so use it as well
-            _load(event, '__comm', '__pid')
-            _load(event, *args, **kwargs)
 
         # Import here to avoid circular dependency
         # pylint: disable=import-outside-toplevel
