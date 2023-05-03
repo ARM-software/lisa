@@ -16,6 +16,7 @@
 import logging
 import os
 from datetime import datetime
+from shlex import quote
 
 from devlib.utils.android import ApkInfo as _ApkInfo
 
@@ -196,3 +197,29 @@ def get_cacheable_apk_info(path):
 
 
 apk_info_cache = ApkInfoCache()
+
+
+def build_apk_launch_command(package, activity=None, apk_args=None):
+    args_string = ''
+    if apk_args:
+        for k, v in apk_args.items():
+            if isinstance(v, str):
+                arg = '--es'
+                v = quote(v)
+            elif isinstance(v, float):
+                arg = '--ef'
+            elif isinstance(v, bool):
+                arg = '--ez'
+            elif isinstance(v, int):
+                arg = '--ei'
+            else:
+                raise ValueError('Unable to encode {} {}'.format(v, type(v)))
+
+            args_string = '{} {} {} {}'.format(args_string, arg, k, v)
+
+    if not activity:
+        cmd = 'am start -W {} {}'.format(package, args_string)
+    else:
+        cmd = 'am start -W -n {}/{} {}'.format(package, activity, args_string)
+
+    return cmd

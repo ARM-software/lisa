@@ -334,7 +334,12 @@ class AdbConnection(ConnectionBase):
             adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server)
         else:
             with self.transfer_mgr.manage(sources, dest, action):
-                bg_cmd = adb_command_background(self.device, command, adb_server=self.adb_server)
+                bg_cmd = adb_command_background(
+                    device=self.device,
+                    conn=self,
+                    command=command,
+                    adb_server=self.adb_server
+                )
                 self.transfer_mgr.set_transfer_and_wait(bg_cmd)
 
     # pylint: disable=unused-argument
@@ -363,7 +368,6 @@ class AdbConnection(ConnectionBase):
         if as_root and self.connected_as_root:
             as_root = False
         bg_cmd = self._background(command, stdout, stderr, as_root)
-        self._current_bg_cmds.add(bg_cmd)
         return bg_cmd
 
     def _background(self, command, stdout, stderr, as_root):
@@ -692,11 +696,11 @@ def adb_command(device, command, timeout=None, adb_server=None):
     return output
 
 
-def adb_command_background(device, command, adb_server=None):
+def adb_command_background(device, conn, command, adb_server=None):
     full_command = get_adb_command(device, command, adb_server)
     logger.debug(full_command)
-    proc = get_subprocess(full_command, shell=True)
-    cmd = PopenBackgroundCommand(proc)
+    popen = get_subprocess(full_command, shell=True)
+    cmd = PopenBackgroundCommand(conn=conn, popen=popen)
     return cmd
 
 

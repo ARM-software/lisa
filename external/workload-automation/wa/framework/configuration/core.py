@@ -667,18 +667,18 @@ class RunConfiguration(Configuration):
             ``"each_spec"``
                 The device will be rebooted before running a new workload spec.
 
-                .. note:: this acts the same as each_job when execution order
+                .. note:: This acts the same as ``each_job`` when execution order
                           is set to by_iteration
 
-            ''"run_completion"''
-                 The device will be reboot after the run has been completed.
+            ``"run_completion"``
+                 The device will be rebooted after the run has been completed.
             '''),
         ConfigurationPoint(
             'device',
             kind=str,
             default='generic_android',
             description='''
-            This setting defines what specific Device subclass will be used to
+            This setting defines what specific ``Device`` subclass will be used to
             interact the connected device. Obviously, this must match your
             setup.
             ''',

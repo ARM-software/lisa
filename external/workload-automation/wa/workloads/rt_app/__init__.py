@@ -22,7 +22,7 @@ from subprocess import CalledProcessError
 
 from wa import Workload, Parameter, Executable, File
 from wa.framework.exception import WorkloadError, ResourceError, ConfigError
-from wa.utils.misc import check_output
+from wa.utils.misc import check_output, safe_extract
 from wa.utils.exec_control import once
 from wa.utils.types import cpu_mask
 
@@ -286,6 +286,6 @@ class RtApp(Workload):
         host_path = os.path.join(context.output_directory, TARBALL_FILENAME)
         self.target.pull(target_path, host_path)
         with tarfile.open(host_path, 'r:gz') as tf:
-            tf.extractall(context.output_directory)
+            safe_extract(tf, context.output_directory)
         os.remove(host_path)
         self.target.execute('rm -rf {}/*'.format(self.target_working_directory))

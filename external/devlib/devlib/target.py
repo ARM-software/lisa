@@ -974,8 +974,19 @@ class Target(object):
             command = 'cd {} && {}'.format(quote(in_directory), command)
         return self.background(command, as_root=as_root)
 
-    def kick_off(self, command, as_root=False):
-        raise NotImplementedError()
+    @asyn.asyncf
+    async def kick_off(self, command, as_root=None):
+        """
+        Like execute() but returns immediately. Unlike background(), it will
+        not return any handle to the command being run.
+        """
+        cmd = 'cd {wd} && {busybox} sh -c {cmd} >/dev/null 2>&1'.format(
+            wd=quote(self.working_directory),
+            busybox=quote(self.busybox),
+            cmd=quote(command)
+        )
+        self.background(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, as_root=as_root)
+
 
     # sysfs interaction
 
@@ -1581,11 +1592,6 @@ class LinuxTarget(Target):
     def wait_boot_complete(self, timeout=10):
         pass
 
-    @call_conn
-    def kick_off(self, command, as_root=False):
-        command = 'sh -c {} 1>/dev/null 2>/dev/null &'.format(quote(command))
-        return self.conn.execute(command, as_root=as_root)
-
     @asyn.asyncf
     async def get_pids_of(self, process_name):
         """Returns a list of PIDs of all processes with the specified name."""
@@ -1832,21 +1838,6 @@ class AndroidTarget(Target):
             check_boot_completed=check_boot_completed,
             max_async=max_async,
         )
-
-    @asyn.asyncf
-    async def kick_off(self, command, as_root=None):
-        """
-        Like execute but closes adb session and returns immediately, leaving the command running on the
-        device (this is different from execute(background=True) which keeps adb connection open and returns
-        a subprocess object).
-        """
-        if as_root is None:
-            as_root = self.needs_su
-        try:
-            command = 'cd {} && {} nohup {} &'.format(quote(self.working_directory), quote(self.busybox), command)
-            await self.execute.asyn(command, timeout=1, as_root=as_root)
-        except TimeoutError:
-            pass
 
     @asyn.asyncf
     async def __setup_list_directory(self):

@@ -124,7 +124,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
                 throw new UiObjectNotFoundException("No email account setup on device. Set up at least one email address");
             }
         }
-        
+
         // Dismiss fresh new look pop up messages
         UiObject newLookMessageDismissButton =
             mDevice.findObject(new UiSelector().resourceId(packageID + "gm_dismiss_button")
@@ -135,6 +135,15 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         //Dismiss secondary message also with same button
         if(newLookMessageDismissButton.exists()) {
             newLookMessageDismissButton.click();
+        }
+
+        // Dismiss google meet integration popup
+        UiObject googleMeetDismissPopUp =
+            mDevice.findObject(new UiSelector().resourceId(packageID + "next_button")
+                                         .className("android.widget.Button"));
+
+        if (googleMeetDismissPopUp.exists()) {
+            googleMeetDismissPopUp.click();
         }
 
         // If we're in offline mode we don't need to worry about syncing, so we're done
@@ -174,7 +183,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
 
         //Get rid of smart compose message on newer versions and return to home screen before ckickNewMail test
         UiObject newMailButton =
-            getUiObjectByDescription("Compose", "android.widget.ImageButton");
+            getUiObjectByDescription("Compose");
         newMailButton.click();
 
         UiObject smartComposeDismissButton = mDevice.findObject(new UiSelector().textContains("Got it")
@@ -186,10 +195,10 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         // Return to conversation/home screen
         mDevice.pressBack();
         if(!conversationView.exists()) {
-           mDevice.pressBack(); 
+           mDevice.pressBack();
         }
         if(!conversationView.exists()) {
-           mDevice.pressBack(); 
+           mDevice.pressBack();
         }
     }
 
@@ -198,7 +207,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         ActionLogger logger = new ActionLogger(testTag, parameters);
 
         UiObject newMailButton =
-            getUiObjectByDescription("Compose", "android.widget.ImageButton");
+            getUiObjectByDescription("Compose");
 
         logger.start();
         newMailButton.clickAndWaitForNewWindow(uiAutoTimeout);
@@ -210,8 +219,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         ActionLogger logger = new ActionLogger(testTag, parameters);
 
         UiObject attachIcon =
-            mDevice.findObject(new UiSelector().resourceId(packageID + "add_attachment")
-                                               .className("android.widget.TextView"));
+            mDevice.findObject(new UiSelector().resourceId(packageID + "add_attachment"));
 
         logger.start();
 
@@ -228,8 +236,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
 
         // Show Roots menu
         UiObject rootMenu =
-            mDevice.findObject(new UiSelector().descriptionContains("Show root")
-                                               .className("android.widget.ImageButton"));
+            mDevice.findObject(new UiSelector().descriptionContains("Show root"));
         if (rootMenu.exists()){
             rootMenu.click();
         }
@@ -241,9 +248,10 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
             imagesEntry.click();
 
             selectGalleryFolder(workdir_name);
+            selectGalleryFolder(workdir_name);
 
             //Switch from grid view to menu view to display filename on larger screens
-            UiObject menuListButton = mDevice.findObject(new UiSelector().resourceId("com.android.documentsui:id/menu_list") 
+            UiObject menuListButton = mDevice.findObject(new UiSelector().resourceId("com.android.documentsui:id/menu_list")
                                                                          .className("android.widget.TextView"));
             if (menuListButton.exists()) {
                 menuListButton.click();
@@ -258,7 +266,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
             UiObject photos =
                 mDevice.findObject(new UiSelector().text("Photos")
                                                    .className("android.widget.TextView"));
-                
+
             photos.click();
 
             UiObject working_directory =
@@ -267,21 +275,21 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
 
             working_directory.waitForExists (uiAutoTimeout);
             working_directory.click();
-            
+
             //Click test image
             UiObject imageFileButton =
                 mDevice.findObject(new UiSelector().descriptionContains("Photo"));
-            
+
             imageFileButton.click();
-            
+
             UiObject accept = getUiObjectByText("DONE");
-            
+
             if (accept.waitForExists (uiAutoTimeout)) {
                 accept.click();
             }
 
         }
-        
+
         logger.stop();
     }
 
@@ -289,7 +297,11 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         String testTag = "text_to";
         ActionLogger logger = new ActionLogger(testTag, parameters);
 
-        UiObject toField = getUiObjectByResourceId(packageID + "to");
+        UiObject toField = mDevice.findObject(new UiSelector().resourceId(packageID + "to"));
+        if (!toField.waitForExists(uiAutoTimeout)) {
+            toField = mDevice.findObject(new UiSelector().className("android.widget.EditText"));
+        }
+
         logger.start();
         toField.setText(recipient);
         mDevice.pressEnter();
@@ -317,6 +329,10 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         if (!composeField.exists()){
             composeField = mDevice.findObject(new UiSelector().descriptionContains("Compose email"));
         }
+        if (!composeField.exists()){
+            composeField = mDevice.findObject(new UiSelector().resourceId(packageID + "wc_body_layout" ))
+                                  .getChild(new UiSelector().className("android.widget.EditText"));
+        }
 
         logger.start();
         composeField.legacySetText("This is a test composition");
@@ -328,7 +344,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         String testTag = "click_send";
         ActionLogger logger = new ActionLogger(testTag, parameters);
 
-        UiObject sendButton = getUiObjectByDescription("Send", "android.widget.TextView");
+        UiObject sendButton = getUiObjectByDescription("Send");
         logger.start();
         sendButton.clickAndWaitForNewWindow(uiAutoTimeout);
         logger.stop();

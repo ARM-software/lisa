@@ -233,8 +233,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
             mDevice.findObject(new UiSelector().resourceId("com.android.vending:id/search_results_list"));
         if (!resultList.waitForExists(viewTimeout)) {
             resultList =
-            mDevice.findObject(new UiSelector().className("android.support.v7.widget.RecyclerView")
-                                               .scrollable(true));
+            mDevice.findObject(new UiSelector().scrollable(true));
             if (!resultList.waitForExists(viewTimeout)) {
                 throw new UiObjectNotFoundException("Could not find search results list.");
             }
