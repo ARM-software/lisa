@@ -3,6 +3,62 @@ What's New in Workload Automation
 =================================
 
 ***********
+Version 3.3.1
+***********
+
+.. warning:: This is the last release supporting Python 3.5 and Python 3.6.
+             Subsequent releases will support Python 3.7+.
+
+New Features:
+==============
+
+Commands:
+---------
+
+Instruments:
+------------
+    - ``perf``: Add support for ``report-sample``.
+
+Workloads:
+----------------
+    - ``PCMark``: Add support for PCMark 3.0.
+    - ``Antutu``: Add support for 9.1.6.
+    - ``Geekbench``: Add support for Geekbench5.
+    - ``gfxbench``: Support the non corporate version.
+
+Fixes/Improvements
+==================
+
+Framework:
+----------
+    - Fix installation on systems without git installed.
+    - Avoid querying online cpus if hotplug is disabled.
+
+Dockerfile:
+-----------
+    - Update base image to Ubuntu 20.04.
+
+Instruments:
+------------
+    - ``perf``: Fix parsing csv with using interval-only-values.
+    - ``perf``: Improve error reporting of an invalid agenda.
+
+Output Processors:
+------------------
+    - ``postgres``: Fixed SQL command when creating a new event.
+
+Workloads:
+----------
+    - ``speedometer``: Fix adb reverse when rebooting a device.
+    - ``googleplaybook``: Support newer apk version.
+    - ``googlephotos``: Support newer apk version.
+    - ``gmail``: Support newer apk version.
+
+Other:
+------
+    - Upgrade Android Gradle to 7.2 and Gradle plugin to 4.2.
+
+***********
 Version 3.3
 ***********
 

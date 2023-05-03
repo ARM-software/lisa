@@ -44,7 +44,7 @@ class Gmail(ApkUiautoWorkload):
     The result should then be placed in the '~/.workload_automation/dependencies/gmail/' directory
     on your local machine, creating this if it does not already exist.
 
-    Known working APK version: 2019.05.26.252424914.release
+    Known working APK version: 2023.04.02.523594694.Release
     '''
 
     parameters = [

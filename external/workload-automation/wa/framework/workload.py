@@ -23,7 +23,7 @@ except ImportError:
     from pipes import quote
 
 
-from wa.utils.android import get_cacheable_apk_info
+from wa.utils.android import get_cacheable_apk_info, build_apk_launch_command
 from wa.framework.plugin import TargetedPlugin, Parameter
 from wa.framework.resource import (ApkFile, ReventFile,
                                    File, loose_version_matching,
@@ -180,6 +180,7 @@ class ApkWorkload(Workload):
     activity = None
     view = None
     clear_data_on_reset = True
+    apk_arguments = {}
 
     # Set this to True to mark that this workload requires the target apk to be run
     # for initialisation purposes before the main run is performed.
@@ -289,7 +290,8 @@ class ApkWorkload(Workload):
                                   clear_data_on_reset=self.clear_data_on_reset,
                                   activity=self.activity,
                                   min_version=self.min_version,
-                                  max_version=self.max_version)
+                                  max_version=self.max_version,
+                                  apk_arguments=self.apk_arguments)
 
     def validate(self):
         if self.min_version and self.max_version:
@@ -686,7 +688,7 @@ class PackageHandler(object):
     def __init__(self, owner, install_timeout=300, version=None, variant=None,
                  package_name=None, strict=False, force_install=False, uninstall=False,
                  exact_abi=False, prefer_host_package=True, clear_data_on_reset=True,
-                 activity=None, min_version=None, max_version=None):
+                 activity=None, min_version=None, max_version=None, apk_arguments=None):
         self.logger = logging.getLogger('apk')
         self.owner = owner
         self.target = self.owner.target
@@ -709,6 +711,7 @@ class PackageHandler(object):
         self.apk_version = None
         self.logcat_log = None
         self.error_msg = None
+        self.apk_arguments = apk_arguments
 
     def initialize(self, context):
         self.resolve_package(context)
@@ -853,11 +856,10 @@ class PackageHandler(object):
         self.apk_version = host_version
 
     def start_activity(self):
-        if not self.activity:
-            cmd = 'am start -W {}'.format(self.apk_info.package)
-        else:
-            cmd = 'am start -W -n {}/{}'.format(self.apk_info.package,
-                                                self.activity)
+
+        cmd = build_apk_launch_command(self.apk_info.package, self.activity,
+                                       self.apk_arguments)
+
         output = self.target.execute(cmd)
         if 'Error:' in output:
             # this will dismiss any error dialogs
