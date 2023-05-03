@@ -37,7 +37,7 @@ from wa import Instrument, Parameter, very_fast
 from wa.framework.exception import ConfigError
 from wa.framework.instrument import slow
 from wa.utils.diff import diff_sysfs_dirs, diff_interrupt_files
-from wa.utils.misc import as_relative
+from wa.utils.misc import as_relative, safe_extract
 from wa.utils.misc import ensure_file_directory_exists as _f
 from wa.utils.misc import ensure_directory_exists as _d
 from wa.utils.types import list_of_strings
@@ -162,7 +162,7 @@ class SysfsExtractor(Instrument):
             self.target.execute('chmod 0777 {}'.format(on_device_tarball), as_root=True)
             self.target.pull(on_device_tarball, on_host_tarball)
             with tarfile.open(on_host_tarball, 'r:gz') as tf:
-                tf.extractall(context.output_directory)
+                safe_extract(tf, context.output_directory)
             self.target.remove(on_device_tarball)
             os.remove(on_host_tarball)
 

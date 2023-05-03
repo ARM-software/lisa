@@ -56,7 +56,7 @@ from devlib.utils.misc import (ABI_MAP, check_output, walk_modules,
                                normalize, convert_new_lines, get_cpu_mask, unique,
                                isiterable, getch, as_relative, ranges_to_list, memoized,
                                list_to_ranges, list_to_mask, mask_to_list, which,
-                               to_identifier)
+                               to_identifier, safe_extract)
 
 check_output_logger = logging.getLogger('check_output')
 

@@ -190,17 +190,22 @@ class TraceCmdInstrument(Instrument):
         signal.connect(self.mark_stop, signal.AFTER_WORKLOAD_EXECUTION, priority=11)
 
     def setup(self, context):
-        self.collector.reset()
+        if self.collector:
+            self.collector.reset()
 
     @very_slow
     def start(self, context):
-        self.collector.start()
+        if self.collector:
+            self.collector.start()
 
     @very_slow
     def stop(self, context):
-        self.collector.stop()
+        if self.collector:
+            self.collector.stop()
 
     def update_output(self, context):  # NOQA pylint: disable=R0912
+        if not self.collector:
+            return
         self.logger.info('Extracting trace from target...')
         outfile = os.path.join(context.output_directory, 'trace.dat')
         self.collector.set_output(outfile)

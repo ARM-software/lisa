@@ -54,8 +54,8 @@ FROM ubuntu:20.04
 
 # Please update the references below to use different versions of
 # devlib, WA or the Android SDK
-ARG DEVLIB_REF=v1.3
-ARG WA_REF=v3.3
+ARG DEVLIB_REF=v1.3.4
+ARG WA_REF=v3.3.1
 ARG ANDROID_SDK_URL=https://dl.google.com/android/repository/sdk-tools-linux-3859397.zip
 
 # Set a default timezone to use

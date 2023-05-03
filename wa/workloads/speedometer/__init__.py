@@ -27,6 +27,7 @@ import uuid
 from wa import Parameter, Workload, File
 from wa.framework.exception import WorkloadError
 from wa.utils.exec_control import once
+from wa.utils.misc import safe_extract
 
 from devlib.utils.android import adb_command
 
@@ -154,7 +155,7 @@ class Speedometer(Workload):
         # Host a copy of Speedometer locally
         tarball = context.get_resource(File(self, "speedometer_archive.tgz"))
         with tarfile.open(name=tarball) as handle:
-            handle.extractall(self.temp_dir.name)
+            safe_extract(handle, self.temp_dir.name)
         self.archive_server.start(self.document_root)
 
         Speedometer.speedometer_url = "http://localhost:{}/Speedometer2.0/index.html".format(

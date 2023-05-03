@@ -39,7 +39,8 @@ from wa.framework.run import RunState, RunInfo
 from wa.framework.target.info import TargetInfo
 from wa.framework.version import get_wa_version_with_commit
 from wa.utils.doc import format_simple_table
-from wa.utils.misc import touch, ensure_directory_exists, isiterable, format_ordered_dict
+from wa.utils.misc import (touch, ensure_directory_exists, isiterable,
+                           format_ordered_dict, safe_extract)
 from wa.utils.postgres import get_schema_versions
 from wa.utils.serializer import write_pod, read_pod, Podable, json
 from wa.utils.types import enum, numeric
@@ -854,7 +855,7 @@ class DatabaseOutput(Output):
     def _read_dir_artifact(self, artifact):
         artifact_path = tempfile.mkdtemp(prefix='wa_')
         with tarfile.open(fileobj=self.conn.lobject(int(artifact.path), mode='b'), mode='r|gz') as tar_file:
-            tar_file.extractall(artifact_path)
+            safe_extract(tar_file, artifact_path)
         self.conn.commit()
         return artifact_path
 
