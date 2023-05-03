@@ -240,6 +240,17 @@ class FtraceCollector(CollectorBase):
     def reset(self):
         self.target.execute('{} reset -B devlib'.format(self.target_binary),
                             as_root=True, timeout=TIMEOUT)
+
+        # trace-cmd start will not set the top-level buffer size if passed -B
+        # parameter, but unfortunately some events still end up there (e.g.
+        # print event). So we still need to set that size, otherwise the buffer
+        # might be too small and some event lost.
+        if self.buffer_size is not None:
+            self.target.write_value(
+                self.target.path.join(self.tracing_path, 'buffer_size_kb'),
+                self.buffer_size
+            )
+
         if self.functions:
             self.target.write_value(self.function_profile_file, 0, verify=False)
         self._reset_needed = False

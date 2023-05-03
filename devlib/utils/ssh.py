@@ -553,10 +553,7 @@ class SshConnection(SshConnectionBase):
 
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
         with _handle_paramiko_exceptions(command):
-            bg_cmd = self._background(command, stdout, stderr, as_root)
-
-        self._current_bg_cmds.add(bg_cmd)
-        return bg_cmd
+            return self._background(command, stdout, stderr, as_root)
 
     def _background(self, command, stdout, stderr, as_root):
         orig_command = command
@@ -696,9 +693,6 @@ class SshConnection(SshConnectionBase):
     def _close(self):
         logger.debug('Logging out {}@{}'.format(self.username, self.host))
         with _handle_paramiko_exceptions():
-            bg_cmds = set(self._current_bg_cmds)
-            for bg_cmd in bg_cmds:
-                bg_cmd.close()
             self.client.close()
 
     def _execute_command(self, command, as_root, log, timeout, executor):

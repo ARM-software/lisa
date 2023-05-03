@@ -161,7 +161,7 @@ cgroups_run_into() {
 
 	  # Check if the required CGroup exists
 	  $FIND $CGMOUNT -type d -mindepth 1 | \
-	  $GREP -E "^$CGMOUNT/devlib_cgh[0-9]{1,2}$CGP" &>/dev/null
+	  $GREP -E "^$CGMOUNT/devlib_cgh[0-9]{1,2}$CGP" >/dev/null 2>&1
 	  if [ $? -ne 0 ]; then
 		echo "ERROR: could not find any $CGP cgroup under $CGMOUNT"
 		exit 1
@@ -345,7 +345,7 @@ _command_not_found() {
     exit 1
 }
 # Check the command exists
-type "$CMD" 2>&1 >/dev/null || _command_not_found
+type "$CMD" >/dev/null 2>&1 || _command_not_found
 
 "$CMD" "$@"
 
