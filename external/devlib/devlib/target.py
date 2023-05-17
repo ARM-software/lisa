@@ -2931,7 +2931,7 @@ class ChromeOsTarget(LinuxTarget):
         ssh_conn_params = ['host', 'username', 'password', 'keyfile',
                            'port', 'timeout', 'sudo_cmd',
                            'strict_host_check', 'use_scp',
-                           'total_timeout', 'poll_transfers',
+                           'total_transfer_timeout', 'poll_transfers',
                            'start_transfer_poll_delay']
         self.ssh_connection_settings = {}
         for setting in ssh_conn_params:
