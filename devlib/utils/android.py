@@ -39,7 +39,7 @@ from shlex import quote
 
 from devlib.exception import TargetTransientError, TargetStableError, HostError, TargetTransientCalledProcessError, TargetStableCalledProcessError, AdbRootError
 from devlib.utils.misc import check_output, which, ABI_MAP, redirect_streams, get_subprocess
-from devlib.connection import ConnectionBase, AdbBackgroundCommand, PopenBackgroundCommand, PopenTransferManager
+from devlib.connection import ConnectionBase, AdbBackgroundCommand, PopenBackgroundCommand, PopenTransferHandle
 
 
 logger = logging.getLogger('android')
@@ -278,26 +278,32 @@ class AdbConnection(ConnectionBase):
         self._connected_as_root[self.device] = state
 
     # pylint: disable=unused-argument
-    def __init__(self, device=None, timeout=None, platform=None, adb_server=None,
-                 adb_as_root=False, connection_attempts=MAX_ATTEMPTS,
-                 poll_transfers=False,
-                 start_transfer_poll_delay=30,
-                 total_transfer_timeout=3600,
-                 transfer_poll_period=30,):
-        super().__init__()
+    def __init__(
+        self,
+        device=None,
+        timeout=None,
+        platform=None,
+        adb_server=None,
+        adb_as_root=False,
+        connection_attempts=MAX_ATTEMPTS,
+
+        poll_transfers=False,
+        start_transfer_poll_delay=30,
+        total_transfer_timeout=3600,
+        transfer_poll_period=30,
+    ):
+        super().__init__(
+            poll_transfers=poll_transfers,
+            start_transfer_poll_delay=start_transfer_poll_delay,
+            total_transfer_timeout=total_transfer_timeout,
+            transfer_poll_period=transfer_poll_period,
+        )
         self.timeout = timeout if timeout is not None else self.default_timeout
         if device is None:
             device = adb_get_device(timeout=timeout, adb_server=adb_server)
         self.device = device
         self.adb_server = adb_server
         self.adb_as_root = adb_as_root
-        self.poll_transfers = poll_transfers
-        if poll_transfers:
-            transfer_opts = {'start_transfer_poll_delay': start_transfer_poll_delay,
-                            'total_timeout': total_transfer_timeout,
-                            'poll_period': transfer_poll_period,
-                            }
-        self.transfer_mgr = PopenTransferManager(self, **transfer_opts) if poll_transfers else None
         lock, nr_active = AdbConnection.active_connections
         with lock:
             nr_active[self.device] += 1
@@ -330,17 +336,24 @@ class AdbConnection(ConnectionBase):
         paths = ' '.join(map(do_quote, paths))
 
         command = "{} {}".format(action, paths)
-        if timeout or not self.poll_transfers:
+        if timeout:
             adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server)
         else:
-            with self.transfer_mgr.manage(sources, dest, action):
-                bg_cmd = adb_command_background(
-                    device=self.device,
-                    conn=self,
-                    command=command,
-                    adb_server=self.adb_server
-                )
-                self.transfer_mgr.set_transfer_and_wait(bg_cmd)
+            bg_cmd = adb_command_background(
+                device=self.device,
+                conn=self,
+                command=command,
+                adb_server=self.adb_server
+            )
+
+            handle = PopenTransferHandle(
+                manager=self.transfer_manager,
+                bg_cmd=bg_cmd,
+                dest=dest,
+                direction=action
+            )
+            with bg_cmd, self.transfer_manager.manage(sources, dest, action, handle):
+                bg_cmd.communicate()
 
     # pylint: disable=unused-argument
     def execute(self, command, timeout=None, check_exit_code=False,
