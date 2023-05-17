@@ -2605,6 +2605,9 @@ class WloadPropertyBase(ConcretePropertyBase):
         else:
             return WloadSequence(wloads=[self] * n)
 
+    def __rmul__(self, n):
+        return self.__mul__(n)
+
     @abc.abstractmethod
     def to_events(self, **kwargs):
         pass
