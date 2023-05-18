@@ -1043,16 +1043,6 @@ def get_recursive_module_set(module_set, package_set, visited_module_set=None):
     """
     visited_modules = set(visited_module_set) if visited_module_set else set()
 
-    def select_module(module):
-        # We only recurse into modules that are part of the given set
-        # of packages
-        return any(
-            # Either a submodule of one of the packages or one of the
-            # packages themselves
-            get_package(module) == package
-            for package in package_set
-        )
-
     def _get_recursive_module_set(modules, module_set, package_set):
         for module in modules:
             if not isinstance(module, types.ModuleType):
@@ -1063,7 +1053,9 @@ def get_recursive_module_set(module_set, package_set, visited_module_set=None):
             else:
                 visited_modules.add(module)
 
-            if select_module(module):
+            # We only recurse into modules that are part of the given set
+            # of packages
+            if get_package(module) in package_set:
                 module_set.add(module)
                 _get_recursive_module_set(vars(module).values(), module_set, package_set)
 
