@@ -1,7 +1,7 @@
 #! /bin/bash
 
-ALPINE_VERSION=v3.14
-ALPINE_BUILD_DEPENDENCIES=(bash gcc git make cmake musl-dev zlib-static bzip2-static libelf-static libbpf-dev musl-obstack-dev argp-standalone linux-headers)
+ALPINE_VERSION=v3.18
+ALPINE_BUILD_DEPENDENCIES=(bash gcc git make cmake musl-dev zlib-static bzip2-static libelf-static libbpf-dev musl-obstack-dev argp-standalone linux-headers xz-static zstd-static)
 BROKEN_CROSS_COMPILATION=1
 
 
