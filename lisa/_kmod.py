@@ -173,8 +173,34 @@ def _subprocess_log(*args, env=None, extra_env=None, **kwargs):
     return subprocess_log(*args, **kwargs, env=env)
 
 
+def _kbuild_make_cmd(path, targets, cc, make_vars):
+    make_vars = make_vars or {}
+
+    formatted_vars = [
+        f'{name}={val}'
+        for name, val in sorted(make_vars.items())
+        if (
+            val is not None
+            # For some reason Kbuild does not appreciate CC=gcc, even though
+            # it's happy with CC=clang
+            and (name, val) != ('CC', 'gcc')
+        )
+    ]
+
+    nr_cpus = int(os.cpu_count() * 1.5)
+
+    cmd = ['make', f'-j{nr_cpus}', '-C', path, '--', *formatted_vars, *targets]
+
+    var_cc = make_vars.get('CC', cc)
+    if var_cc != cc:
+        pretty_cmd = ' '.join(map(quote, map(str, cmd)))
+        raise ValueError(f'The kernel tree was prepared using CC={cc} so the make command cannot be ran with CC={var_cc}: {pretty_cmd}')
+
+    return cmd
+
+
 @destroyablecontextmanager
-def _make_chroot(make_vars, bind_paths=None, alpine_version='3.18.0', overlay_backend=None):
+def _make_chroot(cc, make_vars, bind_paths=None, alpine_version='3.18.0', overlay_backend=None):
     """
     Create a chroot folder ready to be used to build a kernel.
     """
@@ -253,12 +279,8 @@ def _make_chroot(make_vars, bind_paths=None, alpine_version='3.18.0', overlay_ba
     ]
     make_vars = make_vars or {}
 
-    # Default to clang as it works well nowadays and will avoid unnecessary use
-    # of QEMU that would be required for GCC since alpine does not ship any GCC
-    # cross compiler.
-    cc = make_vars.get('CC', 'clang')
-
-    if cc == 'clang':
+    is_clang = cc.startswith('clang')
+    if is_clang:
         packages.extend([
             'lld',
             'llvm',
@@ -270,11 +292,14 @@ def _make_chroot(make_vars, bind_paths=None, alpine_version='3.18.0', overlay_ba
     use_qemu = (
         # Since clang binaries support cross compilation without issues,
         # there is no need to use QEMU that will slow everything down.
-        cc != 'clang' and
+        (not is_clang) and
         target_arch != LISA_HOST_ABI
     )
 
     chroot_arch = target_arch if use_qemu else LISA_HOST_ABI
+
+    qemu_msg = ' using QEMU userspace emulation' if use_qemu else ''
+    logger.debug(f'Using Alpine v{alpine_version} chroot with architecture {chroot_arch}{qemu_msg}.')
 
     # Check that QEMU userspace emulation is setup if we need it
     if use_qemu:
@@ -641,6 +666,10 @@ class KernelTree(Loggable, SerializeViaConstructor):
         prepared kernel tree.
     :type path_cm: collections.abc.Callable
 
+    :param cc: Compiler used to prepare the kernel tree. Can be e.g. ``"gcc"``,
+        ``"clang"``, ``"clang-14"`` etc.
+    :type cc: str or None
+
     :param make_vars: Variables passed on ``make`` command line when preparing
         the kernel tree.
     :type make_vars: dict(str, str)
@@ -675,7 +704,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
     # On top of that, the kernel does not handle clang < 10.0.1
     _MIN_CLANG_VERSION = 11
 
-    def __init__(self, path_cm, make_vars, build_env=None, overlay_backend=None):
+    def __init__(self, path_cm, cc, make_vars, build_env=None, overlay_backend=None):
         self._make_path_cm = path_cm
         self.build_env = self._resolve_build_env(build_env)
         self.make_vars = make_vars or {}
@@ -683,6 +712,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
         self._path_cm = None
         self.path = None
         self.checksum = None
+        self.cc = cc
 
     @staticmethod
     def _resolve_build_env(build_env):
@@ -815,19 +845,17 @@ class KernelTree(Loggable, SerializeViaConstructor):
 
 
     @classmethod
-    def _prepare_tree(cls, path, make_vars, build_env, apply_overlays, overlay_backend):
-        path = Path(path)
+    def _prepare_tree(cls, path, cc, make_vars, build_env, apply_overlays, overlay_backend):
         logger = cls.get_logger()
-        _make_vars = [
-            f'{name}={val}'
-            for name, val in sorted((make_vars or {}).items())
-            if val is not None
-        ]
-        nr_cpus = int(os.cpu_count() * 1.5)
-
+        path = Path(path)
 
         def make(*targets):
-            return ['make', f'-j{nr_cpus}', '-C', path, '--', *_make_vars, *targets]
+            return _kbuild_make_cmd(
+                path=path,
+                targets=targets,
+                cc=cc,
+                make_vars=make_vars,
+            )
 
         cmds = [
             # On non-host build env, we need to clean first, as binaries compiled
@@ -880,7 +908,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
         if build_env == 'alpine':
             @contextlib.contextmanager
             def cmd_cm(cmds):
-                with _make_chroot(bind_paths=bind_paths, make_vars=make_vars, overlay_backend=overlay_backend) as chroot:
+                with _make_chroot(cc=cc, bind_paths=bind_paths, make_vars=make_vars, overlay_backend=overlay_backend) as chroot:
                     yield [
                         _make_chroot_cmd(chroot, cmd) if cmd else None
                         for cmd in cmds
@@ -940,7 +968,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
         make_vars, cc = cls._resolve_toolchain(abi, make_vars, build_env)
 
         if build_env == 'alpine':
-            if cc == 'clang':
+            if cc.startswith('clang'):
                 make_vars['LLVM'] = '1'
             else:
                 # Disable CROSS_COMPILE as we are going to build in a "native"
@@ -952,6 +980,10 @@ class KernelTree(Loggable, SerializeViaConstructor):
         if 'KBUILD_MODPOST_WARN' not in make_vars:
             make_vars['KBUILD_MODPOST_WARN'] = '1'
 
+        # Ensure the make vars contain the chosen compiler explicitly. It will
+        # then be re-filtered right before invoking make to remove CC=gcc as it
+        # can confuse KBuild.
+        make_vars['CC'] = cc
         return (make_vars, cc)
 
     @classmethod
@@ -1031,8 +1063,9 @@ class KernelTree(Loggable, SerializeViaConstructor):
             llvm = make_vars['LLVM']
             version = llvm if llvm.startswith('-') else ''
             if cc == 'clang' and version:
+                cc = cc + version
                 commands = {
-                    cc: test_cmd(cc + version),
+                    cc: test_cmd(cc),
                 }
 
         # Only run the check on host build env, as other build envs are
@@ -1068,15 +1101,11 @@ class KernelTree(Loggable, SerializeViaConstructor):
         if toolchain:
             detected['CROSS_COMPILE'] = toolchain
 
-        # For some reason Kbuild does not appreciate CC=gcc, even though
-        # it's happy with CC=clang
-        if cc != 'gcc':
-            detected['CC'] = cc
-
         make_vars = {
             **detected,
             **make_vars,
         }
+
         return (make_vars, cc)
 
     @classmethod
@@ -1309,6 +1338,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
 
         return cls(
             path_cm=functools.partial(try_loaders, loaders),
+            cc=cc,
             make_vars=make_vars,
             build_env=build_env,
             overlay_backend=overlay_backend,
@@ -1381,6 +1411,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
         def prepare_overlay(path):
             cls._prepare_tree(
                 path,
+                cc=cc,
                 make_vars=make_vars,
                 build_env=build_env,
                 apply_overlays=functools.partial(apply_overlays, path),
@@ -1411,6 +1442,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
                         str(tree_key),
                         str(build_env),
                         str(overlay_backend),
+                        str(cc),
                     ] + [
                         # We need to take checksum the make variables
                         # as well, as it can influence the kernel tree
@@ -1495,6 +1527,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
         cm = chain_cm(overlay_cm, tree_cm)
         return cls(
             path_cm=cm,
+            cc=cc,
             make_vars=make_vars,
             build_env=build_env,
         )
@@ -1620,7 +1653,11 @@ class KmodSrc(Loggable):
             better to set them when creating the ``kernel_tree``.
         :type make_vars: dict(str, object) or None
         """
-        make_vars = dict(make_vars or {})
+        make_vars = {
+            **kernel_tree.make_vars,
+            **(make_vars or {}),
+        }
+        cc = kernel_tree.cc
         overlay_backend = kernel_tree.overlay_backend
         tree_path = Path(kernel_tree.path)
         # "inherit" the build env from the KernelTree as we must use the same
@@ -1644,22 +1681,22 @@ class KmodSrc(Loggable):
                     f.write(content)
 
         def make_cmd(tree_path, mod_path, make_vars):
-            make_vars = make_vars.copy()
-            make_vars.update(
-                M=mod_path,
-                LISA_KMOD_NAME=self.mod_name,
-                KERNEL_SRC=tree_path,
-                MODULE_SRC=mod_path,
-                MODULE_OBJ=mod_path,
+            make_vars = {
+                **make_vars,
+                **dict(
+                    M=mod_path,
+                    LISA_KMOD_NAME=self.mod_name,
+                    KERNEL_SRC=tree_path,
+                    MODULE_SRC=mod_path,
+                    MODULE_OBJ=mod_path,
+                )
+            }
+            return _kbuild_make_cmd(
+                cc=cc,
+                path=tree_path,
+                targets=['modules'],
+                make_vars=make_vars,
             )
-            make_vars = [
-                f'{name}={value}'
-                for name, value in sorted(make_vars.items())
-                if value is not None
-            ]
-
-            nr_cpus = int(os.cpu_count() * 1.5)
-            cmd = ['make', f'-j{nr_cpus}', '-C', tree_path, *make_vars, 'modules']
             return cmd
 
         def find_mod_file(path):
@@ -1675,7 +1712,7 @@ class KmodSrc(Loggable):
         if build_env == 'alpine':
             @contextlib.contextmanager
             def cmd_cm():
-                with _make_chroot(bind_paths=bind_paths, make_vars=make_vars, overlay_backend=overlay_backend) as chroot:
+                with _make_chroot(cc=cc, bind_paths=bind_paths, make_vars=make_vars, overlay_backend=overlay_backend) as chroot:
                     # Do not use a CM here to avoid choking on permission
                     # issues. Since the chroot itself will be entirely
                     # removed it's not a problem.
@@ -1840,7 +1877,6 @@ class DynamicKmod(Loggable):
         def get_bin(kernel_tree):
             return src.compile(
                 kernel_tree=kernel_tree,
-                make_vars=kernel_tree.make_vars,
             )
 
         def lookup_cache(kernel_tree, key, enter_cm=False):
