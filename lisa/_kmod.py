@@ -247,16 +247,16 @@ def _make_chroot(make_vars, bind_paths=None, alpine_version='3.17.3', overlay_ba
         'flex',
         'python3',
 
-        # TODO: As of october 2021 for some reason, the kernel still needs GCC
+        # TODO: As of may 2023 for some reason, the kernel still needs GCC
         # to build some tools even when compiling with clang
         'gcc',
     ]
     make_vars = make_vars or {}
 
-    try:
-        cc = make_vars['CC']
-    except KeyError:
-        cc = 'gcc'
+    # Default to clang as it works well nowadays and will avoid unnecessary use
+    # of QEMU that would be required for GCC since alpine does not ship any GCC
+    # cross compiler.
+    cc = make_vars.get('CC', 'clang')
 
     if cc == 'clang':
         packages.extend([
@@ -265,39 +265,39 @@ def _make_chroot(make_vars, bind_paths=None, alpine_version='3.17.3', overlay_ba
         ])
     packages.append(cc)
 
-    devlib_arch = make_vars.get('ARCH', LISA_HOST_ABI)
+    target_arch = make_vars.get('ARCH', LISA_HOST_ABI)
 
     use_qemu = (
-        devlib_arch != LISA_HOST_ABI and
         # Since clang binaries support cross compilation without issues,
         # there is no need to use QEMU that will slow everything down.
-        make_vars.get('CC') != 'clang'
+        cc != 'clang' and
+        target_arch != LISA_HOST_ABI
     )
 
-    qemu_arch = {
-        'arm64': 'aarch64',
-        'armeabi': 'arm',
-        'armv7': 'arm',
-    }.get(devlib_arch, devlib_arch)
-    binfmt_path = Path('/proc/sys/fs/binfmt_misc/', f'qemu-{qemu_arch}')
-    if use_qemu and not binfmt_path.exists():
-        raise ValueError(f'Alpine chroot is setup for {qemu_arch} architecture but QEMU userspace emulation is not installed on the host (missing {binfmt_path})')
+    chroot_arch = target_arch if use_qemu else LISA_HOST_ABI
 
+    # Check that QEMU userspace emulation is setup if we need it
     if use_qemu:
-        chroot_arch = devlib_arch
-    else:
-        chroot_arch = LISA_HOST_ABI
+        qemu_arch = {
+            'arm64': 'aarch64',
+            'armeabi': 'arm',
+            'armv7': 'arm',
+        }.get(chroot_arch, chroot_arch)
+        binfmt_path = Path('/proc/sys/fs/binfmt_misc/', f'qemu-{qemu_arch}')
+        if not binfmt_path.exists():
+            raise ValueError(f'Alpine chroot is setup for {qemu_arch} architecture but QEMU userspace emulation is not installed on the host (missing {binfmt_path})')
+
+
+    # Add LISA static binaries inside the chroot
+    bind_paths = {
+        **dict(bind_paths or {}),
+        str((Path(ASSETS_PATH) / 'binaries' / chroot_arch).resolve()): '/usr/local/bin/'
+    }
 
     alpine_arch = {
         'arm64': 'aarch64',
         'armeabi': 'armv7',
     }.get(chroot_arch, chroot_arch)
-
-    # Add LISA static binaries inside the chroot
-    bind_paths = {
-        **dict(bind_paths or {}),
-        str((Path(ASSETS_PATH) / 'binaries' / devlib_arch).resolve()): '/usr/local/bin/'
-    }
 
     dir_cache = DirCache(
         category='alpine_chroot',
