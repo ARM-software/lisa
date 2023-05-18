@@ -112,7 +112,18 @@ Base folder used for caching files.
 RESULT_DIR = 'results'
 LATEST_LINK = 'results_latest'
 
-LISA_HOST_ABI = platform.machine().lower().replace('aarch64', 'arm64')
+def _get_abi():
+    machine = platform.machine().lower()
+    # Match devlib arch names
+    return dict(
+        aarch64='arm64',
+    ).get(machine, machine)
+
+LISA_HOST_ABI = _get_abi()
+"""
+ABI of the machine that imported that module.
+"""
+del _get_abi
 
 
 TASK_COMM_MAX_LEN = 16 - 1
