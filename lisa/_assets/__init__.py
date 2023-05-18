@@ -21,19 +21,7 @@ import platform
 import shutil
 from pathlib import Path
 
-def _get_abi():
-    machine = platform.machine()
-    return dict(
-        x86_64='x86_64',
-        aarch64='arm64',
-        arm='arm',
-    )[machine]
-
-HOST_ABI = _get_abi()
-"""
-ABI of the machine that imported that module.
-"""
-del _get_abi
+from lisa.utils import LISA_HOST_ABI
 
 ASSETS_PATH = os.path.dirname(__file__)
 """
@@ -58,17 +46,17 @@ def _get_abi_bin():
 ABI_BINARIES = _get_abi_bin()
 del _get_abi_bin
 
-HOST_BINARIES = ABI_BINARIES[HOST_ABI]
+HOST_BINARIES = ABI_BINARIES[LISA_HOST_ABI]
 
 def _make_path(abi=None):
-    abi = abi or HOST_ABI
+    abi = abi or LISA_HOST_ABI
 
     compos = [
         os.path.join(ASSETS_PATH, 'binaries', abi),
         os.path.join(ASSETS_PATH, 'scripts'),
     ]
 
-    if abi == HOST_ABI:
+    if abi == LISA_HOST_ABI:
         path = os.environ['PATH']
         use_system = bool(int(os.environ.get('LISA_USE_SYSTEM_BIN', 0)))
         if use_system:
@@ -78,7 +66,7 @@ def _make_path(abi=None):
 
     return ':'.join(compos)
 
-HOST_PATH = _make_path(HOST_ABI)
+HOST_PATH = _make_path(LISA_HOST_ABI)
 """
 Value to be used as the ``PATH`` env var on the host.
 """
