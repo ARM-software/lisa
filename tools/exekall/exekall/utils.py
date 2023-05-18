@@ -34,6 +34,8 @@ def get_callable_set(module_set, verbose=False):
     """
     Get the set of callables defined in all modules of ``module_set``.
 
+    We ignore any callable that is defined outside of the modules' package.
+
     :param module_set: Set of modules to scan.
     :type module_set: set(types.ModuleType)
     """
@@ -52,6 +54,7 @@ def get_callable_set(module_set, verbose=False):
             callable_set_ = _get_callable_set(
                 module,
                 visited_obj_set,
+                package_set=package_set,
                 verbose=verbose,
             )
 
@@ -97,7 +100,7 @@ def _get_members(*args, **kwargs):
         warnings.simplefilter(action='ignore')
         return inspect.getmembers(*args, **kwargs)
 
-def _get_callable_set(namespace, visited_obj_set, verbose):
+def _get_callable_set(namespace, visited_obj_set, package_set, verbose):
     """
     :param namespace: Module or class
     """
@@ -116,19 +119,26 @@ def _get_callable_set(namespace, visited_obj_set, verbose):
             predicate=callable
         )
     ]
+
     if isinstance(namespace, type):
         attributes.append(namespace)
 
+    def select(attr):
+        module = inspect.getmodule(attr)
+        return (
+            # Module of builtins is None
+            module is None or
+            # skip internal classes that may end up being exposed as a global
+            module is not engine and
+            get_package(module) in package_set
+        )
+
+    visited_obj_set.update(attributes)
     attributes = [
         attr
         for attr in attributes
-        if (
-            id(attr) not in visited_obj_set and
-            # skip internal classes that may end up being exposed as a global
-            inspect.getmodule(attr) is not engine
-        )
+        if id(attr) not in visited_obj_set and select(attr)
     ]
-    visited_obj_set.update(attributes)
 
     for callable_ in attributes:
         # Explore the class attributes as well for nested types
@@ -148,7 +158,7 @@ def _get_callable_set(namespace, visited_obj_set, verbose):
             )
         ):
             callable_pool.update(
-                _get_callable_set(callable_, visited_obj_set, verbose)
+                _get_callable_set(callable_, visited_obj_set, package_set, verbose)
             )
 
         # Functions defined in a class are methods, and have to be wrapped so
