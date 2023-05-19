@@ -312,7 +312,7 @@ def _make_chroot(cc, make_vars, bind_paths=None, alpine_version='3.18.0', overla
     # Add LISA static binaries inside the chroot
     bind_paths = {
         **dict(bind_paths or {}),
-        str((Path(ASSETS_PATH) / 'binaries' / chroot_arch).resolve()): '/usr/local/bin/'
+        ABI_BINARIES_FOLDER[chroot_arch]: '/usr/local/bin'
     }
 
     alpine_arch = {
