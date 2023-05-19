@@ -55,15 +55,16 @@ def _main(args, target):
     if cmd and cmd[0] == '--':
         cmd = cmd[1:]
 
-    kmod_params = {}
-    if features is not None:
-        kmod_params['features'] = list(features)
+    features = {
+        name: {}
+        for feature in features
+    }
 
     kmod = target.get_kmod(LISADynamicKmod)
     pretty_events = ', '.join(kmod.defined_events)
     logging.info(f'Kernel module provides the following ftrace events: {pretty_events}')
 
-    _kmod_cm = kmod.run(kmod_params=kmod_params)
+    _kmod_cm = kmod.run(features=features)
 
     if keep_loaded:
         @contextlib.contextmanager
