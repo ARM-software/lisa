@@ -3439,4 +3439,26 @@ class LISADynamicKmod(FtraceDynamicKmod):
                     logger.warning(f'Loaded "{self.mod_name}" module from pre-installed location: {kmod_path}. This implies that the module was compiled by a 3rd party, which is available but unsupported. If you experience issues related to module version mismatch in the future, please contact them for updating the module. This may break at any time, without notice, and regardless of the general backward compatibility policy of LISA.')
                     return None
 
+
+    def install(self, features=None, **kwargs):
+        """
+        Install and load the module on the target.
+
+        :param features: Features to enable and associated parameters.
+            Top-level in the dict is feature names, nested dict is for parameters.
+        :type features: dict(str, dict(str, object)) or None
+        """
+        features = features or {}
+        params = dict(
+            features=sorted(features.keys()),
+            **{
+                f'{feature}___{name}': value
+                for feature, params in features.items()
+                for name, value in (params or {}).items()
+            }
+        )
+
+        return super().install(kmod_params=params, **kwargs)
+
+
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
