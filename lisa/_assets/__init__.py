@@ -28,6 +28,14 @@ ASSETS_PATH = os.path.dirname(__file__)
 Path in which all assets the ``lisa`` package relies on are located in.
 """
 
+def _get_abi_bin_folders():
+    bin_path = os.path.join(ASSETS_PATH, 'binaries')
+    return {
+        entry.name: Path(entry.path).resolve()
+        for entry in os.scandir(bin_path)
+        if entry.is_dir()
+    }
+
 def _get_abi_bin():
     def list_binaries(path):
         return {
@@ -36,15 +44,20 @@ def _get_abi_bin():
             if entry.stat().st_mode & stat.S_IXUSR
         }
 
-    bin_path = os.path.join(ASSETS_PATH, 'binaries')
     return {
-        entry.name: list_binaries(entry.path)
-        for entry in os.scandir(bin_path)
-        if entry.is_dir()
+        abi: list_binaries(path)
+        for abi, path in _get_abi_bin_folders().items()
     }
+
 
 ABI_BINARIES = _get_abi_bin()
 del _get_abi_bin
+
+ABI_BINARIES_FOLDER = _get_abi_bin_folders()
+"""
+Per-ABI binary folder.
+"""
+del _get_abi_bin_folders
 
 HOST_BINARIES = ABI_BINARIES[LISA_HOST_ABI]
 
@@ -65,6 +78,7 @@ def _make_path(abi=None):
             compos = compos + [path]
 
     return ':'.join(compos)
+
 
 HOST_PATH = _make_path(LISA_HOST_ABI)
 """
