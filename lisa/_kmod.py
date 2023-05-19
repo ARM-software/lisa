@@ -272,10 +272,6 @@ def _make_chroot(cc, make_vars, bind_paths=None, alpine_version='3.18.0', overla
         'bison',
         'flex',
         'python3',
-
-        # TODO: As of may 2023 for some reason, the kernel still needs GCC
-        # to build some tools even when compiling with clang
-        'gcc',
     ]
     make_vars = make_vars or {}
 
