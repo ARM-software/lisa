@@ -25,6 +25,29 @@ from operator import attrgetter
 
 from lisa.utils import sphinx_register_nitpick_ignore
 
+def _isinstance(x, type_):
+    if isinstance(type_, tuple):
+        return any(map(lambda type_: _isinstance(x, type_), type_))
+    elif isinstance(type_, type):
+        return isinstance(x, type_)
+    # Typing hint
+    else:
+        try:
+            from typing import get_origin, get_args, Union
+        except ImportError:
+            # We cannot process the typing hint in that version of Python, so
+            # we assume the input is correctly typed. It's not ideal but we
+            # cannot do much more than that.
+            return True
+        else:
+            combinator = get_origin(type_)
+            args = get_args(type_)
+            if combinator == Union:
+                return any(map(lambda type_: _isinstance(x, type_), args))
+            else:
+                raise TypeError(f'Cannot handle type hint: {type_}')
+
+
 class GenericContainerMetaBase(type):
     """
     Base class for the metaclass of generic containers.
@@ -52,9 +75,16 @@ class GenericContainerMetaBase(type):
         types = type_ if isinstance(type_, Sequence) else [type_]
 
         def make_name(self_getter, sub_getter):
+            def _sub_getter(type_):
+                try:
+                    return sub_getter(type_)
+                # type hints like typing.Union don't have a name we can introspect,
+                # but it can be pretty-printed
+                except AttributeError:
+                    return str(type_)
             return '{}[{}]'.format(
                 self_getter(cls),
-                ','.join(sub_getter(type_) for type_ in types)
+                ','.join(_sub_getter(type_) for type_ in types)
             )
 
         NewClass.__name__ = make_name(
@@ -107,10 +137,10 @@ class GenericMappingMeta(GenericContainerMetaBase, type(Mapping)):
 
         k_type, v_type = cls._type
         for k, v in instance.items():
-            if not isinstance(k, k_type):
+            if not _isinstance(k, k_type):
                 raise TypeError(f'Key "{k}" of type {type(k).__qualname__} should be of type {k_type.__qualname__}', k)
 
-            if not isinstance(v, v_type):
+            if not _isinstance(v, v_type):
                 raise TypeError(f'Value of {type(v).__qualname__} key "{k}" should be of type {v_type.__qualname__}', k)
 
 
@@ -128,7 +158,7 @@ class GenericSequenceMeta(GenericContainerMetaBase, type(Sequence)):
 
         type_ = cls._type
         for i, x in enumerate(instance):
-            if not isinstance(x, type_):
+            if not _isinstance(x, type_):
                 raise TypeError(f'Item #{i} "{x}" of type {type(x).__qualname__} should be of type {type_.__qualname__}', i)
 
 class GenericSortedSequenceMeta(GenericSequenceMeta):
