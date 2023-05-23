@@ -233,7 +233,7 @@ int process_sample(int nr, sample_t sample)
 {
 	/* pr_info("parsed: device=%u chan=%u, ts=%lu chan_name=%s value=%lu\n", sample.device, sample.chan, */
 	/*        sample.ts, sample.chan_name, sample.value); */
-	trace_pixel6_emeter(sample.ts, sample.device, sample.chan, sample.chan_name, sample.value);
+	trace_lisa__pixel6_emeter(sample.ts, sample.device, sample.chan, sample.chan_name, sample.value);
 	return nr + 1;
 }
 

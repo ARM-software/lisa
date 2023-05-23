@@ -27,7 +27,7 @@
 #define RBL_LOAD_STR		"runnable"
 #endif
 
-TRACE_EVENT(sched_pelt_cfs,
+TRACE_EVENT(lisa__sched_pelt_cfs,
 
 	TP_PROTO(int cpu, char *path, const struct sched_avg *avg),
 
@@ -56,7 +56,7 @@ TRACE_EVENT(sched_pelt_cfs,
 		  __entry->RBL_LOAD_ENTRY,__entry->util, __entry->update_time)
 );
 
-DECLARE_EVENT_CLASS(sched_pelt_rq_template,
+DECLARE_EVENT_CLASS(lisa__sched_pelt_rq_template,
 
 	TP_PROTO(int cpu, const struct sched_avg *avg),
 
@@ -83,19 +83,19 @@ DECLARE_EVENT_CLASS(sched_pelt_rq_template,
 		  __entry->RBL_LOAD_ENTRY,__entry->util, __entry->update_time)
 );
 
-DEFINE_EVENT(sched_pelt_rq_template, sched_pelt_rt,
+DEFINE_EVENT(lisa__sched_pelt_rq_template, lisa__sched_pelt_rt,
 	TP_PROTO(int cpu, const struct sched_avg *avg),
 	TP_ARGS(cpu, avg));
 
-DEFINE_EVENT(sched_pelt_rq_template, sched_pelt_dl,
+DEFINE_EVENT(lisa__sched_pelt_rq_template, lisa__sched_pelt_dl,
 	TP_PROTO(int cpu, const struct sched_avg *avg),
 	TP_ARGS(cpu, avg));
 
-DEFINE_EVENT(sched_pelt_rq_template, sched_pelt_irq,
+DEFINE_EVENT(lisa__sched_pelt_rq_template, lisa__sched_pelt_irq,
 	TP_PROTO(int cpu, const struct sched_avg *avg),
 	TP_ARGS(cpu, avg));
 
-TRACE_EVENT(sched_pelt_se,
+TRACE_EVENT(lisa__sched_pelt_se,
 
 	TP_PROTO(int cpu, char *path, char *comm, int pid, const struct sched_avg *avg),
 
@@ -128,7 +128,7 @@ TRACE_EVENT(sched_pelt_se,
 		  __entry->load, __entry->RBL_LOAD_ENTRY,__entry->util, __entry->update_time)
 );
 
-TRACE_EVENT(sched_overutilized,
+TRACE_EVENT(lisa__sched_overutilized,
 
 	TP_PROTO(int overutilized, char *span),
 
@@ -149,7 +149,7 @@ TRACE_EVENT(sched_overutilized,
 );
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,9,0)
-TRACE_EVENT(sched_update_nr_running,
+TRACE_EVENT(lisa__sched_update_nr_running,
 
 	    TP_PROTO(int cpu, int change, unsigned int nr_running),
 
@@ -170,7 +170,7 @@ TRACE_EVENT(sched_update_nr_running,
 	    TP_printk("cpu=%d change=%d nr_running=%d", __entry->cpu, __entry->change, __entry->nr_running)
 	    );
 
-TRACE_EVENT(sched_util_est_se,
+TRACE_EVENT(lisa__sched_util_est_se,
 
 	TP_PROTO(int cpu, char *path, char *comm, int pid,
 		 const struct sched_avg *avg),
@@ -202,7 +202,7 @@ TRACE_EVENT(sched_util_est_se,
 		  __entry->enqueued, __entry->ewma, __entry->util)
 );
 
-TRACE_EVENT(sched_util_est_cfs,
+TRACE_EVENT(lisa__sched_util_est_cfs,
 
 	TP_PROTO(int cpu, char *path, const struct sched_avg *avg),
 
@@ -232,7 +232,7 @@ TRACE_EVENT(sched_util_est_cfs,
 
 #ifdef CONFIG_UCLAMP_TASK
 
-TRACE_EVENT_CONDITION(uclamp_util_se,
+TRACE_EVENT_CONDITION(lisa__uclamp_util_se,
 
 	TP_PROTO(bool is_task, struct task_struct *p, struct rq *rq),
 
@@ -267,7 +267,7 @@ TRACE_EVENT_CONDITION(uclamp_util_se,
 		  __entry->uclamp_min, __entry->uclamp_max)
 );
 
-TRACE_EVENT_CONDITION(uclamp_util_cfs,
+TRACE_EVENT_CONDITION(lisa__uclamp_util_cfs,
 
 	TP_PROTO(bool is_root, struct rq *rq, struct cfs_rq *cfs_rq),
 
@@ -297,14 +297,14 @@ TRACE_EVENT_CONDITION(uclamp_util_cfs,
 		  __entry->uclamp_min, __entry->uclamp_max)
 );
 #else
-#define trace_uclamp_util_se(is_task, p, rq) while(false) {}
-#define trace_uclamp_util_se_enabled() false
-#define trace_uclamp_util_cfs(is_root, cpu, cfs_rq) while(false) {}
-#define trace_uclamp_util_cfs_enabled() false
+#define trace_lisa__uclamp_util_se(is_task, p, rq) while(false) {}
+#define trace_lisa__uclamp_util_se_enabled() false
+#define trace_lisa__uclamp_util_cfs(is_root, cpu, cfs_rq) while(false) {}
+#define trace_lisa__uclamp_util_cfs_enabled() false
 #endif /* CONFIG_UCLAMP_TASK */
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,10,0) && (defined(CONFIG_ARM64) || defined(CONFIG_ARM))
-TRACE_EVENT(sched_cpu_capacity,
+TRACE_EVENT(lisa__sched_cpu_capacity,
 
 	TP_PROTO(struct rq *rq),
 
@@ -335,7 +335,7 @@ TRACE_EVENT(sched_cpu_capacity,
 
 #define PIXEL6_EMETER_CHAN_NAME_MAX_SIZE 64
 
-TRACE_EVENT(pixel6_emeter,
+TRACE_EVENT(lisa__pixel6_emeter,
 	TP_PROTO(unsigned long ts, unsigned int device, unsigned int chan, char *chan_name, unsigned long value),
 	TP_ARGS(ts, device, chan, chan_name, value),
 
