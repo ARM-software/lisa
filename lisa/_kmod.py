@@ -139,7 +139,7 @@ from devlib.host import LocalConnection
 from devlib.exception import TargetStableError
 
 from lisa.utils import nullcontext, Loggable, LISA_CACHE_HOME, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor, destroyablecontextmanager, ContextManagerExit
-from lisa._assets import ASSETS_PATH, HOST_PATH
+from lisa._assets import ASSETS_PATH, HOST_PATH, ABI_BINARIES_FOLDER
 from lisa._unshare import ensure_root
 import lisa._git as git
 
