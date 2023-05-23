@@ -1650,39 +1650,49 @@ class SignalDesc:
         The hand-coded list is used first, and then some generic heuristics are
         used to detect per-cpu and per-task signals.
         """
-        try:
-            return cls._SIGNALS_MAP[event]
-        except KeyError:
-            if not fields:
-                return [cls(event, fields=[])]
-            else:
-                fields = set(fields)
-                # At most one set of each group will be taken
-                default_field_sets = [
-                    [
-                        {'comm', 'pid'},
-                        {'pid'},
-                        {'comm'},
-                    ],
-                    [
-                        {'cpu'},
-                        {'cpu_id'},
-                    ],
-                ]
 
-                selected = []
-                for field_set_group in default_field_sets:
-                    # Select at most one field set per group
-                    for field_set in field_set_group:
-                        # if fields is a non-strict superset of field_set
-                        if fields >= field_set:
-                            selected.append(field_set)
-                            break
+        # For backward compatibility, so that we still get signal descriptors
+        # for traces before the events from the lisa module got renamed to
+        # lisa__<event>
+        from lisa.trace import Trace
+        events = Trace._expand_namespaces(event, namespaces=('lisa', None))
 
-                return [
-                    cls(event, fields=field_set)
-                    for field_set in selected
-                ]
+        for event in events:
+            try:
+                return cls._SIGNALS_MAP[event]
+            except KeyError:
+                continue
+
+        if not fields:
+            return [cls(event, fields=[])]
+        else:
+            fields = set(fields)
+            # At most one set of each group will be taken
+            default_field_sets = [
+                [
+                    {'comm', 'pid'},
+                    {'pid'},
+                    {'comm'},
+                ],
+                [
+                    {'cpu'},
+                    {'cpu_id'},
+                ],
+            ]
+
+            selected = []
+            for field_set_group in default_field_sets:
+                # Select at most one field set per group
+                for field_set in field_set_group:
+                    # if fields is a non-strict superset of field_set
+                    if fields >= field_set:
+                        selected.append(field_set)
+                        break
+
+            return [
+                cls(event, fields=field_set)
+                for field_set in selected
+            ]
 
 
 @SeriesAccessor.register_accessor

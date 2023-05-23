@@ -1586,6 +1586,14 @@ class KmodSrc(Loggable):
         self._mod_name = name
 
     @property
+    def code_files(self):
+        return {
+            name: content
+            for name, content in self.src.items()
+            if name.endswith('.c') or name.endswith('.h')
+        }
+
+    @property
     def c_files(self):
         return {
             name: content
@@ -2036,6 +2044,30 @@ class FtraceDynamicKmod(DynamicKmod):
             )
             if m
         ))
+
+    @property
+    @memoized
+    def possible_events(self):
+        """
+        Ftrace events possibly defined in that module.
+
+        Note that this is based on crude source code analysis so it's expected
+        to be a superset of the actually defined events.
+        """
+        decomment = re.compile(rb'^.*//.*?$|/\*.*?\*/', flags=re.MULTILINE)
+
+        # We match trace_lisa__XXX tokens, as these are the events that are
+        # actually used inside the module.
+        find_event = re.compile(rb'\btrace_(lisa__.*?)\b')
+        def find_events(code):
+            code = decomment.sub(b'', code)
+            return map(bytes.decode, find_event.findall(code))
+
+        return sorted({
+            possible_event
+            for code in self.src.code_files.values()
+            for possible_event in find_events(code)
+        })
 
 
 class LISAFtraceDynamicKmod(FtraceDynamicKmod):
