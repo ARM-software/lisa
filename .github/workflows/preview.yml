@@ -1,0 +1,48 @@
+name: preview
+
+on:
+  # Run the workflow when any branch is updated, since we can't seem to filter
+  # on the preview branches and main only.
+  - push
+
+  # Whenever a pull request is labeled or unlabeled.
+  - pull_request
+
+permissions:
+  # Necessary to be able to push to the repo
+  contents: write
+
+jobs:
+  preview:
+    name: preview
+    # Set the type of machine to run on
+    # https://github.com/actions/virtual-environments
+    runs-on: ubuntu-latest
+
+    if: ${{ github.event.label.name == 'preview' || (github.event.action == 'push' && contains(github.event.pull_request.labels.*.name, 'preview')) }}
+
+    steps:
+
+      # Checks out a copy of your repository on the virtual machine
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.sha }}
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.11"
+
+      - name: Setup git
+        run: |
+          git config --global user.name 'GitHub Action'
+          git config --global user.email 'GitHub Action'
+
+          git remote -v
+          git branch --list --remotes
+
+      - name: Create preview branch
+        run: |
+          set -e
+          source init_env
+          lisa-make-preview
+          git push origin preview --force
