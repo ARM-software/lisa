@@ -45,6 +45,7 @@ import itertools
 import functools
 import fnmatch
 from typing import Union
+from difflib import get_close_matches
 
 import numpy as np
 import pandas as pd
@@ -5438,13 +5439,25 @@ class MissingTraceEventError(RuntimeError, ValueError):
 
     def __str__(self):
         available = self.available_events
+        missing = self.missing_events
+
         if available:
-            available = '. Available events are: {}'.format(
-                ', '.join(sorted(available)))
+            closest = {
+                matches[0]
+                for matches in (
+                    get_close_matches(event, available, n=1)
+                    for event in missing
+                )
+                if matches
+            }
+            available = '. Closest available matches are: {}. Available events are: {}'.format(
+                ', '.join(sorted(closest)),
+                ', '.join(sorted(available))
+            )
         else:
             available = ''
 
-        return self._template.format(missing_events=self.missing_events, available=available)
+        return self._template.format(missing_events=missing, available=available)
 
 
 class FtraceConf(SimpleMultiSrcConf, HideExekallID):
