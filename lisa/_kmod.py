@@ -2036,14 +2036,20 @@ class FtraceDynamicKmod(DynamicKmod):
         def parse(name):
             return re.match(r'__event_(.*)', name)
 
-        return sorted(set(
+        events = set(
             m.group(1)
             for m in map(
                 parse,
                 self._get_symbols('_ftrace_events')
             )
             if m
-        ))
+        )
+
+        # Ensure that the possible_events() implementation is indeed a superset
+        # of the events actually defined.
+        assert set(self.possible_events) >= events
+
+        return sorted(events)
 
     @property
     @memoized
