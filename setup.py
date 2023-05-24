@@ -69,6 +69,7 @@ extras_require={
         "pytest",
         "build",
         "twine",
+        "github3.py",
     ],
 
     "wa": [
