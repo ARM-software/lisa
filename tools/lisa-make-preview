@@ -62,7 +62,7 @@ def main():
             {
                 'name': pr.head.ref,
                 'remote': remote,
-                'base': pr.base.ref,
+                'nr-commits': pr.commits_count,
                 'tip': pr.head.ref,
             }
         )

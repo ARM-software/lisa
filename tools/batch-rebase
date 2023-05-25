@@ -49,7 +49,7 @@ class BatchRebaseManifest(SimpleMultiSrcConf):
     {generated_help}
     """
     STRUCTURE = TopLevelKeyDesc('rebase-conf', 'Batch rebase configuration', (
-        KeyDesc('topics', 'List of topics. Each topic is described by a mapping with "name", "remote", "base" and "tip" git references keys. Also, a tag can be added between topics with "action: tag" key and "name: tag-name".', [list]),
+        KeyDesc('topics', 'List of topics. Each topic is described by a mapping with "name", "remote", "base" (or "nr-commits) and "tip" git references keys. Also, a tag can be added between topics with "action: tag" key and "name: tag-name".', [list]),
         KeyDesc('remotes', 'Git remotes. Keys are remote name, values are a mapping with an "url" key', [Mapping]),
         KeyDesc('rr-cache', 'Path to git rr-cache. Relative paths are relative to that manifest file', [str, None]),
         LevelKeyDesc('base', 'Base branche spec', [
@@ -328,13 +328,21 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
             persistent_refs.add(tag_name)
 
         elif action == 'cherry-pick':
-            base = topic['base']
             tip = topic['tip']
             remote = topic['remote']
 
+            base = topic.get('base')
+            nr_commits = topic.get('nr-commits')
+
             # Fetch the topic base and tip
-            for ref in (base, tip):
-                git(['fetch', '--', remote, ref])
+            git(['fetch', '--', remote, tip])
+
+            if base is not None:
+                git(['fetch', '--', remote, base])
+            elif nr_commits is not None:
+                base = f'{tip}~{nr_commits}'
+            else:
+                raise ValueError(f'base or nr-commits need to be set on topic "{name}"')
 
             range_ref = 'refs/remotes/{remote}/{base}..refs/remotes/{remote}/{tip}'.format(
                 remote=remote,
@@ -345,6 +353,7 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
             nr_commits = int(
                 git(['rev-list', '--count', range_ref], capture=True)
             )
+
             info('Cherry-picking topic "{name}" from {remote} ({nr_commits} commits)\nremote: {remote}\nbase: {base}\ntip: {tip}\n'.format(
                 name=name,
                 remote=remote,
