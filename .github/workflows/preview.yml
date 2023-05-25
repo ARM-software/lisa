@@ -56,9 +56,12 @@ jobs:
     steps:
 
       # Checks out a copy of your repository on the virtual machine
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
-          ref: ${{ github.sha }}
+          # Ensure the tools we run come from trusted source. We don't need to
+          # get the current PR as it will be fetched by batch-rebase directly
+          # anyway.
+          repository: ARM-software/lisa
 
       - uses: actions/setup-python@v2
         with:
