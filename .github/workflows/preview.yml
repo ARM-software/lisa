@@ -2,7 +2,7 @@ name: preview
 
 on:
   # Whenever a pull request is labeled or unlabeled.
-  pull_request:
+  pull_request_target:
     types: [labeled, unlabeled, synchronize]
 
   # To be able to manually trigger the job from GitHub UI
@@ -27,11 +27,11 @@ jobs:
     if: |
       ${{
           (
-              github.event_name == 'pull_request' &&
+              github.event_name == 'pull_request_target' &&
               (
                   (
                       github.event.action == 'synchronize' &&
-                      contains(github.event.pull_request.labels.*.name, 'preview')
+                      contains(github.event.pull_request_target.labels.*.name, 'preview')
                   ) ||
                   (
                       (
@@ -42,7 +42,7 @@ jobs:
                   )
               )
           ) ||
-          github.event_name != 'pull_request'
+          github.event_name != 'pull_request_target'
       }}
 
     steps:
