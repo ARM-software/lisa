@@ -11,6 +11,11 @@ permissions:
 jobs:
   mirror:
     name: mirror
+
+    # Ensure jobs queue in order, so that we don't get race conditions while
+    # pushing the branch
+    concurrency: mirror
+
     # Set the type of machine to run on
     # https://github.com/actions/virtual-environments
     runs-on: ubuntu-latest
