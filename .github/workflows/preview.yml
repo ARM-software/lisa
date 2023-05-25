@@ -61,6 +61,12 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: SHOW
+        run: |
+              echo ${{ github.event }}
+              echo ${{ github.event.pull_request.labels.*.name }}
+              echo ${{ contains(github.event.pull_request.labels.*.name, 'preview') }}
+
       - name: Setup git
         run: |
           git config --global user.name 'GitHub Action'
