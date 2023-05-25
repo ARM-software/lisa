@@ -22,6 +22,14 @@ jobs:
   test:
     # Name the Job
     name: test
+
+    # Cancel current runs of the workflow if we trigger it again for the same
+    # ref.
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
+
     # Set the type of machine to run on
     # https://github.com/actions/virtual-environments
     runs-on: ${{ matrix.os }}
