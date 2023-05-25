@@ -31,7 +31,7 @@ jobs:
               (
                   (
                       github.event.action == 'synchronize' &&
-                      contains(github.event.pull_request_target.labels.*.name, 'preview')
+                      contains(github.event.pull_request.labels.*.name, 'preview')
                   ) ||
                   (
                       (
