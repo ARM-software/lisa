@@ -22,6 +22,7 @@ from itertools import starmap, chain
 from tempfile import NamedTemporaryFile
 import json
 from collections import ChainMap
+from operator import itemgetter
 
 from github3 import GitHub
 
@@ -51,7 +52,7 @@ def main():
     ]
 
     def make_topic(issue, pr):
-        remote = f'remote_{pr.head.ref}'
+        remote = f'remote_{pr.head.sha}'
         return (
             {
                 remote: {
@@ -66,7 +67,7 @@ def main():
             }
         )
 
-    topics = sorted(starmap(make_topic, prs))
+    topics = list(starmap(make_topic, prs))
     if topics:
         remotes, topics = zip(*topics)
         remotes = dict(ChainMap(*chain(
@@ -86,7 +87,7 @@ def main():
                     'remote': 'github',
                     'ref': 'main',
                 },
-                'topics': sorted(topics)
+                'topics': sorted(topics, key=itemgetter('name'))
             }
         }
         conf = json.dumps(conf, indent=4)
