@@ -24,7 +24,26 @@ jobs:
     # https://github.com/actions/virtual-environments
     runs-on: ubuntu-latest
 
-    if: ${{ (github.event_name == 'pull_request' && (github.event_type == 'synchronize' || ((github.event_type == 'labeled' || github.event_type == 'unlabeled') && github.event.label.name == 'preview'))) || github.event_name != 'pull_request' }}
+    if: |
+      ${{
+          (
+              github.event_name == 'pull_request' &&
+              (
+                  (
+                      github.event.action == 'synchronize' &&
+                      contains(github.event.pull_request.labels.*.name, 'preview')
+                  ) ||
+                  (
+                      (
+                          github.event.action == 'labeled' ||
+                          github.event.action == 'unlabeled'
+                      ) &&
+                      github.event.label.name == 'preview'
+                  )
+              )
+          ) ||
+          github.event_name != 'pull_request'
+      }}
 
     steps:
 
