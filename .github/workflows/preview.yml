@@ -3,10 +3,13 @@ name: preview
 on:
   # Run the workflow when any branch is updated, since we can't seem to filter
   # on the preview branches and main only.
-  - push
+  - push: null
 
   # Whenever a pull request is labeled or unlabeled.
-  - pull_request
+  - pull_request: null
+
+  # To be able to manually trigger the job from GitHub UI
+  workflow_dispatch: null
 
 permissions:
   # Necessary to be able to push to the repo
@@ -19,7 +22,7 @@ jobs:
     # https://github.com/actions/virtual-environments
     runs-on: ubuntu-latest
 
-    if: ${{ github.event.label.name == 'preview' || (github.event.action == 'push' && contains(github.event.pull_request.labels.*.name, 'preview')) }}
+    if: ${{ github.event.label.name == 'preview' || (github.event.action == 'push' && contains(github.event.pull_request.labels.*.name, 'preview')) || github.event.inputs }}
 
     steps:
 
