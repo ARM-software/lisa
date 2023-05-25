@@ -2,7 +2,8 @@ name: preview
 
 on:
   # Whenever a pull request is labeled or unlabeled.
-  pull_request: null
+  pull_request:
+    types: [labeled, unlabeled]
 
   # To be able to manually trigger the job from GitHub UI
   workflow_dispatch:
