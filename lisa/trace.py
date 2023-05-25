@@ -5714,7 +5714,7 @@ class FtraceCollector(CollectorBase, Configurable):
             raise ValueError("The target's kernel needs CONFIG_FTRACE=y kconfig enabled")
 
         tracing_path = devlib.FtraceCollector.find_tracing_path(target)
-        target_available_events = set(self._target_available_events(target, tracing_path))
+        target_available_events, avoided = self._target_available_events(target, tracing_path)
 
         kmod = target.get_kmod(LISAFtraceDynamicKmod)
         # Get the events possibly defined in the module. Note that it's a
@@ -5734,13 +5734,6 @@ class FtraceCollector(CollectorBase, Configurable):
             pass
         else:
             events = AndTraceEventChecker.from_events(set(events))
-
-        # trace-cmd start complains if given these events, even though they are
-        # valid
-        avoided = {
-            'funcgraph_entry', 'funcgraph_exit',
-            'print', 'bprint', 'bputs',
-        }
 
         def is_pattern(s):
             return '*' in s or '?' in s or '[' in s or ']' in s
@@ -5833,10 +5826,7 @@ class FtraceCollector(CollectorBase, Configurable):
         meta_events = {
             event
             for event in meta_events
-            if any(
-                event in satisfied or event in avoided
-                for event in Trace.get_event_sources(event)
-            )
+            if satisfied & set(Trace.get_event_sources(event))
         }
 
         functions = functions or []
@@ -5926,9 +5916,19 @@ class FtraceCollector(CollectorBase, Configurable):
         except MissingTraceEventError as e:
             self.logger.info(f'Optional events missing: {str(e)}')
 
-        self.events = sorted(events | meta_events)
-        if not self.events:
+        if not events:
             raise ValueError('No ftrace events selected')
+
+        self.events = sorted(events | meta_events)
+
+        # Some events are "special" and cannot be disabled or enabled. We
+        # therefore cannot pass them to trace-cmd.
+        events -= avoided
+        # trace-cmd fails if passed no events, which is an issue since we
+        # cannot pass e.g. "print" event.
+        if not events:
+            events |= {'sched_switch'}
+
         events = sorted(events)
 
         self._cm = None
@@ -5951,6 +5951,7 @@ class FtraceCollector(CollectorBase, Configurable):
                 # our own binary
                 no_install=True,
                 tracing_path=tracing_path,
+                strict=True,
                 **kwargs
             )
         super().__init__(collector, output_path=output_path)
@@ -6017,10 +6018,19 @@ class FtraceCollector(CollectorBase, Configurable):
     @staticmethod
     def _target_available_events(target, tracing_path):
         events = target.read_value(target.path.join(tracing_path, 'available_events'))
-        return set(
+
+        # trace-cmd start complains if given these events, even though they are
+        # valid
+        avoided = set(target.list_directory(target.path.join(tracing_path, 'events', 'ftrace')))
+
+        available = set(
             event.split(':', 1)[1]
             for event in events.splitlines()
         )
+        # These events are available, but we still cannot pass them to trace-cmd record
+        available.update(avoided)
+
+        return (available, avoided)
 
     @classmethod
     @kwargs_forwarded_to(__init__)
