@@ -26,7 +26,7 @@ jobs:
     # Cancel current runs of the workflow if we trigger it again for the same
     # ref.
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ matrix.os }}-${{ matrix.python-version }}-${{ github.ref }}
       cancel-in-progress: true
 
 
