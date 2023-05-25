@@ -30,7 +30,6 @@ jobs:
     runs-on: ubuntu-latest
 
     if: |
-      ${{
           (
               github.event_name == 'pull_request_target' &&
               (
@@ -48,7 +47,6 @@ jobs:
               )
           ) ||
           github.event_name != 'pull_request_target'
-      }}
 
     steps:
 
@@ -63,7 +61,7 @@ jobs:
 
       - name: SHOW
         run: |
-              echo ${{ github.event }}
+              echo ${{ github.event_name }}
               echo ${{ github.event.pull_request.labels.*.name }}
               echo ${{ contains(github.event.pull_request.labels.*.name, 'preview') }}
 
