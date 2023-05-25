@@ -9,9 +9,14 @@ on:
   workflow_dispatch:
 
   # Run the workflow when the base branch is updated.
+  #
+  # Note that a push from a workflow will by default not trigger a push event,
+  # so we list both branches here as "main" only would currently do nothing:
+  # https://docs.github.com/en/actions/using-workflows/triggering-a-workflow#triggering-a-workflow-from-a-workflow
   push:
     branches:
       - 'main'
+      - 'master'
 
 permissions:
   # Necessary to be able to push to the repo
