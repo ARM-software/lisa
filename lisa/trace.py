@@ -5528,13 +5528,17 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
                 if optional_events:
                     val = OptionalTraceEventChecker([val])
 
-                val = val.expand_namespaces(namespaces=conf.get('event-namespaces'))
+                val = val.expand_namespaces(
+                    namespaces=conf.get('event-namespaces')
+                )
 
                 self_val = self.get(key, [])
                 if not isinstance(self_val, TraceEventCheckerBase):
                     self_val = AndTraceEventChecker.from_events(self_val)
 
-                self_val = val.expand_namespaces(namespaces=self.get('event-namespaces'))
+                self_val = self_val.expand_namespaces(
+                    namespaces=self.get('event-namespaces')
+                )
 
                 return AndTraceEventChecker([val, self_val])
             elif key == 'buffer-size':
