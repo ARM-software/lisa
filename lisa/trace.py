@@ -5470,7 +5470,7 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
     """
     STRUCTURE = TopLevelKeyDesc('ftrace-conf', 'FTrace configuration', (
         KeyDesc('events', 'FTrace events to trace', [TypedList[str], TraceEventCheckerBase]),
-        KeyDesc('event-namespaces', 'FTrace events namespaces to use. See Trace namespace constructor parameter.', [TypedList[Union[str, None], None]]),
+        KeyDesc('events-namespaces', 'FTrace events namespaces to use. See Trace namespace constructor parameter.', [TypedList[Union[str, None], None]]),
         KeyDesc('functions', 'FTrace functions to trace', [TypedList[str]]),
         KeyDesc('buffer-size', 'FTrace buffer size', [int]),
         KeyDesc('trace-clock', 'Clock used while tracing (see "trace_clock" in ftrace.txt kernel doc)', [str, None]),
@@ -5518,7 +5518,7 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
 
             if key == 'functions':
                 return sorted(set(val) | set(self.get(key, [])))
-            elif key == 'event-namespaces':
+            elif key == 'events-namespaces':
                 # We already applied the namespaces to the events so the result
                 # can be cleanly merged according to the original meaning.
                 return []
@@ -5529,7 +5529,7 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
                     val = OptionalTraceEventChecker([val])
 
                 val = val.expand_namespaces(
-                    namespaces=conf.get('event-namespaces')
+                    namespaces=conf.get('events-namespaces')
                 )
 
                 self_val = self.get(key, [])
@@ -5537,7 +5537,7 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
                     self_val = AndTraceEventChecker.from_events(self_val)
 
                 self_val = self_val.expand_namespaces(
-                    namespaces=self.get('event-namespaces')
+                    namespaces=self.get('events-namespaces')
                 )
 
                 return AndTraceEventChecker([val, self_val])
