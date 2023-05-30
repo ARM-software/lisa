@@ -4911,13 +4911,15 @@ class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
         self.checkers = checkers or []
 
     @abc.abstractmethod
-    def _check_events(self, check, event_set):
-        pass
+    def _select_events(self, check, event_set):
+        return set()
 
     def check_events(self, event_set, check_optional=False, namespaces=None):
         """
         Check that certain trace events are available in the given set of
         events.
+
+        :return: Set of events selected by the checker in ``event_set``.
 
         :raises: MissingTraceEventError if some events are not available. The
             exception must be raised after inspecting children node and combine
@@ -4932,16 +4934,18 @@ class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
         else:
             checker = self
 
+        if namespaces is not None:
+            checker = checker.expand_namespaces(namespaces=namespaces)
+
         def check(event):
             if isinstance(event_set, _AvailableTraceEventsSet):
-                return event_set.contains(event, namespaces=namespaces)
+                # We already expanded namespaces, so we don't want the
+                # inclusion check to apply the default trace's namespace.
+                return event_set.contains(event, namespaces=[])
             else:
-                return any(
-                    event in event_set
-                    for event in Trace._expand_namespaces(event, namespaces)
-                )
+                return event in event_set
 
-        return checker._check_events(check=check, event_set=event_set)
+        return checker._select_events(check=check, event_set=event_set)
 
     @abc.abstractmethod
     def get_all_events(self):
@@ -4966,9 +4970,15 @@ class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
         """
         def fixup(checker):
             if isinstance(checker, TraceEventChecker):
-                return OrTraceEventChecker.from_events(
-                    Trace._expand_namespaces(checker.event, namespaces=namespaces)
-                )
+                event = checker.event
+                namespaced = Trace._expand_namespaces(event, namespaces=namespaces)
+
+                # fnmatch patterns need to be AND-ed so that we can collect all
+                # the events matching that pattern, in all namespaces.
+                if checker._is_pattern:
+                    return AndTraceEventChecker.from_events(namespaced)
+                else:
+                    return OrTraceEventChecker.from_events(namespaced)
             else:
                 return checker
         return self.map(fixup)
@@ -5121,16 +5131,25 @@ class TraceEventChecker(TraceEventCheckerBase):
     def get_all_events(self):
         return {self.event}
 
-    def _check_events(self, check, event_set):
-        if not check(self.event):
+    def _select_events(self, check, event_set):
+        event = self.event
+        if check(event):
+            return {event}
+        else:
             raise MissingTraceEventError(self, available_events=event_set)
 
     def _str_internal(self, style=None, wrapped=True):
         template = '``{}``' if style == 'rst' else '{}'
         return template.format(self.event)
 
+    @property
+    def _is_pattern(self):
+        s = self.event
+        return '*' in s or '?' in s or '[' in s or ']' in s
+
     def map(self, f):
         return f(self)
+
 
 class EmptyTraceEventChecker(TraceEventCheckerBase):
     """
@@ -5150,10 +5169,10 @@ class EmptyTraceEventChecker(TraceEventCheckerBase):
         return False
 
     def get_all_events(self):
-        return {}
+        return set()
 
-    def _check_events(self, check, event_set):
-        return True
+    def _select_events(self, check, event_set):
+        return set()
 
     def _str_internal(self, style=None, wrapped=True):
         return '<no event>'
@@ -5244,17 +5263,14 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
             else:
                 return TraceEventChecker(e)
 
-        return cls({
-            make_event(e)
-            for e in events
-        }, **kwargs)
+        return cls(map(make_event, events), **kwargs)
 
     def _str_internal(self, style=None, wrapped=True):
         op_str = f' {self.op_str} '
         unwrapped_str = self.prefix_str + op_str.join(
             c._str_internal(style=style, wrapped=True)
             # Sort for stable output
-            for c in sorted(self.checkers, key=str)
+            for c in self.checkers
         )
 
         template = '({})' if len(self.checkers) > 1 and wrapped else '{}'
@@ -5272,24 +5288,22 @@ class OrTraceEventChecker(AssociativeTraceEventChecker):
     def __init__(self, event_checkers=None, **kwargs):
         super().__init__('or', event_checkers, **kwargs)
 
-    def _check_events(self, check, event_set):
-        if not self.checkers:
-            return
+    def _select_events(self, check, event_set):
+        if self.checkers:
+            failed_checker_set = set()
+            for checker in self.checkers:
+                try:
+                    return checker._select_events(check=check, event_set=event_set)
+                except MissingTraceEventError as e:
+                    failed_checker_set.add(e.missing_events)
 
-        failed_checker_set = set()
-        for checker in self.checkers:
-            try:
-                checker._check_events(check=check, event_set=event_set)
-            except MissingTraceEventError as e:
-                failed_checker_set.add(e.missing_events)
-            else:
-                break
-        else:
             cls = type(self)
             raise MissingTraceEventError(
                 cls(failed_checker_set),
                 available_events=event_set,
             )
+        else:
+            return set()
 
 
 class _OptionalTraceEventCheckerBase(AssociativeTraceEventChecker):
@@ -5297,8 +5311,17 @@ class _OptionalTraceEventCheckerBase(AssociativeTraceEventChecker):
     def __init__(self, event_checkers=None, **kwargs):
         super().__init__(',', event_checkers, prefix_str=self._PREFIX_STR, **kwargs)
 
-    def _check_events(self, check, event_set):
-        return
+    def _select_events(self, check, event_set):
+        selected = set()
+        for checker in self.checkers:
+            try:
+                selected.update(
+                    checker._select_events(check=check, event_set=event_set)
+                )
+            except MissingTraceEventError as e:
+                pass
+
+        return selected
 
 
 class OptionalTraceEventChecker(_OptionalTraceEventCheckerBase):
@@ -5338,30 +5361,36 @@ class AndTraceEventChecker(AssociativeTraceEventChecker):
     def __init__(self, event_checkers=None, **kwargs):
         super().__init__('and', event_checkers, **kwargs)
 
-    def _check_events(self, check, event_set):
-        if not self.checkers:
-            return
+    def _select_events(self, check, event_set):
+        if self.checkers:
+            failed_checker_set = set()
+            selected = set()
+            for checker in self.checkers:
+                try:
+                    selected.update(
+                        checker._select_events(check=check, event_set=event_set)
+                    )
+                except MissingTraceEventError as e:
+                    failed_checker_set.add(e.missing_events)
 
-        failed_checker_set = set()
-        for checker in self.checkers:
-            try:
-                checker._check_events(check=check, event_set=event_set)
-            except MissingTraceEventError as e:
-                failed_checker_set.add(e.missing_events)
+            if failed_checker_set:
+                cls = type(self)
+                raise MissingTraceEventError(
+                    cls(failed_checker_set),
+                    available_events=event_set,
+                )
+            else:
+                return selected
+        else:
 
-        if failed_checker_set:
-            cls = type(self)
-            raise MissingTraceEventError(
-                cls(failed_checker_set),
-                available_events=event_set,
-            )
+            return set()
 
     def doc_str(self):
         joiner = '\n' + '    '
         rst = joiner + joiner.join(
             f"* {c._str_internal(style='rst', wrapped=False)}"
             # Sort for stable output
-            for c in sorted(self.checkers, key=str)
+            for c in self.checkers
         )
         return rst
 
@@ -5747,106 +5776,52 @@ class FtraceCollector(CollectorBase, Configurable):
         # module if it already exists on the target.
         kmod_available_events -= target_available_events
 
-        if events is None:
-            events = EmptyTraceEventChecker()
-        elif isinstance(events, TraceEventCheckerBase):
-            pass
-        else:
-            events = AndTraceEventChecker.from_events(set(events))
+        available_events = target_available_events | kmod_available_events
 
-        def is_pattern(s):
-            return '*' in s or '?' in s or '[' in s or ']' in s
+        if events is None:
+            events_checker = EmptyTraceEventChecker()
+        elif isinstance(events, TraceEventCheckerBase):
+            events_checker = events
+        else:
+            events_checker = AndTraceEventChecker.from_events(sorted(set(events)))
 
         def rewrite(checker):
             if isinstance(checker, TraceEventChecker):
-                def process(event):
-                    # Make fnmatch pattern optional
-                    if is_pattern(event):
-                        return OptionalTraceEventChecker.from_events([event])
-                    else:
-                        return TraceEventChecker(event)
-
                 # Turn meta events into their source event
-                return OrTraceEventChecker(
-                    map(process, Trace.get_event_sources(checker.event))
+                return OrTraceEventChecker.from_events(
+                    Trace.get_event_sources(checker.event)
                 )
             elif isinstance(checker, DynamicTraceEventChecker):
                 return AndTraceEventChecker(checker.checkers)
             else:
                 return checker
 
+        def wildcard(checker):
+            if isinstance(checker, TraceEventChecker) and checker._is_pattern:
+                # Make fnmatch pattern optional
+                return OptionalTraceEventChecker.from_events(
+                    fnmatch.filter(
+                        available_events,
+                        checker.event
+                    )
+                )
+            else:
+                return checker
+
         meta_events = {
             event
-            for event in events.get_all_events()
+            for event in events_checker.get_all_events()
             if Trace._is_meta_event(event)
         }
-        events = events.map(rewrite)
-        events_checker = events.expand_namespaces(namespaces=events_namespaces)
+
+        events_checker = events_checker.map(rewrite)
+        events_checker = events_checker.expand_namespaces(namespaces=events_namespaces)
+        # Expand the wildcards after having expanded the namespaces.
+        events_checker = events_checker.map(wildcard)
         self.logger.debug(f'Will try to collect events: {events_checker}')
 
-        def trim(checker, namespace, events):
-            """
-            Prune from checkers that have been satisfied already.
-            """
-            namespaced_checker = checker.expand_namespaces(namespaces=[namespace])
-            try:
-                namespaced_checker.check_events(events, check_optional=True)
-            except MissingTraceEventError:
-                return checker
-            else:
-                return EmptyTraceEventChecker()
-
-        def wildcard(available_events, event):
-            return fnmatch.filter(
-                available_events,
-                event
-            )
-
-        satisfied = set()
-        remaining_events = events
-        events = set()
-        namespaces = events_namespaces or [None]
-        available_events = target_available_events | kmod_available_events
-        for namespace in namespaces:
-            namespaced_events = {
-                event: {
-                    event_
-                    for event_ in Trace._expand_namespaces(event, namespaces=[namespace])
-                    for event_ in wildcard(available_events, event_)
-                }
-                for event in remaining_events.get_all_events()
-            }
-
-            for base, namespaced in namespaced_events.items():
-                found = available_events & namespaced
-                events.update(found)
-                if found:
-                    satisfied.add(base)
-
-            # Patterns will be preserved until the end since they will never be
-            # in found_events.
-            remaining_events = remaining_events.map(
-                functools.partial(
-                    trim,
-                    namespace=namespace,
-                    events=events
-                )
-            )
-
-        def remove_pattern(checker):
-            if isinstance(checker, TraceEventChecker) and is_pattern(checker.event):
-                return EmptyTraceEventChecker()
-            else:
-                return checker
-
-        # Remove wildcard patterns as they would make checking fail.
-        events_checker = events_checker.map(remove_pattern)
-
-        meta_events = {
-            event
-            for event in meta_events
-            if satisfied & set(Trace.get_event_sources(event))
-        }
+        # Select the events, after having expanded the namespaces
+        events = events_checker.check_events(available_events)
 
         functions = functions or []
         trace_clock = trace_clock or 'global'
