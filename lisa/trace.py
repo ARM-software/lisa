@@ -5489,7 +5489,7 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
         :type src: str
 
         :param conf: Conf to merge in
-        :type conf: FtraceConf
+        :type conf: FtraceConf or dict(str, object)
 
         :param optional_events: If ``True``, the events brought by ``conf``
             will be wrapped in :class:`OptionalTraceEventChecker`. This avoids
@@ -5497,6 +5497,10 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
             present in the kernel.
         :type optional_events: bool
         """
+
+        if not isinstance(conf, self.__class__):
+            conf = self.__class__(conf=conf)
+
         def merge_conf(key, val, path):
             new = _merge_conf(key, val, path)
             try:
@@ -5528,8 +5532,16 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
                 if optional_events:
                     val = OptionalTraceEventChecker([val])
 
+                # Merging has to take into account defaults, as we will then
+                # set the namespace to be empty (None, )
+                def get(conf, key):
+                    try:
+                        return conf.get(key)
+                    except KeyError:
+                        return conf.DEFAULT_SRC.get(key)
+
                 val = val.expand_namespaces(
-                    namespaces=conf.get('events-namespaces')
+                    namespaces=get(conf, 'events-namespaces')
                 )
 
                 self_val = self.get(key, [])
@@ -5537,7 +5549,7 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
                     self_val = AndTraceEventChecker.from_events(self_val)
 
                 self_val = self_val.expand_namespaces(
-                    namespaces=self.get('events-namespaces')
+                    namespaces=get(self, 'events-namespaces')
                 )
 
                 return AndTraceEventChecker([val, self_val])
@@ -5567,6 +5579,9 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
             }
 
         merged = merge_level(conf)
+        # Namespaces were expanded in events directly so we want to ensure they
+        # will not undergo expansion again if there are cascading merges.
+        merged['events-namespaces'] = []
 
         # We merge some keys with their current value in the conf
         return self.add_src(src, conf=merged, **kwargs)
