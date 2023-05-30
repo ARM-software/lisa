@@ -801,15 +801,17 @@ class Serializable(
         yaml.allow_unicode = ('utf' in cls.YAML_ENCODING)
         yaml.default_flow_style = False
         yaml.indent = 4
-        yaml.constructor.add_constructor('!include', functools.partial(cls._yaml_include_constructor, typ))
-        yaml.constructor.add_constructor('!var', cls._yaml_var_constructor)
-        yaml.constructor.add_multi_constructor('!env:', cls._yaml_env_var_constructor)
-        yaml.constructor.add_multi_constructor('!call:', cls._yaml_call_constructor)
 
         # Replace unknown tags by a placeholder object containing the data.
         # This happens when the class was not imported at the time the object
         # was deserialized
         yaml.constructor.add_constructor(None, cls._yaml_unknown_tag_constructor)
+
+        if typ == 'unsafe':
+            yaml.constructor.add_constructor('!include', functools.partial(cls._yaml_include_constructor, typ))
+            yaml.constructor.add_constructor('!var', cls._yaml_var_constructor)
+            yaml.constructor.add_multi_constructor('!env:', cls._yaml_env_var_constructor)
+            yaml.constructor.add_multi_constructor('!call:', cls._yaml_call_constructor)
 
         return yaml
 
@@ -929,6 +931,9 @@ class Serializable(
         yaml_kwargs = dict(mode='w', encoding=cls.YAML_ENCODING)
         if fmt == 'yaml':
             kwargs = yaml_kwargs
+            # Dumping in unsafe mode allows creating !!python/object tags, but
+            # since it will not load anything that is not already available in
+            # memory there is no security issue.
             dumper = cls._get_yaml('unsafe').dump
         elif fmt == 'yaml-roundtrip':
             kwargs = yaml_kwargs
@@ -983,14 +988,13 @@ class Serializable(
 
     @classmethod
     def _from_path(cls, filepath, fmt):
-        yaml = cls._get_yaml('unsafe')
         filepath = str(filepath)
         if fmt is None:
             fmt = cls.DEFAULT_SERIALIZATION_FMT
 
         if fmt == 'yaml':
             kwargs = dict(mode='r', encoding=cls.YAML_ENCODING)
-            loader = yaml.load
+            loader = cls._get_yaml('unsafe').load
         elif fmt == 'pickle':
             kwargs = dict(mode='rb')
             loader = pickle.load
