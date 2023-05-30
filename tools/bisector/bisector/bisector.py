@@ -3856,7 +3856,7 @@ class Report(Serializable):
             return collections.OrderedDict(loader.construct_pairs(node))
 
         yaml.representer.add_representer(collections.OrderedDict, map_representer)
-        yaml.constructor.add_constructor(yaml.resolver.DEFAULT_MAPPING_TAG, map_constructor)
+        yaml.constructor.add_constructor(str(yaml.resolver.DEFAULT_MAPPING_TAG), map_constructor)
 
         # Since strings are immutable, we can memoized the output to deduplicate
         # strings.
