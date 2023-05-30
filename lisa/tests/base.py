@@ -2055,6 +2055,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
                 if event.startswith('userspace@rtapp_')
             ]
 
+
         wload = RTA.from_profile(
             target=target,
             profile=profile,
