@@ -68,41 +68,38 @@ def main():
         )
 
     topics = list(starmap(make_topic, prs))
-    if topics:
-        remotes, topics = zip(*topics)
-        remotes = dict(ChainMap(*chain(
-            [{
-                'github': {
-                'url': f'https://github.com/{owner}/{repo}.git'
-                }
-            }],
-            remotes
-        )))
-
-        conf = {
-            'rebase-conf': {
-                'rr-cache': './rr-cache',
-                'remotes': remotes,
-                'base': {
-                    'remote': 'github',
-                    'ref': 'main',
-                },
-                'topics': sorted(topics, key=itemgetter('name'))
+    remotes, topics = zip(*topics) if topics else ([], [])
+    remotes = dict(ChainMap(*chain(
+        [{
+            'github': {
+            'url': f'https://github.com/{owner}/{repo}.git'
             }
+        }],
+        remotes
+    )))
+
+    conf = {
+        'rebase-conf': {
+            'rr-cache': './rr-cache',
+            'remotes': remotes,
+            'base': {
+                'remote': 'github',
+                'ref': 'main',
+            },
+            'topics': sorted(topics, key=itemgetter('name'))
         }
-        conf = json.dumps(conf, indent=4)
-        print(conf)
+    }
+    conf = json.dumps(conf, indent=4)
+    print(conf)
 
-        with NamedTemporaryFile(mode='w+', suffix='.manifest.json') as f:
-            f.write(conf)
-            f.flush()
+    with NamedTemporaryFile(mode='w+', suffix='.manifest.json') as f:
+        f.write(conf)
+        f.flush()
 
-            manifest = f.name
+        manifest = f.name
 
-            cmd = ['batch-rebase', 'create', '.', '--manifest', manifest, '--create-branch', 'preview']
-            print(cmd)
-            subprocess.check_call(cmd)
-    else:
-        print('No topics found')
+        cmd = ['batch-rebase', 'create', '.', '--manifest', manifest, '--create-branch', 'preview']
+        print(cmd)
+        subprocess.check_call(cmd)
 
 main()
