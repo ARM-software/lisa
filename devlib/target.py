@@ -1756,6 +1756,11 @@ class AndroidTarget(Target):
 
     @property
     @memoized
+    def external_storage_app_dir(self):
+        return self.path.join(self.external_storage, 'Android', 'data')
+
+    @property
+    @memoized
     def screen_resolution(self):
         output = self.execute('dumpsys window displays')
         match = ANDROID_SCREEN_RESOLUTION_REGEX.search(output)
