@@ -726,7 +726,7 @@ def docstring_update(msg):
 
 class Serializable(
     Loggable,
-    docstring_update('.. warning:: Arbitrary code can be executed while loading an instance from a YAML or Pickle file.'),
+    docstring_update('.. warning:: Arbitrary code can be executed while loading an instance from a YAML or Pickle file. To include untrusted data in YAML, use the !untrusted tag along with a string'),
 ):
     """
     A helper class for YAML serialization/deserialization
@@ -756,6 +756,14 @@ class Serializable(
           Relative paths are treated as relative to the file in which the
           ``!include`` tag appears.
 
+        * ``!include-untrusted``: Similar to ``!include`` but will disable
+          custom tag interpretation when loading the content of the file. This
+          is suitable to load untrusted input. Note that the env var
+          interpolation and the relative path behavior depends on the mode of
+          the YAML parser. This means that the path itself must be trusted, as
+          this could leak environment variable values. Only the content of the
+          included file is treated as untrusted.
+
         * ``!env``: take the value of an environment variable, and convert
           it to a Python type:
 
@@ -776,6 +784,18 @@ class Serializable(
             .. code-block:: yaml
 
                 !var package.module.var
+
+        * ``!untrusted``: Interpret the given string as a YAML snippet, without
+            any of the special constructor being enabled. This provides a way
+            of safely including untrusted input in the YAML document without
+            running the risk of the user being able to use e.g. ``!call``.
+
+            .. code-block:: yaml
+
+                # Note the "|": this allows having a multiline string, leaving
+                # its interpretation to the untrusted loader.
+                !untrusted |
+                   foo: bar
 
     .. note:: Not to be used on its own - instead, your class should inherit
         from this class to gain serialization superpowers.
@@ -806,14 +826,23 @@ class Serializable(
         # This happens when the class was not imported at the time the object
         # was deserialized
         yaml.constructor.add_constructor(None, cls._yaml_unknown_tag_constructor)
+        yaml.constructor.add_constructor('!untrusted', cls._yaml_untrusted_constructor)
 
         if typ == 'unsafe':
-            yaml.constructor.add_constructor('!include', functools.partial(cls._yaml_include_constructor, typ))
+            yaml.constructor.add_constructor('!include', functools.partial(cls._yaml_include_constructor, parser_typ=typ, subparser_typ='unsafe'))
+            yaml.constructor.add_constructor('!include-untrusted', functools.partial(cls._yaml_include_constructor, parser_typ=typ, subparser_typ='safe'))
             yaml.constructor.add_constructor('!var', cls._yaml_var_constructor)
             yaml.constructor.add_multi_constructor('!env:', cls._yaml_env_var_constructor)
             yaml.constructor.add_multi_constructor('!call:', cls._yaml_call_constructor)
 
         return yaml
+
+    @classmethod
+    def _yaml_untrusted_constructor(cls, loader, node):
+        if isinstance(node.value, str):
+            return YAML(typ='safe').load(node.value)
+        else:
+            raise TypeError(f'!untrusted node value must be a string. Instead we got a {node.value.__class__.__name__}: {node.value}')
 
     @classmethod
     def _yaml_unknown_tag_constructor(cls, loader, node):
@@ -859,17 +888,22 @@ class Serializable(
             Serializable._included_path.val = old
 
     @classmethod
-    def _yaml_include_constructor(cls, typ, loader, node):
+    def _yaml_include_constructor(cls, loader, node, *, parser_typ, subparser_typ):
         path = loader.construct_scalar(node)
         assert isinstance(path, str)
-        path = os.path.expandvars(path)
 
-        # Paths are relative to the file that is being included
-        if not os.path.isabs(path):
-            path = os.path.join(Serializable._included_path.val, path)
+        if parser_typ == 'unsafe':
+            path = os.path.expandvars(path)
+
+            # Paths are relative to the file that is being included
+            if not os.path.isabs(path):
+                path = os.path.join(Serializable._included_path.val, path)
+        else:
+            if not os.path.isabs(path):
+                raise ValueError(f'!include paths must be absolute in {parser_typ} mode')
 
         # Since the parser is not re-entrant, create a fresh one
-        yaml = cls._get_yaml(typ)
+        yaml = cls._get_yaml(typ=subparser_typ)
 
         with cls._set_relative_include_root(path):
             with open(path, encoding=cls.YAML_ENCODING) as f:
@@ -995,6 +1029,9 @@ class Serializable(
         if fmt == 'yaml':
             kwargs = dict(mode='r', encoding=cls.YAML_ENCODING)
             loader = cls._get_yaml('unsafe').load
+        elif fmt == 'yaml-untrusted':
+            kwargs = dict(mode='r', encoding=cls.YAML_ENCODING)
+            loader = cls._get_yaml('safe').load
         elif fmt == 'pickle':
             kwargs = dict(mode='rb')
             loader = pickle.load
