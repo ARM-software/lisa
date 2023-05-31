@@ -259,7 +259,9 @@ class PerfInstrument(Instrument):
             line_num = 0
             for row in readCSV:
                 if 'Performance counter statistics' not in row and 'Total test time' not in row:
-                    classifiers = {'scaled from(%)': row[len(row) - 2].replace('(', '').replace(')', '').replace('%', '')}
+                    classifiers = {}
+                    if '%' in row:
+                        classifiers['scaled from(%)'] = row[len(row) - 2].replace('(', '').replace(')', '').replace('%', '')
                     context.add_metric('{}_{}'.format(label, row[1]), row[0], 'count', classifiers=classifiers)
                 line_num += 1
 
@@ -276,10 +278,12 @@ class PerfInstrument(Instrument):
                     tmp_line = line.strip()
                     count, metric = tmp_line.split(' ')[0], tmp_line.split(' ')[2]
                     count = float(count) if "." in count else int(count.replace(',', ''))
-                    scaled_percentage = line.split('(')[1].strip().replace(')', '').replace('%', '')
-                    scaled_percentage = int(scaled_percentage)
+                    classifiers = {}
+                    if '%' in line:
+                        scaled_percentage = line.split('(')[1].strip().replace(')', '').replace('%', '')
+                        classifiers['scaled from(%)'] = int(scaled_percentage)
                     metric = '{}_{}'.format(label, metric)
-                    context.add_metric(metric, count, units, classifiers={'scaled from(%)': scaled_percentage})
+                    context.add_metric(metric, count, units, classifiers=classifiers)
 
     def _process_simpleperf_record_output(self, context):
         for host_file in os.listdir(self.outdir):
