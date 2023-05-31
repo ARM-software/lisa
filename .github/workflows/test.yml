@@ -50,7 +50,7 @@ jobs:
 
     steps:
       # Checks out a copy of your repository on the virtual machine
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           # Avoid a shallow clone, which breaks the check on external/
           # modification and and provides inaccurate doc
@@ -58,7 +58,7 @@ jobs:
           ref: ${{ github.event.inputs.ref || github.sha }}
 
       # Install the python version specified in the matrix
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
 

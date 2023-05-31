@@ -23,7 +23,7 @@ jobs:
     steps:
 
       # Checks out a copy of your repository on the virtual machine
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           # Avoid a shallow clone
           fetch-depth: "0"
