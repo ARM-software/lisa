@@ -2076,7 +2076,7 @@ class FtraceDynamicKmod(DynamicKmod):
         })
 
 
-class LISAFtraceDynamicKmod(FtraceDynamicKmod):
+class LISADynamicKmod(FtraceDynamicKmod):
     """
     Module providing ftrace events used in various places by :mod:`lisa`.
 
@@ -2117,5 +2117,27 @@ class LISAFtraceDynamicKmod(FtraceDynamicKmod):
     @classmethod
     def _event_features(cls, events):
         return set(f'event__{event}' for event in events)
+
+
+    def install(self, features=None, **kwargs):
+        """
+        Install and load the module on the target.
+
+        :param features: Features to enable and associated parameters.
+            Top-level in the dict is feature names, nested dict is for parameters.
+        :type features: dict(str, dict(str, object)) or None
+        """
+        features = features or {}
+        params = dict(
+            features=sorted(features.keys()),
+            **{
+                f'{feature}___{name}': value
+                for feature, params in features.items()
+                for name, value in (params or {}).items()
+            }
+        )
+
+        return super().install(kmod_params=params, **kwargs)
+
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
