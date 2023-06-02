@@ -119,3 +119,4 @@ jobs:
           }
 
           update_branch for-preview-autobranch preview preview-force
+          update_branch for-master-autobranch master master-force

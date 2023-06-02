@@ -273,6 +273,23 @@ else:
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'LISAdoc'
 
+rst_prolog = """
+.. attention::
+
+    .. raw:: html
+
+        <div style="background-color: #f44336; color: #ffffff;">
+
+    This documentation was obtained by building the "master" git branch.
+    LISA project has moved to the "main" branch.
+    The "master" branch is now a mirror of "main" but will eventually be abandonned, please see the `latest documentation <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/>`_.
+
+    .. raw:: html
+
+        </div>
+"""
+
+
 
 # -- Options for LaTeX output ---------------------------------------------
 
