@@ -94,7 +94,7 @@ jobs:
 
           # Work in a separate worktree so that there is no risk of folders
           # added to PATH by init_env being manipulated
-          git worktree add --checkout preview ../preview-repo &&
+          git worktree add ../preview-repo --checkout preview &&
 
           git -C ../preview-repo diff --binary HEAD..preview-force > update.patch &&
 
