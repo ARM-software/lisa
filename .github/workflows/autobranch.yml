@@ -119,4 +119,4 @@ jobs:
               fi
           }
 
-          update_branch preview preview preview-force
+          update_branch for-preview-autobranch preview preview-force
