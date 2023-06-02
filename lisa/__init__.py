@@ -13,6 +13,15 @@ import os
 
 from lisa.version import __version__
 
+def _warn():
+    running_sphinx = bool(int(os.environ.get('_LISA_DOC_SPHINX_RUNNING', '0')))
+    running_pytest = 'PYTEST_VERSION' in os.environ
+    if running_sphinx or running_pytest:
+        warnings.warn('This code was obtained by cloning the "master" git branch of LISA project. The project has moved to the "main" branch. The "master" branch will be tracking the "main" branch for a while. Please update your workflow to use the "main" branch', category=FutureWarning)
+    else:
+        raise ImportError('This code was obtained by cloning the "master" git branch of LISA project. The project has moved to the "main" branch. Please update your workflow to use the "main" branch')
+_warn()
+
 # Raise an exception when a deprecated API is used from within a lisa.*
 # submodule. This ensures that we don't use any deprecated APIs internally, so
 # they are only kept for external backward compatibility purposes.
