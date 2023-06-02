@@ -40,14 +40,14 @@ jobs:
               (
                   (
                       github.event.action == 'synchronize' &&
-                      contains(github.event.pull_request.labels.*.name, 'preview')
+                      contains(github.event.pull_request.labels.*.name, 'autobranch')
                   ) ||
                   (
                       (
                           github.event.action == 'labeled' ||
                           github.event.action == 'unlabeled'
                       ) &&
-                      github.event.label.name == 'preview'
+                      github.event.label.name == 'autobranch'
                   )
               )
           ) ||
