@@ -78,6 +78,23 @@ jobs:
       - name: Create preview branch
         run: |
           set -e
-          source init_env
-          lisa-make-preview
-          git push origin preview --force
+          export LC_ALL=C
+
+          source init_env &&
+
+          lisa-combine-pr --repo 'ARM-Software/lisa' --pr-label preview --branch preview-force &&
+
+          git checkout preview &&
+          git diff --binary preview..preview-force > update.patch
+
+          if [[ -s update.patch ]]; then
+              # Apply the patch to the index as well, so that any file created
+              # is automatically added to the commit we are about to create.
+              git apply --index update.patch &&
+              git commit --all -m "Autocommit to preview branch on $(date) tracking preview-force"
+
+              git push --force origin preview-force
+              git push origin preview
+          else
+              echo "Empty patch, preview and preview-force branches are up to date."
+          fi
