@@ -526,6 +526,18 @@ html_theme_options = {
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'LISAdoc'
 
+html_theme_options['announcement'] = f'''
+<p>
+<span class="versionmodified deprecated">
+    This documentation was obtained by building the "master" git branch. LISA
+    project has moved to the "main" branch. Please see the
+    <a href="https://tooling.sites.arm.com/lisa/latest">latest
+    documentation</a>.
+</span>
+</p>
+
+{html_theme_options.get('announcement', '')}
+'''
 
 # -- Options for LaTeX output ---------------------------------------------
 
