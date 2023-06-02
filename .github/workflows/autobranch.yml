@@ -1,4 +1,4 @@
-name: preview
+name: autobranch
 
 on:
   # Whenever a pull request is labeled or unlabeled.
@@ -23,12 +23,12 @@ permissions:
   contents: write
 
 jobs:
-  preview:
-    name: preview
+  autobranch:
+    name: autobranch
 
     # Ensure jobs queue in order, so that we don't get race conditions while
     # pushing the branch
-    concurrency: preview
+    concurrency: autobranch
 
     # Set the type of machine to run on
     # https://github.com/actions/virtual-environments
@@ -79,7 +79,7 @@ jobs:
           git remote -v
           git branch --list --remotes
 
-      - name: Create preview branch
+      - name: Create autobranch branches
         run: |
           set -e
 
