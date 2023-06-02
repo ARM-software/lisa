@@ -63,6 +63,7 @@ jobs:
           # anyway.
           repository: ARM-software/lisa
           path: origin-repo
+          ref: master
 
       - uses: actions/setup-python@v4
         with:
@@ -70,6 +71,8 @@ jobs:
 
       - name: Setup git
         run: |
+          cd origin-repo &&
+
           git config --global user.name 'GitHub Action'
           git config --global user.email 'GitHub Action'
 
@@ -87,18 +90,19 @@ jobs:
 
           lisa-combine-pr --repo 'ARM-Software/lisa' --pr-label preview --branch preview-force &&
 
+          git fetch origin preview &&
+
           # Work in a separate worktree so that there is no risk of folders
           # added to PATH by init_env being manipulated
           git worktree add --checkout preview ../preview-repo &&
-          cd ../preview-repo &&
 
-          git diff --binary HEAD..preview-force > update.patch &&
+          git -C ../preview-repo diff --binary HEAD..preview-force > update.patch &&
 
           if [[ -s update.patch ]]; then
               # Apply the patch to the index as well, so that any file created
               # is automatically added to the commit we are about to create.
-              git apply --index update.patch &&
-              git commit --all -m "Autocommit to preview branch on $(date) tracking preview-force"
+              git -C ../preview-repo apply --index update.patch &&
+              git -C ../preview-repo commit --all -m "Autocommit to preview branch on $(date) tracking preview-force"
 
               git push --force origin preview-force
               git push origin preview
