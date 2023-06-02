@@ -101,7 +101,7 @@ jobs:
           if [[ -s update.patch ]]; then
               # Apply the patch to the index as well, so that any file created
               # is automatically added to the commit we are about to create.
-              git -C ../preview-repo apply --index update.patch &&
+              git -C ../preview-repo apply --index ../origin-repo/update.patch &&
               git -C ../preview-repo commit --all -m "Autocommit to preview branch on $(date) tracking preview-force"
 
               git push --force origin preview-force
