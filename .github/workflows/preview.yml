@@ -62,6 +62,7 @@ jobs:
           # get the current PR as it will be fetched by batch-rebase directly
           # anyway.
           repository: ARM-software/lisa
+          path: origin-repo
 
       - uses: actions/setup-python@v4
         with:
@@ -78,14 +79,20 @@ jobs:
       - name: Create preview branch
         run: |
           set -e
+
+          cd origin-repo &&
           export LC_ALL=C
 
           source init_env &&
 
           lisa-combine-pr --repo 'ARM-Software/lisa' --pr-label preview --branch preview-force &&
 
-          git checkout preview &&
-          git diff --binary preview..preview-force > update.patch
+          # Work in a separate worktree so that there is no risk of folders
+          # added to PATH by init_env being manipulated
+          git worktree add --checkout preview ../preview-repo &&
+          cd ../preview-repo &&
+
+          git diff --binary HEAD..preview-force > update.patch &&
 
           if [[ -s update.patch ]]; then
               # Apply the patch to the index as well, so that any file created
