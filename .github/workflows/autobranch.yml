@@ -16,7 +16,6 @@ on:
   push:
     branches:
       - 'main'
-      - 'master'
 
 permissions:
   # Necessary to be able to push to the repo
@@ -63,7 +62,7 @@ jobs:
           # anyway.
           repository: ARM-software/lisa
           path: origin-repo
-          ref: master
+          ref: main
 
       - uses: actions/setup-python@v4
         with:
@@ -120,3 +119,4 @@ jobs:
           }
 
           update_branch for-preview-autobranch preview preview-force
+          update_branch for-master-autobranch master master-force
