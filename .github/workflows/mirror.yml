@@ -36,5 +36,5 @@ jobs:
           git remote -v
           git branch --list --remotes
 
-      - name: Mirror main
-        run: git push origin origin/master:main
+      # - name: Mirror foo
+      #   run: git push origin origin/main:foo
