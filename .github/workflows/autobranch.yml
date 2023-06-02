@@ -88,24 +88,35 @@ jobs:
 
           source init_env &&
 
-          lisa-combine-pr --repo 'ARM-Software/lisa' --pr-label preview --branch preview-force &&
+          function update_branch() {
+              local label=$1
+              local branch=$2
+              local force_branch=$3
 
-          git fetch origin preview &&
+              local worktree=../${branch}-repo
+              local patch=${branch}-update.patch
 
-          # Work in a separate worktree so that there is no risk of folders
-          # added to PATH by init_env being manipulated
-          git worktree add ../preview-repo --checkout preview &&
+              lisa-combine-pr --repo 'ARM-Software/lisa' --pr-label "$label" --branch "$force_branch" &&
 
-          git -C ../preview-repo diff --binary HEAD..preview-force > update.patch &&
+              git fetch origin "$branch" &&
 
-          if [[ -s update.patch ]]; then
-              # Apply the patch to the index as well, so that any file created
-              # is automatically added to the commit we are about to create.
-              git -C ../preview-repo apply --index ../origin-repo/update.patch &&
-              git -C ../preview-repo commit --all -m "Autocommit to preview branch on $(date) tracking preview-force"
+              # Work in a separate worktree so that there is no risk of folders
+              # added to PATH by init_env being manipulated
+              git worktree add "$worktree" --checkout "$branch" &&
 
-              git push --force origin preview-force
-              git push origin preview
-          else
-              echo "Empty patch, preview and preview-force branches are up to date."
-          fi
+              git -C "$worktree" diff --binary "HEAD..$force_branch" > "$patch" &&
+
+              if [[ -s "$patch" ]]; then
+                  # Apply the patch to the index as well, so that any file created
+                  # is automatically added to the commit we are about to create.
+                  git -C "$worktree" apply --index "../origin-repo/$patch" &&
+                  git -C "$worktree" commit --all -m "Autocommit to $branch branch on $(date) tracking $force_branch"
+
+                  git push --force origin "$force_branch"
+                  git push origin "$branch"
+              else
+                  echo "Empty patch, $branch and $force_branch branches are up to date."
+              fi
+          }
+
+          update_branch preview preview preview-force
