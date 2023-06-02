@@ -59,16 +59,8 @@ split on the following axes for the purpose of semver tracking:
 Changelog
 *********
 
-.. exec::
-
-    from lisa.utils import LISA_HOME
-    from lisa._doc.helpers import make_changelog
-
-    repo = LISA_HOME
-    changelog = make_changelog(
-        repo=LISA_HOME,
-    )
-    print(changelog)
+The changelog cannot be generated on the master branch anymore.
+Please see the `latest documentation <https://tooling.sites.arm.com/lisa/latest/changes.html>`__
 
 ****************
 Breaking changes
