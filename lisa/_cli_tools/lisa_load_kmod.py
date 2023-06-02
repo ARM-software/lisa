@@ -12,7 +12,7 @@ import shlex
 
 from lisa.target import Target
 from lisa.trace import DmesgCollector
-from lisa._kmod import LISADynamicKmod
+from lisa._kmod import LISAFtraceDynamicKmod
 from lisa.utils import ignore_exceps
 
 def main():
@@ -20,12 +20,6 @@ def main():
         'feature': dict(
             action='append',
             help='Enable a specific module feature. Can be repeated. By default, the module will try to enable all features and will log in dmesg the ones that failed to enable'
-        ),
-        'feature-param': dict(
-            action='append',
-            metavar=('FEATURE_NAME', 'PARAM_NAME', 'PARAM_VALUE'),
-            nargs=3,
-            help='Set a feature parameter value.'
         ),
         'cmd': dict(
             nargs=argparse.REMAINDER,
@@ -49,23 +43,19 @@ def main():
         params=params,
     )
 
-    features = args.feature or []
-    features_params = args.feature_param or {}
+    features = args.feature
     keep_loaded = not bool(args.cmd)
 
     cmd = args.cmd or []
     if cmd and cmd[0] == '--':
         cmd = cmd[1:]
 
-    features = {
-        feature: {}
-        for feature in features
-    }
-    for feature, param_name, param_value in features_params:
-        features.setdefault(feature, {})[param_name] = param_value
+    kmod_params = {}
+    if features is not None:
+        kmod_params['features'] = list(features)
 
-    kmod = target.get_kmod(LISADynamicKmod)
-    _kmod_cm = kmod.run(features=features)
+    kmod = target.get_kmod(LISAFtraceDynamicKmod)
+    _kmod_cm = kmod.run(kmod_params=kmod_params)
 
     if keep_loaded:
         @contextlib.contextmanager
