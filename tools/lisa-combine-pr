@@ -23,19 +23,34 @@ from tempfile import NamedTemporaryFile
 import json
 from collections import ChainMap
 from operator import itemgetter
+import argparse
 
 from github3 import GitHub
 
 def main():
-    owner = 'ARM-Software'
-    repo = 'lisa'
+    parser = argparse.ArgumentParser(
+        description="""
+        Combine github pull requests with the given tag into a branch, rebasing all
+        PRs on top of each other.
+        """,
+    )
+
+    parser.add_argument('--repo', required=True, help='Github repository as owner/name')
+    parser.add_argument('--pr-label', action='append', required=True, help='Pull request labels to look for')
+    parser.add_argument('--branch', required=True, help='Name of the branch to be created. If the branch exists, it will be forcefully updated')
+
+    args = parser.parse_args()
+    owner, repo = args.repo.split('/', 1)
+    labels = args.pr_label
+    branch = args.branch
+
 
     gh = GitHub()
     issues = gh.issues_on(
         username=owner,
         repository=repo,
         state='open',
-        labels=['preview'],
+        labels=labels,
     )
 
     prs = [
@@ -98,7 +113,7 @@ def main():
 
         manifest = f.name
 
-        cmd = ['batch-rebase', 'create', '.', '--manifest', manifest, '--create-branch', 'preview']
+        cmd = ['batch-rebase', 'create', '.', '--manifest', manifest, '--create-branch', branch]
         print(cmd)
         subprocess.check_call(cmd)
 
