@@ -165,6 +165,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
                 KeyDesc('overlay-backend', 'Backend to use for overlaying folders while building modules. Can be "overlayfs" (overlayfs filesystem, recommended) or "copy (plain folder copy)', [str]),
             )),
         )),
+        KeyDesc('hooks', 'Command hooks to be executed at various stages. "post-connect" stage will run commands right after the connection to the target. Note that each command runs in its own shell', [TypedDict[str, TypedList[str]], None]),
         LevelKeyDesc('wait-boot', 'Wait for the target to finish booting', (
             KeyDesc('enable', 'Enable the boot check', [bool]),
             KeyDesc('timeout', 'Timeout of the boot check', [int]),
@@ -271,10 +272,12 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         devlib_platform=None, devlib_excluded_modules=[], devlib_file_xfer=None,
         wait_boot=True, wait_boot_timeout=10, kernel_src=None, kmod_build_env=None,
         kmod_make_vars=None, kmod_overlay_backend=None, devlib_max_async=None,
+        hooks=None,
     ):
         # pylint: disable=dangerous-default-value
         super().__init__()
         logger = self.logger
+        hooks = hooks or {}
 
         self.name = name
 
@@ -347,6 +350,12 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         cache_dir = Path(res_dir).resolve() / '.lisa' / 'cache'
         cache_dir.mkdir(parents=True)
         self._cache_dir = cache_dir
+
+        for cmd in hooks.get('post-connect', []):
+            logger.debug(f'Running post-connect hook command: {cmd}')
+            out = self.execute(cmd)
+            out = out.strip()
+            logger.info(f'Executed post-connect hook command "{cmd}": {out}')
 
     def _init_plat_info(self, plat_info=None, name=None, **kwargs):
 
