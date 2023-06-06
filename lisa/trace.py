@@ -1302,7 +1302,7 @@ class TxtTraceParser(TxtTraceParserBase):
     :param events: List of events that will be available using
         :meth:`~TxtTraceParserBase.parse_event`. If not provided, all events will be considered.
         .. note:: Restricting the set of events can speed up some operations.
-    :type events: list(str)
+    :type events: list(str) or None
 
     :param event_parsers: Pre-built event parsers. Missing event parsers will
         be inferred from the fields parsed in the trace, which is costly and can
@@ -1610,7 +1610,6 @@ class TxtTraceParser(TxtTraceParserBase):
         bin_ = get_bin('trace-cmd')
 
         needed_metadata = set(needed_metadata or [])
-        events = set(events)
         default_event_parser_cls, event_parsers = cls._resolve_event_parsers(event_parsers, default_event_parser_cls)
         event_parsers = event_parsers.values()
 
@@ -1684,8 +1683,6 @@ class TxtTraceParser(TxtTraceParserBase):
 
     @classmethod
     def _tracecmd_report(cls, bin_, path, events, event_parsers=None, default_event_parser_cls=None, filter_events=True):
-        events = set(events)
-
         if not os.path.exists(path):
             raise FileNotFoundError(f'Unable to locate specified trace file: {path}')
 
@@ -1700,7 +1697,10 @@ class TxtTraceParser(TxtTraceParserBase):
             ).splitlines()
             if not event.startswith('version =')
         }
-        events = events & kernel_events
+        events = kernel_events if events is None else set(events)
+        events &= kernel_events
+
+        filter_events &= (events != kernel_events)
 
         default_event_parser_cls, event_parsers = cls._resolve_event_parsers(event_parsers, default_event_parser_cls)
         def use_raw(event):
@@ -2644,7 +2644,7 @@ class TraceCache(Loggable):
     be stored in the cache by analysis method.
     """
 
-    INIT_SWAP_COST = 1e-7
+    INIT_SWAP_COST = 1e-8
     """
     Somewhat arbitrary number, must be small enough so that we write at
     least one dataset to the cache, which will allow us getting a better
@@ -2743,8 +2743,9 @@ class TraceCache(Loggable):
         Update the metadata mapping with the given ``metadata`` mapping and
         write it back to the swap area.
         """
-        self._metadata.update(metadata)
-        self.to_swap_dir()
+        if metadata:
+            self._metadata.update(metadata)
+            self.to_swap_dir()
 
     def get_metadata(self, key):
         """
