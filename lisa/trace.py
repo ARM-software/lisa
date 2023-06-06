@@ -1766,6 +1766,8 @@ class TxtTraceParser(TxtTraceParserBase):
             be reused in another context (cached on disk), and the set of
             events in a :class:`Trace` object can be expanded dynamically.
         """
+        bin_ = get_bin('trace-cmd')
+
         needed_metadata = set(needed_metadata or [])
         events = set(events)
         default_event_parser_cls, event_parsers = cls._resolve_event_parsers(event_parsers, default_event_parser_cls)
@@ -1818,6 +1820,7 @@ class TxtTraceParser(TxtTraceParserBase):
         )
 
         cmd = cls._tracecmd_report(
+            bin_=bin_,
             path=path,
             events=events,
             event_parsers=event_parsers,
@@ -1839,9 +1842,8 @@ class TxtTraceParser(TxtTraceParserBase):
             return cls(lines=p.stdout, **kwargs)
 
     @classmethod
-    def _tracecmd_report(cls, path, events, event_parsers=None, default_event_parser_cls=None, filter_events=True):
+    def _tracecmd_report(cls, bin_, path, events, event_parsers=None, default_event_parser_cls=None, filter_events=True):
         events = set(events)
-        bin_ = get_bin('trace-cmd')
 
         if not os.path.exists(path):
             raise FileNotFoundError(f'Unable to locate specified trace file: {path}')
