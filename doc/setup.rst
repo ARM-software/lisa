@@ -267,10 +267,23 @@ provided to load the module easily:
 Manual route
 ............
 
+As a last resort option, the module can be built manually. Be aware that the
+automatic route is applying a number of workarounds you might have to discover
+and replicate yourself.
 
-In case this is still required, the module is a fairly standard Linux 3rd party
-module that can be built as such following the official kernel doc. Helper
-scripts are provides too.
+.. warning::
+
+  There is also no stability guarantee on any of the interfaces exposed by the
+  module, such as it's CLI parameters. The behavior of enabling all features
+  by default might also change, as well as the way of selecting features. The
+  fact that all features are compiled-in and available is also not a given and
+  might change in the future, making a specific build more tailored to a
+  specific use case.
+
+However, there is sometimes no other choice, and this might still be useful as a
+temporary workaround. Just bear in mind that doing that will force you to
+monitor more closely what is happening in LISA, and gain more knowledge of its
+internal mechanisms to keep the setup working.
 
 Build
 ~~~~~
