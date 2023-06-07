@@ -32,7 +32,7 @@ SYMBOL_NAMESPACES_H = $(MODULE_OBJ)/symbol_namespaces.h
 # avoid any sort of clash.
 ifneq ($(KERNELRELEASE),)
 
-LISA_KMOD_NAME ?= sched_tp
+LISA_KMOD_NAME ?= lisa
 obj-m := $(LISA_KMOD_NAME).o
 $(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o debugfs.o pixel6.o
 ldflags-y += -T $(M)/features.lds
