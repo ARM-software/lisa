@@ -2092,7 +2092,7 @@ class LISAFtraceDynamicKmod(FtraceDynamicKmod):
 
     @classmethod
     def from_target(cls, target, **kwargs):
-        path = Path(ASSETS_PATH) / 'kmodules' / 'sched_tp'
+        path = Path(ASSETS_PATH) / 'kmodules' / 'lisa'
         btf_path = '/sys/kernel/btf/vmlinux'
 
         with tempfile.NamedTemporaryFile() as f:
