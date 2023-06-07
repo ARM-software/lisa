@@ -1,1 +1,0 @@
-../../../lisa/_assets/kmodules/sched_tp/pixel6.c

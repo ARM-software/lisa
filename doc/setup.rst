@@ -196,7 +196,7 @@ them.
 
 To help expose these tracepoints (and any additional one we might require in
 the future) as trace events, an external module is required and is provided
-under the name of sched_tp in $LISA_HOME/tools/kmodules/sched_tp
+under the name of "lisa" in $LISA_HOME/tools/kmodules/lisa
 
 Enabling a module
 .................
@@ -320,7 +320,7 @@ there or use commands like ``scp`` to copy it into your device.
 
 .. code-block:: sh
 
-  scp -r /path/to/sched_tp.ko username@ip:/
+  scp -r /path/to/lisa.ko username@ip:/
 
 Loading the module
 ~~~~~~~~~~~~~~~~~~
@@ -329,7 +329,7 @@ On the target run:
 
 .. code-block:: sh
 
-  modprobe sched_tp
+  modprobe lisa
 
 Integrating the module in your kernel tree
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

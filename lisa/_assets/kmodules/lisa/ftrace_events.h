@@ -253,7 +253,7 @@ TRACE_EVENT_CONDITION(lisa__uclamp_util_se,
 	TP_fast_assign(
 		__entry->pid            = p->pid;
 		memcpy(__entry->comm, p->comm, TASK_COMM_LEN);
-		__entry->cpu            = sched_tp_rq_cpu(rq);
+		__entry->cpu            = lisa_rq_cpu(rq);
 		__entry->util_avg       = p->se.avg.util_avg;
 		__entry->uclamp_avg     = uclamp_rq_util_with(rq, p->se.avg.util_avg, NULL);
 		__entry->uclamp_min     = rq->uclamp[UCLAMP_MIN].value;
@@ -284,7 +284,7 @@ TRACE_EVENT_CONDITION(lisa__uclamp_util_cfs,
 	),
 
 	TP_fast_assign(
-		__entry->cpu            = sched_tp_rq_cpu(rq);
+		__entry->cpu            = lisa_rq_cpu(rq);
 		__entry->util_avg       = cfs_rq->avg.util_avg;
 		__entry->uclamp_avg     = uclamp_rq_util_with(rq, cfs_rq->avg.util_avg, NULL);
 		__entry->uclamp_min     = rq->uclamp[UCLAMP_MIN].value;
