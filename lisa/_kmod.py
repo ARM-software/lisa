@@ -1245,8 +1245,8 @@ class KernelTree(Loggable, SerializeViaConstructor):
             From /sys/kernel/kheaders.tar.xz and /proc/config.gz
             """
             def pull(target, temp):
-                target.cached_pull('/proc/config.gz', str(temp))
-                target.cached_pull('/sys/kernel/kheaders.tar.xz', str(temp), via_temp=True)
+                target.cached_pull('/proc/config.gz', str(temp), as_root=True)
+                target.cached_pull('/sys/kernel/kheaders.tar.xz', str(temp), via_temp=True, as_root=True)
 
                 return {
                     FileOverlay.from_path(temp / 'config.gz', decompress=True): '.config',
@@ -1263,7 +1263,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
             From /proc/config.gz
             """
             def pull(target, temp):
-                target.cached_pull('/proc/config.gz', str(temp))
+                target.cached_pull('/proc/config.gz', str(temp), as_root=True)
                 return {
                     FileOverlay.from_path(temp / 'config.gz', decompress=True): '.config',
                 }
@@ -2097,7 +2097,7 @@ class LISADynamicKmod(FtraceDynamicKmod):
 
         with tempfile.NamedTemporaryFile() as f:
             try:
-                target.cached_pull(btf_path, f.name, via_temp=True)
+                target.cached_pull(btf_path, f.name, via_temp=True, as_root=True)
             except FileNotFoundError:
                 raise FileNotFoundError(f'Could not find {btf_path} on the target. Ensure you compiled your kernel using CONFIG_DEBUG_INFO=y CONFIG_DEBUG_INFO_BTF=y CONFIG_DEBUG_INFO_REDUCED=n')
 
