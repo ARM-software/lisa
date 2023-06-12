@@ -186,7 +186,7 @@ static int disable_p6_emeter(struct feature* feature) {
 	return ret;
 };
 
-DEFINE_FEATURE(event__pixel6_emeter, enable_p6_emeter, disable_p6_emeter);
+DEFINE_FEATURE(event__lisa__pixel6_emeter, enable_p6_emeter, disable_p6_emeter);
 
 
 
