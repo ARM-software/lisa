@@ -35,12 +35,12 @@ ifneq ($(KERNELRELEASE),)
 LISA_KMOD_NAME ?= lisa
 obj-m := $(LISA_KMOD_NAME).o
 $(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o
-ldflags-y += -T $(M)/features.lds
+ldflags-y += -T "$(M)/features.lds"
 
 clean-files := vmlinux.h
 
 # -fno-stack-protector is needed to possibly undefined __stack_chk_guard symbol
-ccflags-y = -I$(MODULE_SRC) -std=gnu11 -fno-stack-protector -Wno-declaration-after-statement
+ccflags-y = "-I$(MODULE_SRC)" -std=gnu11 -fno-stack-protector -Wno-declaration-after-statement
 
 VMLINUX_TXT = $(MODULE_SRC)/private_types.txt
 
@@ -75,15 +75,15 @@ $(VMLINUX_H): $(VMLINUX_TXT) $(VMLINUX)
 # definitions that would come from public kernel headers, while still allowing
 # easy attribute access.
 
-	pahole -F btf,dwarf -E --suppress_force_paddings --show_only_data_members --skip_missing --expand_types_once -C file://$(VMLINUX_TXT) $(VMLINUX) > _header
+	pahole -F btf,dwarf -E --suppress_force_paddings --show_only_data_members --skip_missing --expand_types_once -C "file://$(VMLINUX_TXT)" "$(VMLINUX)" > _header
 
 # Rename all defined types to include the prefix
 	sed "s/\(struct\|union\|enum\)\s*\([a-zA-Z0-9_]\+\)/\1 $(VMLINUX_H_TYPE_PREFIX)\2/g" -i _header
 # Create a sed script to rename back to initial state the types that we explicitly asked for
-	sed -n "s@\(.*\)@s/\\\(struct\\\|union\\\|enum\\\)\\\s*$(VMLINUX_H_TYPE_PREFIX)\1/\\\1 \\1/;@gp" $(VMLINUX_TXT) | sed -f - -i _header
+	sed -n "s@\(.*\)@s/\\\(struct\\\|union\\\|enum\\\)\\\s*$(VMLINUX_H_TYPE_PREFIX)\1/\\\1 \\1/;@gp" "$(VMLINUX_TXT)" | sed -f - -i _header
 
 # Strip comments to avoid matching them with the sed regex.
-	$(CC) -P -E - < _header > _header_no_comment
+	"$(CC)" -P -E - < _header > _header_no_comment
 # Create forward declaration of every type
 	sed -r -n 's/.*(struct|union|enum) ([0-9a-zA-Z_]*) .*/\1 \2;/p' _header_no_comment | sort -u > _fwd_decl
 # Create TYPED_DEFINED_struct_foo macros for every type, so the client code can
@@ -102,7 +102,7 @@ $(VMLINUX_H): $(VMLINUX_TXT) $(VMLINUX)
 # There does not seem to be any other source for the info in e.g. sysfs or
 # procfs, so we rely on that hack for now.
 $(SYMBOL_NAMESPACES_H):
-	find $(KERNEL_SRC) '(' -name '*.c' -o -name '*.h' ')' -print0 | xargs -0 sed -n 's/MODULE_IMPORT_NS([^;]*;/\0/p' | sort -u > $@
+	find "$(KERNEL_SRC)" '(' -name '*.c' -o -name '*.h' ')' -print0 | xargs -0 sed -n 's/MODULE_IMPORT_NS([^;]*;/\0/p' | sort -u > $@
 	echo "MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);" >> $@
 
 # Make all object files depend on the generated sources
@@ -116,12 +116,12 @@ else
 all: install
 
 build:
-	$(MAKE) -C $(KERNEL_SRC) M=$(MODULE_SRC) modules
+	"$(MAKE)" -C "$(KERNEL_SRC)" "M=$(MODULE_SRC)" modules
 
 install: build
-	$(MAKE) -C $(KERNEL_SRC) M=$(MODULE_SRC) modules_install
+	"$(MAKE)" -C "$(KERNEL_SRC)" "M=$(MODULE_SRC)" modules_install
 
 clean:
-	rm -f $(VMLINUX_H) $(SYMBOL_NAMESPACES_H)
+	rm -f "$(VMLINUX_H)" "$(SYMBOL_NAMESPACES_H)"
 
 endif
