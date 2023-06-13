@@ -3705,7 +3705,7 @@ class Trace(Loggable, TraceBase):
             preload_events = AndTraceEventChecker.from_events(
                 event_
                 for event in events
-                for event_ in self._expand_namespaces(event)
+                for event_ in self._expand_namespaces(event, events_namespaces)
             )
             df_map = self._load_cache_raw_df(preload_events, write_swap=True, allow_missing_events=True)
 
@@ -3728,11 +3728,15 @@ class Trace(Loggable, TraceBase):
         self.plat_info = plat_info.add_trace_src(self)
 
     @bothmethod
-    def _expand_namespaces(self_or_cls, event, namespaces=None):
+    def _resolve_namespaces(self_or_cls, namespaces=None):
         if not isinstance(self_or_cls, type):
             namespaces = self_or_cls.events_namespaces if namespaces is None else namespaces
+        return namespaces or (None,)
 
-        namespaces = namespaces or (None,)
+    @bothmethod
+    def _expand_namespaces(self_or_cls, event, namespaces=None):
+        namespaces = self_or_cls._resolve_namespaces(namespaces)
+
         def expand(event, namespace):
             if self_or_cls._is_meta_event(event):
                 prefix, _ = event.split('@', 1)
@@ -5050,22 +5054,24 @@ class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
         if check_optional:
             def rewrite(checker):
                 if isinstance(checker, OptionalTraceEventChecker):
-                    checker = AndTraceEventChecker(checker.checkers)
-                return checker
+                    return AndTraceEventChecker(checker.checkers)
+                else:
+                    return checker
             checker = self.map(rewrite)
         else:
             checker = self
 
-        if namespaces is not None:
-            checker = checker.expand_namespaces(namespaces=namespaces)
-
-        def check(event):
-            if isinstance(event_set, _AvailableTraceEventsSet):
+        if isinstance(event_set, _AvailableTraceEventsSet):
+            namespaces = event_set._trace._resolve_namespaces(namespaces)
+            def check(event):
                 # We already expanded namespaces, so we don't want the
                 # inclusion check to apply the default trace's namespace.
                 return event_set.contains(event, namespaces=[])
-            else:
+        else:
+            def check(event):
                 return event in event_set
+
+        checker = checker.expand_namespaces(namespaces=namespaces)
 
         return checker._select_events(check=check, event_set=event_set)
 
