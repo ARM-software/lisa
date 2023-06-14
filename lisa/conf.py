@@ -901,12 +901,22 @@ class MultiSrcConfABC(Serializable, abc.ABC):
                 return tuple(key1[:len_]) == tuple(key2[:len_])
 
             offending = [
-                cls_.__qualname__
+                cls_
                 for keys, cls_ in cls._REGISTERED_TOPLEVEL_KEYS.items()
                 if eq_prefix_keys(toplevel_keys, keys)
             ]
 
-            if offending:
+            # If the offending class has the same name and was declared in the
+            # same module, we ignore the conflict as this is probably arising
+            # from an import error in that module, that lead to the module
+            # being re-imported again (by another import statement).
+            if offending and not all(
+                (
+                    cls_.__qualname__ == cls.__qualname__ and
+                    cls_.__module__ == cls.__module__
+                )
+                for cls_ in offending
+            ):
                 raise RuntimeError(f'Class {cls.__qualname__} cannot reuse top level key "{format_keys(toplevel_keys)}" as it is already used by {", ".join(offending)}')
             else:
                 cls._REGISTERED_TOPLEVEL_KEYS[toplevel_keys] = cls
