@@ -1372,6 +1372,10 @@ class FtraceTestBundleBase(TestBundleBase):
             # iterations of the tests with exekall, leading to crashes.
             # Therefore, disable the on-disk swap.
             enable_swap=False,
+            # The event list that gets passed has already undergone namespace
+            # expansion when multiple ftrace conf got merged together, so there
+            # is no need to repeat it again.
+            events_namespaces=[],
         )
 
     def get_trace(self, events=None, **kwargs):

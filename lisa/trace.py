@@ -3702,7 +3702,7 @@ class Trace(Loggable, TraceBase):
         self.events = events
         # Pre-load the selected events
         if events:
-            preload_events = AndTraceEventChecker.from_events(
+            preload_events = OptionalTraceEventChecker.from_events(
                 event_
                 for event in events
                 for event_ in self._expand_namespaces(event, events_namespaces)
@@ -3738,24 +3738,25 @@ class Trace(Loggable, TraceBase):
         namespaces = self_or_cls._resolve_namespaces(namespaces)
 
         def expand(event, namespace):
-            if self_or_cls._is_meta_event(event):
+            ns_prefix = f'{namespace}__'
+            if not namespace:
+                return [event]
+            elif self_or_cls._is_meta_event(event):
                 prefix, _ = event.split('@', 1)
                 return [
                     f'{prefix}@{source_}'
                     for source in self_or_cls.get_event_sources(event)
                     for source_ in expand(source, namespace)
                 ]
+            elif event.startswith(ns_prefix):
+                return [event]
             else:
-                return [f'{namespace}__{event}']
+                return [f'{ns_prefix}{event}']
 
         return [
             event_
             for namespace in namespaces
-            for event_ in (
-                expand(event, namespace)
-                if namespace
-                else [event]
-            )
+            for event_ in expand(event, namespace)
         ]
 
     _CACHEABLE_METADATA = {
