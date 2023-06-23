@@ -33,62 +33,65 @@ class _AnalysisPreset:
         self._params = params
 
     def __getattr__(self, attr):
-        x = getattr(self._instance, attr)
-        try:
-            sig = inspect.signature(x)
-        except Exception:
-            return x
+        if attr == '_instance':
+            raise AttributeError
         else:
-            extra = {
-                k: v
-                for k, v in self._params.items()
-                if k in sig.parameters
-            }
-
-            @functools.wraps(x)
-            def wrapper(*args, **kwargs):
-                kwargs = {
-                    **extra,
-                    **sig_bind(
-                        sig,
-                        args=args,
-                        kwargs=kwargs,
-                        include_defaults=False
-                    )[0],
+            x = getattr(self._instance, attr)
+            try:
+                sig = inspect.signature(x)
+            except Exception:
+                return x
+            else:
+                extra = {
+                    k: v
+                    for k, v in self._params.items()
+                    if k in sig.parameters
                 }
-                return x(**kwargs)
 
-            # Update the signature so it shows the effective default value
-            def update_default(param):
-                # Make it keyword-only if it does not have a default value,
-                # otherwise we might end up setting a parameter without a
-                # default after one with a default, which is unfortunately
-                # illegal.
-                if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
-                    kind = param.kind
-                else:
-                    kind = param.KEYWORD_ONLY
+                @functools.wraps(x)
+                def wrapper(*args, **kwargs):
+                    kwargs = {
+                        **extra,
+                        **sig_bind(
+                            sig,
+                            args=args,
+                            kwargs=kwargs,
+                            include_defaults=False
+                        )[0],
+                    }
+                    return x(**kwargs)
 
-                try:
-                    default = extra[param.name]
-                except KeyError:
-                    default = param.default
+                # Update the signature so it shows the effective default value
+                def update_default(param):
+                    # Make it keyword-only if it does not have a default value,
+                    # otherwise we might end up setting a parameter without a
+                    # default after one with a default, which is unfortunately
+                    # illegal.
+                    if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
+                        kind = param.kind
+                    else:
+                        kind = param.KEYWORD_ONLY
 
-                return param.replace(
-                    default=default,
-                    kind=kind
-                )
+                    try:
+                        default = extra[param.name]
+                    except KeyError:
+                        default = param.default
 
-            wrapper.__signature__ = sig.replace(
-                parameters=list(
-                    map(
-                        update_default,
-                        sig.parameters.values()
+                    return param.replace(
+                        default=default,
+                        kind=kind
+                    )
+
+                wrapper.__signature__ = sig.replace(
+                    parameters=list(
+                        map(
+                            update_default,
+                            sig.parameters.values()
+                        )
                     )
                 )
-            )
 
-            return wrapper
+                return wrapper
 
 
 class AnalysisProxy(Loggable):
