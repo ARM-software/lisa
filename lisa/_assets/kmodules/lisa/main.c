@@ -3,6 +3,7 @@
 
 #include "main.h"
 #include "features.h"
+
 /* Import all the symbol namespaces that appear to be defined in the kernel
  * sources so that we won't trigger any warning
  */
