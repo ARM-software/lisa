@@ -1,6 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 #include <linux/slab.h>
+#ifndef _IN_TREE_BUILD
 #include <linux/sched.h>
+#else
+#include <kernel/sched/sched.h>
+#endif
 #include <trace/events/sched.h>
 
 #define CREATE_TRACE_POINTS

@@ -25,9 +25,6 @@ else
 	KERNEL_SRC ?= /lib/modules/`uname -r`/build
 endif
 
-VMLINUX_H = $(MODULE_OBJ)/vmlinux.h
-SYMBOL_NAMESPACES_H = $(MODULE_OBJ)/symbol_namespaces.h
-
 # kbuild part of makefile. Only Kbuild-related targets should be used here to
 # avoid any sort of clash.
 ifneq ($(KERNELRELEASE),)
@@ -35,12 +32,28 @@ ifneq ($(KERNELRELEASE),)
 LISA_KMOD_NAME ?= lisa
 obj-m := $(LISA_KMOD_NAME).o
 $(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o
-ldflags-y += -T "$(M)/features.lds"
-
-clean-files := vmlinux.h
 
 # -fno-stack-protector is needed to possibly undefined __stack_chk_guard symbol
 ccflags-y = "-I$(MODULE_SRC)" -std=gnu11 -fno-stack-protector -Wno-declaration-after-statement
+
+FEATURES_LDS := features.lds
+
+SYMBOL_NAMESPACES_H = $(MODULE_OBJ)/symbol_namespaces.h
+
+# in-tree build
+ifneq ($(srctree),.)
+
+ccflags-y += -I$(srctree) -D_IN_TREE_BUILD
+ldflags-y += -T $(srctree)/$(obj)/$(FEATURES_LDS)
+
+# out-of-tree build
+else
+
+VMLINUX_H = $(MODULE_OBJ)/vmlinux.h
+
+ldflags-y += -T $(M)/$(FEATURES_LDS)
+
+clean-files := vmlinux.h
 
 VMLINUX_TXT = $(MODULE_SRC)/private_types.txt
 
@@ -91,6 +104,9 @@ $(VMLINUX_H): $(VMLINUX_TXT) $(VMLINUX)
 	sed -r -n 's/.*(struct|union|enum) ([0-9a-zA-Z_]*) .*/#define TYPE_DEFINED_\1_\2/p' _header_no_comment | sort -u >> _fwd_decl
 	cat _fwd_decl _header > $@
 # cat $@
+
+# out-of-tree build
+endif
 
 # Some kernels require the use of MODULE_IMPORT_NS() before using symbols that are part of the given namespace:
 # https://docs.kernel.org/core-api/symbol-namespaces.html
