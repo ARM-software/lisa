@@ -1844,13 +1844,20 @@ class DynamicKmod(Loggable):
     # Dummy memoized wrapper. The only reason we need one is that _do_compile()
     # needs to be pickleable to be sent to a multiprocessing Process, so it
     # cannot be overriden by a wrapper
+
+    def _compile(self, make_vars=None):
+        make_vars = make_vars or {}
+        return self._memoized_compile(make_vars=tuple(sorted(make_vars.items())))
+
     @memoized
-    def _compile(self):
+    def _memoized_compile(self, make_vars):
+        make_vars = dict(make_vars)
+
         compile_ = self._do_compile.__func__
         if self._compile_needs_root:
             compile_ = ensure_root(compile_, inline=True)
 
-        bin_, spec = compile_(self)
+        bin_, spec = compile_(self, make_vars=make_vars)
         # Get back KernelTree._to_spec() and update the KernelTree we have in
         # this process with it to remember the checksum, in case ensure_root()
         # spawned a new process. This is then used by Target.get_kmod() that
@@ -1859,8 +1866,13 @@ class DynamicKmod(Loggable):
         self.kernel_tree._update_spec(spec)
         return bin_
 
-    def _do_compile(self):
+    def _do_compile(self, make_vars=None):
         kernel_tree = self.kernel_tree
+        extra_make_vars = make_vars or {}
+        all_make_vars = {
+            **extra_make_vars,
+            **kernel_tree.make_vars,
+        }
         src = self.src
 
         def get_key(kernel_tree):
@@ -1870,7 +1882,7 @@ class DynamicKmod(Loggable):
             else:
                 var_tokens = [
                     f'{k}={v}'
-                    for k, v in sorted(kernel_tree.make_vars.items())
+                    for k, v in sorted(all_make_vars.items())
                 ]
                 # Cache the compilation based on:
                 # * the kernel tree
@@ -1881,6 +1893,7 @@ class DynamicKmod(Loggable):
         def get_bin(kernel_tree):
             return src.compile(
                 kernel_tree=kernel_tree,
+                make_vars=extra_make_vars,
             )
 
         def lookup_cache(kernel_tree, key, enter_cm=False):
