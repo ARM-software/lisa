@@ -272,6 +272,9 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         wait_boot=True, wait_boot_timeout=10, kernel_src=None, kmod_build_env=None,
         kmod_make_vars=None, kmod_overlay_backend=None, devlib_max_async=None,
     ):
+        # Set it temporarily to avoid breaking __getattr__
+        self._devlib_loadable_modules = set()
+
         # pylint: disable=dangerous-default-value
         super().__init__()
         logger = self.logger
@@ -500,6 +503,12 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         ):
             raise AttributeError(attr)
 
+        # If it was not in the loadable list, it
+        # has been excluded explicitly
+        if attr in (_DEVLIB_AVAILABLE_MODULES - self._devlib_loadable_modules):
+            # pylint: disable=raise-missing-from
+            raise AttributeError(f'Devlib target module {attr} was explicitly excluded, not loading it')
+
         def get():
             return getattr(self.target, attr)
 
@@ -511,11 +520,6 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
                 self.logger.info(f'Loading target devlib module {attr}')
                 self.target.install_module(attr)
                 return get()
-            # If it was not in the loadable list, it
-            # has been excluded explicitly
-            elif attr in _DEVLIB_AVAILABLE_MODULES:
-                # pylint: disable=raise-missing-from
-                raise AttributeError(f'Devlib target module {attr} was explicitly excluded, not loading it')
             # Something else that does not exist ...
             else:
                 raise
