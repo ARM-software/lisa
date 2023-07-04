@@ -303,6 +303,7 @@ TRACE_EVENT_CONDITION(lisa__uclamp_util_cfs,
 #define trace_lisa__uclamp_util_cfs_enabled() false
 #endif /* CONFIG_UCLAMP_TASK */
 
+#if LISA_CONFIG_FEATURE_LISA__EVENT__SCHED_CPU_CAPACITY
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,10,0) && (defined(CONFIG_ARM64) || defined(CONFIG_ARM))
 TRACE_EVENT(lisa__sched_cpu_capacity,
 
@@ -331,8 +332,9 @@ TRACE_EVENT(lisa__sched_cpu_capacity,
 		  __entry->cpu, __entry->capacity, __entry->capacity_orig, __entry->capacity_curr)
 );
 #endif
+#endif // LISA_CONFIG_FEATURE_LISA__EVENT__SCHED_CPU_CAPACITY
 
-
+#if LISA_CONFIG_FEATURE_LISA__EVENT__PIXEL6_EMETER
 #define PIXEL6_EMETER_CHAN_NAME_MAX_SIZE 64
 
 TRACE_EVENT(lisa__pixel6_emeter,
@@ -358,6 +360,8 @@ TRACE_EVENT(lisa__pixel6_emeter,
 	TP_printk("ts=%lu device=%u chan=%u chan_name=%s value=%lu",
 		  __entry->ts, __entry->device, __entry->chan, __entry->chan_name, __entry->value)
 );
+
+#endif // LISA_CONFIG_FEATURE_LISA__EVENT__PIXEL6_EMETER
 
 #endif /* _FTRACE_EVENTS_H */
 

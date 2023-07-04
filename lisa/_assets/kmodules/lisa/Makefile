@@ -25,6 +25,7 @@ else
 	KERNEL_SRC ?= /lib/modules/`uname -r`/build
 endif
 
+CONFIG_H = $(MODULE_OBJ)/config.h
 VMLINUX_H = $(MODULE_OBJ)/vmlinux.h
 SYMBOL_NAMESPACES_H = $(MODULE_OBJ)/symbol_namespaces.h
 
@@ -105,8 +106,16 @@ $(SYMBOL_NAMESPACES_H):
 	find "$(KERNEL_SRC)" '(' -name '*.c' -o -name '*.h' ')' -print0 | xargs -0 sed -n 's/MODULE_IMPORT_NS([^;]*;/\0/p' | sort -u > $@
 	echo "MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);" >> $@
 
+CONFIGS='{"FOO": 1, "BAR": "hello" }'
+
+$(CONFIG_H):
+	echo "import os, json\nconfigs = json.loads(os.getenv('LISA_KMOD_CONFIG', '{}'))\nfor name, value in configs.items():\n  print(f'#define LISA_CONFIG_{name.upper()} {json.dumps(value)}')" | python3 /dev/stdin > $@
+	find "$(MODULE_SRC)" '(' -name '*.h' -o -name '*.c' ')' -exec sed -n 's/.*\b\(LISA_CONFIG_[a-zA-Z0-9_]*\)\b.*/\1/p' '{}' ';' | sort -u | sed 's/\(.*\)/\n#ifndef \1\n        #define \1 1\n#endif\n/' >> $@
+	cat $@
+
+
 # Make all object files depend on the generated sources
-$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(VMLINUX_H) $(SYMBOL_NAMESPACES_H)
+$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(CONFIG_H) $(VMLINUX_H) $(SYMBOL_NAMESPACES_H)
 
 # Non-Kbuild part
 else

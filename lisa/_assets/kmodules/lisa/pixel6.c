@@ -21,6 +21,7 @@
 #define POWER_METER_SAMPLE_FILE_1 "/sys/bus/iio/devices/iio:device1/energy_value"
 #define POWER_METER_RATE_FILE_1 "/sys/bus/iio/devices/iio:device1/sampling_rate"
 
+#if LISA_CONFIG_FEATURE_LISA__EVENT__PIXEL6_EMETER
 static PARSE_RESULT(int) parse_content(parse_buffer *);
 
 typedef struct sample {
@@ -251,3 +252,4 @@ SEQUENCE(int, parse_content, ({
 	/* Parse all the following sample lines */
 	PARSE(parse_all_samples, 0);
 }))
+#endif // LISA_CONFIG_FEATURE_LISA__EVENT__PIXEL6_EMETER

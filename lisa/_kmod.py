@@ -2131,4 +2131,36 @@ class LISAFtraceDynamicKmod(FtraceDynamicKmod):
     def _event_features(cls, events):
         return set(f'event__{event}' for event in events)
 
+    @property
+    @memoized
+    def _feature_macros(self):
+        """
+        Ftrace events possibly defined in that module.
+
+        Note that this is based on crude source code analysis so it's expected
+        to be a superset of the actually defined events.
+        """
+        find_macro = re.compile(rb'\bLISA_CONFIG_(FEATURE_[a-zA-Z0-9_].*?)\b')
+        def find_macros(code):
+            return map(bytes.decode, find_macro.findall(code))
+
+        return sorted({
+            macro
+            for code in self.src.code_files.values()
+            for macro in find_macros(code)
+        })
+
+
+    def _compile(self):
+        macros = self._feature_macros
+        make_vars = {
+            'LISA_KMOD_CONFIG': json.dumps({
+                **{
+                    macro: 1
+                    for macro in macros
+                },
+            })
+        }
+        return super()._compile(make_vars=make_vars)
+
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

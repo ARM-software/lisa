@@ -149,6 +149,7 @@ static void sched_util_est_se_probe(struct feature *feature, struct sched_entity
 DEFINE_TP_EVENT_FEATURE(lisa__sched_util_est_se, sched_util_est_se_tp, sched_util_est_se_probe);
 #endif
 
+#if LISA_CONFIG_FEATURE_LISA__EVENT__SCHED_CPU_CAPACITY
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,10,0) && (defined(CONFIG_ARM64) || defined(CONFIG_ARM))
 static void sched_cpu_capacity_probe(struct feature *feature, struct rq *rq)
 {
@@ -156,6 +157,7 @@ static void sched_cpu_capacity_probe(struct feature *feature, struct rq *rq)
 }
 DEFINE_TP_EVENT_FEATURE(lisa__sched_cpu_capacity, sched_cpu_capacity_tp, sched_cpu_capacity_probe);
 #endif
+#endif // LISA_CONFIG_FEATURE_LISA__EVENT__SCHED_CPU_CAPACITY
 
 static int init_tp(struct feature *_)
 {
