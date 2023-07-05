@@ -430,6 +430,12 @@ ignored_refs = {
     # that cannot be fixed because of Sphinx limitations and external
     # constraints on names.
     r'ITEM_CLS',
+
+    # Python <= 3.8 has a formatting issue in typing.Union[..., None] that
+    # makes it appear as typing.Union[..., NoneType], leading to a broken
+    # reference since the intersphinx inventory of the stdlib does not provide
+    # any link for NoneType.
+    r'NoneType',
 }
 ignored_refs.update(
     re.escape(f'{x.__module__}.{x.__qualname__}')
