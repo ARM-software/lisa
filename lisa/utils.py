@@ -3935,7 +3935,7 @@ class LazyMapping(Mapping):
 
 def mp_spawn_pool(import_main=False, **kwargs):
     """
-    Create a context manager wrapping :class:`multiprocessing.Pool` using the
+    Create a context manager wrapping :class:`multiprocessing.pool.Pool` using the
     ``spawn`` method, which is safe even in multithreaded applications.
 
     :param import_main: If ``True``, let the spawned process import the
@@ -3944,7 +3944,7 @@ def mp_spawn_pool(import_main=False, **kwargs):
         *lot* of time (actually, unbounded amount of time).
     :type import_main: bool
 
-    :Variable keyword arguments: Forwarded to :meth:`multiprocessing.Pool`.
+    :Variable keyword arguments: Forwarded to :class:`multiprocessing.pool.Pool`.
     """
     ctx = multiprocessing.get_context(method='spawn')
     empty_main = nullcontext if import_main else _empty_main
