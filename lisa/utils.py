@@ -1857,32 +1857,33 @@ def optional_kwargs(func):
         above ``@classmethod`` so it can handle it properly.
     """
 
-    is_cls_method = False
-    if isinstance(func, classmethod):
-        f = func.__func__
-        is_cls_method = True
-    if isinstance(func, staticmethod):
-        f = func.__func__
-    else:
-        f = func
+    prepare = lambda args: (args, func)
+    rewrap = functools.wraps(func)
 
-    @functools.wraps(f)
-    def wrapper(*args, **kwargs):
-        if is_cls_method:
+    if isinstance(func, classmethod):
+        rewrap = lambda f: classmethod(
+            functools.wraps(func.__func__)(f)
+        )
+        def prepare(args):
             cls, *args = args
-            _f = f.__get__(None, cls)
-        else:
-            _f = f
+            return (args, func.__get__(None, cls))
+
+    elif isinstance(func, staticmethod):
+        rewrap = lambda f: staticmethod(
+            functools.wraps(func.__func__)(f)
+        )
+        prepare = lambda args: (args, func.__func__)
+
+    @rewrap
+    def wrapper(*args, **kwargs):
+        args, f = prepare(args)
 
         if not kwargs and len(args) == 1 and callable(args[0]):
-            return _f(args[0])
+            return f(args[0])
         else:
             if args:
                 raise TypeError(f'Positional parameters are not allowed when applying {f.__qualname__} decorator, please use keyword arguments')
-            return functools.partial(_f, **kwargs)
-
-    if is_cls_method:
-        wrapper = classmethod(wrapper)
+            return functools.partial(f, **kwargs)
 
     return wrapper
 
@@ -3935,7 +3936,7 @@ class LazyMapping(Mapping):
 
 def mp_spawn_pool(import_main=False, **kwargs):
     """
-    Create a context manager wrapping :class:`multiprocessing.Pool` using the
+    Create a context manager wrapping :class:`multiprocessing.pool.Pool` using the
     ``spawn`` method, which is safe even in multithreaded applications.
 
     :param import_main: If ``True``, let the spawned process import the
@@ -3944,7 +3945,7 @@ def mp_spawn_pool(import_main=False, **kwargs):
         *lot* of time (actually, unbounded amount of time).
     :type import_main: bool
 
-    :Variable keyword arguments: Forwarded to :meth:`multiprocessing.Pool`.
+    :Variable keyword arguments: Forwarded to :class:`multiprocessing.pool.Pool`.
     """
     ctx = multiprocessing.get_context(method='spawn')
     empty_main = nullcontext if import_main else _empty_main

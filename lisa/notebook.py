@@ -395,7 +395,7 @@ def plot_signal(series, name=None, interpolation=None, add_markers=True, vdim=No
     :type add_markers: bool
 
     :param vdim: Value axis dimension.
-    :type vdim: holoviews.Dimension
+    :type vdim: holoviews.core.dimension.Dimension
     """
     if isinstance(series, pd.DataFrame):
         try:

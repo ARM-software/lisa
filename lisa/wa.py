@@ -284,7 +284,7 @@ class WAOutput(StatsProp, Mapping, Loggable):
     def outputs(self):
         """
         Dict containing a mapping of 'wa run' names to
-        :class:`wa.framework.RunOutput` objects.
+        :class:`RunOutput` objects.
         """
         wa_outputs = list(discover_wa_outputs(self.path))
 
