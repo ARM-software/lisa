@@ -211,7 +211,7 @@ class Stats(Loggable):
     :param stats: Dictionnary of statistical functions to summarize each value
         group formed by tag columns along the aggregation columns. If ``None``
         is given as value, the name will be passed to
-        :meth:`pandas.core.groupby.GroupBy.agg`. Otherwise, the provided
+        :meth:`pandas.core.groupby.SeriesGroupBy.agg`. Otherwise, the provided
         function will be run.
 
         .. note:: One set of keys is special: ``'mean'``, ``'std'`` and
