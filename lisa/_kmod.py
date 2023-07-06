@@ -277,11 +277,19 @@ def _make_chroot(cc, make_vars, bind_paths=None, alpine_version='3.18.0', overla
 
     is_clang = cc.startswith('clang')
     if is_clang:
+        try:
+            _, version = cc.split('-', 1)
+        except ValueError:
+            # apk understands "clang" even if there is no clang package
+            version = ''
+
         packages.extend([
             'lld',
-            'llvm',
+            f'llvm{version}',
+            f'clang{version}',
         ])
-    packages.append(cc)
+    else:
+        packages.append(cc)
 
     target_arch = make_vars.get('ARCH', LISA_HOST_ABI)
 
