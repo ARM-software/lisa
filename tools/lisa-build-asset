@@ -156,31 +156,35 @@ def make_chroot(asset, arch, build_dir, recipe_dir, arch_chroot_dir):
     # List the required env variables.
     env_args = ('-k', ' '.join(env.keys())) if env else []
 
-    # Install the chroot.
-    subprocess.check_call(
-        [
-            'sudo', os.path.join(get_alpine_dir(), 'alpine-chroot-install'),
-            '-b', alpine_version,
-            '-d', arch_chroot_dir,
-            '-i', LISA_HOME,
-            '-a', QEMU_ARCH_NAMES.get(arch, arch),
-            *alpine_dependencies,
-            *env_args,
-        ],
-        cwd=build_dir,
-    )
+    def setup():
+        # Install the chroot.
+        subprocess.check_call(
+            [
+                'sudo', os.path.join(get_alpine_dir(), 'alpine-chroot-install'),
+                '-b', alpine_version,
+                '-d', arch_chroot_dir,
+                '-i', LISA_HOME,
+                '-a', QEMU_ARCH_NAMES.get(arch, arch),
+                *alpine_dependencies,
+                *env_args,
+            ],
+            cwd=build_dir,
+        )
 
-    def bind_mount(path):
-        # join() will ignore everything before an absolute path so make it
-        # relative first
-        rel = os.path.relpath(path, start='/')
-        path_ = os.path.join(arch_chroot_dir, rel)
-        subprocess.check_call(['sudo', 'mkdir', '-p', path_])
-        subprocess.check_call(['sudo', 'mount', '--bind', path, path_])
+        def bind_mount(path):
+            # join() will ignore everything before an absolute path so make it
+            # relative first
+            rel = os.path.relpath(path, start='/')
+            path_ = os.path.join(arch_chroot_dir, rel)
+            subprocess.check_call(['sudo', 'mkdir', '-p', path_])
+            subprocess.check_call(['sudo', 'mount', '--bind', path, path_])
 
-    bind_mount(build_dir)
+        bind_mount(build_dir)
 
     try:
+        # If setup fails, we still destroy the chroot so we give a chance to
+        # cleanup bind mounts.
+        setup()
         yield arch_chroot_dir
     finally:
         # Clean-up the chroot
