@@ -11,7 +11,6 @@ import tempfile
 import shlex
 
 from lisa.target import Target
-from lisa.trace import DmesgCollector
 from lisa._kmod import LISADynamicKmod
 from lisa.utils import ignore_exceps
 
@@ -84,31 +83,6 @@ def main():
                     logging.info('Unloading kernel module')
     kmod_cm = cm()
 
-    @contextlib.contextmanager
-    def dmesg_cm():
-        with tempfile.NamedTemporaryFile() as f:
-            dmesg_path = f.name
-            coll = DmesgCollector(target, output_path=dmesg_path)
-
-            def log_err(when, cm, excep):
-                logging.error(f'Encounted exceptions while {when}ing dmesg collector: {excep}')
-
-            coll = ignore_exceps(Exception, coll, log_err)
-
-            with coll as coll:
-                yield
-
-            if coll:
-                dmesg_entries = [
-                    entry
-                    for entry in coll.entries
-                    if entry.msg.startswith(kmod.mod_name)
-                ]
-                if dmesg_entries:
-                    sep = '\n    '
-                    dmesg = sep.join(map(str, dmesg_entries))
-                    logging.info(f'Module dmesg output:{sep}{dmesg}')
-
     def run_cmd():
         if cmd:
             pretty_cmd = ' '.join(map(shlex.quote, cmd))
@@ -117,8 +91,7 @@ def main():
         else:
             return 0
 
-
-    with dmesg_cm(), kmod_cm:
+    with kmod_cm:
         ret = run_cmd()
 
     return ret
