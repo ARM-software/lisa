@@ -138,7 +138,7 @@ from devlib.target import KernelVersion, TypedKernelConfig, KernelConfigTristate
 from devlib.host import LocalConnection
 from devlib.exception import TargetStableError
 
-from lisa.utils import nullcontext, Loggable, LISA_CACHE_HOME, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor, destroyablecontextmanager, ContextManagerExit
+from lisa.utils import nullcontext, Loggable, LISA_CACHE_HOME, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor, destroyablecontextmanager, ContextManagerExit, ignore_exceps
 from lisa._assets import ASSETS_PATH, HOST_PATH, ABI_BINARIES_FOLDER
 from lisa._unshare import ensure_root
 import lisa._git as git
@@ -1950,6 +1950,9 @@ class DynamicKmod(Loggable):
             string following the ``module_param_array()`` kernel API syntax.
         :type kmod_params: dict(str, object) or None
         """
+        # Avoid circular import
+        from lisa.trace import DmesgCollector
+
         def target_mktemp():
             return target.execute(
                 f'mktemp -p {quote(target.working_directory)}'
@@ -1963,6 +1966,21 @@ class DynamicKmod(Loggable):
             else:
                 return str(x)
 
+        def log_dmesg(coll, log):
+            if coll:
+                name = self.mod_name
+                dmesg_entries = [
+                    entry
+                    for entry in coll.entries
+                    if entry.msg.startswith(name)
+                ]
+                if dmesg_entries:
+                    sep = '\n    '
+                    dmesg = sep.join(map(str, dmesg_entries))
+                    log(f'{name} kernel module dmesg output:{sep}{dmesg}')
+
+
+        logger = self.logger
         target = self.target
         content = self._compile()
 
@@ -1975,14 +1993,26 @@ class DynamicKmod(Loggable):
             )
         )
 
-        with tempfile.NamedTemporaryFile('wb', suffix='.ko') as f:
+        with tempfile.NamedTemporaryFile('wb', suffix='.ko') as f, tempfile.NamedTemporaryFile() as dmesg_out:
+            dmesg_coll = ignore_exceps(
+                Exception,
+                DmesgCollector(target, output_path=dmesg_out.name),
+                lambda when, cm, excep: logger.error(f'Encounted exceptions while {when}ing dmesg collector: {excep}')
+            )
+
             f.write(content)
             f.flush()
 
             temp_ko = target_mktemp()
             try:
                 target.push(f.name, temp_ko)
-                target.execute(f'insmod {quote(temp_ko)} {params}', as_root=True)
+                with dmesg_coll as dmesg_coll:
+                    target.execute(f'insmod {quote(temp_ko)} {params}', as_root=True)
+            except Exception:
+                log_dmesg(dmesg_coll, logger.error)
+                raise
+            else:
+                log_dmesg(dmesg_coll, logger.debug)
             finally:
                 target.remove(temp_ko)
 
