@@ -564,12 +564,25 @@ class LevelKeyDesc(KeyDescBase, Mapping):
         under that level
     :type children: collections.abc.Sequence
 
+    :param value_path: Relative path to a sub-key that will receive assignment
+        to that level for non-mapping types. This allows turning a leaf key into a
+        level while preserving backward compatibility, as long as:
+
+        * The key did not accept mapping values, otherwise it would be
+          ambiguous and is therefore rejected.
+
+        * The old leaf key has a matching new leaf key, that is a sub-key
+          of the new level key.
+
+        In practice, that allows turning a single knob into a tree of settings.
+    :type value_path: list(str) or None
+
     Children keys will get this key assigned as a parent when passed to the
     constructor.
 
     """
 
-    def __init__(self, name, help, children):
+    def __init__(self, name, help, children, value_path=None):
         # pylint: disable=redefined-builtin
         super().__init__(name=name, help=help)
         self.children = children
@@ -577,6 +590,29 @@ class LevelKeyDesc(KeyDescBase, Mapping):
         # Fixup parent for easy nested declaration
         for key_desc in self.children:
             key_desc.parent = self
+
+        self.value_path = value_path
+
+    @property
+    def key_desc(self):
+        path = self.value_path
+        if path is None:
+            raise AttributeError(f'{self} does not define a value path for direct assignment')
+        else:
+            return get_nested_key(self, path)
+
+    def __getattr__(self, attr):
+        # If the property raised an exception, __getattr__ is tried so we need
+        # to fail explicitly in order to avoid infinite recursion
+        if attr == 'key_desc':
+            raise AttributeError('recursive key_desc lookup')
+        else:
+            try:
+                key_desc = self.key_desc
+            except Exception as e:
+                raise AttributeError(str(e))
+            else:
+                return getattr(key_desc, attr)
 
     @property
     def _key_map(self):
@@ -1082,6 +1118,14 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
 
     .. note:: Since the dosctring is interpreted as a template, "{" and "}"
         characters must be doubled to appear in the final output.
+
+    .. attention:: The layout of the configuration is typically guaranteed to
+        be backward-compatible in terms of accepted shape of input, but layout
+        of the configuration might change. This means that the path to a given
+        key could change as long as old input is still accepted. Types of
+        values can also be widened, so third party code re-using config classes
+        from :mod:`lisa` might have to evolve along the changes of
+        configuration.
     """
 
     @abc.abstractmethod
@@ -1274,24 +1318,26 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 return self
 
         def format_conf(conf):
-            conf = conf or {}
-            # Make sure that mappings won't be too long
-            max_mapping_len = 10
-            key_val = sorted(conf.items())
-            if len(key_val) > max_mapping_len:
-                key_val = key_val[:max_mapping_len]
-                key_val.append((PlaceHolder(), PlaceHolder()))
+            if isinstance(conf, Mapping):
+                # Make sure that mappings won't be too long
+                max_mapping_len = 10
+                key_val = sorted(conf.items())
+                if len(key_val) > max_mapping_len:
+                    key_val = key_val[:max_mapping_len]
+                    key_val.append((PlaceHolder(), PlaceHolder()))
 
-            def format_val(val):
-                if isinstance(val, Mapping):
-                    return format_conf(val)
-                else:
-                    return NonEscapedValue(val)
+                def format_val(val):
+                    if isinstance(val, Mapping):
+                        return format_conf(val)
+                    else:
+                        return NonEscapedValue(val)
 
-            return {
-                key: format_val(val)
-                for key, val in key_val
-            }
+                return {
+                    key: format_val(val)
+                    for key, val in key_val
+                }
+            else:
+                return conf
 
         logger = self.logger
         if logger.isEnabledFor(logging.DEBUG):
@@ -1313,37 +1359,50 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         )
 
     def _add_src(self, src, conf, filter_none=False, fallback=False):
-        conf = conf or {}
-        # Filter-out None values, so they won't override actual data from
-        # another source
-        if filter_none:
-            conf = {
+        conf = {} if conf is None else conf
+
+        if isinstance(conf, Mapping):
+            # Filter-out None values, so they won't override actual data from
+            # another source
+            if filter_none:
+                conf = {
+                    k: v for k, v in conf.items()
+                    if v is not None
+                }
+
+            # only validate at that level, since sublevel will take care of
+            # filtering then validating their own level
+            validated_conf = {
                 k: v for k, v in conf.items()
-                if v is not None
+                if not isinstance(self._structure[k], LevelKeyDesc)
             }
+            self._structure.validate_val(validated_conf)
 
-        # only validate at that level, since sublevel will take care of
-        # filtering then validating their own level
-        validated_conf = {
-            k: v for k, v in conf.items()
-            if not isinstance(self._structure[k], LevelKeyDesc)
-        }
-        self._structure.validate_val(validated_conf)
-
-        for key, val in conf.items():
-            key_desc = self._structure[key]
-            # Dispatch the nested mapping to the right sublevel
-            if isinstance(key_desc, LevelKeyDesc):
-                # sublevels have already been initialized when the root object
-                # was created.
-                self._sublevel_map[key]._add_src(src, val, filter_none=filter_none, fallback=fallback)
-            # Derived keys cannot be set, since they are purely derived from
-            # other keys
-            elif isinstance(key_desc, DerivedKeyDesc):
-                raise ValueError(f'Cannot set a value for a derived key "{key_desc.qualname}"', key_desc.qualname)
-            # Otherwise that is a leaf value that we store at that level
+            for key, val in conf.items():
+                key_desc = self._structure[key]
+                # Dispatch the nested mapping to the right sublevel
+                if isinstance(key_desc, LevelKeyDesc):
+                    # sublevels have already been initialized when the root object
+                    # was created.
+                    self._sublevel_map[key]._add_src(src, val, filter_none=filter_none, fallback=fallback)
+                # Derived keys cannot be set, since they are purely derived from
+                # other keys
+                elif isinstance(key_desc, DerivedKeyDesc):
+                    raise ValueError(f'Cannot set a value for a derived key "{key_desc.qualname}"', key_desc.qualname)
+                # Otherwise that is a leaf value that we store at that level
+                else:
+                    self._key_map.setdefault(key, {})[src] = val
+        else:
+            # Non-mapping value are allowed if the level defines a subkey
+            # to assign to. We then craft a conf that sets that specific
+            # value.
+            key_desc = self._structure
+            value_path = key_desc.value_path
+            if value_path is None:
+                raise ValueError(f'Cannot set a value for the key level "{key_desc.qualname}"', key_desc.qualname)
             else:
-                self._key_map.setdefault(key, {})[src] = val
+                conf = set_nested_key({}, list(value_path), conf)
+                self._add_src(src, conf, filter_none=filter_none, fallback=fallback)
 
         if src not in self._src_prio:
             if fallback:
@@ -2034,7 +2093,11 @@ class Configurable(abc.ABC):
             ':param {param}: {help}\n:type {param}: {type}\n'.format(
                 param=param,
                 help=key_desc.help,
-                type=' or '.join(get_cls_name(t) for t in key_desc.classinfo),
+                type=(
+                    'collections.abc.Mapping'
+                    if isinstance(key_desc, LevelKeyDesc) else
+                    ' or '.join(get_cls_name(t) for t in key_desc.classinfo)
+                ),
             )
             for param, key_desc
             in cls._get_param_key_desc_map().items()
