@@ -2054,7 +2054,11 @@ class Configurable(abc.ABC):
             ':param {param}: {help}\n:type {param}: {type}\n'.format(
                 param=param,
                 help=key_desc.help,
-                type=' or '.join(get_cls_name(t) for t in key_desc.classinfo),
+                type=(
+                    'collections.abc.Mapping'
+                    if isinstance(key_desc, LevelKeyDesc) else
+                    ' or '.join(get_cls_name(t) for t in key_desc.classinfo)
+                ),
             )
             for param, key_desc
             in cls._get_param_key_desc_map().items()

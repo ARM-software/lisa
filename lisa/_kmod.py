@@ -131,6 +131,7 @@ import hashlib
 from operator import itemgetter
 from shlex import quote
 from io import BytesIO
+from collections.abc import Mapping
 
 from elftools.elf.elffile import ELFFile
 
@@ -138,7 +139,7 @@ from devlib.target import KernelVersion, TypedKernelConfig, KernelConfigTristate
 from devlib.host import LocalConnection
 from devlib.exception import TargetStableError
 
-from lisa.utils import nullcontext, Loggable, LISA_CACHE_HOME, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor, destroyablecontextmanager, ContextManagerExit, ignore_exceps
+from lisa.utils import nullcontext, Loggable, LISA_CACHE_HOME, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor, destroyablecontextmanager, ContextManagerExit, ignore_exceps, get_nested_key
 from lisa._assets import ASSETS_PATH, HOST_PATH, ABI_BINARIES_FOLDER
 from lisa._unshare import ensure_root
 import lisa._git as git
@@ -200,10 +201,93 @@ def _kbuild_make_cmd(path, targets, cc, make_vars):
 
 
 @destroyablecontextmanager
-def _make_chroot(cc, make_vars, bind_paths=None, alpine_version='3.18.0', overlay_backend=None):
+def _make_chroot(cc, make_vars, bind_paths=None, alpine_version=None, overlay_backend=None, packages=None):
     """
     Create a chroot folder ready to be used to build a kernel.
     """
+    logger = logging.getLogger(f'{__name__}.alpine_chroot')
+
+    def is_clang(cc):
+        return cc.startswith('clang')
+
+    def default_packages(cc):
+        # Default packages needed to compile a linux kernel module
+        packages = [
+            'bash',
+            'binutils',
+            'coreutils',
+            'diffutils',
+            'make',
+            'file',
+            'gawk',
+            'sed',
+            'musl-dev',
+            'elfutils-dev',
+            'gmp-dev',
+            'libffi-dev',
+            'openssl-dev',
+            'linux-headers',
+            'musl',
+            'bison',
+            'flex',
+            'python3',
+        ]
+
+        if is_clang(cc):
+            try:
+                _, version = cc.split('-', 1)
+            except ValueError:
+                # apk understands "clang" even if there is no clang package
+                version = ''
+
+            packages.extend([
+                'lld',
+                f'llvm{version}',
+                f'clang{version}',
+            ])
+        else:
+            packages.append(cc)
+
+        return packages
+
+    if (alpine_version, packages) != (None, None) and None in (alpine_version, packages):
+        raise ValueError('Both alpine_version and packages need to be set or none of them')
+    else:
+        alpine_version = alpine_version or '3.18.0'
+        packages = default_packages(cc) if packages is None else packages
+
+        make_vars = make_vars or {}
+        target_arch = make_vars.get('ARCH', LISA_HOST_ABI)
+
+        use_qemu = (
+            # Since clang binaries support cross compilation without issues,
+            # there is no need to use QEMU that will slow everything down.
+            (not is_clang(cc)) and
+            target_arch != LISA_HOST_ABI
+        )
+
+        chroot_arch = target_arch if use_qemu else LISA_HOST_ABI
+
+        bind_paths = {
+            **dict(bind_paths or {}),
+            ABI_BINARIES_FOLDER[chroot_arch]: '/usr/local/bin'
+        }
+
+        with _make_alpine_chroot(
+            version=alpine_version,
+            arch=chroot_arch,
+            packages=packages,
+            bind_paths=bind_paths,
+            overlay_backend=overlay_backend,
+        ) as chroot:
+            try:
+                yield chroot
+            except ContextManagerExit:
+                pass
+
+
+@destroyablecontextmanager
+def _make_alpine_chroot(version, packages=None, arch=None, bind_paths=None, overlay_backend=None):
     logger = logging.getLogger(f'{__name__}.alpine_chroot')
 
     def mount_binds(chroot, bind_paths, mount=True):
@@ -219,7 +303,7 @@ def _make_chroot(cc, make_vars, bind_paths=None, alpine_version='3.18.0', overla
             _subprocess_log(cmd, logger=logger, level=logging.DEBUG)
 
     def populate(key, path, init_cache=True):
-        version, arch, packages, use_qemu = key
+        version, alpine_arch, packages = key
         path = path.resolve()
 
         # Packages have already been installed, so we can speed things up a
@@ -228,10 +312,10 @@ def _make_chroot(cc, make_vars, bind_paths=None, alpine_version='3.18.0', overla
             packages = packages.split(' ')
 
             _version = version.split('.')
-            minor = '.'.join(_version[:-1])
+            minor = '.'.join(_version[:2])
             url = _ALPINE_ROOTFS_URL.format(
                 minor=minor,
-                arch=arch,
+                arch=alpine_arch,
                 version=version,
             )
 
@@ -249,61 +333,23 @@ def _make_chroot(cc, make_vars, bind_paths=None, alpine_version='3.18.0', overla
 
         shutil.copy('/etc/resolv.conf', path / 'etc' / 'resolv.conf')
 
-        if packages:
-            cmd = _make_chroot_cmd(path, ['apk', 'add', *packages])
-            _subprocess_log(cmd, logger=logger, level=logging.DEBUG)
+        def install_packages(packages):
+            if packages:
+                cmd = _make_chroot_cmd(path, ['apk', 'add', *sorted(set(packages))])
+                _subprocess_log(cmd, logger=logger, level=logging.DEBUG)
 
-    packages = [
-        'bash',
-        'binutils',
-        'coreutils',
-        'diffutils',
-        'make',
-        'file',
-        'gawk',
-        'sed',
-        'musl-dev',
-        'elfutils-dev',
-        'gmp-dev',
-        'libffi-dev',
-        'openssl-dev',
-        'linux-headers',
-        'musl',
-        'bison',
-        'flex',
-        'python3',
-    ]
-    make_vars = make_vars or {}
+        install_packages(packages)
 
-    is_clang = cc.startswith('clang')
-    if is_clang:
-        try:
-            _, version = cc.split('-', 1)
-        except ValueError:
-            # apk understands "clang" even if there is no clang package
-            version = ''
+    # Ensure we have a full version number with 3 components
+    version = version.split('.')
+    version = version + ['0' for _ in range(3 - len(version))]
+    version = '.'.join(version)
 
-        packages.extend([
-            'lld',
-            f'llvm{version}',
-            f'clang{version}',
-        ])
-    else:
-        packages.append(cc)
+    arch = arch or LISA_HOST_ABI
+    use_qemu = arch != LISA_HOST_ABI
 
-    target_arch = make_vars.get('ARCH', LISA_HOST_ABI)
-
-    use_qemu = (
-        # Since clang binaries support cross compilation without issues,
-        # there is no need to use QEMU that will slow everything down.
-        (not is_clang) and
-        target_arch != LISA_HOST_ABI
-    )
-
-    chroot_arch = target_arch if use_qemu else LISA_HOST_ABI
-
-    qemu_msg = ' using QEMU userspace emulation' if use_qemu else ''
-    logger.debug(f'Using Alpine v{alpine_version} chroot with architecture {chroot_arch}{qemu_msg}.')
+    qemu_msg = f' using QEMU userspace emulation to emulate {arch} on {LISA_HOST_ABI}' if use_qemu else ''
+    logger.debug(f'Using Alpine v{version} chroot with architecture {arch}{qemu_msg}.')
 
     # Check that QEMU userspace emulation is setup if we need it
     if use_qemu:
@@ -311,22 +357,15 @@ def _make_chroot(cc, make_vars, bind_paths=None, alpine_version='3.18.0', overla
             'arm64': 'aarch64',
             'armeabi': 'arm',
             'armv7': 'arm',
-        }.get(chroot_arch, chroot_arch)
+        }.get(arch, arch)
         binfmt_path = Path('/proc/sys/fs/binfmt_misc/', f'qemu-{qemu_arch}')
         if not binfmt_path.exists():
             raise ValueError(f'Alpine chroot is setup for {qemu_arch} architecture but QEMU userspace emulation is not installed on the host (missing {binfmt_path})')
 
-
-    # Add LISA static binaries inside the chroot
-    bind_paths = {
-        **dict(bind_paths or {}),
-        ABI_BINARIES_FOLDER[chroot_arch]: '/usr/local/bin'
-    }
-
     alpine_arch = {
         'arm64': 'aarch64',
         'armeabi': 'armv7',
-    }.get(chroot_arch, chroot_arch)
+    }.get(arch, arch)
 
     dir_cache = DirCache(
         category='alpine_chroot',
@@ -334,10 +373,9 @@ def _make_chroot(cc, make_vars, bind_paths=None, alpine_version='3.18.0', overla
     )
 
     key = (
-        alpine_version,
+        version,
         alpine_arch,
-        ' '.join(sorted(packages)),
-        use_qemu,
+        ' '.join(sorted(packages or [])),
     )
     cache_path = dir_cache.get_entry(key)
     with _overlay_folders([cache_path], backend=overlay_backend) as path:
@@ -687,6 +725,9 @@ class KernelTree(Loggable, SerializeViaConstructor):
         * ``None``: defaults to ``host``.
     :type build_env: str or None
 
+    :param build_env_settings: Settings for the chosen build environment.
+    :type build_env_settings: collections.abc.Mapping
+
     :param overlay_backend: Backend used to create folder overlays. One of:
 
         * ``overlayfs``: Use overlayfs Linux filesystem. This is the fastest
@@ -708,9 +749,9 @@ class KernelTree(Loggable, SerializeViaConstructor):
     # On top of that, the kernel does not handle clang < 10.0.1
     _MIN_CLANG_VERSION = 11
 
-    def __init__(self, path_cm, cc, make_vars, build_env=None, overlay_backend=None):
+    def __init__(self, path_cm, cc, make_vars, build_env=None, overlay_backend=None, build_env_settings=None):
         self._make_path_cm = path_cm
-        self.build_env = self._resolve_build_env(build_env)
+        self.build_env, self.build_env_settings = self._resolve_build_env(build_env, build_env_settings)
         self.make_vars = make_vars or {}
         self.overlay_backend = self._resolve_overlay_backend(overlay_backend)
         self._path_cm = None
@@ -719,8 +760,11 @@ class KernelTree(Loggable, SerializeViaConstructor):
         self.cc = cc
 
     @staticmethod
-    def _resolve_build_env(build_env):
-        return build_env or 'host'
+    def _resolve_build_env(build_env, build_env_settings):
+        return (
+            build_env or 'host',
+            build_env_settings or {}
+        )
 
     @staticmethod
     def _resolve_overlay_backend(overlay_backend):
@@ -849,7 +893,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
 
 
     @classmethod
-    def _prepare_tree(cls, path, cc, make_vars, build_env, apply_overlays, overlay_backend):
+    def _prepare_tree(cls, path, cc, make_vars, build_env, apply_overlays, overlay_backend, build_env_settings):
         logger = cls.get_logger()
         path = Path(path)
 
@@ -910,9 +954,20 @@ class KernelTree(Loggable, SerializeViaConstructor):
 
 
         if build_env == 'alpine':
+            settings = (build_env_settings or {}).get('alpine', {})
+            alpine_version = settings.get('version', None)
+            alpine_packages = settings.get('packages', None)
+
             @contextlib.contextmanager
             def cmd_cm(cmds):
-                with _make_chroot(cc=cc, bind_paths=bind_paths, make_vars=make_vars, overlay_backend=overlay_backend) as chroot:
+                with _make_chroot(
+                    cc=cc,
+                    bind_paths=bind_paths,
+                    make_vars=make_vars,
+                    overlay_backend=overlay_backend,
+                    alpine_version=alpine_version,
+                    packages=alpine_packages,
+                ) as chroot:
                     yield [
                         _make_chroot_cmd(chroot, cmd) if cmd else None
                         for cmd in cmds
@@ -941,7 +996,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
 
 
     @classmethod
-    def _process_make_vars(cls, build_env, make_vars, abi=None):
+    def _process_make_vars(cls, build_env, build_env_settings, make_vars, abi=None):
         env = {
             k: str(v)
             for k, v in (
@@ -969,7 +1024,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
 
         arch = _any_abi_to_kernel_arch(abi)
         make_vars['ARCH'] = arch
-        make_vars, cc = cls._resolve_toolchain(abi, make_vars, build_env)
+        make_vars, cc = cls._resolve_toolchain(abi, make_vars, build_env, build_env_settings)
 
         if build_env == 'alpine':
             if cc.startswith('clang'):
@@ -991,9 +1046,34 @@ class KernelTree(Loggable, SerializeViaConstructor):
         return (make_vars, cc)
 
     @classmethod
-    def _check_cc_version(cls, cc):
+    def _make_toolchain_env(cls, toolchain_path, env=None):
+        env = env or os.environ
+        return {
+            **os.environ,
+            'PATH': ':'.join((
+                toolchain_path,
+                os.environ.get('PATH', '')
+            ))
+        }
+
+    @classmethod
+    def _make_toolchain_env_from_settings(cls, build_env_settings, env=None):
+        build_env_settings = build_env_settings or {}
+        try:
+            toolchain_path = get_nested_key(build_env_settings, ['host', 'toolchain-path'])
+        except KeyError:
+            env = os.environ
+        else:
+            env = cls._make_toolchain_env(toolchain_path, env=env)
+
+        return env
+
+
+    @classmethod
+    def _check_cc_version(cls, cc, toolchain_path):
         if cc == 'clang':
-            version = subprocess.check_output([cc, '--version'])
+            env = cls._make_toolchain_env(toolchain_path)
+            version = subprocess.check_output([cc, '--version'], env=env)
             m = re.match(rb'.*clang version ([0-9]+)\.', version)
             if m:
                 major = int(m.group(1))
@@ -1005,9 +1085,10 @@ class KernelTree(Loggable, SerializeViaConstructor):
         return False
 
     @classmethod
-    def _resolve_toolchain(cls, abi, make_vars, build_env):
+    def _resolve_toolchain(cls, abi, make_vars, build_env, build_env_settings):
         logger = cls.get_logger()
-        build_env = KernelTree._resolve_build_env(build_env)
+        build_env, build_env_settings = KernelTree._resolve_build_env(build_env, build_env_settings)
+        env = cls._make_toolchain_env_from_settings(build_env_settings)
 
         if abi == LISA_HOST_ABI:
             toolchain = None
@@ -1075,6 +1156,8 @@ class KernelTree(Loggable, SerializeViaConstructor):
         # Only run the check on host build env, as other build envs are
         # expected to be correctly configured.
         if build_env == 'host' and commands:
+            toolchain_path = build_env_settings.get('host', {}).get('toolchain-path', None)
+
             for cc, cmd in commands.items():
                 pretty_cmd = ' '.join(cmd)
                 try:
@@ -1082,7 +1165,8 @@ class KernelTree(Loggable, SerializeViaConstructor):
                         cmd,
                         # Most basic compiler input that will not do anything.
                         input=b';',
-                        stderr=subprocess.STDOUT
+                        stderr=subprocess.STDOUT,
+                        env=env,
                     )
                 except subprocess.CalledProcessError as e:
                     logger.debug(f'Checking {cc} compiler: {pretty_cmd} failed with:\n{e.output.decode()}')
@@ -1091,7 +1175,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
                     logger.debug(f'Checking {cc} compiler: {e}')
                     continue
                 else:
-                    if cls._check_cc_version(cc):
+                    if cls._check_cc_version(cc, toolchain_path):
                         break
             else:
                 raise ValueError(f'Could not find a working toolchain for CROSS_COMPILE={toolchain}')
@@ -1114,7 +1198,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
 
     @classmethod
     @SerializeViaConstructor.constructor
-    def from_target(cls, target, tree_path=None, make_vars=None, cache=True, build_env=None, overlay_backend=None):
+    def from_target(cls, target, tree_path=None, make_vars=None, cache=True, build_env=None, overlay_backend=None, build_env_settings=None):
         """
         Build the tree from the given :class:`lisa.target.Target`.
 
@@ -1160,11 +1244,15 @@ class KernelTree(Loggable, SerializeViaConstructor):
 
         :param overlay_backend: See :class:`lisa._kmod.KernelTree`.
         :type overlay_backend: str or None
+
+        :param build_env_settings: See :class:`lisa._kmod.KernelTree`.
+        :type build_env_settings: collections.abc.Mapping or None
         """
         make_vars, cc = cls._process_make_vars(
             make_vars=make_vars,
             abi=target.plat_info['abi'],
             build_env=build_env,
+            build_env_settings=build_env_settings,
         )
         kernel_info = target.plat_info['kernel']
 
@@ -1245,6 +1333,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
                         tree_path=tree_path,
                         build_env=build_env,
                         overlay_backend=overlay_backend,
+                        build_env_settings=build_env_settings,
                     ) as tree:
                         yield tree._to_spec()
 
@@ -1298,6 +1387,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
                     make_vars=make_vars,
                     build_env=build_env,
                     overlay_backend=overlay_backend,
+                    build_env_settings=build_env_settings,
                 ) as tree:
                     yield tree._to_spec()
 
@@ -1345,12 +1435,13 @@ class KernelTree(Loggable, SerializeViaConstructor):
             cc=cc,
             make_vars=make_vars,
             build_env=build_env,
+            build_env_settings=build_env_settings,
             overlay_backend=overlay_backend,
         )
 
     @classmethod
     @SerializeViaConstructor.constructor
-    def from_path(cls, path, make_vars=None, cache=True, build_env=None):
+    def from_path(cls, path, make_vars=None, cache=True, build_env=None, build_env_settings=None):
         """
         Build a tree from the given ``path`` to sources.
         """
@@ -1359,11 +1450,12 @@ class KernelTree(Loggable, SerializeViaConstructor):
             make_vars=make_vars,
             cache=cache,
             build_env=build_env,
+            build_env_settings=build_env_settings,
         )
 
     @classmethod
     @SerializeViaConstructor.constructor
-    def from_overlays(cls, version=None, tree_path=None, overlays=None, make_vars=None, cache=True, build_env=None, overlay_backend=None):
+    def from_overlays(cls, version=None, tree_path=None, overlays=None, make_vars=None, cache=True, build_env=None, overlay_backend=None, build_env_settings=None):
         """
         Build a tree from the given overlays, to be applied on a source tree.
 
@@ -1378,8 +1470,9 @@ class KernelTree(Loggable, SerializeViaConstructor):
         make_vars, cc = cls._process_make_vars(
             make_vars=make_vars,
             build_env=build_env,
+            build_env_settings=build_env_settings,
         )
-        build_env = KernelTree._resolve_build_env(build_env)
+        build_env, build_env_settings = KernelTree._resolve_build_env(build_env, build_env_settings)
         overlay_backend = KernelTree._resolve_overlay_backend(overlay_backend)
 
         if tree_path:
@@ -1418,6 +1511,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
                 cc=cc,
                 make_vars=make_vars,
                 build_env=build_env,
+                build_env_settings=build_env_settings,
                 apply_overlays=functools.partial(apply_overlays, path),
                 overlay_backend=overlay_backend,
             )
@@ -1438,6 +1532,18 @@ class KernelTree(Loggable, SerializeViaConstructor):
                 # * All the variables passed to "make". This is very important
                 #   as things such as a toolchain change can make a kernel tree
                 #   unsuitable for compiling a module.
+                def mapping_key(mapping):
+                    if isinstance(mapping, Mapping):
+                        return [
+                            # We need to take checksum the make variables
+                            # as well, as it can influence the kernel tree
+                            # a great deal (e.g. changing toolchain)
+                            (mapping_key(k), mapping_key(v))
+                            for k, v in sorted((mapping or {}).items())
+                        ]
+                    else:
+                        return str(mapping)
+
                 key = (
                     sorted(
                         overlay._get_checksum()
@@ -1447,13 +1553,12 @@ class KernelTree(Loggable, SerializeViaConstructor):
                         str(build_env),
                         str(overlay_backend),
                         str(cc),
-                    ] + [
-                        # We need to take checksum the make variables
-                        # as well, as it can influence the kernel tree
-                        # a great deal (e.g. changing toolchain)
-                        f'{k}={v}'
-                        for k, v in sorted((make_vars or {}).items())
-                    ]
+                    ] +
+                    # We need to take checksum the make variables
+                    # as well, as it can influence the kernel tree
+                    # a great deal (e.g. changing toolchain)
+                    mapping_key(make_vars) +
+                    mapping_key(build_env_settings)
                 )
 
                 def populate(key, path):
@@ -1534,6 +1639,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
             cc=cc,
             make_vars=make_vars,
             build_env=build_env,
+            build_env_settings=build_env_settings,
         )
 
     @classmethod
@@ -1675,6 +1781,7 @@ class KmodSrc(Loggable):
         # "inherit" the build env from the KernelTree as we must use the same
         # environment as what was used for "make modules_prepare"
         build_env = kernel_tree.build_env
+        build_env_settings = kernel_tree.build_env_settings
         bind_paths = {tree_path: tree_path}
         logger = self.logger
 
@@ -1722,9 +1829,20 @@ class KmodSrc(Loggable):
                 return filenames[0]
 
         if build_env == 'alpine':
+            settings = (build_env_settings or {}).get('alpine', {})
+            alpine_version = settings.get('version', None)
+            alpine_packages = settings.get('packages', None)
+
             @contextlib.contextmanager
             def cmd_cm():
-                with _make_chroot(cc=cc, bind_paths=bind_paths, make_vars=make_vars, overlay_backend=overlay_backend) as chroot:
+                with _make_chroot(
+                    cc=cc,
+                    bind_paths=bind_paths,
+                    make_vars=make_vars,
+                    overlay_backend=overlay_backend,
+                    alpine_version=alpine_version,
+                    packages=alpine_packages,
+                ) as chroot:
                     # Do not use a CM here to avoid choking on permission
                     # issues. Since the chroot itself will be entirely
                     # removed it's not a problem.
@@ -1744,7 +1862,9 @@ class KmodSrc(Loggable):
                         mod_path=mod_path,
                         make_vars=make_vars,
                     )
-                    yield (mod_path, cmd, {'PATH': HOST_PATH})
+
+                    env = self._make_toolchain_env_from_settings(build_env_settings, env={'PATH': HOST_PATH})
+                    yield (mod_path, cmd, {'PATH': env['PATH']})
 
         with cmd_cm() as (mod_path, cmd, env):
             mod_path = Path(mod_path)
@@ -1896,7 +2016,7 @@ class DynamicKmod(Loggable):
                 # * the kernel tree
                 # * the make variables
                 # * the module name
-                return (kernel_checksum, kernel_tree.build_env, src.checksum, *var_tokens)
+                return (kernel_checksum, kernel_tree.build_env, kernel_tree.build_env_settings, src.checksum, var_tokens)
 
         def get_bin(kernel_tree):
             return src.compile(
