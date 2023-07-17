@@ -160,7 +160,27 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
         LevelKeyDesc('kernel', 'kernel information', (
             KeyDesc('src', 'Path to kernel source tree matching the kernel running on the target used to build modules', [str, None]),
             LevelKeyDesc('modules', 'kernel modules', (
-                KeyDesc('build-env', 'Environment used to build modules. Can be any of "alpine" (Alpine Linux chroot, recommended) or "host" (host system)', [str]),
+                LevelKeyDesc(
+                    'build-env', 'Settings specific to a given build-env ',
+                    (
+                        KeyDesc('kind', 'Environment used to build modules. Can be any of "alpine" (Alpine Linux chroot, recommended) or "host" (command ran directly on host system)', [str]),
+                        # At this level we have all the build-env specific
+                        # parameters. Generic parameters go straight into the
+                        # "modules" level. Most people will not need to use the
+                        # "settings" level.
+                        LevelKeyDesc('settings', 'build-env settings', (
+                            LevelKeyDesc('host', 'Settings for host build-env', (
+                                KeyDesc('toolchain-path', 'Folder to prepend to PATH when executing toolchain command in the host build env', [str]),
+                            )),
+                            LevelKeyDesc('alpine', 'Settings for Alpine linux build-env', (
+                                KeyDesc('version', 'Alpine linux version, e.g. 3.18.0', [None, str]),
+                                KeyDesc('packages', 'List of Alpine linux packages to install. If that is provided, then errors while installing the package list provided by LISA will not raise an exception, so that the user can provide their own replacement for them. This allows future-proofing hardcoded package names in LISA, as Alpine package names might evolve between versions.', [None, TypedList[str]]),
+                            )),
+                        )),
+                    ),
+                    value_path=('kind',),
+                ),
+                # At this level we have generic parameters that apply regardless of the build environment
                 KeyDesc('make-variables', 'Extra variables to pass to "make" command, such as "CC"', [TypedDict[str, object]]),
                 KeyDesc('overlay-backend', 'Backend to use for overlaying folders while building modules. Can be "overlayfs" (overlayfs filesystem, recommended) or "copy (plain folder copy)', [str]),
             )),
@@ -260,7 +280,8 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         'wait_boot_timeout': ['wait-boot', 'timeout'],
 
         'kernel_src': ['kernel', 'src'],
-        'kmod_build_env': ['kernel', 'modules', 'build-env'],
+        'kmod_build_env': ['kernel', 'modules', 'build-env', 'kind'],
+        'kmod_build_env_settings': ['kernel', 'modules', 'build-env', 'settings'],
         'kmod_make_vars': ['kernel', 'modules', 'make-variables'],
         'kmod_overlay_backend': ['kernel', 'modules', 'overlay-backend'],
     }
@@ -271,6 +292,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         devlib_platform=None, devlib_excluded_modules=[], devlib_file_xfer=None,
         wait_boot=True, wait_boot_timeout=10, kernel_src=None, kmod_build_env=None,
         kmod_make_vars=None, kmod_overlay_backend=None, devlib_max_async=None,
+        kmod_build_env_settings=None,
     ):
         # Set it temporarily to avoid breaking __getattr__
         self._devlib_loadable_modules = set()
@@ -285,6 +307,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         self._kmod_tree_spec = dict(
             tree_path=kernel_src,
             build_env=kmod_build_env,
+            build_env_settings=kmod_build_env_settings,
             make_vars=kmod_make_vars,
             overlay_backend=kmod_overlay_backend,
         )
