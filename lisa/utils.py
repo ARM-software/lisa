@@ -788,9 +788,9 @@ class Serializable(
                 !var package.module.var
 
         * ``!untrusted``: Interpret the given string as a YAML snippet, without
-            any of the special constructor being enabled. This provides a way
-            of safely including untrusted input in the YAML document without
-            running the risk of the user being able to use e.g. ``!call``.
+          any of the special constructor being enabled. This provides a way
+          of safely including untrusted input in the YAML document without
+          running the risk of the user being able to use e.g. ``!call``.
 
             .. code-block:: yaml
 
