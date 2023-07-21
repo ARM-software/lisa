@@ -1649,6 +1649,7 @@ def set_nested_key(mapping, key_path, val, level=None):
     :type level: collections.abc.Callable
     """
     assert key_path
+    input_mapping = mapping
 
     if level is None:
         # This should work for dict and most basic structures
@@ -1663,6 +1664,7 @@ def set_nested_key(mapping, key_path, val, level=None):
             mapping = new_level
 
     mapping[key_path[-1]] = val
+    return input_mapping
 
 
 def loopify(items):
