@@ -5,6 +5,7 @@
 #include <linux/types.h>
 
 #ifdef _IN_TREE_BUILD
+#include <linux/sched/cputime.h>
 #include <kernel/sched/sched.h>
 #endif
 
