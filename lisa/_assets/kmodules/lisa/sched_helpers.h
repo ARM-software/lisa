@@ -7,8 +7,11 @@
 
 #include <linux/cgroup.h>
 
-/* private kernel headers are missing, redefine some functions */
-#ifndef cap_scale
+#ifdef _IN_TREE_BUILD
+
+#include <kernel/sched/autogroup.h>
+
+#else
 
 #include "vmlinux.h"
 
@@ -79,7 +82,7 @@ unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util,
 #endif
 }
 
-#endif /* cap_scale */
+#endif /* _IN_TREE_BUILD */
 
 static inline void cfs_rq_tg_path(struct cfs_rq *cfs_rq, char *path, int len)
 {
