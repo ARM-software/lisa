@@ -39,6 +39,7 @@ ccflags-y = "-I$(MODULE_SRC)" -std=gnu11 -fno-stack-protector -Wno-declaration-a
 FEATURES_LDS := features.lds
 
 SYMBOL_NAMESPACES_H = $(MODULE_OBJ)/symbol_namespaces.h
+MODULE_VERSION_H = $(MODULE_OBJ)/module_version.h
 
 # in-tree build
 ifneq ($(srctree),.)
@@ -121,8 +122,13 @@ $(SYMBOL_NAMESPACES_H):
 	find "$(KERNEL_SRC)" '(' -name '*.c' -o -name '*.h' ')' -print0 | xargs -0 sed -n 's/MODULE_IMPORT_NS([^;]*;/\0/p' | sort -u > $@
 	echo "MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);" >> $@
 
+$(MODULE_VERSION_H):
+	echo -n '#ifndef _MODULE_VERSION_H\n#define _MODULE_VERSION_H\n#define LISA_MODULE_VERSION "' > $@
+	cat $$(find $(KERNEL_SRC)/$(MODULE_SRC)/ -name '*.*' | sort) | sha1sum | awk '{printf "%s\"\n", $$1}' >> $@
+	echo '#endif' >> $@
+
 # Make all object files depend on the generated sources
-$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(VMLINUX_H) $(SYMBOL_NAMESPACES_H)
+$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(VMLINUX_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H)
 
 # Non-Kbuild part
 else
