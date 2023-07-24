@@ -654,6 +654,38 @@ class LevelKeyDesc(KeyDescBase, Mapping):
         return help_
 
 
+class DelegatedLevelKeyDesc(LevelKeyDesc):
+    """
+    Level key descriptor that imports the keys from another
+    :class:`~lisa.conf.MultiSrcConfABC` subclass.
+
+    :param conf: Configuration class to extract keys from.
+    :type conf: MultiSrcConfABC
+
+    :Variable keyword arguments: Forwarded to :class:`lisa.conf.LevelKeyDesc`.
+
+    This allows embedding a configuration inside another one, mostly to be able
+    to split a configuration class while preserving backward compatibility.
+
+    .. note:: Only the children keys are taken from the passed level, other
+        information such as ``value_path`` are ignored and must be set
+        explicitly.
+    """
+
+    def __init__(self, name, help, conf, **kwargs):
+        # Make a deepcopy to ensure we will not change the parent attribute of
+        # an existing structure.
+        level = copy.deepcopy(conf.STRUCTURE)
+
+        children = level.values()
+        super().__init__(
+            name=name,
+            help=help,
+            children=children,
+            **kwargs
+        )
+
+
 class TopLevelKeyDescBase(LevelKeyDesc):
     """
     Top-level key descriptor, which defines the top-level key to use in the
