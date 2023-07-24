@@ -651,7 +651,7 @@ class WATraceCollector(WAArtifactCollectorBase):
         to their corresponding :class:`lisa.trace.Trace`.
         """
         return LazyMapping({
-            f"{job.label}-{job.iteration}": lru_cache()(lambda k: Trace(job.get_artifact_path('trace-cmd-bin'), **self._trace_kwargs))
+            f"{job.label}-{job.iteration}": lru_cache()(lambda k, job=job: Trace(job.get_artifact_path('trace-cmd-bin'), **self._trace_kwargs))
             for job in self.wa_output.jobs
         })
 
