@@ -3681,10 +3681,33 @@ class DirCache(Loggable):
         """
         Return the token associated with the given ``key``.
         """
+        def normalize(x):
+            def with_typ(key):
+                return (
+                    x.__class__.__module__,
+                    x.__class__.__qualname__,
+                    key,
+                )
+
+            if isinstance(x, str):
+                return x
+            elif isinstance(x, Mapping):
+                return with_typ(sorted(
+                    (normalize(k), normalize(v))
+                    for k, v in x.items()
+                ))
+            elif isinstance(x, Iterable):
+                return with_typ(tuple(map(normalize, x)))
+            else:
+                return with_typ(repr(x))
+
+        key = normalize(key)
+        key = repr(key).encode('utf-8')
+
         h = hashlib.sha256()
-        for x in key:
-            h.update(repr(x).encode('utf-8'))
+        h.update(key)
         token = h.hexdigest()
+
         return token
 
     def _get_path(self, key):
@@ -3715,8 +3738,20 @@ class DirCache(Loggable):
 
         :param key: Key of the cache entry. All the components of the key must
             be isomorphic to their ``repr()``, otherwise the cache will be hit
-            in cases where it should not.
-        :type key: tuple(str)
+            in cases where it should not. For convenience, some types are
+            normalized:
+
+            * :class:`~collections.abc.Mapping` is only considered for its keys
+              and values and type name. Keys are sorted are sorted. If the
+              passed object contains other relevant metadata, it should be
+              rendered to a string first by the caller.
+
+            * :class:`~collections.abc.Iterable` keys are normalized and the
+              object is only considered as an iterable. If other relevant
+              metadata is contained in the object, it should be rendered to a
+              string by the caller.
+
+        :type key: object
 
         .. note:: The return folder must never be modified, as it would lead to
             races.
