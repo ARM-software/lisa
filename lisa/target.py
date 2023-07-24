@@ -34,6 +34,7 @@ import hashlib
 import shutil
 from types import ModuleType, FunctionType
 from operator import itemgetter
+import warnings
 
 import devlib
 from devlib.exception import TargetStableError
@@ -42,9 +43,9 @@ from devlib.platform.gem5 import Gem5SimulationPlatform
 
 from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath, nullcontext, ExekallTaggable, memoized, destroyablecontextmanager, ContextManagerExit
 from lisa._assets import ASSETS_PATH
-from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc,Configurable
+from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, Configurable, DelegatedLevelKeyDesc
 from lisa._generic import TypedList, TypedDict
-from lisa._kmod import KernelTree, DynamicKmod
+from lisa._kmod import _KernelBuildEnv, DynamicKmod, _KernelBuildEnvConf
 
 from lisa.platforms.platinfo import PlatformInfo
 
@@ -159,31 +160,10 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
         KeyDesc('lazy-platinfo', 'Lazily autodect the platform information to speed up the connection', [bool]),
         LevelKeyDesc('kernel', 'kernel information', (
             KeyDesc('src', 'Path to kernel source tree matching the kernel running on the target used to build modules', [str, None]),
-            LevelKeyDesc('modules', 'kernel modules', (
-                LevelKeyDesc(
-                    'build-env', 'Settings specific to a given build-env ',
-                    (
-                        KeyDesc('kind', 'Environment used to build modules. Can be any of "alpine" (Alpine Linux chroot, recommended) or "host" (command ran directly on host system)', [str]),
-                        # At this level we have all the build-env specific
-                        # parameters. Generic parameters go straight into the
-                        # "modules" level. Most people will not need to use the
-                        # "settings" level.
-                        LevelKeyDesc('settings', 'build-env settings', (
-                            LevelKeyDesc('host', 'Settings for host build-env', (
-                                KeyDesc('toolchain-path', 'Folder to prepend to PATH when executing toolchain command in the host build env', [str]),
-                            )),
-                            LevelKeyDesc('alpine', 'Settings for Alpine linux build-env', (
-                                KeyDesc('version', 'Alpine linux version, e.g. 3.18.0', [None, str]),
-                                KeyDesc('packages', 'List of Alpine linux packages to install. If that is provided, then errors while installing the package list provided by LISA will not raise an exception, so that the user can provide their own replacement for them. This allows future-proofing hardcoded package names in LISA, as Alpine package names might evolve between versions.', [None, TypedList[str]]),
-                            )),
-                        )),
-                    ),
-                    value_path=('kind',),
-                ),
-                # At this level we have generic parameters that apply regardless of the build environment
-                KeyDesc('make-variables', 'Extra variables to pass to "make" command, such as "CC"', [TypedDict[str, object]]),
-                KeyDesc('overlay-backend', 'Backend to use for overlaying folders while building modules. Can be "overlayfs" (overlayfs filesystem, recommended) or "copy (plain folder copy)', [str]),
-            )),
+            DelegatedLevelKeyDesc(
+                'modules', 'Kernel module build environment',
+                _KernelBuildEnvConf,
+            ),
         )),
         LevelKeyDesc('wait-boot', 'Wait for the target to finish booting', (
             KeyDesc('enable', 'Enable the boot check', [bool]),
@@ -280,10 +260,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         'wait_boot_timeout': ['wait-boot', 'timeout'],
 
         'kernel_src': ['kernel', 'src'],
-        'kmod_build_env': ['kernel', 'modules', 'build-env', 'kind'],
-        'kmod_build_env_settings': ['kernel', 'modules', 'build-env', 'settings'],
-        'kmod_make_vars': ['kernel', 'modules', 'make-variables'],
-        'kmod_overlay_backend': ['kernel', 'modules', 'overlay-backend'],
+        'kmod_build_env': ['kernel', 'modules'],
     }
 
     def __init__(self, kind, name='<noname>', tools=[], res_dir=None,
@@ -292,7 +269,6 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         devlib_platform=None, devlib_excluded_modules=[], devlib_file_xfer=None,
         wait_boot=True, wait_boot_timeout=10, kernel_src=None, kmod_build_env=None,
         kmod_make_vars=None, kmod_overlay_backend=None, devlib_max_async=None,
-        kmod_build_env_settings=None,
     ):
         # Set it temporarily to avoid breaking __getattr__
         self._devlib_loadable_modules = set()
@@ -300,17 +276,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         # pylint: disable=dangerous-default-value
         super().__init__()
         logger = self.logger
-
         self.name = name
-
-        self._kmod_tree = None
-        self._kmod_tree_spec = dict(
-            tree_path=kernel_src,
-            build_env=kmod_build_env,
-            build_env_settings=kmod_build_env_settings,
-            make_vars=kmod_make_vars,
-            overlay_backend=kmod_overlay_backend,
-        )
 
         res_dir = res_dir if res_dir else self._get_res_dir(
             root=os.path.join(LISA_HOME, RESULT_DIR),
@@ -374,6 +340,38 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         cache_dir.mkdir(parents=True)
         self._cache_dir = cache_dir
 
+        self._kmod_build_env = None
+
+        def _make_kernel_build_env_spec(kmod_build_env, abi):
+            kmod_build_env, *_ = _KernelBuildEnv._resolve_conf(
+                kmod_build_env,
+                abi=abi,
+            )
+            deprecated = {
+                'overlay-backend': kmod_overlay_backend,
+                'make-variables': kmod_make_vars,
+            }
+
+            cls_name = self.__class__.__qualname__
+            if any(v is not None for v in deprecated.values()):
+                warnings.warn(f'{cls_name} kmod_overlay_backend and kmod_make_vars parameters are deprecated, please pass the information inside build_env instead using keys: {", ".join(deprecated.keys())}', DeprecationWarning)
+
+            kmod_build_env.add_src(
+                src='deprecated-{cls_name}-params',
+                conf=deprecated,
+                filter_none=True
+            )
+
+            return dict(
+                tree_path=kernel_src,
+                build_conf=kmod_build_env,
+            )
+
+        self._kmod_build_env_spec = _make_kernel_build_env_spec(
+            kmod_build_env,
+            abi=self.plat_info['abi'],
+        )
+
     def _init_plat_info(self, plat_info=None, name=None, **kwargs):
 
         if plat_info is None:
@@ -401,18 +399,18 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             k: v
             for k, v in self.__dict__.items()
             if k not in {
-                # this KernelTree contains a reference to ourselves, and will
+                # this _KernelBuildEnv contains a reference to ourselves, and will
                 # fail to unpickle because of the circular dependency and the
                 # fact that it will call its constructor again, trying to make
                 # use of the Target before it is ready.
-                '_kmod_tree',
+                '_kmod_build_env',
             }
         }
 
     def __setstate__(self, dct):
         self.__dict__.update(dct)
         self._init_plat_info(deferred=True)
-        self._kmod_tree = None
+        self._kmod_build_env = None
 
     def get_kmod(self, mod_cls=DynamicKmod, **kwargs):
         """
@@ -427,30 +425,30 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             method of ``mod_cls``.
         """
         try:
-            tree = kwargs['kernel_tree']
+            build_env = kwargs['kernel_build_env']
         except KeyError:
-            memoize_tree = True
-            if self._kmod_tree:
-                tree = self._kmod_tree
+            memoize_build_env = True
+            if self._kmod_build_env:
+                build_env = self._kmod_build_env
             else:
-                tree = KernelTree.from_target(
+                build_env = _KernelBuildEnv.from_target(
                     target=self,
-                    **self._kmod_tree_spec
+                    **self._kmod_build_env_spec
                 )
         else:
-            memoize_tree = False
+            memoize_build_env = False
 
-        kwargs['kernel_tree'] = tree
+        kwargs['kernel_build_env'] = build_env
 
         mod = mod_cls.from_target(
             target=self,
             **kwargs,
         )
-        if memoize_tree:
+        if memoize_build_env:
             # Memoize the KernelTree, as it is a reusable object. Memoizing
             # allows remembering its checksum across calls, which will allow
             # hitting the .ko cache without having to setup a kernel tree.
-            self._kmod_tree = mod.kernel_tree
+            self._kmod_build_env = mod.kernel_build_env
         return mod
 
     def cached_pull(self, src, dst, **kwargs):

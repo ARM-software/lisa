@@ -576,7 +576,10 @@ class LevelKeyDesc(KeyDescBase, Mapping):
     def __init__(self, name, help, children, value_path=None):
         # pylint: disable=redefined-builtin
         super().__init__(name=name, help=help)
-        self.children = children
+        # Make it easier to share children with another configuration class by
+        # making them independent, so we will not accidentally override the
+        # parent link when it would not be appropriate.
+        self.children = list(map(copy.deepcopy, children))
 
         # Fixup parent for easy nested declaration
         for key_desc in self.children:
