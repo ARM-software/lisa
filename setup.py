@@ -66,6 +66,7 @@ extras_require={
     ],
 
     "dev": [
+        "pip-audit",
         "pytest",
         "build",
         "twine",

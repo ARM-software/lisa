@@ -276,6 +276,20 @@ function lisa-install {
     # listed in $PATH.
     _lisa-reload-PATH
 
+
+    # Check packages versions and try to upgrade them if there is a
+    # vulnerability found in some of them.
+    local pip_audit_options=()
+    if [[ "$LISA_USE_VENV" == 1 ]]; then
+        pip_audit_options+=(--fix)
+    fi
+    if [[ ! -z "$VIRTUAL_ENV" ]]; then
+        pip_audit_options+=(--local)
+    fi
+    if which pip-audit &>/dev/null; then
+        pip-audit --desc "${pip_audit_options[@]}"
+    fi
+
     local lisa_install_versions="$LISA_HOME/.lisa-install-versions"
 
     # Log the version of all Python modules, so we know what is the faulty
