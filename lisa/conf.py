@@ -69,8 +69,8 @@ class DeferredValue:
             key = key_desc.qualname if key_desc else '<unknown>'
             raise KeyComputationRecursionError(f'Recursion error while computing deferred value for key: {key}', key)
 
-        self._is_computing = True
         try:
+            self._is_computing = True
             return self.callback(*self.args, **self.kwargs)
         finally:
             self._is_computing = False
@@ -402,17 +402,7 @@ class DerivedKeyDesc(KeyDesc):
         super().__init__(name=name, help=help, classinfo=classinfo, newtype=newtype)
         self._base_key_paths = base_key_paths
         self._compute = compute
-        self._compute_stack_tls = threading.local()
-
-    def _get_compute_stack(self, conf):
-        try:
-            stack = self._compute_stack_tls.stack
-        except AttributeError:
-            stack = weakref.WeakKeyDictionary()
-            self._compute_stack_tls.stack = stack
-
-        key = conf._as_hashable
-        return stack.setdefault(key, [])
+        self._is_computing_in = set()
 
     @property
     def help(self):
@@ -520,27 +510,25 @@ class DerivedKeyDesc(KeyDesc):
             return True
 
     def compute_val(self, conf, eval_deferred=True):
-        stack = self._get_compute_stack(conf)
-
-        if stack:
+        conf_id = id(conf)
+        if conf_id in self._is_computing_in:
             key = self.qualname
             raise KeyComputationRecursionError(f'Recursion error while computing derived key: {key}', key)
         else:
-            stack.append(self)
+            try:
+                self._is_computing_in.add(conf_id)
+                # If there is non evaluated base, transitively return a closure rather
+                # than computing now.
+                if not eval_deferred and self.get_non_evaluated_base_keys(conf):
+                    val = DeferredValue(self.compute_val, conf=conf, eval_deferred=True)
+                else:
+                    base_conf = self._get_base_conf(conf)
+                    val = self._compute(base_conf)
+                    self.validate_val(val)
+            finally:
+                self._is_computing_in.remove(conf_id)
 
-        try:
-            # If there is non evaluated base, transitively return a closure rather
-            # than computing now.
-            if not eval_deferred and self.get_non_evaluated_base_keys(conf):
-                val = DeferredValue(self.compute_val, conf=conf, eval_deferred=True)
-            else:
-                base_conf = self._get_base_conf(conf)
-                val = self._compute(base_conf)
-                self.validate_val(val)
-        finally:
-            stack.pop()
-
-        return val
+            return val
 
     def get_src(self, conf):
         return ','.join(
