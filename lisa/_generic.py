@@ -47,16 +47,7 @@ def _isinstance(x, type_):
             else:
                 raise TypeError(f'Cannot handle type hint: {type_}')
 
-
-class GenericContainerMetaBase(type):
-    """
-    Base class for the metaclass of generic containers.
-
-    They are parameterized with the ``type_`` class attribute, and classes can
-    also be created by indexing on classes with :class:`GenericContainerBase`
-    metaclass. The ``type_`` class attribute will be set with what is passed as
-    the key.
-    """
+class MetaBase(type):
     def __instancecheck__(cls, instance):
         try:
             cls.instancecheck(instance)
@@ -69,6 +60,29 @@ class GenericContainerMetaBase(type):
     # assert Container[Foo] is Container[Foo]
     @functools.lru_cache(maxsize=None, typed=True)
     def __getitem__(cls, type_):
+        NewClass = cls.getitem(type_)
+
+        NewClass.__module__ = cls.__module__
+
+        # Since this type name is not resolvable, avoid cross reference
+        # warnings from Sphinx
+        sphinx_register_nitpick_ignore(NewClass)
+        return NewClass
+
+
+class GenericContainerMetaBase(MetaBase):
+    """
+    Base class for the metaclass of generic containers.
+
+    They are parameterized with the ``type_`` class attribute, and classes can
+    also be created by indexing on classes with :class:`GenericBase`
+    metaclass. The ``type_`` class attribute will be set with what is passed as
+    the key.
+    """
+
+    # Fully memoize the function so that this always holds:
+    # assert Container[Foo] is Container[Foo]
+    def getitem(cls, type_):
         class NewClass(cls):
             _type = type_
 
@@ -104,23 +118,16 @@ class GenericContainerMetaBase(type):
             attrgetter('__qualname__'),
             type_param_name,
         )
-        NewClass.__module__ = cls.__module__
-
-        # Since this type name is not resolvable, avoid cross reference
-        # warnings from Sphinx
-        sphinx_register_nitpick_ignore(NewClass)
-
         return NewClass
 
 
-class GenericContainerBase:
+class GenericBase:
     """
     Base class for generic containers.
     """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        type(self).instancecheck(self)
+    def __new__(cls, obj):
+        cls.instancecheck(obj)
+        return obj
 
 
 class GenericMappingMeta(GenericContainerMetaBase, type(Mapping)):
@@ -144,7 +151,7 @@ class GenericMappingMeta(GenericContainerMetaBase, type(Mapping)):
                 raise TypeError(f'Value of {type(v).__qualname__} key "{k}" should be of type {v_type.__qualname__}', k)
 
 
-class TypedDict(GenericContainerBase, dict, metaclass=GenericMappingMeta):
+class TypedDict(GenericBase, dict, metaclass=GenericMappingMeta):
     """
     Subclass of dict providing keys and values type check.
     """
@@ -169,14 +176,37 @@ class GenericSortedSequenceMeta(GenericSequenceMeta):
                 raise TypeError(f'Item #{i} "{x}" is higher than the next item "{y}", but the list must be sorted')
 
 
-class TypedList(GenericContainerBase, list, metaclass=GenericSequenceMeta):
+class TypedList(GenericBase, list, metaclass=GenericSequenceMeta):
     """
     Subclass of list providing keys and values type check.
     """
 
 
-class SortedTypedList(GenericContainerBase, list, metaclass=GenericSortedSequenceMeta):
+class SortedTypedList(GenericBase, list, metaclass=GenericSortedSequenceMeta):
     """
     Subclass of list providing keys and values type check, and also check the
     list is sorted in ascending order.
     """
+
+
+class OneOfMeta(MetaBase):
+    def getitem(cls, allowed):
+        class NewClass(cls):
+            _allowed = allowed
+
+        NewClass.__qualname__ = f'{cls.__qualname__}[{", ".join(map(repr, allowed))}]'
+        return NewClass
+
+    def instancecheck(cls, instance):
+        allowed = cls._allowed
+        if instance not in allowed:
+            raise ValueError(f'Value {repr(instance)} is not allowed. It must be one of: {", ".join(map(repr, allowed))}')
+
+
+class OneOf(GenericBase, metaclass=OneOfMeta):
+    """
+    Check that the provided value is part of a specific set of allowed values.
+    """
+    def __new__(cls, obj):
+        cls.instancecheck(obj)
+        return obj
