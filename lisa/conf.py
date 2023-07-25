@@ -158,12 +158,15 @@ class KeyDescBase(abc.ABC):
         return self.parent.path + curr
 
     @abc.abstractmethod
-    def get_help(self, style=None):
+    def get_help(self, style=None, last=False):
         """
         Get a help message describing the key.
 
         :param style: When "rst", ResStructuredText formatting may be applied
         :param style: str
+
+        :param last: ``True`` if this is the last item in a list.
+        :type last: bool
         """
 
     @abc.abstractmethod
@@ -281,7 +284,7 @@ class KeyDesc(KeyDescBase):
         if not isinstance(val, DeferredValue):
             checkinstance(key, val, classinfo)
 
-    def get_help(self, style=None):
+    def get_help(self, style=None, last=False):
         base_fmt = '{prefix}{key} ({classinfo}){prefixed_help}.'
         if style == 'rst':
             prefix = '* '
@@ -292,7 +295,7 @@ class KeyDesc(KeyDescBase):
             key = ''
             fmt = '{key}{help}\ntype: {classinfo}'
         else:
-            prefix = '|- '
+            prefix = ('└' if last else '├') + ' '
             key = self.name
             fmt = base_fmt
 
@@ -652,9 +655,9 @@ class LevelKeyDesc(KeyDescBase, Mapping):
         for key, val in conf.items():
             self[key].validate_val(val)
 
-    def get_help(self, style=None):
+    def get_help(self, style=None, last=False):
         idt = self.INDENTATION
-        prefix = '*' if style == 'rst' else '+-'
+        prefix = '*' if style == 'rst' else ('└' if last else '├')
         # Nasty hack: adding an empty ResStructuredText comment between levels
         # of nested list avoids getting extra blank line between list items.
         # That prevents ResStructuredText from thinking each item must be a
@@ -668,9 +671,13 @@ class LevelKeyDesc(KeyDescBase, Mapping):
             help=' ' + self.help if self.help else '',
         )
         nl = '\n' + idt
+        last = len(self.children) - 1
         help_ += nl.join(
-            key_desc.get_help(style=style).replace('\n', nl)
-            for key_desc in self.children
+            key_desc.get_help(
+                style=style,
+                last=i == last,
+            ).replace('\n', nl)
+            for i, key_desc in enumerate(self.children)
         )
         if style == 'rst':
             help_ += '\n\n..\n'
@@ -737,11 +744,11 @@ class TopLevelKeyDescBase(LevelKeyDesc):
     def _check_name(cls, name):
         pass
 
-    def get_help(self, style=None):
+    def get_help(self, style=None, **kwargs):
         if style == 'yaml':
             return self.help
         else:
-            return super().get_help(style=style)
+            return super().get_help(style=style, **kwargs)
 
 
 class TopLevelKeyDesc(TopLevelKeyDescBase):
@@ -1778,10 +1785,14 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
 
                 yield key, val
 
-        for k, v in itertools.chain(
+        items = list(itertools.chain(
             self.items(eval_deferred=eval_deferred),
             derived_items()
-        ):
+        ))
+        _last = len(items) - 1
+
+        for i, (k, v) in enumerate(items):
+            last = i == _last
             v_cls = type(v)
 
             key_desc = self._structure[k]
@@ -1800,12 +1811,8 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             else:
                 v = ' ' + v
 
-            if is_sublevel:
-                k_str = '+- ' + k
-                v_prefix = '    '
-            else:
-                k_str = '|- ' + k
-                v_prefix = '|   '
+            k_str = ('└' if last else '├') + ' ' + k
+            v_prefix = '    ' if is_sublevel else '|   '
 
             v = v.replace('\n', '\n' + v_prefix)
 
