@@ -44,7 +44,7 @@ from devlib.platform.gem5 import Gem5SimulationPlatform
 from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath, nullcontext, ExekallTaggable, memoized, destroyablecontextmanager, ContextManagerExit
 from lisa._assets import ASSETS_PATH
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, Configurable, DelegatedLevelKeyDesc
-from lisa._generic import TypedList, TypedDict
+from lisa._generic import TypedList, TypedDict, OneOf
 from lisa._kmod import _KernelBuildEnv, DynamicKmod, _KernelBuildEnvConf
 
 from lisa.platforms.platinfo import PlatformInfo
@@ -146,7 +146,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
 
     STRUCTURE = TopLevelKeyDesc('target-conf', 'target connection settings', (
         KeyDesc('name', 'Board name, free-form value only used to embelish logs', [str]),
-        KeyDesc('kind', 'Target kind. Can be "linux" (ssh) or "android" (adb)', [str]),
+        KeyDesc('kind', 'Target kind. Can be "linux" (ssh) or "android" (adb)', [OneOf['linux', 'android', 'host']]),
 
         KeyDesc('host', 'Hostname or IP address of the host', [str, None]),
         KeyDesc('username', 'SSH username. On ADB connections, "root" username will root adb upon target connection', [str, None]),
