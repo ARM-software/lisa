@@ -5628,7 +5628,7 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
     """
     STRUCTURE = TopLevelKeyDesc('ftrace-conf', 'FTrace configuration', (
         KeyDesc('events', 'FTrace events to trace', [TypedList[str], TraceEventCheckerBase]),
-        KeyDesc('events-namespaces', 'FTrace events namespaces to use. See Trace namespace constructor parameter.', [TypedList[Union[str, None], None]]),
+        KeyDesc('events-namespaces', 'FTrace events namespaces to use. See Trace namespace constructor parameter.', [TypedList[Union[str, None]], None]),
         KeyDesc('functions', 'FTrace functions to trace', [TypedList[str]]),
         KeyDesc('buffer-size', 'FTrace buffer size', [int]),
         KeyDesc('trace-clock', 'Clock used while tracing (see "trace_clock" in ftrace.txt kernel doc)', [str, None]),
