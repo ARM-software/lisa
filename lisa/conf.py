@@ -1258,7 +1258,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         conf.force_src_nested(src_override)
         return conf
 
-    def add_src(self, src, conf, filter_none=False, fallback=False):
+    def add_src(self, src, conf, filter_none=False, fallback=False, inplace=True):
         """
         Add a source of configuration.
 
@@ -1279,6 +1279,10 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             have the highest priority and will be used unless a key-specific
             priority override is setup.
         :type fallback: bool
+
+        :param inplace: If ``True``, the object is modified. If ``False``, a
+            mutated copy is returned and the original object is left unmodified.
+        :type inplace: bool
 
         This method provides a way to update the configuration, by importing a
         mapping as a new source.
@@ -1341,6 +1345,8 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 filename=filename if filename else '<unknown>',
                 lineno=lineno if lineno else '<unknown>',
             ))
+
+        self = self if inplace else copy.copy(self)
         return self._add_src(
             src, conf,
             filter_none=filter_none, fallback=fallback
@@ -1397,6 +1403,8 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 self._src_prio.append(src)
             else:
                 self._src_prio.insert(0, src)
+
+        return self
 
     def set_default_src(self, src_prio):
         """
