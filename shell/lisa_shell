@@ -28,15 +28,13 @@ export ANDROID_HOME=${ANDROID_HOME:-"$LISA_HOME/tools/android-sdk-linux"}
 
 export _DOC_LISA_HOME="Base directory of LISA environment"
 
-export _DOC_LISA_PYTHON="Python binary to use. This allows users to install
-multiple versions in parallel, and ease testing"
+export _DOC_LISA_PYTHON="Python binary to use. This allows users to install multiple versions in parallel, and ease testing"
 export LISA_PYTHON=${LISA_PYTHON:-python3}
 
 export _DOC_LISA_DEVMODE="By default use internal libraries"
 export LISA_DEVMODE=${LISA_DEVMODE:-1}
 
-export _DOC_LISA_PRESERVE_SHELL="By default use Lisa's PS1 and colorscheme for
-the shell"
+export _DOC_LISA_PRESERVE_SHELL="By default use Lisa's PS1 and colorscheme for the shell"
 export LISA_PRESERVE_SHELL=${LISA_PRESERVE_SHELL:-0}
 
 # Setup colors
@@ -106,8 +104,7 @@ function lisa-help {
 # major.minor version number
 PYTHON_VERSION=$(_lisa-python -c 'import sys; print("{}.{}".format(*sys.version_info))')
 
-export _DOC_LISA_USE_VENV="1 to make lisa-install use a venv specified in
-LISA_VENV_PATH, 0 otherwise"
+export _DOC_LISA_USE_VENV="1 to make lisa-install use a venv specified in LISA_VENV_PATH, 0 otherwise"
 export LISA_USE_VENV=${LISA_USE_VENV:-1}
 
 export _DOC_LISA_VENV_PATH="Path to venv to be used by lisa-install"
@@ -275,6 +272,20 @@ function lisa-install {
     # Make sure the shell has taken into account the new content of directories
     # listed in $PATH.
     _lisa-reload-PATH
+
+
+    # Check packages versions and try to upgrade them if there is a
+    # vulnerability found in some of them.
+    local pip_audit_options=()
+    if [[ "$LISA_USE_VENV" == 1 ]]; then
+        pip_audit_options+=(--fix)
+    fi
+    if [[ ! -z "$VIRTUAL_ENV" ]]; then
+        pip_audit_options+=(--local)
+    fi
+    if which pip-audit &>/dev/null; then
+        pip-audit --desc "${pip_audit_options[@]}"
+    fi
 
     local lisa_install_versions="$LISA_HOME/.lisa-install-versions"
 
