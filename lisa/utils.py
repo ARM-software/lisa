@@ -490,7 +490,7 @@ def get_cls_name(cls, style=None, fully_qualified=True):
     """
     Get a prettily-formated name for the class given as parameter
 
-    :param cls: class to get the name from
+    :param cls: Class or typing hint to get the name from.
     :type cls: type
 
     :param style: When "rst", a RestructuredText snippet is returned
@@ -499,17 +499,25 @@ def get_cls_name(cls, style=None, fully_qualified=True):
     """
     if cls is None:
         return 'None'
-
-    if fully_qualified or style == 'rst':
-        mod_name = inspect.getmodule(cls).__name__
-        mod_name = mod_name + '.' if mod_name not in ('builtins', '__main__') else ''
     else:
-        mod_name = ''
+        try:
+            qualname = cls.__qualname__
+        # type annotations like typing.Union[str, int] do not have a __qualname__
+        except AttributeError:
+            name = str(cls)
+        else:
+            if fully_qualified or style == 'rst':
+                mod_name = inspect.getmodule(cls).__name__
+                mod_name = mod_name + '.' if mod_name not in ('builtins', '__main__') else ''
+            else:
+                mod_name = ''
 
-    name = mod_name + cls.__qualname__
-    if style == 'rst':
-        name = f':class:`~{name}`'
-    return name
+            name = mod_name + cls.__qualname__
+
+        if style == 'rst':
+            name = f':class:`~{name}`'
+
+        return name
 
 
 def get_common_ancestor(classes):

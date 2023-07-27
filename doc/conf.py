@@ -436,6 +436,11 @@ ignored_refs = {
     # reference since the intersphinx inventory of the stdlib does not provide
     # any link for NoneType.
     r'NoneType',
+
+    # Sphinx currently fails at finding the target for references like
+    # :class:`typing.List[str]` since it does not seem to have specific support
+    # for the bracketed syntax in that role.
+    r'typing.*',
 }
 ignored_refs.update(
     re.escape(f'{x.__module__}.{x.__qualname__}')
