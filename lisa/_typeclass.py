@@ -715,14 +715,11 @@ class FromString(TypeClass):
         """
 
 
-class BuiltinFromStringInstance(FromString, types=(int, float, List[float])):
+class BuiltinFromStringInstance(FromString, types=(int, float)):
     """
     Parse the following types from a string:
         * ``int``
         * ``float``
-        * ``str``
-
-    Plus all the :class:`lisa._generic.List` subtypes of the above types.
     """
     @classmethod
     def from_str(cls, string):
