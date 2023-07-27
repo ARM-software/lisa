@@ -18,6 +18,7 @@
 from functools import reduce
 import operator
 import warnings
+from typing import List
 
 import pandas as pd
 import holoviews as hv
@@ -25,7 +26,6 @@ import holoviews as hv
 from lisa.datautils import df_add_delta, df_refit_index, df_split_signals
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events, CPU
-from lisa._generic import TypedList
 from lisa.analysis.base import TraceAnalysisBase
 
 
@@ -263,7 +263,7 @@ class IdleAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method
     @df_cluster_idle_state_residency.used_events
-    def plot_cluster_idle_state_residency(self, cluster: TypedList[CPU], pct: bool=False):
+    def plot_cluster_idle_state_residency(self, cluster: List[CPU], pct: bool=False):
         """
         Plot the idle state residency of a cluster
 

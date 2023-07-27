@@ -19,13 +19,14 @@ import re
 import functools
 import contextlib
 from collections.abc import Mapping
+from typing import Dict, List
 
 from lisa.utils import HideExekallID, group_by_value, memoized
 from lisa.conf import (
     DeferredValue, DeferredExcep, MultiSrcConf, KeyDesc, LevelKeyDesc,
     TopLevelKeyDesc, DerivedKeyDesc, ConfigKeyError,
 )
-from lisa._generic import TypedDict, TypedList, SortedTypedList
+from lisa._generic import SortedList
 from lisa.energy_model import EnergyModel
 from lisa.wlgen.rta import RTA
 
@@ -70,9 +71,9 @@ class KernelSymbolsAddress(KeyDesc):
         return '<symbols address>'
 
 
-CPUIdList = SortedTypedList[int]
-FreqList = SortedTypedList[int]
-CPUCapacities = TypedDict[int,int]
+CPUIdList = SortedList[int]
+FreqList = SortedList[int]
+CPUCapacities = Dict[int,int]
 
 
 class PlatformInfo(MultiSrcConf, HideExekallID):
@@ -89,13 +90,13 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
     # we need.
     STRUCTURE = TopLevelKeyDesc('platform-info', 'Platform-specific information', (
         LevelKeyDesc('rtapp', 'RTapp configuration', (
-            KeyDesc('calib', 'RTapp calibration dictionary', [TypedDict[int,int]]),
+            KeyDesc('calib', 'RTapp calibration dictionary', [Dict[int,int]]),
         )),
 
         LevelKeyDesc('kernel', 'Kernel-related information', (
             KeyDesc('version', '', [KernelVersion]),
             KernelConfigKeyDesc('config', '', [TypedKernelConfig]),
-            KernelSymbolsAddress('symbols-address', 'Dictionary of addresses to symbol names extracted from /proc/kallsyms', [TypedDict[int,str]], deepcopy_val=False),
+            KernelSymbolsAddress('symbols-address', 'Dictionary of addresses to symbol names extracted from /proc/kallsyms', [Dict[int,str]], deepcopy_val=False),
         )),
         KeyDesc('nrg-model', 'Energy model object', [EnergyModel]),
         LevelKeyDesc('cpu-capacities', 'Dictionaries of CPU ID to capacity value', (
@@ -117,12 +118,12 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
 
         KeyDesc('freq-domains',
                 'Frequency domains modeled by a list of CPU IDs for each domain',
-                [TypedList[CPUIdList]]),
-        KeyDesc('freqs', 'Dictionnary of CPU ID to list of frequencies', [TypedDict[int, FreqList]]),
+                [List[CPUIdList]]),
+        KeyDesc('freqs', 'Dictionnary of CPU ID to list of frequencies', [Dict[int, FreqList]]),
 
         DerivedKeyDesc('capacity-classes',
                        'Capacity classes modeled by a list of CPU IDs for each capacity, sorted by capacity',
-                       [TypedList[CPUIdList]],
+                       [List[CPUIdList]],
                        [['cpu-capacities', 'orig']], compute_capa_classes),
     ))
     """Some keys have a reserved meaning with an associated type."""

@@ -19,6 +19,7 @@
 
 import operator
 import itertools
+from typing import List
 
 import holoviews as hv
 import pandas as pd
@@ -28,7 +29,6 @@ from lisa.analysis.status import StatusAnalysis
 from lisa.trace import requires_one_event_of, may_use_events, will_use_events_from, TaskID, CPU, MissingTraceEventError, OrTraceEventChecker
 from lisa.utils import deprecate
 from lisa.datautils import df_refit_index, series_refit_index, df_filter_task_ids, df_split_signals
-from lisa._generic import TypedList
 from lisa.notebook import plot_signal, _hv_neutral
 
 
@@ -133,7 +133,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         'sched_util_est_cfs',
         'sched_cpu_capacity',
     )
-    def df_cpus_signal(self, signal, cpus: TypedList[CPU]=None):
+    def df_cpus_signal(self, signal, cpus: List[CPU]=None):
         """
         Get the load-tracking signals for the CPUs
 
@@ -322,7 +322,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.plot_method
     @may_use_events(StatusAnalysis.plot_overutilized.used_events)
     @df_cpus_signal.used_events
-    def plot_cpus_signals(self, cpus: TypedList[CPU]=None, signals: TypedList[str]=['util', 'load']):
+    def plot_cpus_signals(self, cpus: List[CPU]=None, signals: List[str]=['util', 'load']):
         """
         Plot the CPU-related load-tracking signals
 
@@ -374,7 +374,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method
     @df_task_signal.used_events
-    def plot_task_signals(self, task: TaskID,  signals: TypedList[str]=['util', 'load']):
+    def plot_task_signals(self, task: TaskID,  signals: List[str]=['util', 'load']):
         """
         Plot the task-related load-tracking signals
 
