@@ -158,7 +158,7 @@ CPU = newtype(int, 'CPU', doc='Alias to ``int`` used for CPU IDs')
 
 class _CPUListFromStringInstance(FromString, types=List[CPU]):
     # Use the same implementation as for List[int]
-    from_str = IntListFromStringInstance.from_str
+    from_str = FromString(List[int]).from_str
 
     @classmethod
     def get_format_description(cls, short):
