@@ -800,8 +800,9 @@ class TasksAnalysis(TraceAnalysisBase):
                             label=f"Task running in domain {domain}"
                         )
             else:
-                self._plot_markers(
-                    series_refit_index(sw_df['__cpu'], window=self.trace.window)
+                return self._plot_markers(
+                    series_refit_index(sw_df['__cpu'], window=self.trace.window),
+                    label=str(task),
                 )
 
         return (
