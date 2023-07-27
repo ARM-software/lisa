@@ -764,9 +764,7 @@ class TxtTraceParserBase(TraceParserBase):
     will be used as is.
     """
 
-    # Since re.Match is only importable directly since Python >= 3.7, use a
-    # dummy match to get the type
-    _RE_MATCH_CLS = re.match('x', 'x').__class__
+    _RE_MATCH_CLS = re.Match
 
     def __init__(self,
         lines,
