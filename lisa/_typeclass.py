@@ -715,7 +715,7 @@ class FromString(TypeClass):
         """
 
 
-class BuiltinFromStringInstance(FromString, types=(int, float)):
+class _BuiltinFromStringInstance(FromString, types=(int, float)):
     """
     Parse the following types from a string:
         * ``int``
@@ -733,7 +733,7 @@ class BuiltinFromStringInstance(FromString, types=(int, float)):
         return cls.__name__
 
 
-class BoolFromStringInstance(FromString, types=bool):
+class _BoolFromStringInstance(FromString, types=bool):
     """
     Parse boolean from a string.
     """
@@ -758,7 +758,7 @@ class BoolFromStringInstance(FromString, types=bool):
         return 'bool'
 
 
-class IntListFromStringInstance(FromString, types=List[int]):
+class _IntListFromStringInstance(FromString, types=List[int]):
     """
     Instance of :class:`lisa._typeclass.FromString` for :class:`int` type.
     """
@@ -785,7 +785,7 @@ class IntListFromStringInstance(FromString, types=List[int]):
                 * ``1,2,10,55-99``: a comma separated list of the previous formats
             """).strip()
 
-class StrFromStringInstance(FromString, types=str):
+class _StrFromStringInstance(FromString, types=str):
     """
     Instance of :class:`lisa._typeclass.FromString` for :class:`str` type.
     """
@@ -797,7 +797,7 @@ class StrFromStringInstance(FromString, types=str):
     def get_format_description(cls, short):
         return 'str'
 
-class StrListFromStringInstance(FromString, types=List[str]):
+class _StrListFromStringInstance(FromString, types=List[str]):
     """
     Instance of :class:`lisa._typeclass.FromString` for :class:`str` type.
     """

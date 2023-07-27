@@ -59,7 +59,7 @@ from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplic
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert
 from lisa.version import VERSION_TOKEN
-from lisa._typeclass import FromString, IntListFromStringInstance
+from lisa._typeclass import FromString
 from lisa._kmod import LISAFtraceDynamicKmod
 from lisa._assets import get_bin
 
@@ -99,7 +99,7 @@ class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
     _STR_PARSE_REGEX = re.compile(r'\[?([0-9]+):([a-zA-Z0-9_-]+)\]?')
 
 
-class TaskIDFromStringInstance(FromString, types=TaskID):
+class _TaskIDFromStringInstance(FromString, types=TaskID):
     """
     Instance of :class:`lisa._typeclass.FromString` for :class:`TaskID` type.
     """
@@ -133,7 +133,7 @@ class TaskIDFromStringInstance(FromString, types=TaskID):
             """).strip()
 
 
-class TaskIDListFromStringInstance(FromString, types=List[TaskID]):
+class _TaskIDListFromStringInstance(FromString, types=List[TaskID]):
     """
     Instance of :class:`lisa._typeclass.FromString` for lists :class:`TaskID` type.
     """
@@ -156,7 +156,7 @@ class TaskIDListFromStringInstance(FromString, types=List[TaskID]):
 CPU = newtype(int, 'CPU', doc='Alias to ``int`` used for CPU IDs')
 
 
-class CPUListFromStringInstance(FromString, types=List[CPU]):
+class _CPUListFromStringInstance(FromString, types=List[CPU]):
     # Use the same implementation as for List[int]
     from_str = IntListFromStringInstance.from_str
 
