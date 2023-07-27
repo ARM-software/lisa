@@ -216,7 +216,7 @@ import itertools
 import contextlib
 import textwrap
 from collections.abc import Iterable
-from typing import List
+import typing
 
 from devlib.utils.misc import ranges_to_list
 
@@ -758,7 +758,7 @@ class _BoolFromStringInstance(FromString, types=bool):
         return 'bool'
 
 
-class _IntListFromStringInstance(FromString, types=List[int]):
+class _IntSeqFromStringInstance(FromString, types=(typing.List[int], typing.Sequence[int])):
     """
     Instance of :class:`lisa._typeclass.FromString` for :class:`int` type.
     """
@@ -797,7 +797,7 @@ class _StrFromStringInstance(FromString, types=str):
     def get_format_description(cls, short):
         return 'str'
 
-class _StrListFromStringInstance(FromString, types=List[str]):
+class _StrSeqFromStringInstance(FromString, types=(typing.List[str], typing.Sequence[str])):
     """
     Instance of :class:`lisa._typeclass.FromString` for :class:`str` type.
     """
