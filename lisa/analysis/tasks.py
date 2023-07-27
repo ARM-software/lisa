@@ -18,7 +18,7 @@
 from enum import Enum
 import itertools
 import warnings
-from typing import List
+import typing
 
 import numpy as np
 import pandas as pd
@@ -831,7 +831,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method
     @df_tasks_total_residency.used_events
-    def plot_tasks_total_residency(self, tasks: List[TaskID]=None, ascending: bool=False,
+    def plot_tasks_total_residency(self, tasks: typing.Sequence[TaskID]=None, ascending: bool=False,
                                    count: bool=None):
         """
         Plot the stacked total time spent by each task on each CPU
@@ -926,7 +926,7 @@ class TasksAnalysis(TraceAnalysisBase):
         return plot_signal(series, name=label)
 
     @TraceAnalysisBase.plot_method
-    def plot_tasks_wakeups(self, target_cpus: List[CPU]=None, window: float=1e-2, per_sec: bool=False):
+    def plot_tasks_wakeups(self, target_cpus: typing.Sequence[CPU]=None, window: float=1e-2, per_sec: bool=False):
         """
         Plot task wakeups over time
 
@@ -975,7 +975,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method
     @requires_events("sched_wakeup_new")
-    def plot_tasks_forks(self, target_cpus: List[CPU]=None, window: float=1e-2, per_sec: bool=False):
+    def plot_tasks_forks(self, target_cpus: typing.Sequence[CPU]=None, window: float=1e-2, per_sec: bool=False):
         """
         Plot task forks over time
 
@@ -1319,7 +1319,7 @@ class TasksAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.plot_method
     @_plot_tasks_activation.used_events
     @kwargs_forwarded_to(_plot_tasks_activation, ignore=['tasks', 'best_effort'])
-    def plot_tasks_activation(self, tasks: List[TaskID]=None, hide_tasks: List[TaskID]=None, which_cpu: bool=True, overlay: bool=False, **kwargs):
+    def plot_tasks_activation(self, tasks: typing.Sequence[TaskID]=None, hide_tasks: typing.Sequence[TaskID]=None, which_cpu: bool=True, overlay: bool=False, **kwargs):
         """
         Plot all tasks activations, in a style similar to kernelshark.
 

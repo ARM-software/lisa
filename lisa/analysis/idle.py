@@ -18,7 +18,7 @@
 from functools import reduce
 import operator
 import warnings
-from typing import List
+import typing
 
 import pandas as pd
 import holoviews as hv
@@ -263,7 +263,7 @@ class IdleAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method
     @df_cluster_idle_state_residency.used_events
-    def plot_cluster_idle_state_residency(self, cluster: List[CPU], pct: bool=False):
+    def plot_cluster_idle_state_residency(self, cluster: typing.Sequence[CPU], pct: bool=False):
         """
         Plot the idle state residency of a cluster
 

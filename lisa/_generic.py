@@ -21,7 +21,8 @@ Generic types inspired by the :mod:`typing` module.
 
 import functools
 import inspect
-from typing import Any, Union, Generic, TypeVar, List
+import typing
+from typing import Any, Union, Generic, TypeVar
 import typeguard
 from collections.abc import Iterable
 
@@ -135,12 +136,12 @@ def hint_to_class(hint):
 
 
 T = TypeVar('T')
-class SortedList(Generic[T], _TypeguardCustom):
+class SortedSequence(Generic[T], _TypeguardCustom):
     """
     Same as :class:`typing.List` but enforces sorted values when runtime
     checked using :mod:`typeguard`.
     """
-    _HINT = List[T]
+    _HINT = typing.Sequence[T]
 
     @classmethod
     def _instancecheck(cls, value):
