@@ -41,7 +41,6 @@ jobs:
         python-version:
           # Github seems to always block 3 jobs these days, so keep at most 3
           # versions there:
-          - '3.7'
           - '3.8'
           - '3.11'
 
