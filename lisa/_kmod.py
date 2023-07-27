@@ -131,7 +131,7 @@ from operator import itemgetter
 from shlex import quote
 from io import BytesIO
 from collections.abc import Mapping
-from typing import List, Dict, Literal
+import typing
 
 from elftools.elf.elffile import ELFFile
 
@@ -713,19 +713,19 @@ class TarOverlay(_PathOverlayBase):
 class _KernelBuildEnvConf(SimpleMultiSrcConf):
     STRUCTURE = TopLevelKeyDesc('kernel-build-env-conf', 'Build environment settings',
         (
-            KeyDesc('build-env', 'Environment used to build modules. Can be any of "alpine" (Alpine Linux chroot, recommended) or "host" (command ran directly on host system)', [Literal['host', 'alpine']]),
+            KeyDesc('build-env', 'Environment used to build modules. Can be any of "alpine" (Alpine Linux chroot, recommended) or "host" (command ran directly on host system)', [typing.Literal['host', 'alpine']]),
             LevelKeyDesc('build-env-settings', 'build-env settings', (
                 LevelKeyDesc('host', 'Settings for host build-env', (
                     KeyDesc('toolchain-path', 'Folder to prepend to PATH when executing toolchain command in the host build env', [str]),
                 )),
                 LevelKeyDesc('alpine', 'Settings for Alpine linux build-env', (
                     KeyDesc('version', 'Alpine linux version, e.g. 3.18.0', [None, str]),
-                    KeyDesc('packages', 'List of Alpine linux packages to install. If that is provided, then errors while installing the package list provided by LISA will not raise an exception, so that the user can provide their own replacement for them. This allows future-proofing hardcoded package names in LISA, as Alpine package names might evolve between versions.', [None, List[str]]),
+                    KeyDesc('packages', 'List of Alpine linux packages to install. If that is provided, then errors while installing the package list provided by LISA will not raise an exception, so that the user can provide their own replacement for them. This allows future-proofing hardcoded package names in LISA, as Alpine package names might evolve between versions.', [None, typing.Sequence[str]]),
                 )),
             )),
 
             KeyDesc('overlay-backend', 'Backend to use for overlaying folders while building modules. Can be "overlayfs" (overlayfs filesystem, recommended and fastest) or "copy (plain folder copy)', [str]),
-            KeyDesc('make-variables', 'Extra variables to pass to "make" command, such as "CC"', [Dict[str, object]]),
+            KeyDesc('make-variables', 'Extra variables to pass to "make" command, such as "CC"', [typing.Dict[str, object]]),
         ),
     )
 

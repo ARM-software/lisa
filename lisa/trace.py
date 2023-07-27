@@ -44,7 +44,7 @@ import subprocess
 import itertools
 import functools
 import fnmatch
-from typing import Union, List
+import typing
 from difflib import get_close_matches
 
 import numpy as np
@@ -133,7 +133,7 @@ class _TaskIDFromStringInstance(FromString, types=TaskID):
             """).strip()
 
 
-class _TaskIDListFromStringInstance(FromString, types=List[TaskID]):
+class _TaskIDSeqFromStringInstance(FromString, types=(typing.List[TaskID], typing.Sequence[TaskID])):
     """
     Instance of :class:`lisa._typeclass.FromString` for lists :class:`TaskID` type.
     """
@@ -156,13 +156,12 @@ class _TaskIDListFromStringInstance(FromString, types=List[TaskID]):
 CPU = newtype(int, 'CPU', doc='Alias to ``int`` used for CPU IDs')
 
 
-class _CPUListFromStringInstance(FromString, types=List[CPU]):
-    # Use the same implementation as for List[int]
-    from_str = FromString(List[int]).from_str
+class _CPUSeqFromStringInstance(FromString, types=(typing.List[CPU], typing.Sequence[CPU])):
+    from_str = FromString(typing.Sequence[int]).from_str
 
     @classmethod
     def get_format_description(cls, short):
-        return FromString(List[int]).get_format_description(short=short)
+        return FromString(typing.Sequence[int]).get_format_description(short=short)
 
 
 class MissingMetadataError(KeyError):
@@ -5624,9 +5623,9 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
     {yaml_example}
     """
     STRUCTURE = TopLevelKeyDesc('ftrace-conf', 'FTrace configuration', (
-        KeyDesc('events', 'FTrace events to trace', [List[str], TraceEventCheckerBase]),
-        KeyDesc('events-namespaces', 'FTrace events namespaces to use. See Trace namespace constructor parameter.', [List[Union[str, None]], None]),
-        KeyDesc('functions', 'FTrace functions to trace', [List[str]]),
+        KeyDesc('events', 'FTrace events to trace', [typing.Sequence[str], TraceEventCheckerBase]),
+        KeyDesc('events-namespaces', 'FTrace events namespaces to use. See Trace namespace constructor parameter.', [typing.Sequence[typing.Union[str, None]], None]),
+        KeyDesc('functions', 'FTrace functions to trace', [typing.Sequence[str]]),
         KeyDesc('buffer-size', 'FTrace buffer size', [int]),
         KeyDesc('trace-clock', 'Clock used while tracing (see "trace_clock" in ftrace.txt kernel doc)', [str, None]),
         KeyDesc('saved-cmdlines-nr', 'Number of saved cmdlines with associated PID while tracing', [int]),

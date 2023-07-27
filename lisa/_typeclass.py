@@ -192,7 +192,7 @@ Note that it's possible to implement a typeclass for a type that has no values,
 but for which ``isinstance(value, thetype)`` will return true. This can be
 achieved using ``__instancecheck__`` or ``__subclasscheck__`` and is used in
 particular by the abstract base classes provided by :mod:`collections.abc`.
-:class:`lisa._generic.SortedList` is another example. Typing hints from the
+:class:`lisa._generic.SortedSequence` is another example. Typing hints from the
 :mod:`typing` module can also be used. Casting values "registered" as instances
 of these types is expensive though, as validity of the cast depends on the
 value itself. That means it's not possible to memoize the result of the cast

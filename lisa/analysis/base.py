@@ -28,7 +28,7 @@ import warnings
 import itertools
 import copy
 from operator import itemgetter, attrgetter
-from typing import List
+import typing
 
 import numpy
 import matplotlib
@@ -592,9 +592,9 @@ class AnalysisHelpers(Loggable, abc.ABC):
             rc_params=None,
             axis=None,
             interactive=None,
-            colors: List[str]=None,
-            linestyles: List[str]=None,
-            markers: List[str]=None,
+            colors: typing.Sequence[str]=None,
+            linestyles: typing.Sequence[str]=None,
+            markers: typing.Sequence[str]=None,
 
             **kwargs
         ):

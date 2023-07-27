@@ -31,7 +31,7 @@ import itertools
 import types
 import warnings
 from operator import attrgetter
-from typing import List
+import typing
 
 from datetime import datetime
 from collections import OrderedDict, ChainMap
@@ -1426,7 +1426,7 @@ class DmesgTestConf(TestConfBase):
     {yaml_example}
     """
     STRUCTURE = TopLevelKeyDesc('dmesg', 'Dmesg test configuration', (
-        KeyDesc('ignored-patterns', 'List of Python regex matching dmesg entries *content* to be ignored (see :class:`devlib.collector.dmesg.KernelLogEntry` for how the message is split)', [List[str]]),
+        KeyDesc('ignored-patterns', 'List of Python regex matching dmesg entries *content* to be ignored (see :class:`devlib.collector.dmesg.KernelLogEntry` for how the message is split)', [typing.Sequence[str]]),
     ))
 
 
