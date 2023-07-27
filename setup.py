@@ -156,6 +156,8 @@ if __name__ == "__main__":
 
             "pyelftools", # To get symbol names in kernel module
             "cffi", # unshare syscall
+
+            "typeguard",
         ],
 
         extras_require=extras_require,

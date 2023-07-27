@@ -32,8 +32,10 @@ import io
 import functools
 import threading
 import weakref
+import typing
 
 from ruamel.yaml.comments import CommentedMap
+import typeguard
 
 import lisa
 from lisa.utils import (
@@ -41,6 +43,7 @@ from lisa.utils import (
     is_running_sphinx, get_cls_name, HideExekallID, get_subclasses, groupby,
     import_all_submodules,
 )
+from lisa._generic import check_type
 
 
 class DeferredValue:
@@ -244,41 +247,12 @@ class KeyDesc(KeyDescBase):
         classinfo = self.classinfo
         key = self.qualname
 
-        def get_excep(key, val, classinfo, cls, msg):
-            # pylint: disable=unused-argument
-            classinfo = ' or '.join(get_cls_name(cls) for cls in classinfo)
-            msg = ': ' + msg if msg else ''
-            return TypeError(f'Key "{key}" is an instance of {get_cls_name(type(val))}, but should be instance of {classinfo}{msg}. Help: {self.help}', key)
-
         def checkinstance(key, val, classinfo):
-            excep_list = []
-            for cls in classinfo:
-                if cls is None:
-                    if val is not None:
-                        excep_list.append(
-                            get_excep(key, val, classinfo, cls, 'Key is not None')
-                        )
-                # Some classes are able to raise a more detailed
-                # exception than just the boolean return value of
-                # __instancecheck__
-                elif hasattr(cls, 'instancecheck'):
-                    try:
-                        cls.instancecheck(val)
-                    except TypeError as e:
-                        excep_list.append(
-                            get_excep(key, val, classinfo, cls, str(e))
-                        )
-                else:
-                    if not isinstance(val, cls):
-                        excep_list.append(
-                            get_excep(key, val, classinfo, cls, None)
-                        )
-
-            # If no type was validated, we raise an exception. This will
-            # only show the exception for the first class to be tried,
-            # which is the primary one.
-            if len(excep_list) == len(classinfo):
-                raise excep_list[0]
+            try:
+                check_type(val, classinfo)
+            except TypeError as e:
+                classinfo = ' or '.join(get_cls_name(cls) for cls in classinfo)
+                raise TypeError(f'Key "{key}" is an instance of {get_cls_name(type(val))}, but should be instance of {classinfo}: {e}. Help: {self.help}', key)
 
         # DeferredValue will be checked when they are computed
         if not isinstance(val, DeferredValue):
@@ -1011,11 +985,7 @@ class MultiSrcConfABC(Serializable, abc.ABC):
                         # type given in KeyDesc.__init__(classinfo=...)
                         class NewtypeMeta(type):
                             def __instancecheck__(cls, x):
-                                classinfo = tuple(
-                                    c if c is not None else type(None)
-                                    for c in key_desc.classinfo
-                                )
-                                return isinstance(x, classinfo)
+                                return check_type(x, key_desc.classinfo)
 
                         return NewtypeMeta
 

@@ -363,6 +363,7 @@ intersphinx_mapping = {
     'wa': ('https://workload-automation.readthedocs.io/en/latest/', None),
     'ipywidgets': ('https://ipywidgets.readthedocs.io/en/latest/', None),
     'IPython': ('https://ipython.readthedocs.io/en/stable/', None),
+    'typeguard': ('https://typeguard.readthedocs.io/en/stable/', None),
 }
 
 manpages_url = "https://manpages.debian.org/{path}"
