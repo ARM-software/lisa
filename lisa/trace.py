@@ -44,7 +44,7 @@ import subprocess
 import itertools
 import functools
 import fnmatch
-from typing import Union
+from typing import Union, List
 from difflib import get_close_matches
 
 import numpy as np
@@ -57,7 +57,6 @@ import devlib
 
 from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, bothmethod
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
-from lisa._generic import TypedList
 from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString, IntListFromStringInstance
@@ -134,7 +133,7 @@ class TaskIDFromStringInstance(FromString, types=TaskID):
             """).strip()
 
 
-class TaskIDListFromStringInstance(FromString, types=TypedList[TaskID]):
+class TaskIDListFromStringInstance(FromString, types=List[TaskID]):
     """
     Instance of :class:`lisa._typeclass.FromString` for lists :class:`TaskID` type.
     """
@@ -157,13 +156,13 @@ class TaskIDListFromStringInstance(FromString, types=TypedList[TaskID]):
 CPU = newtype(int, 'CPU', doc='Alias to ``int`` used for CPU IDs')
 
 
-class CPUListFromStringInstance(FromString, types=TypedList[CPU]):
-    # Use the same implementation as for TypedList[int]
+class CPUListFromStringInstance(FromString, types=List[CPU]):
+    # Use the same implementation as for List[int]
     from_str = IntListFromStringInstance.from_str
 
     @classmethod
     def get_format_description(cls, short):
-        return FromString(TypedList[int]).get_format_description(short=short)
+        return FromString(List[int]).get_format_description(short=short)
 
 
 class MissingMetadataError(KeyError):
@@ -5627,9 +5626,9 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
     {yaml_example}
     """
     STRUCTURE = TopLevelKeyDesc('ftrace-conf', 'FTrace configuration', (
-        KeyDesc('events', 'FTrace events to trace', [TypedList[str], TraceEventCheckerBase]),
-        KeyDesc('events-namespaces', 'FTrace events namespaces to use. See Trace namespace constructor parameter.', [TypedList[Union[str, None]], None]),
-        KeyDesc('functions', 'FTrace functions to trace', [TypedList[str]]),
+        KeyDesc('events', 'FTrace events to trace', [List[str], TraceEventCheckerBase]),
+        KeyDesc('events-namespaces', 'FTrace events namespaces to use. See Trace namespace constructor parameter.', [List[Union[str, None]], None]),
+        KeyDesc('functions', 'FTrace functions to trace', [List[str]]),
         KeyDesc('buffer-size', 'FTrace buffer size', [int]),
         KeyDesc('trace-clock', 'Clock used while tracing (see "trace_clock" in ftrace.txt kernel doc)', [str, None]),
         KeyDesc('saved-cmdlines-nr', 'Number of saved cmdlines with associated PID while tracing', [int]),

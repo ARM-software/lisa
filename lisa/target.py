@@ -35,6 +35,7 @@ import shutil
 from types import ModuleType, FunctionType
 from operator import itemgetter
 import warnings
+from typing import List, Literal
 
 import devlib
 from devlib.exception import TargetStableError
@@ -44,7 +45,6 @@ from devlib.platform.gem5 import Gem5SimulationPlatform
 from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath, nullcontext, ExekallTaggable, memoized, destroyablecontextmanager, ContextManagerExit
 from lisa._assets import ASSETS_PATH
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, Configurable, DelegatedLevelKeyDesc
-from lisa._generic import TypedList, TypedDict, OneOf
 from lisa._kmod import _KernelBuildEnv, DynamicKmod, _KernelBuildEnvConf
 
 from lisa.platforms.platinfo import PlatformInfo
@@ -146,7 +146,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
 
     STRUCTURE = TopLevelKeyDesc('target-conf', 'target connection settings', (
         KeyDesc('name', 'Board name, free-form value only used to embelish logs', [str]),
-        KeyDesc('kind', 'Target kind. Can be "linux" (ssh) or "android" (adb)', [OneOf['linux', 'android', 'host']]),
+        KeyDesc('kind', 'Target kind. Can be "linux" (ssh) or "android" (adb)', [Literal['linux', 'android', 'host']]),
 
         KeyDesc('host', 'Hostname or IP address of the host', [str, None]),
         KeyDesc('username', 'SSH username. On ADB connections, "root" username will root adb upon target connection', [str, None]),
@@ -156,7 +156,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
         KeyDesc('keyfile', 'SSH private key file', [str, None]),
         KeyDesc('strict-host-check', 'Equivalent to StrictHostKeyChecking option of OpenSSH', [bool, None]),
         KeyDesc('workdir', 'Remote target workdir', [str]),
-        KeyDesc('tools', 'List of tools to install on the target', [TypedList[str]]),
+        KeyDesc('tools', 'List of tools to install on the target', [List[str]]),
         KeyDesc('lazy-platinfo', 'Lazily autodect the platform information to speed up the connection', [bool]),
         LevelKeyDesc('kernel', 'kernel information', (
             KeyDesc('src', 'Path to kernel source tree matching the kernel running on the target used to build modules', [str, None]),
@@ -177,8 +177,8 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
                 KeyDesc('class', 'Name of the class to use', [str]),
                 KeyDesc('args', 'Keyword arguments to build the Platform object', [Mapping]),
             )),
-            KeyDesc('excluded-modules', 'List of devlib modules to *not* load', [TypedList[str]]),
-            KeyDesc('file-xfer', 'File transfer method. Can be "sftp" (default) or "scp". (Only valid for linux targets)', [TypedList[str]]),
+            KeyDesc('excluded-modules', 'List of devlib modules to *not* load', [List[str]]),
+            KeyDesc('file-xfer', 'File transfer method. Can be "sftp" (default) or "scp". (Only valid for linux targets)', [List[str]]),
             KeyDesc('max-async', 'Maximum number of asynchronous commands in flight at any time', [int, None]),
 
         ))

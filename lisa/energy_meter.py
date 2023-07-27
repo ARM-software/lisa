@@ -27,6 +27,7 @@ from collections.abc import Mapping
 from subprocess import Popen, PIPE, STDOUT
 import subprocess
 from time import sleep
+from typing import List
 
 import numpy as np
 import pandas as pd
@@ -39,7 +40,6 @@ from lisa.datautils import series_integrate
 from lisa.conf import (
     SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable,
 )
-from lisa._generic import TypedList
 
 # Default energy measurements for each board
 EnergyReport = namedtuple('EnergyReport',
@@ -320,9 +320,9 @@ class AEPConf(SimpleMultiSrcConf, HideExekallID):
     """
     STRUCTURE = TopLevelKeyDesc('aep-conf', 'AEP Energy Meter configuration', (
         KeyDesc('channel-map', 'Channels to use', [Mapping]),
-        KeyDesc('resistor-values', 'Resistor values', [TypedList[float]]),
-        KeyDesc('labels', 'List of labels', [TypedList[str]]),
-        KeyDesc('device-entry', 'TTY device', [TypedList[str]]),
+        KeyDesc('resistor-values', 'Resistor values', [List[float]]),
+        KeyDesc('labels', 'List of labels', [List[str]]),
+        KeyDesc('device-entry', 'TTY device', [List[str]]),
     ))
 
 

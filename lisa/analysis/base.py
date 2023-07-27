@@ -28,6 +28,7 @@ import warnings
 import itertools
 import copy
 from operator import itemgetter, attrgetter
+from typing import List
 
 import numpy
 import matplotlib
@@ -46,7 +47,6 @@ import panel.widgets
 from lisa.utils import Loggable, deprecate, get_doc_url, get_short_doc, get_subclasses, guess_format, is_running_ipython, measure_time, memoized, update_wrapper_doc, _import_all_submodules, optional_kwargs
 from lisa.trace import _CacheDataDesc
 from lisa.notebook import _hv_fig_to_pane, _hv_link_dataframes, axis_cursor_delta, axis_link_dataframes, make_figure
-from lisa._generic import TypedList
 
 # Ensure hv.extension() is called
 import lisa.notebook
@@ -592,9 +592,9 @@ class AnalysisHelpers(Loggable, abc.ABC):
             rc_params=None,
             axis=None,
             interactive=None,
-            colors: TypedList[str]=None,
-            linestyles: TypedList[str]=None,
-            markers: TypedList[str]=None,
+            colors: List[str]=None,
+            linestyles: List[str]=None,
+            markers: List[str]=None,
 
             **kwargs
         ):
