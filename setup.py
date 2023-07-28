@@ -96,7 +96,7 @@ extras_require['all'] = sorted(set(
     itertools.chain.from_iterable(extras_require.values())
 ))
 
-python_requires = '>= 3.7'
+python_requires = '>= 3.8'
 
 if __name__ == "__main__":
 
@@ -156,6 +156,8 @@ if __name__ == "__main__":
 
             "pyelftools", # To get symbol names in kernel module
             "cffi", # unshare syscall
+
+            "typeguard",
         ],
 
         extras_require=extras_require,
