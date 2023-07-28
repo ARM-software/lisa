@@ -118,5 +118,12 @@ jobs:
               fi
           }
 
-          update_branch for-preview-autobranch preview preview-force
-          update_branch for-master-autobranch master master-force
+          ret=0
+          function keepgoing {
+              "$@" || ret=1
+          }
+
+          keepgoing update_branch for-master-autobranch master master-force
+          keepgoing update_branch for-preview-autobranch preview preview-force
+
+          exit $ret
