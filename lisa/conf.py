@@ -32,8 +32,10 @@ import io
 import functools
 import threading
 import weakref
+import typing
 
 from ruamel.yaml.comments import CommentedMap
+import typeguard
 
 import lisa
 from lisa.utils import (
@@ -41,6 +43,7 @@ from lisa.utils import (
     is_running_sphinx, get_cls_name, HideExekallID, get_subclasses, groupby,
     import_all_submodules,
 )
+from lisa._generic import check_type
 
 
 class DeferredValue:
@@ -69,8 +72,8 @@ class DeferredValue:
             key = key_desc.qualname if key_desc else '<unknown>'
             raise KeyComputationRecursionError(f'Recursion error while computing deferred value for key: {key}', key)
 
-        self._is_computing = True
         try:
+            self._is_computing = True
             return self.callback(*self.args, **self.kwargs)
         finally:
             self._is_computing = False
@@ -158,12 +161,15 @@ class KeyDescBase(abc.ABC):
         return self.parent.path + curr
 
     @abc.abstractmethod
-    def get_help(self, style=None):
+    def get_help(self, style=None, last=False):
         """
         Get a help message describing the key.
 
         :param style: When "rst", ResStructuredText formatting may be applied
         :param style: str
+
+        :param last: ``True`` if this is the last item in a list.
+        :type last: bool
         """
 
     @abc.abstractmethod
@@ -241,47 +247,18 @@ class KeyDesc(KeyDescBase):
         classinfo = self.classinfo
         key = self.qualname
 
-        def get_excep(key, val, classinfo, cls, msg):
-            # pylint: disable=unused-argument
-            classinfo = ' or '.join(get_cls_name(cls) for cls in classinfo)
-            msg = ': ' + msg if msg else ''
-            return TypeError(f'Key "{key}" is an instance of {get_cls_name(type(val))}, but should be instance of {classinfo}{msg}. Help: {self.help}', key)
-
         def checkinstance(key, val, classinfo):
-            excep_list = []
-            for cls in classinfo:
-                if cls is None:
-                    if val is not None:
-                        excep_list.append(
-                            get_excep(key, val, classinfo, cls, 'Key is not None')
-                        )
-                # Some classes are able to raise a more detailed
-                # exception than just the boolean return value of
-                # __instancecheck__
-                elif hasattr(cls, 'instancecheck'):
-                    try:
-                        cls.instancecheck(val)
-                    except TypeError as e:
-                        excep_list.append(
-                            get_excep(key, val, classinfo, cls, str(e))
-                        )
-                else:
-                    if not isinstance(val, cls):
-                        excep_list.append(
-                            get_excep(key, val, classinfo, cls, None)
-                        )
-
-            # If no type was validated, we raise an exception. This will
-            # only show the exception for the first class to be tried,
-            # which is the primary one.
-            if len(excep_list) == len(classinfo):
-                raise excep_list[0]
+            try:
+                check_type(val, classinfo)
+            except TypeError as e:
+                classinfo = ' or '.join(get_cls_name(cls) for cls in classinfo)
+                raise TypeError(f'Key "{key}" is an instance of {get_cls_name(type(val))}, but should be instance of {classinfo}: {e}. Help: {self.help}', key)
 
         # DeferredValue will be checked when they are computed
         if not isinstance(val, DeferredValue):
             checkinstance(key, val, classinfo)
 
-    def get_help(self, style=None):
+    def get_help(self, style=None, last=False):
         base_fmt = '{prefix}{key} ({classinfo}){prefixed_help}.'
         if style == 'rst':
             prefix = '* '
@@ -292,7 +269,7 @@ class KeyDesc(KeyDescBase):
             key = ''
             fmt = '{key}{help}\ntype: {classinfo}'
         else:
-            prefix = '|- '
+            prefix = ('└' if last else '├') + ' '
             key = self.name
             fmt = base_fmt
 
@@ -402,17 +379,7 @@ class DerivedKeyDesc(KeyDesc):
         super().__init__(name=name, help=help, classinfo=classinfo, newtype=newtype)
         self._base_key_paths = base_key_paths
         self._compute = compute
-        self._compute_stack_tls = threading.local()
-
-    def _get_compute_stack(self, conf):
-        try:
-            stack = self._compute_stack_tls.stack
-        except AttributeError:
-            stack = weakref.WeakKeyDictionary()
-            self._compute_stack_tls.stack = stack
-
-        key = conf._as_hashable
-        return stack.setdefault(key, [])
+        self._is_computing_in = set()
 
     @property
     def help(self):
@@ -520,27 +487,25 @@ class DerivedKeyDesc(KeyDesc):
             return True
 
     def compute_val(self, conf, eval_deferred=True):
-        stack = self._get_compute_stack(conf)
-
-        if stack:
+        conf_id = id(conf)
+        if conf_id in self._is_computing_in:
             key = self.qualname
             raise KeyComputationRecursionError(f'Recursion error while computing derived key: {key}', key)
         else:
-            stack.append(self)
+            try:
+                self._is_computing_in.add(conf_id)
+                # If there is non evaluated base, transitively return a closure rather
+                # than computing now.
+                if not eval_deferred and self.get_non_evaluated_base_keys(conf):
+                    val = DeferredValue(self.compute_val, conf=conf, eval_deferred=True)
+                else:
+                    base_conf = self._get_base_conf(conf)
+                    val = self._compute(base_conf)
+                    self.validate_val(val)
+            finally:
+                self._is_computing_in.remove(conf_id)
 
-        try:
-            # If there is non evaluated base, transitively return a closure rather
-            # than computing now.
-            if not eval_deferred and self.get_non_evaluated_base_keys(conf):
-                val = DeferredValue(self.compute_val, conf=conf, eval_deferred=True)
-            else:
-                base_conf = self._get_base_conf(conf)
-                val = self._compute(base_conf)
-                self.validate_val(val)
-        finally:
-            stack.pop()
-
-        return val
+            return val
 
     def get_src(self, conf):
         return ','.join(
@@ -564,19 +529,58 @@ class LevelKeyDesc(KeyDescBase, Mapping):
         under that level
     :type children: collections.abc.Sequence
 
+    :param value_path: Relative path to a sub-key that will receive assignment
+        to that level for non-mapping types. This allows turning a leaf key into a
+        level while preserving backward compatibility, as long as:
+
+        * The key did not accept mapping values, otherwise it would be
+          ambiguous and is therefore rejected.
+
+        * The old leaf key has a matching new leaf key, that is a sub-key
+          of the new level key.
+
+        In practice, that allows turning a single knob into a tree of settings.
+    :type value_path: list(str) or None
+
     Children keys will get this key assigned as a parent when passed to the
     constructor.
 
     """
 
-    def __init__(self, name, help, children):
+    def __init__(self, name, help, children, value_path=None):
         # pylint: disable=redefined-builtin
         super().__init__(name=name, help=help)
-        self.children = children
+        # Make it easier to share children with another configuration class by
+        # making them independent, so we will not accidentally override the
+        # parent link when it would not be appropriate.
+        self.children = list(map(copy.deepcopy, children))
 
         # Fixup parent for easy nested declaration
         for key_desc in self.children:
             key_desc.parent = self
+
+        self.value_path = value_path
+
+    @property
+    def key_desc(self):
+        path = self.value_path
+        if path is None:
+            raise AttributeError(f'{self} does not define a value path for direct assignment')
+        else:
+            return get_nested_key(self, path)
+
+    def __getattr__(self, attr):
+        # If the property raised an exception, __getattr__ is tried so we need
+        # to fail explicitly in order to avoid infinite recursion
+        if attr == 'key_desc':
+            raise AttributeError('recursive key_desc lookup')
+        else:
+            try:
+                key_desc = self.key_desc
+            except Exception as e:
+                raise AttributeError(str(e))
+            else:
+                return getattr(key_desc, attr)
 
     @property
     def _key_map(self):
@@ -628,9 +632,9 @@ class LevelKeyDesc(KeyDescBase, Mapping):
         for key, val in conf.items():
             self[key].validate_val(val)
 
-    def get_help(self, style=None):
+    def get_help(self, style=None, last=False):
         idt = self.INDENTATION
-        prefix = '*' if style == 'rst' else '+-'
+        prefix = '*' if style == 'rst' else ('└' if last else '├')
         # Nasty hack: adding an empty ResStructuredText comment between levels
         # of nested list avoids getting extra blank line between list items.
         # That prevents ResStructuredText from thinking each item must be a
@@ -644,14 +648,50 @@ class LevelKeyDesc(KeyDescBase, Mapping):
             help=' ' + self.help if self.help else '',
         )
         nl = '\n' + idt
+        last = len(self.children) - 1
         help_ += nl.join(
-            key_desc.get_help(style=style).replace('\n', nl)
-            for key_desc in self.children
+            key_desc.get_help(
+                style=style,
+                last=i == last,
+            ).replace('\n', nl)
+            for i, key_desc in enumerate(self.children)
         )
         if style == 'rst':
             help_ += '\n\n..\n'
 
         return help_
+
+
+class DelegatedLevelKeyDesc(LevelKeyDesc):
+    """
+    Level key descriptor that imports the keys from another
+    :class:`~lisa.conf.MultiSrcConfABC` subclass.
+
+    :param conf: Configuration class to extract keys from.
+    :type conf: MultiSrcConfABC
+
+    :Variable keyword arguments: Forwarded to :class:`lisa.conf.LevelKeyDesc`.
+
+    This allows embedding a configuration inside another one, mostly to be able
+    to split a configuration class while preserving backward compatibility.
+
+    .. note:: Only the children keys are taken from the passed level, other
+        information such as ``value_path`` are ignored and must be set
+        explicitly.
+    """
+
+    def __init__(self, name, help, conf, **kwargs):
+        # Make a deepcopy to ensure we will not change the parent attribute of
+        # an existing structure.
+        level = copy.deepcopy(conf.STRUCTURE)
+
+        children = level.values()
+        super().__init__(
+            name=name,
+            help=help,
+            children=children,
+            **kwargs
+        )
 
 
 class TopLevelKeyDescBase(LevelKeyDesc):
@@ -681,11 +721,11 @@ class TopLevelKeyDescBase(LevelKeyDesc):
     def _check_name(cls, name):
         pass
 
-    def get_help(self, style=None):
+    def get_help(self, style=None, **kwargs):
         if style == 'yaml':
             return self.help
         else:
-            return super().get_help(style=style)
+            return super().get_help(style=style, **kwargs)
 
 
 class TopLevelKeyDesc(TopLevelKeyDescBase):
@@ -945,11 +985,7 @@ class MultiSrcConfABC(Serializable, abc.ABC):
                         # type given in KeyDesc.__init__(classinfo=...)
                         class NewtypeMeta(type):
                             def __instancecheck__(cls, x):
-                                classinfo = tuple(
-                                    c if c is not None else type(None)
-                                    for c in key_desc.classinfo
-                                )
-                                return isinstance(x, classinfo)
+                                return check_type(x, key_desc.classinfo)
 
                         return NewtypeMeta
 
@@ -1050,6 +1086,14 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
 
     .. note:: Since the dosctring is interpreted as a template, "{" and "}"
         characters must be doubled to appear in the final output.
+
+    .. attention:: The layout of the configuration is typically guaranteed to
+        be backward-compatible in terms of accepted shape of input, but layout
+        of the configuration might change. This means that the path to a given
+        key could change as long as old input is still accepted. Types of
+        values can also be widened, so third party code re-using config classes
+        from :mod:`lisa` might have to evolve along the changes of
+        configuration.
     """
 
     @abc.abstractmethod
@@ -1194,7 +1238,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         conf.force_src_nested(src_override)
         return conf
 
-    def add_src(self, src, conf, filter_none=False, fallback=False):
+    def add_src(self, src, conf, filter_none=False, fallback=False, inplace=True):
         """
         Add a source of configuration.
 
@@ -1215,6 +1259,10 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             have the highest priority and will be used unless a key-specific
             priority override is setup.
         :type fallback: bool
+
+        :param inplace: If ``True``, the object is modified. If ``False``, a
+            mutated copy is returned and the original object is left unmodified.
+        :type inplace: bool
 
         This method provides a way to update the configuration, by importing a
         mapping as a new source.
@@ -1242,24 +1290,26 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 return self
 
         def format_conf(conf):
-            conf = conf or {}
-            # Make sure that mappings won't be too long
-            max_mapping_len = 10
-            key_val = sorted(conf.items())
-            if len(key_val) > max_mapping_len:
-                key_val = key_val[:max_mapping_len]
-                key_val.append((PlaceHolder(), PlaceHolder()))
+            if isinstance(conf, Mapping):
+                # Make sure that mappings won't be too long
+                max_mapping_len = 10
+                key_val = sorted(conf.items())
+                if len(key_val) > max_mapping_len:
+                    key_val = key_val[:max_mapping_len]
+                    key_val.append((PlaceHolder(), PlaceHolder()))
 
-            def format_val(val):
-                if isinstance(val, Mapping):
-                    return format_conf(val)
-                else:
-                    return NonEscapedValue(val)
+                def format_val(val):
+                    if isinstance(val, Mapping):
+                        return format_conf(val)
+                    else:
+                        return NonEscapedValue(val)
 
-            return {
-                key: format_val(val)
-                for key, val in key_val
-            }
+                return {
+                    key: format_val(val)
+                    for key, val in key_val
+                }
+            else:
+                return conf
 
         logger = self.logger
         if logger.isEnabledFor(logging.DEBUG):
@@ -1275,49 +1325,66 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 filename=filename if filename else '<unknown>',
                 lineno=lineno if lineno else '<unknown>',
             ))
+
+        self = self if inplace else copy.copy(self)
         return self._add_src(
             src, conf,
             filter_none=filter_none, fallback=fallback
         )
 
     def _add_src(self, src, conf, filter_none=False, fallback=False):
-        conf = conf or {}
-        # Filter-out None values, so they won't override actual data from
-        # another source
-        if filter_none:
-            conf = {
+        conf = {} if conf is None else conf
+
+        if isinstance(conf, Mapping):
+            # Filter-out None values, so they won't override actual data from
+            # another source
+            if filter_none:
+                conf = {
+                    k: v for k, v in conf.items()
+                    if v is not None
+                }
+
+            # only validate at that level, since sublevel will take care of
+            # filtering then validating their own level
+            validated_conf = {
                 k: v for k, v in conf.items()
-                if v is not None
+                if not isinstance(self._structure[k], LevelKeyDesc)
             }
+            self._structure.validate_val(validated_conf)
 
-        # only validate at that level, since sublevel will take care of
-        # filtering then validating their own level
-        validated_conf = {
-            k: v for k, v in conf.items()
-            if not isinstance(self._structure[k], LevelKeyDesc)
-        }
-        self._structure.validate_val(validated_conf)
-
-        for key, val in conf.items():
-            key_desc = self._structure[key]
-            # Dispatch the nested mapping to the right sublevel
-            if isinstance(key_desc, LevelKeyDesc):
-                # sublevels have already been initialized when the root object
-                # was created.
-                self._sublevel_map[key]._add_src(src, val, filter_none=filter_none, fallback=fallback)
-            # Derived keys cannot be set, since they are purely derived from
-            # other keys
-            elif isinstance(key_desc, DerivedKeyDesc):
-                raise ValueError(f'Cannot set a value for a derived key "{key_desc.qualname}"', key_desc.qualname)
-            # Otherwise that is a leaf value that we store at that level
+            for key, val in conf.items():
+                key_desc = self._structure[key]
+                # Dispatch the nested mapping to the right sublevel
+                if isinstance(key_desc, LevelKeyDesc):
+                    # sublevels have already been initialized when the root object
+                    # was created.
+                    self._sublevel_map[key]._add_src(src, val, filter_none=filter_none, fallback=fallback)
+                # Derived keys cannot be set, since they are purely derived from
+                # other keys
+                elif isinstance(key_desc, DerivedKeyDesc):
+                    raise ValueError(f'Cannot set a value for a derived key "{key_desc.qualname}"', key_desc.qualname)
+                # Otherwise that is a leaf value that we store at that level
+                else:
+                    self._key_map.setdefault(key, {})[src] = val
+        else:
+            # Non-mapping value are allowed if the level defines a subkey
+            # to assign to. We then craft a conf that sets that specific
+            # value.
+            key_desc = self._structure
+            value_path = key_desc.value_path
+            if value_path is None:
+                raise ValueError(f'Cannot set a value for the key level "{key_desc.qualname}"', key_desc.qualname)
             else:
-                self._key_map.setdefault(key, {})[src] = val
+                conf = set_nested_key({}, list(value_path), conf)
+                self._add_src(src, conf, filter_none=filter_none, fallback=fallback)
 
         if src not in self._src_prio:
             if fallback:
                 self._src_prio.append(src)
             else:
                 self._src_prio.insert(0, src)
+
+        return self
 
     def set_default_src(self, src_prio):
         """
@@ -1691,10 +1758,14 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
 
                 yield key, val
 
-        for k, v in itertools.chain(
+        items = list(itertools.chain(
             self.items(eval_deferred=eval_deferred),
             derived_items()
-        ):
+        ))
+        _last = len(items) - 1
+
+        for i, (k, v) in enumerate(items):
+            last = i == _last
             v_cls = type(v)
 
             key_desc = self._structure[k]
@@ -1713,12 +1784,8 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             else:
                 v = ' ' + v
 
-            if is_sublevel:
-                k_str = '+- ' + k
-                v_prefix = '    '
-            else:
-                k_str = '|- ' + k
-                v_prefix = '|   '
+            k_str = ('└' if last else '├') + ' ' + k
+            v_prefix = '    ' if is_sublevel else '|   '
 
             v = v.replace('\n', '\n' + v_prefix)
 
@@ -2002,7 +2069,11 @@ class Configurable(abc.ABC):
             ':param {param}: {help}\n:type {param}: {type}\n'.format(
                 param=param,
                 help=key_desc.help,
-                type=' or '.join(get_cls_name(t) for t in key_desc.classinfo),
+                type=(
+                    'collections.abc.Mapping'
+                    if isinstance(key_desc, LevelKeyDesc) else
+                    ' or '.join(get_cls_name(t) for t in key_desc.classinfo)
+                ),
             )
             for param, key_desc
             in cls._get_param_key_desc_map().items()

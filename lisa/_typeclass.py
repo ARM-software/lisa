@@ -192,10 +192,11 @@ Note that it's possible to implement a typeclass for a type that has no values,
 but for which ``isinstance(value, thetype)`` will return true. This can be
 achieved using ``__instancecheck__`` or ``__subclasscheck__`` and is used in
 particular by the abstract base classes provided by :mod:`collections.abc`.
-:class:`lisa._generic.TypedList` is another example. Casting values "registered" as
-instances of these types is expensive though, as validity of the cast depends
-on the value itself. That means it's not possible to memoize the result of the
-cast associated it with the type of the value.
+:class:`lisa._generic.SortedSequence` is another example. Typing hints from the
+:mod:`typing` module can also be used. Casting values "registered" as instances
+of these types is expensive though, as validity of the cast depends on the
+value itself. That means it's not possible to memoize the result of the cast
+associated it with the type of the value.
 
 
 One might wonder what casting a value to a typeclass gives. When possible, a
@@ -215,13 +216,22 @@ import itertools
 import contextlib
 import textwrap
 from collections.abc import Iterable
+import typing
 
 from devlib.utils.misc import ranges_to_list
 
 from lisa.utils import deduplicate
 # TODO: revisit pylint annotation once this is solved:
 # https://github.com/PyCQA/pylint/issues/1630
-from lisa._generic import TypedList # pylint: disable=unused-import
+from lisa._generic import hint_to_class, is_hint
+
+
+def _process_hint(obj):
+    if is_hint(obj):
+        return hint_to_class(obj)
+    else:
+        return obj
+
 
 class TypeClassMeta(type):
     """
@@ -351,6 +361,10 @@ class TypeClassMeta(type):
             dct = {**typeclass.DEFAULTS, **dct}
 
             types = types if isinstance(types, Iterable) else [types]
+
+            # Process type hints to turn them into normal class, implementing __instancecheck__
+            types = list(map(_process_hint, types))
+
             for type_ in types:
                 # Create an instance for each type, with the type as base class.
                 bases = (type_,)
@@ -432,6 +446,8 @@ class TypeClass(metaclass=TypeClassMeta):
     Base class to inherit from to define a new typeclass.
     """
     def __new__(cls, obj):
+        obj = _process_hint(obj)
+
         safe_to_memoize, instance, dct = cls._find_instance_dct(obj) # pylint: disable=unused-variable
         # Shallow copy to allow "casting" to the right type. Using a made-up
         # class allows piggy backing on regular attribute lookup, which is much
@@ -467,11 +483,11 @@ class TypeClass(metaclass=TypeClassMeta):
         Make a proxy object for given type.
 
         The proxy is itself a type inheriting from the original type, along
-        with all the methods in ``dct``. ``__call__`` is overrident in the
+        with all the methods in ``dct``. ``__call__`` is overriden in the
         metaclass to make sure that invoking the type will yield instances of
         the original type.
         """
-        class TypeProxyMeta(type):
+        class TypeProxyMeta(type(obj)):
             def __instancecheck__(cls, x):
                 return isinstance(x, obj)
 
@@ -698,14 +714,12 @@ class FromString(TypeClass):
         :type short: bool
         """
 
-class BuiltinFromStringInstance(FromString, types=(int, float, TypedList[float])):
+
+class _BuiltinFromStringInstance(FromString, types=(int, float)):
     """
     Parse the following types from a string:
         * ``int``
         * ``float``
-        * ``str``
-
-    Plus all the :class:`lisa._generic.TypedList` subtypes of the above types.
     """
     @classmethod
     def from_str(cls, string):
@@ -719,7 +733,7 @@ class BuiltinFromStringInstance(FromString, types=(int, float, TypedList[float])
         return cls.__name__
 
 
-class BoolFromStringInstance(FromString, types=bool):
+class _BoolFromStringInstance(FromString, types=bool):
     """
     Parse boolean from a string.
     """
@@ -744,7 +758,7 @@ class BoolFromStringInstance(FromString, types=bool):
         return 'bool'
 
 
-class IntListFromStringInstance(FromString, types=TypedList[int]):
+class _IntSeqFromStringInstance(FromString, types=(typing.List[int], typing.Sequence[int])):
     """
     Instance of :class:`lisa._typeclass.FromString` for :class:`int` type.
     """
@@ -771,7 +785,7 @@ class IntListFromStringInstance(FromString, types=TypedList[int]):
                 * ``1,2,10,55-99``: a comma separated list of the previous formats
             """).strip()
 
-class StrFromStringInstance(FromString, types=str):
+class _StrFromStringInstance(FromString, types=str):
     """
     Instance of :class:`lisa._typeclass.FromString` for :class:`str` type.
     """
@@ -783,7 +797,7 @@ class StrFromStringInstance(FromString, types=str):
     def get_format_description(cls, short):
         return 'str'
 
-class StrListFromStringInstance(FromString, types=TypedList[str]):
+class _StrSeqFromStringInstance(FromString, types=(typing.List[str], typing.Sequence[str])):
     """
     Instance of :class:`lisa._typeclass.FromString` for :class:`str` type.
     """

@@ -34,6 +34,8 @@ import hashlib
 import shutil
 from types import ModuleType, FunctionType
 from operator import itemgetter
+import warnings
+import typing
 
 import devlib
 from devlib.exception import TargetStableError
@@ -42,9 +44,8 @@ from devlib.platform.gem5 import Gem5SimulationPlatform
 
 from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath, nullcontext, ExekallTaggable, memoized, destroyablecontextmanager, ContextManagerExit
 from lisa._assets import ASSETS_PATH
-from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc,Configurable
-from lisa._generic import TypedList, TypedDict
-from lisa._kmod import KernelTree, DynamicKmod
+from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, Configurable, DelegatedLevelKeyDesc
+from lisa._kmod import _KernelBuildEnv, DynamicKmod, _KernelBuildEnvConf
 
 from lisa.platforms.platinfo import PlatformInfo
 
@@ -145,7 +146,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
 
     STRUCTURE = TopLevelKeyDesc('target-conf', 'target connection settings', (
         KeyDesc('name', 'Board name, free-form value only used to embelish logs', [str]),
-        KeyDesc('kind', 'Target kind. Can be "linux" (ssh) or "android" (adb)', [str]),
+        KeyDesc('kind', 'Target kind. Can be "linux" (ssh) or "android" (adb)', [typing.Literal['linux', 'android', 'host']]),
 
         KeyDesc('host', 'Hostname or IP address of the host', [str, None]),
         KeyDesc('username', 'SSH username. On ADB connections, "root" username will root adb upon target connection', [str, None]),
@@ -155,15 +156,14 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
         KeyDesc('keyfile', 'SSH private key file', [str, None]),
         KeyDesc('strict-host-check', 'Equivalent to StrictHostKeyChecking option of OpenSSH', [bool, None]),
         KeyDesc('workdir', 'Remote target workdir', [str]),
-        KeyDesc('tools', 'List of tools to install on the target', [TypedList[str]]),
+        KeyDesc('tools', 'List of tools to install on the target', [typing.Sequence[str]]),
         KeyDesc('lazy-platinfo', 'Lazily autodect the platform information to speed up the connection', [bool]),
         LevelKeyDesc('kernel', 'kernel information', (
             KeyDesc('src', 'Path to kernel source tree matching the kernel running on the target used to build modules', [str, None]),
-            LevelKeyDesc('modules', 'kernel modules', (
-                KeyDesc('build-env', 'Environment used to build modules. Can be any of "alpine" (Alpine Linux chroot, recommended) or "host" (host system)', [str]),
-                KeyDesc('make-variables', 'Extra variables to pass to "make" command, such as "CC"', [TypedDict[str, object]]),
-                KeyDesc('overlay-backend', 'Backend to use for overlaying folders while building modules. Can be "overlayfs" (overlayfs filesystem, recommended) or "copy (plain folder copy)', [str]),
-            )),
+            DelegatedLevelKeyDesc(
+                'modules', 'Kernel module build environment',
+                _KernelBuildEnvConf,
+            ),
         )),
         KeyDesc('hooks', 'Command hooks to be executed at various stages. "post-connect" stage will run commands right after the connection to the target. Note that each command runs in its own shell', [TypedDict[str, TypedList[str]], None]),
         LevelKeyDesc('wait-boot', 'Wait for the target to finish booting', (
@@ -178,8 +178,8 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
                 KeyDesc('class', 'Name of the class to use', [str]),
                 KeyDesc('args', 'Keyword arguments to build the Platform object', [Mapping]),
             )),
-            KeyDesc('excluded-modules', 'List of devlib modules to *not* load', [TypedList[str]]),
-            KeyDesc('file-xfer', 'File transfer method. Can be "sftp" (default) or "scp". (Only valid for linux targets)', [TypedList[str]]),
+            KeyDesc('excluded-modules', 'List of devlib modules to *not* load', [typing.Sequence[str]]),
+            KeyDesc('file-xfer', 'File transfer method. Can be "sftp" (default) or "scp". (Only valid for linux targets)', [typing.Sequence[str]]),
             KeyDesc('max-async', 'Maximum number of asynchronous commands in flight at any time', [int, None]),
 
         ))
@@ -261,9 +261,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         'wait_boot_timeout': ['wait-boot', 'timeout'],
 
         'kernel_src': ['kernel', 'src'],
-        'kmod_build_env': ['kernel', 'modules', 'build-env'],
-        'kmod_make_vars': ['kernel', 'modules', 'make-variables'],
-        'kmod_overlay_backend': ['kernel', 'modules', 'overlay-backend'],
+        'kmod_build_env': ['kernel', 'modules'],
     }
 
     def __init__(self, kind, name='<noname>', tools=[], res_dir=None,
@@ -280,17 +278,9 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         # pylint: disable=dangerous-default-value
         super().__init__()
         logger = self.logger
+
         hooks = hooks or {}
-
         self.name = name
-
-        self._kmod_tree = None
-        self._kmod_tree_spec = dict(
-            tree_path=kernel_src,
-            build_env=kmod_build_env,
-            make_vars=kmod_make_vars,
-            overlay_backend=kmod_overlay_backend,
-        )
 
         res_dir = res_dir if res_dir else self._get_res_dir(
             root=os.path.join(LISA_HOME, RESULT_DIR),
@@ -354,6 +344,38 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         cache_dir.mkdir(parents=True)
         self._cache_dir = cache_dir
 
+        self._kmod_build_env = None
+
+        def _make_kernel_build_env_spec(kmod_build_env, abi):
+            kmod_build_env, *_ = _KernelBuildEnv._resolve_conf(
+                kmod_build_env,
+                abi=abi,
+            )
+            deprecated = {
+                'overlay-backend': kmod_overlay_backend,
+                'make-variables': kmod_make_vars,
+            }
+
+            cls_name = self.__class__.__qualname__
+            if any(v is not None for v in deprecated.values()):
+                warnings.warn(f'{cls_name} kmod_overlay_backend and kmod_make_vars parameters are deprecated, please pass the information inside build_env instead using keys: {", ".join(deprecated.keys())}', DeprecationWarning)
+
+            kmod_build_env.add_src(
+                src='deprecated-{cls_name}-params',
+                conf=deprecated,
+                filter_none=True
+            )
+
+            return dict(
+                tree_path=kernel_src,
+                build_conf=kmod_build_env,
+            )
+
+        self._kmod_build_env_spec = _make_kernel_build_env_spec(
+            kmod_build_env,
+            abi=self.plat_info['abi'],
+        )
+
         for cmd in hooks.get('post-connect', []):
             logger.debug(f'Running post-connect hook command: {cmd}')
             out = self.execute(cmd)
@@ -387,18 +409,18 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             k: v
             for k, v in self.__dict__.items()
             if k not in {
-                # this KernelTree contains a reference to ourselves, and will
+                # this _KernelBuildEnv contains a reference to ourselves, and will
                 # fail to unpickle because of the circular dependency and the
                 # fact that it will call its constructor again, trying to make
                 # use of the Target before it is ready.
-                '_kmod_tree',
+                '_kmod_build_env',
             }
         }
 
     def __setstate__(self, dct):
         self.__dict__.update(dct)
         self._init_plat_info(deferred=True)
-        self._kmod_tree = None
+        self._kmod_build_env = None
 
     def get_kmod(self, mod_cls=DynamicKmod, **kwargs):
         """
@@ -413,30 +435,30 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             method of ``mod_cls``.
         """
         try:
-            tree = kwargs['kernel_tree']
+            build_env = kwargs['kernel_build_env']
         except KeyError:
-            memoize_tree = True
-            if self._kmod_tree:
-                tree = self._kmod_tree
+            memoize_build_env = True
+            if self._kmod_build_env:
+                build_env = self._kmod_build_env
             else:
-                tree = KernelTree.from_target(
+                build_env = _KernelBuildEnv.from_target(
                     target=self,
-                    **self._kmod_tree_spec
+                    **self._kmod_build_env_spec
                 )
         else:
-            memoize_tree = False
+            memoize_build_env = False
 
-        kwargs['kernel_tree'] = tree
+        kwargs['kernel_build_env'] = build_env
 
         mod = mod_cls.from_target(
             target=self,
             **kwargs,
         )
-        if memoize_tree:
+        if memoize_build_env:
             # Memoize the KernelTree, as it is a reusable object. Memoizing
             # allows remembering its checksum across calls, which will allow
             # hitting the .ko cache without having to setup a kernel tree.
-            self._kmod_tree = mod.kernel_tree
+            self._kmod_build_env = mod.kernel_build_env
         return mod
 
     def cached_pull(self, src, dst, **kwargs):

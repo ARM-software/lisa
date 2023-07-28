@@ -490,7 +490,7 @@ def get_cls_name(cls, style=None, fully_qualified=True):
     """
     Get a prettily-formated name for the class given as parameter
 
-    :param cls: class to get the name from
+    :param cls: Class or typing hint to get the name from.
     :type cls: type
 
     :param style: When "rst", a RestructuredText snippet is returned
@@ -499,17 +499,25 @@ def get_cls_name(cls, style=None, fully_qualified=True):
     """
     if cls is None:
         return 'None'
-
-    if fully_qualified or style == 'rst':
-        mod_name = inspect.getmodule(cls).__name__
-        mod_name = mod_name + '.' if mod_name not in ('builtins', '__main__') else ''
     else:
-        mod_name = ''
+        try:
+            qualname = cls.__qualname__
+        # type annotations like typing.Union[str, int] do not have a __qualname__
+        except AttributeError:
+            name = str(cls)
+        else:
+            if fully_qualified or style == 'rst':
+                mod_name = inspect.getmodule(cls).__name__
+                mod_name = mod_name + '.' if mod_name not in ('builtins', '__main__') else ''
+            else:
+                mod_name = ''
 
-    name = mod_name + cls.__qualname__
-    if style == 'rst':
-        name = f':class:`~{name}`'
-    return name
+            name = mod_name + cls.__qualname__
+
+        if style == 'rst':
+            name = f':class:`~{name}`'
+
+        return name
 
 
 def get_common_ancestor(classes):
@@ -1649,6 +1657,7 @@ def set_nested_key(mapping, key_path, val, level=None):
     :type level: collections.abc.Callable
     """
     assert key_path
+    input_mapping = mapping
 
     if level is None:
         # This should work for dict and most basic structures
@@ -1663,6 +1672,7 @@ def set_nested_key(mapping, key_path, val, level=None):
             mapping = new_level
 
     mapping[key_path[-1]] = val
+    return input_mapping
 
 
 def loopify(items):
@@ -3679,10 +3689,33 @@ class DirCache(Loggable):
         """
         Return the token associated with the given ``key``.
         """
+        def normalize(x):
+            def with_typ(key):
+                return (
+                    x.__class__.__module__,
+                    x.__class__.__qualname__,
+                    key,
+                )
+
+            if isinstance(x, str):
+                return x
+            elif isinstance(x, Mapping):
+                return with_typ(sorted(
+                    (normalize(k), normalize(v))
+                    for k, v in x.items()
+                ))
+            elif isinstance(x, Iterable):
+                return with_typ(tuple(map(normalize, x)))
+            else:
+                return with_typ(repr(x))
+
+        key = normalize(key)
+        key = repr(key).encode('utf-8')
+
         h = hashlib.sha256()
-        for x in key:
-            h.update(repr(x).encode('utf-8'))
+        h.update(key)
         token = h.hexdigest()
+
         return token
 
     def _get_path(self, key):
@@ -3713,8 +3746,20 @@ class DirCache(Loggable):
 
         :param key: Key of the cache entry. All the components of the key must
             be isomorphic to their ``repr()``, otherwise the cache will be hit
-            in cases where it should not.
-        :type key: tuple(str)
+            in cases where it should not. For convenience, some types are
+            normalized:
+
+            * :class:`~collections.abc.Mapping` is only considered for its keys
+              and values and type name. Keys are sorted are sorted. If the
+              passed object contains other relevant metadata, it should be
+              rendered to a string first by the caller.
+
+            * :class:`~collections.abc.Iterable` keys are normalized and the
+              object is only considered as an iterable. If other relevant
+              metadata is contained in the object, it should be rendered to a
+              string by the caller.
+
+        :type key: object
 
         .. note:: The return folder must never be modified, as it would lead to
             races.

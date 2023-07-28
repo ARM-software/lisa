@@ -18,6 +18,7 @@
 from enum import Enum
 import itertools
 import warnings
+import typing
 
 import numpy as np
 import pandas as pd
@@ -28,7 +29,6 @@ from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized, kwargs_forwarded_to, deprecate
 from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates
 from lisa.trace import requires_events, will_use_events_from, may_use_events, TaskID, CPU, MissingTraceEventError
-from lisa._generic import TypedList
 from lisa.notebook import _hv_neutral, plot_signal, _hv_twinx
 
 
@@ -800,8 +800,9 @@ class TasksAnalysis(TraceAnalysisBase):
                             label=f"Task running in domain {domain}"
                         )
             else:
-                self._plot_markers(
-                    series_refit_index(sw_df['__cpu'], window=self.trace.window)
+                return self._plot_markers(
+                    series_refit_index(sw_df['__cpu'], window=self.trace.window),
+                    label=str(task),
                 )
 
         return (
@@ -831,7 +832,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method
     @df_tasks_total_residency.used_events
-    def plot_tasks_total_residency(self, tasks: TypedList[TaskID]=None, ascending: bool=False,
+    def plot_tasks_total_residency(self, tasks: typing.Sequence[TaskID]=None, ascending: bool=False,
                                    count: bool=None):
         """
         Plot the stacked total time spent by each task on each CPU
@@ -926,7 +927,7 @@ class TasksAnalysis(TraceAnalysisBase):
         return plot_signal(series, name=label)
 
     @TraceAnalysisBase.plot_method
-    def plot_tasks_wakeups(self, target_cpus: TypedList[CPU]=None, window: float=1e-2, per_sec: bool=False):
+    def plot_tasks_wakeups(self, target_cpus: typing.Sequence[CPU]=None, window: float=1e-2, per_sec: bool=False):
         """
         Plot task wakeups over time
 
@@ -975,7 +976,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method
     @requires_events("sched_wakeup_new")
-    def plot_tasks_forks(self, target_cpus: TypedList[CPU]=None, window: float=1e-2, per_sec: bool=False):
+    def plot_tasks_forks(self, target_cpus: typing.Sequence[CPU]=None, window: float=1e-2, per_sec: bool=False):
         """
         Plot task forks over time
 
@@ -1319,7 +1320,7 @@ class TasksAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.plot_method
     @_plot_tasks_activation.used_events
     @kwargs_forwarded_to(_plot_tasks_activation, ignore=['tasks', 'best_effort'])
-    def plot_tasks_activation(self, tasks: TypedList[TaskID]=None, hide_tasks: TypedList[TaskID]=None, which_cpu: bool=True, overlay: bool=False, **kwargs):
+    def plot_tasks_activation(self, tasks: typing.Sequence[TaskID]=None, hide_tasks: typing.Sequence[TaskID]=None, which_cpu: bool=True, overlay: bool=False, **kwargs):
         """
         Plot all tasks activations, in a style similar to kernelshark.
 
