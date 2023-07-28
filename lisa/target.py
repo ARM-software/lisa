@@ -165,7 +165,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
                 _KernelBuildEnvConf,
             ),
         )),
-        KeyDesc('hooks', 'Command hooks to be executed at various stages. "post-connect" stage will run commands right after the connection to the target. Note that each command runs in its own shell', [TypedDict[str, TypedList[str]], None]),
+        KeyDesc('hooks', 'Command hooks to be executed at various stages. "post-connect" stage will run commands right after the connection to the target. Note that each command runs in its own shell', [typing.Dict[str, typing.List[str]], None]),
         LevelKeyDesc('wait-boot', 'Wait for the target to finish booting', (
             KeyDesc('enable', 'Enable the boot check', [bool]),
             KeyDesc('timeout', 'Timeout of the boot check', [int]),
