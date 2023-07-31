@@ -1898,6 +1898,60 @@ def optional_kwargs(func):
     return wrapper
 
 
+def update_params_from(f, ignore=None):
+    """
+    Decorator to update the signature of the decorated function using
+    annotation and default values from the specified ``f`` function.
+
+
+    If the parameter already has a default value, it will be used instead of
+    copied-over. Same goes for annotations.
+    """
+    ignore = set(ignore or [])
+
+    def fixup_param(existing, new):
+        default = new.default if existing.default == existing.empty else existing.default
+        annotation = new.annotation if existing.annotation == existing.empty else existing.annotation
+        return existing.replace(
+            default=default,
+            annotation=annotation
+        )
+
+    def fixup_sig(decorated, f):
+        f_sig = inspect.signature(f)
+        sig = inspect.signature(decorated)
+        parameters = [
+            (
+                fixup_param(
+                    existing=spec,
+                    new=f_sig.parameters.get(name, spec),
+                )
+                if name not in ignore else
+                spec
+            )
+            for name, spec in sig.parameters.items()
+        ]
+        return sig.replace(parameters=parameters)
+
+
+    def decorator(decorated):
+        sig = fixup_sig(decorated, f)
+
+        @functools.wraps(decorated)
+        def wrapper(*args, **kwargs):
+            # use bind_partial() to leave the missing arguments errors to the
+            # decorated function itself.
+            bound = sig.bind_partial(*args, **kwargs)
+            bound.apply_defaults()
+            return decorated(*bound.args, **bound.kwargs)
+
+
+        wrapper.__signature__ = sig
+        return wrapper
+
+    return decorator
+
+
 def kwargs_forwarded_to(f, ignore=None):
     """
     Similar to :func:`functools.wraps`, except that it will only fixup the
