@@ -127,6 +127,7 @@ import glob
 import collections
 import collections.abc
 import hashlib
+import errno
 from operator import itemgetter
 from shlex import quote
 from io import BytesIO
@@ -137,7 +138,7 @@ from elftools.elf.elffile import ELFFile
 
 from devlib.target import KernelVersion, TypedKernelConfig, KernelConfigTristate
 from devlib.host import LocalConnection
-from devlib.exception import TargetStableError
+from devlib.exception import TargetStableError, TargetStableCalledProcessError
 
 from lisa.utils import nullcontext, Loggable, LISA_CACHE_HOME, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor, destroyablecontextmanager, ContextManagerExit, ignore_exceps, get_nested_key
 from lisa._assets import ASSETS_PATH, HOST_PATH, ABI_BINARIES_FOLDER
@@ -2284,5 +2285,42 @@ class LISAFtraceDynamicKmod(FtraceDynamicKmod):
     @classmethod
     def _event_features(cls, events):
         return set(f'event__{event}' for event in events)
+
+    def install(self, kmod_params=None):
+        try:
+            self.uninstall()
+        except Exception:
+            pass
+
+        busybox = quote(self.target.busybox)
+        modules_path_base = '/lib/modules'
+        modules_version = self.target.kernel_version.release
+
+        if self.target.os == 'android':
+            modules_path_base = f'/vendor_dlkm{modules_path_base}'
+            try:
+                modules_version = Path(self.target.execute(
+                    f"{busybox} find {modules_path_base} -maxdepth 1 -mindepth 1 | {busybox} head -1"
+                ).strip()).name
+            except TargetStableCalledProcessError:
+                pass
+
+        modules_path = f"{modules_path_base}/{modules_version}"
+        lisa_module_filename = f"{self.src.mod_name}.ko"
+
+        try:
+            lisa_module_path = self.target.execute(
+                f"{busybox} find {modules_path} -name {quote(lisa_module_filename)}"
+            ).strip()
+
+            self.target.execute(
+                f"{busybox} insmod {lisa_module_path} version={self.src.checksum_sources}"
+            )
+        except TargetStableCalledProcessError as e:
+            if e.returncode == errno.EPROTO:
+                raise ValueError('In-tree module version does not match what Lisa expects.')
+            super().install(kmod_params=kmod_params)
+        else:
+            self.logger.debug(f'Loaded module {self.src.mod_name} from kernel modules directory')
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

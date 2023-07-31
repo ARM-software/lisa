@@ -29,7 +29,7 @@ static int __init modinit(void) {
 	pr_info("Loading Lisa module version %s\n", LISA_MODULE_VERSION);
 	if (strcmp(version, LISA_MODULE_VERSION)) {
 		pr_err("Lisa module version check failed. Got %s, expected %s\n", version, LISA_MODULE_VERSION);
-		return -EINVAL;
+		return -EPROTO;
 	}
 
 	ret = init_features(features, features_len);
