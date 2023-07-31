@@ -1708,17 +1708,35 @@ class KmodSrc(Loggable):
             if name.endswith('.c')
         }
 
+    def _checksum(self, sources_only=False):
+        m = hashlib.sha1()
+        sources = {
+            name: content
+            for name, content
+            in self.src.items()
+            if '.' in name
+        } if sources_only else self.src
+        for name, content in sorted(sources.items()):
+            if not sources_only:
+                m.update(name.encode('utf-8'))
+            m.update(content)
+        return m.hexdigest()
+
     @property
     @memoized
     def checksum(self):
         """
+        Checksum of the module's sources & Makefile.
+        """
+        return self._checksum(sources_only=False)
+
+    @property
+    @memoized
+    def checksum_sources(self):
+        """
         Checksum of the module's sources.
         """
-        m = hashlib.sha256()
-        for name, content in sorted(self.src.items()):
-            m.update(name.encode('utf-8'))
-            m.update(content)
-        return m.hexdigest()
+        return self._checksum(sources_only=True)
 
     @property
     @memoized
