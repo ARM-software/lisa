@@ -132,6 +132,7 @@ from shlex import quote
 from io import BytesIO
 from collections.abc import Mapping
 import typing
+import fnmatch
 
 from elftools.elf.elffile import ELFFile
 
@@ -2263,8 +2264,12 @@ class LISAFtraceDynamicKmod(FtraceDynamicKmod):
             **kwargs,
         )
 
-    @classmethod
-    def _event_features(cls, events):
-        return set(f'event__{event}' for event in events)
+    def _event_features(self, events):
+        all_events = self.defined_events
+        return set(
+            f'event__{event}'
+            for pattern in events
+            for event in fnmatch.filter(all_events, pattern)
+        )
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
