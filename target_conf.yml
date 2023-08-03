@@ -40,14 +40,25 @@ target-conf:
         # modules:
             # Variables passed to make command line while building modules.
             # make-variables:
-               # Setting CC to "clang" is a good idea as clang is a cross
-               # compiler by default.
-               # CC: clang
+                # Setting "LLVM: 1" is a good idea as clang is a cross
+                # compiler by default. Just using "CC: clang" will still use
+                # parts of the GNU toolchain.
+                # LLVM: 1
 
             # Either "host" or "alpine". If "alpine" is used, an Alpine chroot
-            # will be used to build the kernel module in. Works best with "CC:
-            # clang" for reproducible builds regardless of the host.
+            # will be used to build the kernel module in. Works best with
+            # "LLVM: 1" for reproducible builds regardless of the build-env.
+            #
             # build-env: host
+            # It is possible to specify some parameters to build-env, such as
+            # Alpine version:
+            # build-env:
+            #     build-env: alpine
+            #     build-env-settings:
+            #         alpine:
+            #              version: 3.18
+            #              packages:
+            #                  - foobar
 
             # Usually not needed: "overlayfs" will overlay folders using
             # overlayfs. "copy" will use plain slow copies.
