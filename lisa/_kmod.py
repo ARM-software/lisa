@@ -2116,7 +2116,7 @@ class DynamicKmod(Loggable):
             try:
                 target.push(f.name, temp_ko)
                 with dmesg_coll as dmesg_coll:
-                    target.execute(f'insmod {quote(temp_ko)} {params}', as_root=True)
+                    target.execute(f'{quote(target.busybox)} insmod {quote(temp_ko)} {params}', as_root=True)
             except Exception:
                 log_dmesg(dmesg_coll, logger.error)
                 raise
