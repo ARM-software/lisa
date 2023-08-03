@@ -496,7 +496,8 @@ def setup(app):
     app.connect('autodoc-process-docstring', autodoc_process_test_method)
     app.connect('autodoc-process-docstring', autodoc_process_analysis_events)
     app.connect('autodoc-process-docstring', autodoc_process_analysis_methods)
-    app.connect('autodoc-process-docstring', autodoc_process_analysis_plots_handler)
     app.connect('autodoc-skip-member',       autodoc_skip_member_handler)
+    if int(os.environ.get('LISA_DOC_BUILD_PLOT', '1')):
+        app.connect('autodoc-process-docstring', autodoc_process_analysis_plots_handler)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab:
