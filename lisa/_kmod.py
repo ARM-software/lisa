@@ -1146,6 +1146,8 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                         toolchain = 'aarch64-linux-gnu-'
                     elif abi == 'armeabi':
                         toolchain = 'arm-linux-gnueabi-'
+                    elif abi == 'x86':
+                        toolchain = 'i686-linux-gnu-'
                     else:
                         raise KeyError(f'ABI {abi} not recognized, CROSS_COMPILE env var needs to be set')
 
