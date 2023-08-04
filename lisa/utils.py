@@ -90,17 +90,24 @@ The detected location of your LISA installation
 """
 
 def _get_xdg_home(directory):
+    dir_upper = directory.upper()
+
     try:
-        base = os.environ['LISA_HOME']
+        base = os.environ[f'LISA_{dir_upper}_HOME']
     except KeyError:
         try:
-            base = os.environ[f'XDG_{directory.upper()}_HOME']
+            base = os.environ['LISA_HOME']
         except KeyError:
-            xdg_home = os.path.join(os.environ['HOME'], '.lisa', directory, VERSION_TOKEN)
+            try:
+                base = os.environ[f'XDG_{dir_upper}_HOME']
+            except KeyError:
+                xdg_home = os.path.join(os.environ['HOME'], '.lisa', directory, VERSION_TOKEN)
+            else:
+                xdg_home = os.path.join(base, 'lisa', VERSION_TOKEN)
         else:
-            xdg_home = os.path.join(base, 'lisa', VERSION_TOKEN)
+            xdg_home = os.path.join(base, directory, VERSION_TOKEN)
     else:
-        xdg_home = os.path.join(base, directory, VERSION_TOKEN)
+        xdg_home = os.path.join(base, VERSION_TOKEN)
 
     os.makedirs(xdg_home, exist_ok=True)
     return xdg_home
