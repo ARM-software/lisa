@@ -1149,7 +1149,8 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     elif abi == 'x86':
                         toolchain = 'i686-linux-gnu-'
                     else:
-                        raise KeyError(f'ABI {abi} not recognized, CROSS_COMPILE env var needs to be set')
+                        toolchain = None
+                        logger.error(f'ABI {abi} not recognized, CROSS_COMPILE env var needs to be set')
 
                     logger.debug(f'CROSS_COMPILE env var not set, assuming "{toolchain}"')
 
