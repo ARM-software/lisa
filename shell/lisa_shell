@@ -66,6 +66,9 @@ export EXEKALL_ARTIFACT_ROOT=${EXEKALL_ARTIFACT_ROOT:-$LISA_RESULT_ROOT}
 # Add our man pages
 export MANPATH="$MANPATH:$LISA_HOME/doc/"
 
+# Add workload-automation LISA plugin folder
+export WA_PLUGIN_PATHS=$WA_PLUGIN_PATHS:$LISA_HOME/lisa/wa/plugins
+
 # make sure it is unset if the folder does not exist, as some other tools will
 # not handle that well
 [[ ! -d "$ANDROID_HOME" ]] && unset ANDROID_HOME

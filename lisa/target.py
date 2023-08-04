@@ -42,7 +42,7 @@ from devlib.exception import TargetStableError
 from devlib.utils.misc import which
 from devlib.platform.gem5 import Gem5SimulationPlatform
 
-from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath, nullcontext, ExekallTaggable, memoized, destroyablecontextmanager, ContextManagerExit
+from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath, nullcontext, ExekallTaggable, memoized, destroyablecontextmanager, ContextManagerExit, update_params_from
 from lisa._assets import ASSETS_PATH
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, Configurable, DelegatedLevelKeyDesc
 from lisa._kmod import _KernelBuildEnv, DynamicKmod, _KernelBuildEnvConf
@@ -272,6 +272,50 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         kmod_make_vars=None, kmod_overlay_backend=None, devlib_max_async=None,
         hooks=None,
     ):
+        # Determine file transfer method. Currently avaliable options
+        # are 'sftp' and 'scp', defaults to sftp.
+        if devlib_file_xfer and devlib_file_xfer not in ('scp', 'sftp'):
+            raise ValueError(f'Invalid file transfer method: {devlib_file_xfer}')
+        use_scp = devlib_file_xfer == 'scp'
+
+        target = self._init_target(
+            kind=kind,
+            name=name,
+            workdir=workdir,
+            device=device,
+            host=host,
+            port=port,
+            username=username,
+            password=password,
+            keyfile=keyfile,
+            strict_host_check=strict_host_check,
+            use_scp=use_scp,
+            devlib_platform=devlib_platform,
+            wait_boot=wait_boot,
+            wait_boot_timeout=wait_boot_timeout,
+            max_async=devlib_max_async,
+        )
+        self._init_post_devlib(
+            name=name, res_dir=res_dir,
+            target=target, tools=tools, plat_info=plat_info,
+            lazy_platinfo=lazy_platinfo,
+            devlib_excluded_modules=devlib_excluded_modules,
+            kernel_src=kernel_src, kmod_build_env=kmod_build_env,
+            kmod_make_vars=kmod_make_vars,
+            kmod_overlay_backend=kmod_overlay_backend,
+        )
+
+    @classmethod
+    def _from_devlib_target(cls, target, **kwargs):
+        self = cls.__new__(cls)
+        self._init_post_devlib(target=target, **kwargs)
+        return self
+
+    @update_params_from(__init__)
+    def _init_post_devlib(self, *, name, res_dir, target,
+        tools, plat_info, lazy_platinfo, devlib_excluded_modules, kernel_src,
+        kmod_build_env, kmod_make_vars, kmod_overlay_backend,
+    ):
         # Set it temporarily to avoid breaking __getattr__
         self._devlib_loadable_modules = set()
 
@@ -295,30 +339,8 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         if os.listdir(self._res_dir):
             raise ValueError(f'res_dir must be empty: {self._res_dir}')
 
-        # Determine file transfer method. Currently avaliable options
-        # are 'sftp' and 'scp', defaults to sftp.
-        if devlib_file_xfer and devlib_file_xfer not in ('scp', 'sftp'):
-            raise ValueError(f'Invalid file transfer method: {devlib_file_xfer}')
-        use_scp = devlib_file_xfer == 'scp'
-
         self._installed_tools = set()
-        self.target = self._init_target(
-            kind=kind,
-            name=name,
-            workdir=workdir,
-            device=device,
-            host=host,
-            port=port,
-            username=username,
-            password=password,
-            keyfile=keyfile,
-            strict_host_check=strict_host_check,
-            use_scp=use_scp,
-            devlib_platform=devlib_platform,
-            wait_boot=wait_boot,
-            wait_boot_timeout=wait_boot_timeout,
-            max_async=devlib_max_async,
-        )
+        self.target = target
 
         devlib_excluded_modules = set(devlib_excluded_modules)
         # Sorry, can't let you do that. Messing with cgroups in a systemd
@@ -340,7 +362,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         self._init_plat_info(plat_info, name, deferred=lazy_platinfo, fallback=True)
 
         logger.info(f'Effective platform information:\n{self.plat_info}')
-        cache_dir = Path(res_dir).resolve() / '.lisa' / 'cache'
+        cache_dir = Path(self._res_dir).resolve() / '.lisa' / 'cache'
         cache_dir.mkdir(parents=True)
         self._cache_dir = cache_dir
 
@@ -776,14 +798,15 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         return custom_args, cls.from_conf(conf=target_conf, plat_info=platform_info, res_dir=args.res_dir)
 
-    def _init_target(self, kind, name, workdir, device, host,
+    @classmethod
+    def _init_target(cls, kind, name, workdir, device, host,
             port, username, password, keyfile, strict_host_check, use_scp,
             devlib_platform, wait_boot, wait_boot_timeout, max_async,
     ):
         """
         Initialize the Target
         """
-        logger = self.logger
+        logger = cls.get_logger()
         conn_settings = {}
         resolved_username = username or 'root'
 
@@ -799,7 +822,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             if device:
                 pass
             elif host:
-                port = port or self.ADB_PORT_DEFAULT
+                port = port or cls.ADB_PORT_DEFAULT
                 device = f'{host}:{port}'
             else:
                 device = 'DEFAULT'
@@ -813,7 +836,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             devlib_target_cls = devlib.LinuxTarget
             conn_settings.update(
                 username=resolved_username,
-                port=port or self.SSH_PORT_DEFAULT,
+                port=port or cls.SSH_PORT_DEFAULT,
                 host=host,
                 strict_host_check=True if strict_host_check is None else strict_host_check,
                 use_scp=False if use_scp is None else use_scp,
