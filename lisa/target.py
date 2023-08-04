@@ -148,11 +148,11 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
         KeyDesc('name', 'Board name, free-form value only used to embelish logs', [str]),
         KeyDesc('kind', 'Target kind. Can be "linux" (ssh) or "android" (adb)', [typing.Literal['linux', 'android', 'host']]),
 
-        KeyDesc('host', 'Hostname or IP address of the host', [str, None]),
+        KeyDesc('host', 'Hostname or IP address of the SSH or ADB server', [str, None]),
         KeyDesc('username', 'SSH username. On ADB connections, "root" username will root adb upon target connection', [str, None]),
         PasswordKeyDesc('password', 'SSH password', [str, None]),
         KeyDesc('port', 'SSH or ADB server port', [int, None]),
-        KeyDesc('device', 'ADB device. Takes precedence over "host"', [str, None]),
+        KeyDesc('device', 'ADB device', [str, None]),
         KeyDesc('keyfile', 'SSH private key file', [str, None]),
         KeyDesc('strict-host-check', 'Equivalent to StrictHostKeyChecking option of OpenSSH', [bool, None]),
         KeyDesc('workdir', 'Remote target workdir', [str]),
@@ -219,7 +219,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         internal members.
     """
 
-    ADB_PORT_DEFAULT = 5555
+    ADB_PORT_DEFAULT = 5037
     SSH_PORT_DEFAULT = 22
 
     CRITICAL_TASKS = {
@@ -808,20 +808,15 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
             # Workaround for ARM-software/devlib#225
             workdir = workdir or '/data/local/tmp/devlib-target'
-
-            if device:
-                pass
-            elif host:
-                port = port or cls.ADB_PORT_DEFAULT
-                device = f'{host}:{port}'
-            else:
-                device = 'DEFAULT'
-
-            conn_settings['device'] = device
-            # If the username was explicitly set to "root", root the target as
-            # early as possible
-            conn_settings['adb_as_root'] = (username == 'root')
-
+            device = device or 'DEFAULT'
+            conn_settings.update(
+                device=device,
+                adb_server=host,
+                adb_port=port,
+                # If the username was explicitly set to "root", root the target
+                # as early as possible
+                adb_as_root=(username == 'root'),
+            )
         elif kind == 'linux':
             devlib_target_cls = devlib.LinuxTarget
             conn_settings.update(
@@ -847,6 +842,12 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             )
         else:
             raise ValueError(f'Unsupported platform type {kind}')
+
+        conn_settings = {
+            k: v
+            for k, v in conn_settings.items()
+            if v is not None
+        }
 
         settings = '\n    '.join(
             f'    {key}: {val}'
