@@ -11,7 +11,7 @@ from contextlib import nullcontext, contextmanager
 from shlex import quote
 
 LISA_HOME = os.environ['LISA_HOME']
-ARCHITECTURES = ['arm64', 'armeabi', 'x86_64']
+ARCHITECTURES = ['arm64', 'armeabi', 'x86_64', 'x86', 'ppc64le']
 
 # Arch names usued by qemu.
 QEMU_ARCH_NAMES = {
