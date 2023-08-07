@@ -2133,7 +2133,13 @@ class DynamicKmod(Loggable):
         """
         Unload the module from the target.
         """
-        self.target.execute(f'rmmod {quote(self.src.mod_name)}')
+        mod = quote(self.src.mod_name)
+        execute = self.target.execute
+
+        try:
+            execute(f'rmmod {mod}')
+        except TargetStableError:
+            execute(f'rmmod -f {mod}')
 
     @destroyablecontextmanager
     def run(self, **kwargs):

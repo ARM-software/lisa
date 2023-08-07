@@ -1,10 +1,10 @@
 #! /bin/bash
 
-ALPINE_VERSION=v3.13
+ALPINE_VERSION=v3.18
 ALPINE_BUILD_DEPENDENCIES=(autoconf automake bash bison gcc gettext-dev gettext-static git libtool linux-headers make musl-dev pkgconf)
 
 download() {
-    git clone git://git.kernel.org/pub/scm/utils/util-linux/util-linux.git --branch v2.36.2 --depth=1
+    git clone git://git.kernel.org/pub/scm/utils/util-linux/util-linux.git --branch v2.39.1 --depth=1
 }
 
 build() {

@@ -1,5 +1,5 @@
 Sources of libnumactl available at:
-Git commit: 8b18345065c39d6b1e498bf635b4c8668e2d8f4e
+Git commit: 10285f1a1bad49306839b2c463936460b604e3ea
 Git repository: https://github.com/numactl/numactl.git
 
 
@@ -7,8 +7,8 @@ Build host info:
 
 NAME="Alpine Linux"
 ID=alpine
-VERSION_ID=3.16.3
-PRETTY_NAME="Alpine Linux v3.16"
+VERSION_ID=3.18.2
+PRETTY_NAME="Alpine Linux v3.18"
 HOME_URL="https://alpinelinux.org/"
 BUG_REPORT_URL="https://gitlab.alpinelinux.org/alpine/aports/-/issues"
 
@@ -16,12 +16,12 @@ BUG_REPORT_URL="https://gitlab.alpinelinux.org/alpine/aports/-/issues"
 Build recipe:
 
 export ARCH=arm64
-export BUILD_DIR=/tmp/tmpwk5ghb33/arm64/source
+export BUILD_DIR=/tmp/tmpgya7ib6f/arm64/source
 export LISA_ARCH_ASSETS=/lisa/_assets/binaries/arm64
 export LISA_HOME=''
 #! /bin/bash
 
-ALPINE_VERSION=v3.16
+ALPINE_VERSION=v3.18
 ALPINE_BUILD_DEPENDENCIES=(autoconf automake bash cmake gcc git make libtool linux-headers musl-dev)
 
 build_jsonc() {
@@ -59,7 +59,7 @@ download() {
     git -C json-c checkout json-c-0.16-20220414
 
     git clone https://github.com/numactl/numactl.git
-    git -C numactl checkout 8b18345065c39d6b1e498bf635b4c8668e2d8f4e
+    git -C numactl checkout v2.0.16
 
     git clone https://github.com/douglas-raillard-arm/rt-app.git
     # Branch: lisa
