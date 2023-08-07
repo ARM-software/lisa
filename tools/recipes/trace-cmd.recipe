@@ -9,15 +9,13 @@ BROKEN_CROSS_COMPILATION=1
 
 download() {
     git clone git://git.kernel.org/pub/scm/utils/trace-cmd/trace-cmd.git
-    git -C trace-cmd checkout trace-cmd-v3.1.5
+    git -C trace-cmd checkout trace-cmd-v3.2
 
     git clone https://git.kernel.org/pub/scm/libs/libtrace/libtraceevent.git
-    # Commit after 1.7.0 that fixes the raw trace-cmd output:
-    # https://bugzilla.kernel.org/show_bug.cgi?id=216896
-    git -C libtraceevent checkout 0c28cec1e409653095dea0511c24fd9849b2862f
+    git -C libtraceevent checkout libtraceevent-1.7.3
 
     git clone https://git.kernel.org/pub/scm/libs/libtrace/libtracefs.git
-    git -C libtracefs checkout libtracefs-1.6.3
+    git -C libtracefs checkout libtracefs-1.7.0
 }
 
 build_libtraceevent() {
@@ -36,7 +34,7 @@ build_tracecmd() {
     # All variables need to be exported, NOT SET ON THE CLI of make-trace-cmd.sh
     # itself. Otherwise they will internally conflict with existing ones.
     export LDFLAGS="-static" NO_AUDIT=yes NO_PYTHON=yes CFLAGS="-O3"
-    ./make-trace-cmd.sh install
+    ./make-trace-cmd.sh V=1 install
     strip "$TRACE_CMD_BIN"
 }
 
