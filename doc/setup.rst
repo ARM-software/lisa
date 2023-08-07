@@ -198,6 +198,33 @@ To help expose these tracepoints (and any additional one we might require in
 the future) as trace events, an external module is required and is provided
 under the name of "lisa" in $LISA_HOME/tools/kmodules/lisa
 
+Pre-requisites
+..............
+
+CFI
+~~~
+
+Using the out-of-tree build method for kernels with CONFIG_CFI_CLANG=y as all
+Android kernels come by default requires the module to be built with at least
+clang-16. This can either be achieved by using the ``alpine`` build environment,
+by having it installed on host and using ``LLVM=1`` or forcing the version with
+``LLVM=-16`` in ``target-conf/kernel/modules/make-variables``.
+
+Kernel symbols needed for reading files on Android product kernels
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In order to use some Lisa module features (e.g. the lisa__pixel6_emeter ftrace event)
+on a product kernel, some symbols forbidden by Google need to be re-enabled.
+
+In order to do that, the kernel will need to be built with:
+
+.. code-block:: sh
+
+    ./update_symbol_list.sh
+
+The script should be included in the product kernel tree. It will ensure that the required
+symbols are not stripped from the final kernel image and the module does not get rejected.
+
 Enabling a module
 .................
 
@@ -337,6 +364,53 @@ Integrating the module in your kernel tree
 If you're rebuilding your kernel tree anyway, it might be easier to integrate
 the module into your kernel tree as a built-in module so that it's always
 present.
+
+.. warning::
+   This method is less supported than the out-of-tree method above.
+   Proceed only if this method has specific benefits for your use case or
+   for some reason you cannot build the module out-of-tree. The most common
+   reason would be accessing the kernel sources remotely thus not having a
+   kernel checkout on the machine that Lisa runs on. Otherwise, using the
+   default out-of-tree build method will likely be less error-prone.
+
+In order to do that, follow the steps below:
+
+* Disable Google's ABI symbols checks by applying the patch found under
+  ``tools/kmodules/lisa-in-tree/android/abi`` to the tree in ``build/abi``.
+
+* Apply the patches in ``tools/kmodules/lisa-in-tree/linux``
+  to include a stub Kbuild Makefile structure for the module.
+  For Android product kernels it should be applied under ``private/gs-google``,
+  for Android mainline kernels under ``common``.
+
+.. note:: Older Android product kernels might be missing some internal header
+   import guards present in newer mainline versions. For this method to work
+   make sure your kernel tree includes mainline commits 95458477f5b2dc436e3aa6aa25c0f84bb83e6195
+   and d90a2f160a1cd9a1745896c381afdf8d2812fd6b.
+
+* Additionally, on Android kernels it can be useful to apply the patches in
+  ``tools/kmodules/lisa-in-tree/android`` as well. It will include the module
+  in the vendor modules list for Android so that it is automatically loaded
+  at boot-time. The patch is specific to the Pixel 6 source tree
+  and very likely should be adjusted accordingly for any other platform.
+
+* Then, put the script found under ``tools/kmodules/lisa-in-tree/fetch_lisa_module.py``
+  and follow the instructions in ``--help`` to link or fetch the Lisa module sources into
+  the source tree.
+
+With all these steps complete, rebuild the kernel:
+
+.. code-block:: sh
+
+    ./update_symbol_list.sh
+
+The module should be built in-tree and then loaded at boot-time.
+
+.. note:: The order at which the module is loaded at boot time is not guaranteed and
+   Android will not perform any of the Lisa module setup steps. Usually e.g. ``pixel6_emeter``
+   will fail to load on boot and the module will have to be reloaded with ``rmmod lisa && modprobe (..)``.
+   As loading the module in ways different than through Lisa is not officially supported, any such
+   setup is the user's responsibility.
 
 Updating
 ========

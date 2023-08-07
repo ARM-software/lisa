@@ -1,0 +1,29 @@
+From 7b6f4db61675012148ce872b1e86bbe0806e57ba Mon Sep 17 00:00:00 2001
+From: Kajetan Puchalski <kajetan.puchalski@arm.com>
+Date: Mon, 31 Jul 2023 11:18:50 +0000
+Subject: [PATCH] abi: Allow GKI restricted symbols
+
+---
+ abi/symbols.deny | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/abi/symbols.deny b/abi/symbols.deny
+index fd643b7..b15771c 100644
+--- a/abi/symbols.deny
++++ b/abi/symbols.deny
+@@ -17,9 +17,9 @@
+ # File access symbols that are forbidden because drivers should never
+ # try to access files directly.  Instead proper user/kernel apis should
+ # always be used.
+-filp_open	Drivers should not open files directly
+-kernel_read	Drivers should never read from a file
+-kernel_write	Drivers should never write to a file
++# filp_open	Drivers should not open files directly
++# kernel_read	Drivers should never read from a file
++# kernel_write	Drivers should never write to a file
+ 
+ # Kprobe needs to be left alone
+ disable_kprobe		kprobe should not be touched by any driver
+-- 
+2.34.1
+

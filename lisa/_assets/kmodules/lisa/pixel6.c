@@ -4,6 +4,11 @@
 #include <linux/fs.h>
 #include <linux/types.h>
 
+#ifdef _IN_TREE_BUILD
+#include <linux/sched/cputime.h>
+#include <kernel/sched/sched.h>
+#endif
+
 #include "main.h"
 #include "features.h"
 #include "wq.h"

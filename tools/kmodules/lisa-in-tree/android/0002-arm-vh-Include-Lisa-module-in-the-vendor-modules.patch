@@ -1,0 +1,38 @@
+From ef77f0e015f41cf5b53e9d6089044b8a260e4831 Mon Sep 17 00:00:00 2001
+From: Kajetan Puchalski <kajetan.puchalski@arm.com>
+Date: Tue, 27 Jun 2023 14:07:42 +0000
+Subject: [PATCH] arm: vh: Include Lisa module in the vendor modules
+
+Include lisa.ko (the Lisa tracing module) in the list of
+vendor modules included in the kernel so that it is copied
+to dist and loaded at boot time automatically alongside all
+the other vendor modules on Pixel 6.
+---
+ BUILD.bazel               | 1 +
+ vendor_boot_modules.gs101 | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/BUILD.bazel b/BUILD.bazel
+index 2c6b1564d390..5a3070bb5653 100644
+--- a/BUILD.bazel
++++ b/BUILD.bazel
+@@ -210,6 +210,7 @@ kernel_build(
+         "zcomp_eh.ko",
+         "zram.ko",
+         "zsmalloc.ko",
++        "lisa.ko",
+     ],
+     deps = [
+         "//prebuilts/misc/linux-x86/libufdt:mkdtimg",
+diff --git a/vendor_boot_modules.gs101 b/vendor_boot_modules.gs101
+index 4d913d9d4788..79447f2d5de0 100644
+--- a/vendor_boot_modules.gs101
++++ b/vendor_boot_modules.gs101
+@@ -209,3 +209,4 @@ zcomp_cpu.ko
+ zcomp_eh.ko
+ zram.ko
+ zsmalloc.ko
++lisa.ko
+-- 
+2.34.1
+

@@ -25,9 +25,6 @@ else
 	KERNEL_SRC ?= /lib/modules/`uname -r`/build
 endif
 
-VMLINUX_H = $(MODULE_OBJ)/vmlinux.h
-SYMBOL_NAMESPACES_H = $(MODULE_OBJ)/symbol_namespaces.h
-
 # kbuild part of makefile. Only Kbuild-related targets should be used here to
 # avoid any sort of clash.
 ifneq ($(KERNELRELEASE),)
@@ -35,12 +32,29 @@ ifneq ($(KERNELRELEASE),)
 LISA_KMOD_NAME ?= lisa
 obj-m := $(LISA_KMOD_NAME).o
 $(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o
-ldflags-y += -T "$(M)/features.lds"
-
-clean-files := vmlinux.h
 
 # -fno-stack-protector is needed to possibly undefined __stack_chk_guard symbol
 ccflags-y = "-I$(MODULE_SRC)" -std=gnu11 -fno-stack-protector -Wno-declaration-after-statement
+
+FEATURES_LDS := features.lds
+
+SYMBOL_NAMESPACES_H = $(MODULE_OBJ)/symbol_namespaces.h
+MODULE_VERSION_H = $(MODULE_OBJ)/module_version.h
+
+# in-tree build
+ifneq ($(srctree),.)
+
+ccflags-y += -I$(srctree) -D_IN_TREE_BUILD
+ldflags-y += -T $(srctree)/$(obj)/$(FEATURES_LDS)
+
+# out-of-tree build
+else
+
+VMLINUX_H = $(MODULE_OBJ)/vmlinux.h
+
+ldflags-y += -T $(M)/$(FEATURES_LDS)
+
+clean-files := vmlinux.h
 
 VMLINUX_TXT = $(MODULE_SRC)/private_types.txt
 
@@ -92,6 +106,9 @@ $(VMLINUX_H): $(VMLINUX_TXT) $(VMLINUX)
 	cat _fwd_decl _header > $@
 # cat $@
 
+# out-of-tree build
+endif
+
 # Some kernels require the use of MODULE_IMPORT_NS() before using symbols that are part of the given namespace:
 # https://docs.kernel.org/core-api/symbol-namespaces.html
 # Unfortunately, Android kernels seem to define their own namespaces for GKI, so
@@ -105,8 +122,13 @@ $(SYMBOL_NAMESPACES_H):
 	find "$(KERNEL_SRC)" '(' -name '*.c' -o -name '*.h' ')' -print0 | xargs -0 sed -n 's/MODULE_IMPORT_NS([^;]*;/\0/p' | sort -u > $@
 	echo "MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);" >> $@
 
+$(MODULE_VERSION_H):
+	echo -n '#ifndef _MODULE_VERSION_H\n#define _MODULE_VERSION_H\n#define LISA_MODULE_VERSION "' > $@
+	cat $$(find $(KERNEL_SRC)/$(MODULE_SRC)/ -name '*.*' | sort) | sha1sum | awk '{printf "%s\"\n", $$1}' >> $@
+	echo '#endif' >> $@
+
 # Make all object files depend on the generated sources
-$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(VMLINUX_H) $(SYMBOL_NAMESPACES_H)
+$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(VMLINUX_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H)
 
 # Non-Kbuild part
 else
