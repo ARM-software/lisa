@@ -19,8 +19,14 @@
 import os
 import sys
 import itertools
+import platform
 
 from setuptools import setup, find_packages, find_namespace_packages
+
+
+plat = platform.system()
+if plat != 'Linux':
+    raise ValueError(f'Only Linux is supported, {plat} is unsupported')
 
 
 with open('README.rst', 'r') as f:
