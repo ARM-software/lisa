@@ -4,14 +4,18 @@
 #include "main.h"
 #include "debugfs.h"
 #include "features.h"
+#include "module_version.h"
 /* Import all the symbol namespaces that appear to be defined in the kernel
  * sources so that we won't trigger any warning
  */
 #include "symbol_namespaces.h"
 
+static char* version = LISA_MODULE_VERSION;
+module_param(version, charp, 0);
+MODULE_PARM_DESC(version, "Module version defined as sha1sum of the module sources");
+
 static char *features[MAX_FEATURES];
 static unsigned int features_len = 0;
-
 module_param_array(features, charp, &features_len, 0600);
 MODULE_PARM_DESC(features, "Comma-separated list of features to enable. Available features are printed when loading the module");
 
@@ -29,6 +33,12 @@ static void modexit(void) {
 }
 
 static int init(void) {
+	pr_info("Loading Lisa module version %s\n", LISA_MODULE_VERSION);
+	if (strcmp(version, LISA_MODULE_VERSION)) {
+		pr_err("Lisa module version check failed. Got %s, expected %s\n", version, LISA_MODULE_VERSION);
+		return -EPROTO;
+	}
+
 	int ret = init_features(features, features_len);
 	if (ret)
 		pr_err("Some errors happened while loading LISA kernel module: %d\n", ret);
@@ -45,7 +55,7 @@ int reload(void) {
 	return ret;
 }
 
-static int modinit(void) {
+static int __init modinit(void) {
 	/* First load the features, so there is no race with someone trying to
 	 * reload from debugfs at the same time.
 	 */

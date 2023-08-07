@@ -1,0 +1,56 @@
+From 4251bcc1e0641992e3a99f19c654245d2b6aff87 Mon Sep 17 00:00:00 2001
+From: Kajetan Puchalski <kajetan.puchalski@arm.com>
+Date: Tue, 27 Jun 2023 14:05:40 +0000
+Subject: [PATCH] arm: vh: Include Lisa module stub
+
+Include the directory structure and necessary makefile changes
+for a stub Lisa module to be built in-tree as part of the kernel.
+For the module to work this commit requires fetching the actual
+sources from GitHub either manually or using a script.
+
+Signed-off-by: Kajetan Puchalski <kajetan.puchalski@arm.com>
+---
+ drivers/soc/Makefile                 | 1 +
+ drivers/soc/arm/Makefile             | 1 +
+ drivers/soc/arm/vh/kernel/.gitignore | 2 ++
+ drivers/soc/arm/vh/kernel/Makefile   | 2 ++
+ 4 files changed, 6 insertions(+)
+ create mode 100644 drivers/soc/arm/Makefile
+ create mode 100644 drivers/soc/arm/vh/kernel/.gitignore
+ create mode 100644 drivers/soc/arm/vh/kernel/Makefile
+
+diff --git a/drivers/soc/Makefile b/drivers/soc/Makefile
+index 71ef89c79ea7..af7be45a2776 100644
+--- a/drivers/soc/Makefile
++++ b/drivers/soc/Makefile
+@@ -30,3 +30,4 @@ obj-$(CONFIG_PLAT_VERSATILE)	+= versatile/
+ obj-y				+= xilinx/
+ obj-$(CONFIG_ARCH_ZX)		+= zte/
+ obj-$(CONFIG_SOC_KENDRYTE)	+= kendryte/
++obj-y += arm/
+diff --git a/drivers/soc/arm/Makefile b/drivers/soc/arm/Makefile
+new file mode 100644
+index 000000000000..022ec9498e15
+--- /dev/null
++++ b/drivers/soc/arm/Makefile
+@@ -0,0 +1 @@
++obj-y += vh/kernel/
+diff --git a/drivers/soc/arm/vh/kernel/.gitignore b/drivers/soc/arm/vh/kernel/.gitignore
+new file mode 100644
+index 000000000000..1a7fe6a32c57
+--- /dev/null
++++ b/drivers/soc/arm/vh/kernel/.gitignore
+@@ -0,0 +1,2 @@
++lisa-module-git/
++lisa
+diff --git a/drivers/soc/arm/vh/kernel/Makefile b/drivers/soc/arm/vh/kernel/Makefile
+new file mode 100644
+index 000000000000..742b33b05dc4
+--- /dev/null
++++ b/drivers/soc/arm/vh/kernel/Makefile
+@@ -0,0 +1,2 @@
++# ARM Lisa module
++obj-y += lisa/
+-- 
+2.34.1
+

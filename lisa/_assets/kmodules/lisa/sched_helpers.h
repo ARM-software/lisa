@@ -7,8 +7,13 @@
 
 #include <linux/cgroup.h>
 
-#include "vmlinux.h"
+#ifdef _IN_TREE_BUILD
 
+#include <kernel/sched/autogroup.h>
+
+#else
+
+#include "vmlinux.h"
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 static inline struct rq *rq_of(struct cfs_rq *cfs_rq)
@@ -56,6 +61,29 @@ static int autogroup_path(struct task_group *tg, char *buf, int buflen)
 #endif
 }
 
+/* A cut down version of the original. @p MUST be NULL */
+static __always_inline
+unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util,
+				  struct task_struct *p)
+{
+#ifdef CONFIG_UCLAMP_TASK
+	unsigned long min_util;
+	unsigned long max_util;
+
+	min_util = READ_ONCE(rq->uclamp[UCLAMP_MIN].value);
+	max_util = READ_ONCE(rq->uclamp[UCLAMP_MAX].value);
+
+	if (unlikely(min_util >= max_util))
+		return min_util;
+
+	return clamp(util, min_util, max_util);
+#else
+	return util;
+#endif
+}
+
+#endif /* _IN_TREE_BUILD */
+
 static inline void cfs_rq_tg_path(struct cfs_rq *cfs_rq, char *path, int len)
 {
 	if (!path)
@@ -86,28 +114,6 @@ static inline struct cfs_rq *get_se_cfs_rq(struct sched_entity *se)
 	return se->cfs_rq;
 #else
 	return NULL;
-#endif
-}
-
-
-/* A cut down version of the original. @p MUST be NULL */
-static __always_inline
-unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util,
-				  struct task_struct *p)
-{
-#ifdef CONFIG_UCLAMP_TASK
-	unsigned long min_util;
-	unsigned long max_util;
-
-	min_util = READ_ONCE(rq->uclamp[UCLAMP_MIN].value);
-	max_util = READ_ONCE(rq->uclamp[UCLAMP_MAX].value);
-
-	if (unlikely(min_util >= max_util))
-		return min_util;
-
-	return clamp(util, min_util, max_util);
-#else
-	return util;
 #endif
 }
 
