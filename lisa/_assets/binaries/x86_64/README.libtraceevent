@@ -7,7 +7,7 @@ Build host info:
 
 NAME="Alpine Linux"
 ID=alpine
-VERSION_ID=3.16.7
+VERSION_ID=3.16.8
 PRETTY_NAME="Alpine Linux v3.16"
 HOME_URL="https://alpinelinux.org/"
 BUG_REPORT_URL="https://gitlab.alpinelinux.org/alpine/aports/-/issues"
@@ -21,13 +21,16 @@ export LISA_HOME=''
 export PATH=/bin:/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/sbin
 #! /bin/bash
 
+# We are stuck at v3.16 for now since:
+# * 3.17 does not have some static lib
+# * 3.18 make hangs on some Makfiles: https://bugzilla.kernel.org/show_bug.cgi?id=218028
 ALPINE_VERSION=v3.16
 ALPINE_BUILD_DEPENDENCIES=(bash gcc git make linux-headers musl-dev pkgconfig bison flex zstd-dev zstd-static zlib-dev zlib-static)
 BROKEN_CROSS_COMPILATION=1
 
 download() {
     git clone git://git.kernel.org/pub/scm/utils/trace-cmd/trace-cmd.git
-    git -C trace-cmd checkout trace-cmd-v3.1.5
+    git -C trace-cmd checkout trace-cmd-v3.2
 
     git clone https://git.kernel.org/pub/scm/libs/libtrace/libtraceevent.git
     # Commit after 1.7.0 that fixes the raw trace-cmd output:
@@ -54,7 +57,7 @@ build_tracecmd() {
     # All variables need to be exported, NOT SET ON THE CLI of make-trace-cmd.sh
     # itself. Otherwise they will internally conflict with existing ones.
     export LDFLAGS="-static" NO_AUDIT=yes NO_PYTHON=yes CFLAGS="-O3"
-    ./make-trace-cmd.sh install install_libs
+    ./make-trace-cmd.sh install
     strip "$TRACE_CMD_BIN"
 }
 

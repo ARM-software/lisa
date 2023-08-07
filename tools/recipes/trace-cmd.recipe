@@ -9,7 +9,7 @@ BROKEN_CROSS_COMPILATION=1
 
 download() {
     git clone git://git.kernel.org/pub/scm/utils/trace-cmd/trace-cmd.git
-    git -C trace-cmd checkout trace-cmd-v3.1.5
+    git -C trace-cmd checkout trace-cmd-v3.2
 
     git clone https://git.kernel.org/pub/scm/libs/libtrace/libtraceevent.git
     # Commit after 1.7.0 that fixes the raw trace-cmd output:
