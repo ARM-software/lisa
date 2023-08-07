@@ -1,0 +1,25 @@
+#! /bin/bash
+
+ALPINE_VERSION=v3.18
+ALPINE_BUILD_DEPENDENCIES=(bash gcc make musl-dev linux-headers git)
+
+download() {
+    git clone git://git.busybox.net/busybox --branch 1_36_stable --depth=1
+    git -C busybox checkout 1_36_1
+}
+
+build() {
+    cd busybox
+    make defconfig
+    echo "CONFIG_STATIC=y" >> .config
+    make olddefconfig
+
+    make -j 4 "CROSS_COMPILE=$CROSS_COMPILE"
+}
+
+install() {
+    cp -v busybox/busybox "$LISA_ARCH_ASSETS/busybox"
+
+    source "$LISA_HOME/tools/recipes/utils.sh"
+    install_readme busybox busybox LICENSE
+}
