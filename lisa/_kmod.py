@@ -1157,7 +1157,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     toolchain = os.environ['CROSS_COMPILE']
                 except KeyError:
                     if abi == 'arm64':
-                        toolchain = 'aarch64-linux-gnu-'
+                        toolchain = pick_first(['aarch64-linux-gnu-', 'aarch64-none-elf-'])
                     elif abi == 'armeabi':
                         toolchain = pick_first(['arm-linux-gnueabi-', 'arm-none-eabi-'])
                     elif abi == 'x86':
