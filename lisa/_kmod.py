@@ -1060,7 +1060,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             else:
                 raise ValueError('The ABI must be specified or the ARCH make variable')
 
-        abi = abi or  _kernel_arch_to_abi(arch)
+        abi = abi or _kernel_arch_to_abi(arch)
 
         make_vars['ARCH'] = arch
         build_conf = build_conf.add_src(
@@ -1090,7 +1090,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         # can confuse KBuild.
         make_vars['CC'] = cc
         assert 'ARCH' in make_vars
-        return (make_vars, cc, arch)
+        return (make_vars, cc, abi)
 
     @classmethod
     def _make_toolchain_env(cls, toolchain_path=None, env=None):
@@ -1134,6 +1134,19 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
 
         make_vars = build_conf.get('make-variables', {})
 
+        def pick_first(toolchains):
+            found = [
+                toolchain
+                for toolchain in toolchains
+                if shutil.which(f'{toolchain}gcc') is not None
+            ]
+            # If no toolchain is found, we pick the first one that will be used
+            # for clang target triplet
+            try:
+                return found[0]
+            except IndexError:
+                return toolchains[0]
+
         if abi == LISA_HOST_ABI:
             toolchain = None
         else:
@@ -1144,9 +1157,9 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     toolchain = os.environ['CROSS_COMPILE']
                 except KeyError:
                     if abi == 'arm64':
-                        toolchain = 'aarch64-linux-gnu-'
+                        toolchain = pick_first(['aarch64-linux-gnu-', 'aarch64-none-elf-'])
                     elif abi == 'armeabi':
-                        toolchain = 'arm-linux-gnueabi-'
+                        toolchain = pick_first(['arm-linux-gnueabi-', 'arm-none-eabi-'])
                     elif abi == 'x86':
                         toolchain = 'i686-linux-gnu-'
                     else:
