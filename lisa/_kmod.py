@@ -1134,6 +1134,19 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
 
         make_vars = build_conf.get('make-variables', {})
 
+        def pick_first(toolchains):
+            found = [
+                toolchain
+                for toolchain in toolchains
+                if shutil.which(f'{toolchain}gcc') is not None
+            ]
+            # If no toolchain is found, we pick the first one that will be used
+            # for clang target triplet
+            try:
+                return found[0]
+            except IndexError:
+                return toolchains[0]
+
         if abi == LISA_HOST_ABI:
             toolchain = None
         else:
@@ -1146,7 +1159,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     if abi == 'arm64':
                         toolchain = 'aarch64-linux-gnu-'
                     elif abi == 'armeabi':
-                        toolchain = 'arm-linux-gnueabi-'
+                        toolchain = pick_first(['arm-linux-gnueabi-', 'arm-none-eabi-'])
                     elif abi == 'x86':
                         toolchain = 'i686-linux-gnu-'
                     else:
