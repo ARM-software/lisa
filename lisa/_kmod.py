@@ -1060,7 +1060,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             else:
                 raise ValueError('The ABI must be specified or the ARCH make variable')
 
-        abi = abi or  _kernel_arch_to_abi(arch)
+        abi = abi or _kernel_arch_to_abi(arch)
 
         make_vars['ARCH'] = arch
         build_conf = build_conf.add_src(
@@ -1090,7 +1090,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         # can confuse KBuild.
         make_vars['CC'] = cc
         assert 'ARCH' in make_vars
-        return (make_vars, cc, arch)
+        return (make_vars, cc, abi)
 
     @classmethod
     def _make_toolchain_env(cls, toolchain_path=None, env=None):
