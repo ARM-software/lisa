@@ -11,11 +11,13 @@ download() {
     git clone git://git.kernel.org/pub/scm/utils/trace-cmd/trace-cmd.git
     git -C trace-cmd checkout trace-cmd-v3.2
 
-    git clone https://git.kernel.org/pub/scm/libs/libtrace/libtraceevent.git
-    git -C libtraceevent checkout libtraceevent-1.7.3
+    #git clone https://git.kernel.org/pub/scm/libs/libtrace/libtraceevent.git
+    #git -C libtraceevent checkout libtraceevent-1.7.3
+    git clone git@github.com:douglas-raillard-arm/libtraceevent.git --branch fix_static
 
-    git clone https://git.kernel.org/pub/scm/libs/libtrace/libtracefs.git
-    git -C libtracefs checkout libtracefs-1.7.0
+    #git clone https://git.kernel.org/pub/scm/libs/libtrace/libtracefs.git
+    #git -C libtracefs checkout libtracefs-1.7.0
+    git clone git@github.com:douglas-raillard-arm/libtracefs.git --branch fix_static
 }
 
 build_libtraceevent() {
