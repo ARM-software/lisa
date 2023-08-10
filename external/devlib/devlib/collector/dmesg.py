@@ -234,27 +234,7 @@ class DmesgCollector(CollectorBase):
                 if entry.timestamp > timestamp
             ]
 
-    def reset(self):
-        # If the buffer is emptied on start(), it does not matter as we will
-        # not end up with entries dating from before start()
-        if self.empty_buffer:
-            # Empty the dmesg ring buffer. This requires root in all cases
-            self.target.execute('dmesg -c', as_root=True)
-        else:
-            self.stop()
-            try:
-                entry = self.entries[-1]
-            except IndexError:
-                pass
-            else:
-                self._begin_timestamp = entry.timestamp
-
-        self._dmesg_out = None
-
-    def start(self):
-        self.reset()
-
-    def stop(self):
+    def _get_output(self):
         levels_list = list(takewhile(
             lambda level: level != self.level,
             self.LOG_LEVELS
@@ -269,6 +249,27 @@ class DmesgCollector(CollectorBase):
             )
 
         self._dmesg_out = self.target.execute(cmd, as_root=self.needs_root)
+
+    def reset(self):
+        self._dmesg_out = None
+
+    def start(self):
+        # If the buffer is emptied on start(), it does not matter as we will
+        # not end up with entries dating from before start()
+        if self.empty_buffer:
+            # Empty the dmesg ring buffer. This requires root in all cases
+            self.target.execute('dmesg -c', as_root=True)
+        else:
+            self._get_output()
+            try:
+                entry = self.entries[-1]
+            except IndexError:
+                pass
+            else:
+                self._begin_timestamp = entry.timestamp
+
+    def stop(self):
+        self._get_output()
 
     def set_output(self, output_path):
         self.output_path = output_path
