@@ -30,7 +30,7 @@ def main():
     parser.add_argument('--module-kernel-path',
                         help='Path relative to the kernel tree root where the module will be stored')
     parser.add_argument('--git-remote', help='Git remote to pull the module from',
-                        default='git@github.com:ARM-software/lisa.git')
+                        default='https://github.com/ARM-software/lisa.git')
     args = parser.parse_args()
 
     module_kernel_path = Path(args.module_kernel_path).resolve()

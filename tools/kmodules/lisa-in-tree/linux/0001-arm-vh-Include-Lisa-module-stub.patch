@@ -1,4 +1,4 @@
-From 4251bcc1e0641992e3a99f19c654245d2b6aff87 Mon Sep 17 00:00:00 2001
+From 7e0578ee83ca6a840f82303f5f58a7b7ced68320 Mon Sep 17 00:00:00 2001
 From: Kajetan Puchalski <kajetan.puchalski@arm.com>
 Date: Tue, 27 Jun 2023 14:05:40 +0000
 Subject: [PATCH] arm: vh: Include Lisa module stub
@@ -37,11 +37,11 @@ index 000000000000..022ec9498e15
 +obj-y += vh/kernel/
 diff --git a/drivers/soc/arm/vh/kernel/.gitignore b/drivers/soc/arm/vh/kernel/.gitignore
 new file mode 100644
-index 000000000000..1a7fe6a32c57
+index 000000000000..824ab08cfc04
 --- /dev/null
 +++ b/drivers/soc/arm/vh/kernel/.gitignore
 @@ -0,0 +1,2 @@
-+lisa-module-git/
++lisa-git/
 +lisa
 diff --git a/drivers/soc/arm/vh/kernel/Makefile b/drivers/soc/arm/vh/kernel/Makefile
 new file mode 100644
