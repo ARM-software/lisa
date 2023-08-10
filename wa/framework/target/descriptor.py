@@ -198,6 +198,12 @@ COMMON_TARGET_PARAMS = [
               description='''
               A regex that matches the shell prompt on the target.
               '''),
+
+    Parameter('max_async', kind=int, default=50,
+        description='''
+            The maximum number of concurent asynchronous connections to the
+            target maintained at any time.
+            '''),
 ]
 
 COMMON_PLATFORM_PARAMS = [
