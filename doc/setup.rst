@@ -398,6 +398,10 @@ In order to do that, follow the steps below:
   and follow the instructions in ``--help`` to link or fetch the Lisa module sources into
   the source tree.
 
+.. code-block:: sh
+
+   ./fetch_lisa_module.py --module-kernel-path ./private/gs-google/drivers/soc/arm/vh/kernel/lisa --git-ref main
+
 With all these steps complete, rebuild the kernel:
 
 .. code-block:: sh
