@@ -131,9 +131,18 @@ class SurfaceFlingerFrameCollector(FrameCollector):
         self.header = header or SurfaceFlingerFrame._fields
 
     def collect_frames(self, wfh):
-        for activity in self.list():
-            if activity == self.view:
-                wfh.write(self.get_latencies(activity).encode('utf-8'))
+        activities = [a for a in self.list() if a.startswith(self.view)]
+
+        if len(activities) > 1:
+            raise ValueError(
+                "More than one activity matching view '{}' was found: {}".format(self.view, activities)
+            )
+
+        if not activities:
+            logger.warning("No activities matching view '{}' were found".format(self.view))
+
+        for activity in activities:
+            wfh.write(self.get_latencies(activity).encode('utf-8'))
 
     def clear(self):
         self.target.execute('dumpsys SurfaceFlinger --latency-clear ')

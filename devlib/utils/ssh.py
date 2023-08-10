@@ -42,11 +42,13 @@ logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 # pylint: disable=import-error,wrong-import-position,ungrouped-imports,wrong-import-order
 import pexpect
-from distutils.version import StrictVersion as V
-if V(pexpect.__version__) < V('4.0.0'):
-    import pxssh
-else:
+
+try:
     from pexpect import pxssh
+# pexpect < 4.0.0 does not have a pxssh module
+except ImportError:
+    import pxssh
+
 from pexpect import EOF, TIMEOUT, spawn
 
 # pylint: disable=redefined-builtin,wrong-import-position
