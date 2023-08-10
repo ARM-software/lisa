@@ -18,7 +18,7 @@ import signal
 import shutil
 import subprocess
 import logging
-from distutils.dir_util import copy_tree
+import sys
 from getpass import getpass
 from shlex import quote
 
@@ -28,6 +28,26 @@ from devlib.exception import (
 )
 from devlib.utils.misc import check_output
 from devlib.connection import ConnectionBase, PopenBackgroundCommand
+
+
+if sys.version_info >= (3, 8):
+    def copy_tree(src, dst):
+        from shutils import copy, copytree
+        copytree(
+            src,
+            dst,
+            # dirs_exist_ok=True only exists in Python >= 3.8
+            dirs_exist_ok=True,
+            # Do not copy creation and modification time to behave like other
+            # targets.
+            copy_function=copy
+        )
+else:
+    def copy_tree(src, dst):
+        from distutils.dir_util import copy_tree
+        # Mirror the behavior of all other targets which only copy the
+        # content without metadata
+        copy_tree(src, dst, preserve_mode=False, preserve_times=False)
 
 
 PACKAGE_BIN_DIRECTORY = os.path.join(os.path.dirname(__file__), 'bin')
@@ -71,13 +91,7 @@ class LocalConnection(ConnectionBase):
     def _copy_path(self, source, dest):
         self.logger.debug('copying {} to {}'.format(source, dest))
         if os.path.isdir(source):
-            # Use distutils copy_tree since it behaves the same as
-            # shutils.copytree except that it won't fail if some folders
-            # already exist.
-            #
-            # Mirror the behavior of all other targets which only copy the
-            # content without metadata
-            copy_tree(source, dest, preserve_mode=False, preserve_times=False)
+            copy_tree(source, dest)
         else:
             shutil.copy(source, dest)
 
