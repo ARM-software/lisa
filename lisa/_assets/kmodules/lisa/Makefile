@@ -25,16 +25,21 @@ else
 	KERNEL_SRC ?= /lib/modules/`uname -r`/build
 endif
 
+
+$(info $(MODULE_SRC))
+$(info $(MODULE_SRC)/*)
+
 # kbuild part of makefile. Only Kbuild-related targets should be used here to
 # avoid any sort of clash.
 ifneq ($(KERNELRELEASE),)
 
 LISA_KMOD_NAME ?= lisa
 obj-m := $(LISA_KMOD_NAME).o
-$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o
+$(LISA_KMOD_NAME)-y := prelink.o
+obj-y +=  $(MODULE_SRC/*.c:.c=.o)
 
 # -fno-stack-protector is needed to possibly undefined __stack_chk_guard symbol
-ccflags-y = "-I$(MODULE_SRC)" -std=gnu11 -fno-stack-protector -Wno-declaration-after-statement
+ccflags-y = "-I$(MODULE_SRC)" -std=gnu11 -fno-stack-protector -Wno-declaration-after-statement -fvisibility=hidden
 
 FEATURES_LDS := features.lds
 
@@ -129,6 +134,13 @@ $(MODULE_VERSION_H):
 
 # Make all object files depend on the generated sources
 $(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(VMLINUX_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H)
+
+# Prelink all the object files so that no function defined inside the module
+# will ever be used to satisfy a symbol dependency outside the module, even for
+# in-tree builds.
+$(MODULE_OBJ)/prelink.o: $(MODULE_SRC/*.c:.c=.o)
+	$(LD) -r $^ -o $@
+	$(OBJCOPY) --localize-hidden $@
 
 # Non-Kbuild part
 else
