@@ -2134,7 +2134,7 @@ class AndroidTarget(Target):
         on_device_executable = self.path.join(self.executables_directory, executable_name)
         await self.push.asyn(filepath, on_device_file, timeout=timeout)
         if on_device_file != on_device_executable:
-            await self.execute.asyn('cp {} {}'.format(quote(on_device_file), quote(on_device_executable)),
+            await self.execute.asyn('cp -f -- {} {}'.format(quote(on_device_file), quote(on_device_executable)),
                          as_root=self.needs_su, timeout=timeout)
             await self.remove.asyn(on_device_file, as_root=self.needs_su)
         await self.execute.asyn("chmod 0777 {}".format(quote(on_device_executable)), as_root=self.needs_su)

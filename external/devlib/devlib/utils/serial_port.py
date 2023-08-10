@@ -22,11 +22,14 @@ import serial
 
 # pylint: disable=import-error,wrong-import-position,ungrouped-imports,wrong-import-order
 import pexpect
-from distutils.version import StrictVersion as V
-if V(pexpect.__version__) < V('4.0.0'):
-    import fdpexpect
-else:
+
+try:
     from pexpect import fdpexpect
+# pexpect < 4.0.0 does not have fdpexpect module
+except ImportError:
+    import fdpexpect
+
+
 # Adding pexpect exceptions into this module's namespace
 from pexpect import EOF, TIMEOUT  # NOQA pylint: disable=W0611
 
