@@ -66,7 +66,8 @@ install_android_sdk_manager() {
     # URL taken from "Command line tools only": https://developer.android.com/studio
     # Used to be "https://dl.google.com/android/repository/commandlinetools-linux-7302050_latest.zip"
     # Used to be "https://dl.google.com/android/repository/commandlinetools-linux-8092744_latest.zip"
-    local url="https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip"
+    # Used to be "https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip"
+    local url="https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip"
     local archive="$ANDROID_HOME/android-sdk-manager.zip"
     rm "$archive" &>/dev/null
 
@@ -82,7 +83,7 @@ install_android_sdk_manager() {
 # Android SDK is picky on Java version, so we need to set JAVA_HOME manually.
 # In most distributions, Java is installed under /usr/lib/jvm so use that.
 # according to the distribution
-ANDROID_SDK_JAVA_VERSION=11
+ANDROID_SDK_JAVA_VERSION=17
 find_java_home() {
     _JAVA_BIN=$(find /usr/lib/jvm -path "*$ANDROID_SDK_JAVA_VERSION*/bin/java" -not -path '*/jre/bin/*' -print -quit)
     _JAVA_HOME=$(dirname "$_JAVA_BIN")/../
@@ -109,7 +110,7 @@ call_android_sdkmanager() {
 install_android_tools() {
     # We could use install_android_platform_tools here for platform-tools if the
     # SDK starts being annoying
-    yes | call_android_sdkmanager --verbose --channel=0 --install "build-tools;33.0.2"
+    yes | call_android_sdkmanager --verbose --channel=0 --install "build-tools;34.0.0"
     yes | call_android_sdkmanager --verbose --channel=0 --install "platform-tools"
 }
 
