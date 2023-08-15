@@ -338,6 +338,11 @@ for arg in "${args[@]}"; do
         handled=1;
         ;;&
 
+    "--install-kernel-build-dependencies" | "--install-all")
+        apt_packages+=(build-essential gcc bc bison flex libssl-dev libncurses5-dev libelf-dev)
+        handled=1;
+        ;;&
+
     "--install-bisector-dbus")
         apt_packages+=(
             gobject-introspection
