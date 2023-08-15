@@ -266,6 +266,12 @@ way to configure LISA for building the module is:
                   # system depending on config), this should do the trick.
                   # overlay-backend: copy
 
+.. note:: If ``build-env: host`` is used (default), ensure that your setup is
+    ready to compile a kernel. Notably, ensure that you have kernel build
+    dependencies installed. This can be achieved with
+    ``install_base.sh --install-kernel-build-dependencies`` (included in
+    ``--install-all``)
+
 Automatic route
 ...............
 
