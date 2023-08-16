@@ -9,6 +9,8 @@
 
 #ifdef _IN_TREE_BUILD
 
+#include <linux/sched/cputime.h>
+#include <kernel/sched/sched.h>
 #include <kernel/sched/autogroup.h>
 
 #else
