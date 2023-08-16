@@ -85,7 +85,7 @@ install_android_sdk_manager() {
 # according to the distribution
 ANDROID_SDK_JAVA_VERSION=17
 find_java_home() {
-    _JAVA_BIN=$(find /usr/lib/jvm -path "*$ANDROID_SDK_JAVA_VERSION*/bin/java" -not -path '*/jre/bin/*' -print -quit)
+    _JAVA_BIN=$(find -L /usr/lib/jvm -path "*$ANDROID_SDK_JAVA_VERSION*/bin/java" -not -path '*/jre/bin/*' -print -quit)
     _JAVA_HOME=$(dirname "$_JAVA_BIN")/../
 
     echo "Found JAVA_HOME=$_JAVA_HOME"
