@@ -45,9 +45,13 @@ $(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o
 ccflags-y = "-I$(MODULE_SRC)" -std=gnu11 -fno-stack-protector -Wno-declaration-after-statement
 
 FEATURES_LDS := features.lds
+GENERATED = $(MODULE_OBJ)/generated
 
-SYMBOL_NAMESPACES_H = $(MODULE_OBJ)/symbol_namespaces.h
-MODULE_VERSION_H = $(MODULE_OBJ)/module_version.h
+$(GENERATED):
+	mkdir -p "$@"
+
+SYMBOL_NAMESPACES_H = $(GENERATED)/symbol_namespaces.h
+MODULE_VERSION_H = $(GENERATED)/module_version.h
 
 # in-tree build
 ifneq ($(srctree),.)
@@ -58,11 +62,11 @@ ldflags-y += -T $(srctree)/$(obj)/$(FEATURES_LDS)
 # out-of-tree build
 else
 
-VMLINUX_H = $(MODULE_OBJ)/vmlinux.h
+VMLINUX_H = $(GENERATED)/vmlinux.h
 
 ldflags-y += -T $(M)/$(FEATURES_LDS)
 
-clean-files := vmlinux.h
+clean-files := $(VMLINUX_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H)
 
 VMLINUX_TXT = $(MODULE_SRC)/private_types.txt
 
@@ -78,7 +82,7 @@ endif
 
 VMLINUX_H_TYPE_PREFIX=KERNEL_PRIVATE_
 
-$(VMLINUX_H): $(VMLINUX_TXT) $(VMLINUX)
+$(VMLINUX_H): $(GENERATED) $(VMLINUX_TXT) $(VMLINUX)
 # Some options are not upstream (yet) but they have all be published on the
 # dwarves mailing list
 #
@@ -126,14 +130,14 @@ endif
 # kernel so it would be way to slow.
 # There does not seem to be any other source for the info in e.g. sysfs or
 # procfs, so we rely on that hack for now.
-$(SYMBOL_NAMESPACES_H):
+$(SYMBOL_NAMESPACES_H): $(GENERATED)
 	find "$(KERNEL_SRC)" '(' -name '*.c' -o -name '*.h' ')' -print0 | xargs -0 sed -n 's/MODULE_IMPORT_NS([^;]*;/\0/p' | sort -u > $@
 	echo "MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);" >> $@
 
-$(MODULE_VERSION_H):
-	echo -n '#ifndef _MODULE_VERSION_H\n#define _MODULE_VERSION_H\n#define LISA_MODULE_VERSION "' > $@
-	cat $$(find $(MODULE_SRC)/ -name '*.*' | sort) | sha1sum | awk '{printf "%s\"\n", $$1}' >> $@
-	echo '#endif' >> $@
+$(MODULE_VERSION_H): $(GENERATED)
+	printf "#ifndef _MODULE_VERSION_H\n#define _MODULE_VERSION_H\n#define LISA_MODULE_VERSION \"" > $@
+	export LC_ALL=C && cd $(MODULE_SRC) && sha1sum -- *.c *.h | sort | sha1sum | cut -d' ' -f1 | tr -d '\n' >> $@
+	printf "\"\n#endif\n" >> $@
 
 # Make all object files depend on the generated sources
 $(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(VMLINUX_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H)
