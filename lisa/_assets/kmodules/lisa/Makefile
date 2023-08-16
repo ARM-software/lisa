@@ -15,10 +15,18 @@
 # limitations under the License.
 #
 
+# Kbuild
 ifneq ($(KERNELRELEASE),)
-	MODULE_SRC ?= $(src)
 	MODULE_OBJ := $(obj)
 	KERNEL_SRC ?= $(srctree)
+# Kbuild in-tree build
+ifneq ($(srctree),.)
+	MODULE_SRC ?= $(srctree)/$(src)
+# Kbuild out-of-tree build
+else
+	MODULE_SRC ?= $(src)
+endif
+# non-Kbuild
 else
 	MODULE_SRC ?= $(PWD)
 	MODULE_OBJ := $(PWD)
@@ -124,7 +132,7 @@ $(SYMBOL_NAMESPACES_H):
 
 $(MODULE_VERSION_H):
 	echo -n '#ifndef _MODULE_VERSION_H\n#define _MODULE_VERSION_H\n#define LISA_MODULE_VERSION "' > $@
-	cat $$(find $(KERNEL_SRC)/$(MODULE_SRC)/ -name '*.*' | sort) | sha1sum | awk '{printf "%s\"\n", $$1}' >> $@
+	cat $$(find $(MODULE_SRC)/ -name '*.*' | sort) | sha1sum | awk '{printf "%s\"\n", $$1}' >> $@
 	echo '#endif' >> $@
 
 # Make all object files depend on the generated sources
