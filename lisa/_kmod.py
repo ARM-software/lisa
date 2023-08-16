@@ -147,6 +147,14 @@ from lisa._unshare import ensure_root
 import lisa._git as git
 from lisa.conf import SimpleMultiSrcConf, TopLevelKeyDesc, LevelKeyDesc, KeyDesc
 
+
+class KmodVersionError(Exception):
+    """
+    Raised when the kernel module is not found with the expected version.
+    """
+    pass
+
+
 _ALPINE_ROOTFS_URL = 'https://dl-cdn.alpinelinux.org/alpine/v{minor}/releases/{arch}/alpine-minirootfs-{version}-{arch}.tar.gz'
 
 def _abi_to_kernel_arch(abi):
@@ -1727,18 +1735,27 @@ class KmodSrc(Loggable):
         }
 
     def _checksum(self, sources_only=False):
-        m = hashlib.sha1()
-        sources = {
-            name: content
-            for name, content
-            in self.src.items()
-            if '.' in name
-        } if sources_only else self.src
-        for name, content in sorted(sources.items()):
-            if not sources_only:
-                m.update(name.encode('utf-8'))
+        sources = self.code_files if sources_only else self.src
+
+        def checksum(content):
+            m = hashlib.sha1()
+            content = content if isinstance(content, bytes) else content.encode('utf-8')
             m.update(content)
-        return m.hexdigest()
+            return m.hexdigest()
+
+        content = sorted(
+            (checksum(content), name)
+            for name, content in sources.items()
+        )
+
+        # Recreate the output of sha1sum over multiple files, and checksum
+        # that.
+        return checksum(
+            '\n'.join(
+                f'{csum}  {name}'
+                for csum, name in content
+            ) + '\n'
+        )
 
     @property
     @memoized
@@ -1750,7 +1767,7 @@ class KmodSrc(Loggable):
 
     @property
     @memoized
-    def checksum_sources(self):
+    def sources_checksum(self):
         """
         Checksum of the module's sources.
         """
@@ -2095,13 +2112,33 @@ class DynamicKmod(Loggable):
             string following the ``module_param_array()`` kernel API syntax.
         :type kmod_params: dict(str, object) or None
         """
-        # Avoid circular import
-        from lisa.trace import DmesgCollector
+        target = self.target
 
         def target_mktemp():
             return target.execute(
                 f'mktemp -p {quote(target.working_directory)}'
             ).strip()
+
+        @contextlib.contextmanager
+        def kmod_cm():
+            content = self._compile()
+            with tempfile.NamedTemporaryFile('wb', suffix='.ko') as f:
+                f.write(content)
+                f.flush()
+
+                target_temp = Path(target_mktemp())
+                host_temp = Path(f.name)
+                try:
+                    target.push(str(host_temp), str(target_temp))
+                    yield target_temp
+                finally:
+                    target.remove(str(target_temp))
+
+        return self._install(kmod_cm(), kmod_params=kmod_params)
+
+    def _install(self, kmod_cm, kmod_params):
+        # Avoid circular import
+        from lisa.trace import DmesgCollector
 
         def make_str(x):
             if isinstance(x, str):
@@ -2127,7 +2164,6 @@ class DynamicKmod(Loggable):
 
         logger = self.logger
         target = self.target
-        content = self._compile()
 
         kmod_params = kmod_params or {}
         params = ' '.join(
@@ -2138,28 +2174,31 @@ class DynamicKmod(Loggable):
             )
         )
 
-        with tempfile.NamedTemporaryFile('wb', suffix='.ko') as f, tempfile.NamedTemporaryFile() as dmesg_out:
+        try:
+            self.uninstall()
+        except Exception:
+            pass
+
+        with kmod_cm as ko_path, tempfile.NamedTemporaryFile() as dmesg_out:
             dmesg_coll = ignore_exceps(
                 Exception,
                 DmesgCollector(target, output_path=dmesg_out.name),
                 lambda when, cm, excep: logger.error(f'Encounted exceptions while {when}ing dmesg collector: {excep}')
             )
 
-            f.write(content)
-            f.flush()
-
-            temp_ko = target_mktemp()
             try:
-                target.push(f.name, temp_ko)
                 with dmesg_coll as dmesg_coll:
-                    target.execute(f'{quote(target.busybox)} insmod {quote(temp_ko)} {params}', as_root=True)
-            except Exception:
+                    target.execute(f'{quote(target.busybox)} insmod {quote(str(ko_path))} {params}', as_root=True)
+
+            except Exception as e:
                 log_dmesg(dmesg_coll, logger.error)
-                raise
+
+                if isinstance(e, TargetStableCalledProcessError) and e.returncode == errno.EPROTO:
+                    raise KmodVersionError('In-tree module version does not match what LISA expects.')
+                else:
+                    raise
             else:
                 log_dmesg(dmesg_coll, logger.debug)
-            finally:
-                target.remove(temp_ko)
 
     def uninstall(self):
         """
@@ -2314,40 +2353,50 @@ class LISAFtraceDynamicKmod(FtraceDynamicKmod):
         )
 
     def install(self, kmod_params=None):
+
+        target = self.target
+        logger = self.logger
+        busybox = quote(target.busybox)
+
+        def guess_kmod_path():
+            modules_path_base = '/lib/modules'
+            modules_version = target.kernel_version.release
+
+            if target.os == 'android':
+                modules_path_base = f'/vendor_dlkm{modules_path_base}'
+                # Hack for GKI modules where the path might not match the kernel's
+                # uname -r
+                try:
+                    modules_version = Path(target.execute(
+                        f"{busybox} find {modules_path_base} -maxdepth 1 -mindepth 1 | {busybox} head -1"
+                    ).strip()).name
+                except TargetStableCalledProcessError:
+                    pass
+
+            base_path = f"{modules_path_base}/{modules_version}"
+            return (base_path, f"{self.src.mod_name}.ko")
+
+
+        kmod_params = kmod_params or {}
+        kmod_params['version'] = self.src.sources_checksum
+
+        base_path, kmod_filename = guess_kmod_path()
         try:
-            self.uninstall()
-        except Exception:
-            pass
-
-        busybox = quote(self.target.busybox)
-        modules_path_base = '/lib/modules'
-        modules_version = self.target.kernel_version.release
-
-        if self.target.os == 'android':
-            modules_path_base = f'/vendor_dlkm{modules_path_base}'
-            try:
-                modules_version = Path(self.target.execute(
-                    f"{busybox} find {modules_path_base} -maxdepth 1 -mindepth 1 | {busybox} head -1"
-                ).strip()).name
-            except TargetStableCalledProcessError:
-                pass
-
-        modules_path = f"{modules_path_base}/{modules_version}"
-        lisa_module_filename = f"{self.src.mod_name}.ko"
-
-        try:
-            lisa_module_path = self.target.execute(
-                f"{busybox} find {modules_path} -name {quote(lisa_module_filename)}"
+            kmod_path = target.execute(
+                f"{busybox} find {base_path} -name {quote(kmod_filename)}"
             ).strip()
 
-            self.target.execute(
-                f"{busybox} insmod {lisa_module_path} version={self.src.checksum_sources}"
-            )
-        except TargetStableCalledProcessError as e:
-            if e.returncode == errno.EPROTO:
-                raise ValueError('In-tree module version does not match what Lisa expects.')
-            super().install(kmod_params=kmod_params)
+            @contextlib.contextmanager
+            def kmod_cm():
+                yield kmod_path
+
+            ret = self._install(kmod_cm(), kmod_params=kmod_params)
+        except (TargetStableCalledProcessError, KmodVersionError) as e:
+            logger.debug(f'Pre-existing {kmod_filename} was not found or does not have the expected version: {e}')
+            ret = super().install(kmod_params=kmod_params)
         else:
-            self.logger.debug(f'Loaded module {self.src.mod_name} from kernel modules directory')
+            logger.debug(f'Loaded "{self.src.mod_name}" module from pre-installed location: {kmod_path}')
+
+        return ret
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
