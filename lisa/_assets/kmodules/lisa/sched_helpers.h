@@ -15,7 +15,7 @@
 
 #else
 
-#include "vmlinux.h"
+#include "generated/vmlinux.h"
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 static inline struct rq *rq_of(struct cfs_rq *cfs_rq)
