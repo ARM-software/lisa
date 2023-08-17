@@ -12,9 +12,13 @@ on:
           required: false
           default: 'main'
 
-  # If someone pushes something to a branch on the repo directly. It is useful
-  # to test new github actions
-  push: null
+  # Run the tests when anything is merged in "main", since the test in the PR
+  # might have been carried on an older base. Github allows merging as long as
+  # the PR can be rebased without conflict, which does not guarantee in itself
+  # nothing is broken.
+  push:
+    branches:
+      - 'main'
 
 jobs:
   # Set the job key. The key is displayed as the job name
