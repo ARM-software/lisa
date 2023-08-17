@@ -4,11 +4,11 @@
 #include "main.h"
 #include "debugfs.h"
 #include "features.h"
-#include "module_version.h"
+#include "generated/module_version.h"
 /* Import all the symbol namespaces that appear to be defined in the kernel
  * sources so that we won't trigger any warning
  */
-#include "symbol_namespaces.h"
+#include "generated/symbol_namespaces.h"
 
 static char* version = LISA_MODULE_VERSION;
 module_param(version, charp, 0);

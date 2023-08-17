@@ -11,8 +11,18 @@ download() {
 build() {
     cd busybox
     make defconfig
-    echo "CONFIG_STATIC=y" >> .config
-    make olddefconfig
+
+    # We need to generate a defconfig then remove the config, then set them to
+    # the value we want, as there is no make olddefconfig to fixup an edited
+    # config.
+    cat .config | grep -v '\bCONFIG_MODPROBE_SMALL\b' | grep -v '\bCONFIG_STATIC\b' > myconfig
+
+    echo "CONFIG_STATIC=y" >> myconfig
+    # MODPROBE_SMALL=y breaks the return code of insmod. Instead of forwarding
+    # the value from the kernel mod init function, it just returns 1.
+    echo "CONFIG_MODPROBE_SMALL=n" >> myconfig
+
+    cp myconfig .config
 
     make -j 4 "CROSS_COMPILE=$CROSS_COMPILE"
 }
