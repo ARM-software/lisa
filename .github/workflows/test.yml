@@ -37,7 +37,8 @@ jobs:
       matrix:
         os:
           #- ubuntu-18.04
-          - ubuntu-20.04
+          # Use ubuntu 22.04 as it solved the firefox-geckodriver package mess compared to 20.04
+          - ubuntu-22.04
         python-version:
           # Github seems to always block 3 jobs these days, so keep at most 3
           # versions there:
