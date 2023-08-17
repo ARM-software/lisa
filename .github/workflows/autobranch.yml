@@ -10,8 +10,7 @@ on:
 
   # Run the workflow when the base branch is updated.
   #
-  # Note that a push from a workflow will by default not trigger a push event,
-  # so we list both branches here as "main" only would currently do nothing:
+  # Note that a push from a workflow will by default not trigger a push event:
   # https://docs.github.com/en/actions/using-workflows/triggering-a-workflow#triggering-a-workflow-from-a-workflow
   push:
     branches:
