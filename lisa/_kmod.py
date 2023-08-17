@@ -2381,6 +2381,7 @@ class LISADynamicKmod(FtraceDynamicKmod):
         kmod_params['version'] = self.src.sources_checksum
 
         base_path, kmod_filename = guess_kmod_path()
+        logger.debug(f'Looking for pre-installed {kmod_filename} module in {base_path}')
         try:
             kmod_path = target.execute(
                 f"{busybox} find {base_path} -name {quote(kmod_filename)}"
@@ -2392,7 +2393,7 @@ class LISADynamicKmod(FtraceDynamicKmod):
 
             ret = self._install(kmod_cm(), kmod_params=kmod_params)
         except (TargetStableCalledProcessError, KmodVersionError) as e:
-            logger.debug(f'Pre-existing {kmod_filename} was not found or does not have the expected version: {e}')
+            logger.debug(f'Pre-installed {kmod_filename} is unsuitable, recompiling: {e}')
             ret = super().install(kmod_params=kmod_params)
         else:
             logger.debug(f'Loaded "{self.src.mod_name}" module from pre-installed location: {kmod_path}')
