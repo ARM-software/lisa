@@ -693,8 +693,10 @@ class _ContentFileOverlay(_FileOverlayBase):
         self.content = content
 
     def write_to(self, dst):
+        content = self.content
+        content = content.encode('utf-8') if isinstance(content, str) else content
         with open(dst, 'wb') as f:
-            f.write(self.content)
+            f.write(content)
 
     def _get_checksum(self):
         check = checksum(io.BytesIO(self.content), 'sha256')
@@ -719,6 +721,28 @@ class TarOverlay(_PathOverlayBase):
     def write_to(self, dst):
         with tarfile.open(self.path) as tar:
             tar.extractall(dst)
+
+
+class PatchOverlay(OverlayResource):
+    """
+    Patch to be applied on an existing file.
+
+    :param overlay: Overlay providing the content of the patch.
+    :type overlay: _FileOverlayBase
+    """
+    def __init__(self, overlay):
+        self._overlay = overlay
+
+    def write_to(self, dst):
+        with tempfile.NamedTemporaryFile(mode='w+t') as patch:
+            self._overlay.write_to(patch.name)
+            subprocess_log(['patch', '-p0', '-r', '-', '-u', '--forward', dst, patch.name])
+
+    def _get_checksum(self):
+        """
+        Return the checksum of the resource.
+        """
+        self._overalay._get_checksum()
 
 
 class _KernelBuildEnvConf(SimpleMultiSrcConf):
