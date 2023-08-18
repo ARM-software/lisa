@@ -134,7 +134,7 @@ class KeyDescBase(abc.ABC):
     @classmethod
     def _check_name(cls, name):
         if not re.match(cls._VALID_NAME_PATTERN, name):
-            raise ValueError(f'Invalid key name "{name}". Key names must match: {self._VALID_NAME_PATTERN}')
+            raise ValueError(f'Invalid key name "{name}". Key names must match: {cls._VALID_NAME_PATTERN}')
 
     @property
     def qualname(self):
