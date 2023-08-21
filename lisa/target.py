@@ -303,6 +303,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             kernel_src=kernel_src, kmod_build_env=kmod_build_env,
             kmod_make_vars=kmod_make_vars,
             kmod_overlay_backend=kmod_overlay_backend,
+            hooks=hooks,
         )
 
     @classmethod
@@ -314,7 +315,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
     @update_params_from(__init__)
     def _init_post_devlib(self, *, name, res_dir, target,
         tools, plat_info, lazy_platinfo, devlib_excluded_modules, kernel_src,
-        kmod_build_env, kmod_make_vars, kmod_overlay_backend,
+        kmod_build_env, kmod_make_vars, kmod_overlay_backend, hooks=None,
     ):
         # Set it temporarily to avoid breaking __getattr__
         self._devlib_loadable_modules = set()
@@ -322,8 +323,6 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         # pylint: disable=dangerous-default-value
         super().__init__()
         logger = self.logger
-
-        hooks = hooks or {}
         self.name = name
 
         res_dir = res_dir if res_dir else self._get_res_dir(
@@ -398,6 +397,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             abi=self.plat_info['abi'],
         )
 
+        hooks = hooks or {}
         for cmd in hooks.get('post-connect', []):
             logger.debug(f'Running post-connect hook command: {cmd}')
             out = self.execute(cmd)
