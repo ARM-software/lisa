@@ -165,6 +165,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
                 _KernelBuildEnvConf,
             ),
         )),
+        KeyDesc('hooks', 'Command hooks to be executed at various stages. "post-connect" stage will run commands right after the connection to the target. Note that each command runs in its own shell', [typing.Dict[str, typing.List[str]], None]),
         LevelKeyDesc('wait-boot', 'Wait for the target to finish booting', (
             KeyDesc('enable', 'Enable the boot check', [bool]),
             KeyDesc('timeout', 'Timeout of the boot check', [int]),
@@ -269,6 +270,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         devlib_platform=None, devlib_excluded_modules=[], devlib_file_xfer=None,
         wait_boot=True, wait_boot_timeout=10, kernel_src=None, kmod_build_env=None,
         kmod_make_vars=None, kmod_overlay_backend=None, devlib_max_async=None,
+        hooks=None,
     ):
         # Determine file transfer method. Currently avaliable options
         # are 'sftp' and 'scp', defaults to sftp.
@@ -301,6 +303,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             kernel_src=kernel_src, kmod_build_env=kmod_build_env,
             kmod_make_vars=kmod_make_vars,
             kmod_overlay_backend=kmod_overlay_backend,
+            hooks=hooks,
         )
 
     @classmethod
@@ -312,7 +315,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
     @update_params_from(__init__)
     def _init_post_devlib(self, *, name, res_dir, target,
         tools, plat_info, lazy_platinfo, devlib_excluded_modules, kernel_src,
-        kmod_build_env, kmod_make_vars, kmod_overlay_backend,
+        kmod_build_env, kmod_make_vars, kmod_overlay_backend, hooks=None,
     ):
         # Set it temporarily to avoid breaking __getattr__
         self._devlib_loadable_modules = set()
@@ -393,6 +396,13 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             kmod_build_env,
             abi=self.plat_info['abi'],
         )
+
+        hooks = hooks or {}
+        for cmd in hooks.get('post-connect', []):
+            logger.debug(f'Running post-connect hook command: {cmd}')
+            out = self.execute(cmd)
+            out = out.strip()
+            logger.info(f'Executed post-connect hook command "{cmd}": {out}')
 
     def _init_plat_info(self, plat_info=None, name=None, **kwargs):
 
