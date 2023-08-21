@@ -48,8 +48,8 @@ def main():
         repo = args.repo
         since = args.since
 
-        since_date = git.git(repo, 'show', '-s', '--format=%ci', since).strip()
-        since_date_rel = git.git(repo, 'show', '-s', '--format=%cr', since).strip()
+        since_date = git.git(repo, 'show', '-s', '--format=%ci', since, '--').strip()
+        since_date_rel = git.git(repo, 'show', '-s', '--format=%cr', since, '--').strip()
 
         changelog = make_changelog(
             repo,
