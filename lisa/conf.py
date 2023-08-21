@@ -1083,21 +1083,31 @@ class _SubLevelMap(dict):
     def __init__(self, conf):
         self._conf = conf
 
+        # Pre-hit existing known inner levels so that they will be listed when
+        # converting to a plain dictionary.
+        for key in conf._structure.keys():
+            try:
+                self[key]
+            except KeyError:
+                pass
+
     def __missing__(self, key):
         conf = self._conf
         structure = conf._structure
+        key_desc = structure[key]
 
-        structure.check_allowed_key(key)
-
-        # Build the tree of objects for nested configuration mappings,
-        # lazily so that we can accomodate VariadicLevelKeyDesc
-        new = conf._nested_new(
-            key_desc_path=structure.path + [key],
-            src_prio=conf._src_prio,
-            parent=conf,
-        )
-        self[key] = new
-        return new
+        if isinstance(key_desc, LevelKeyDesc):
+            # Build the tree of objects for nested configuration mappings,
+            # lazily so that we can accomodate VariadicLevelKeyDesc
+            new = conf._nested_new(
+                key_desc_path=key_desc.path,
+                src_prio=conf._src_prio,
+                parent=conf,
+            )
+            self[key] = new
+            return new
+        else:
+            raise KeyError(f'No sublevel map for leaf key {key_desc.path} in {conf.__class__.__qualname__}')
 
 
 class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
