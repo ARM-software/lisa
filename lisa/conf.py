@@ -228,11 +228,19 @@ class KeyDesc(KeyDescBase):
         if self._newtype:
             return self._newtype
         else:
+            def filter_compo(compo):
+                return ''.join(
+                    c
+                    for c in compo
+                    # Keep only characters allowed in identifiers
+                    if c.isidentifier()
+                ).title()
+
             compos = itertools.chain.from_iterable(
                 x.split('-')
                 for x in self.path[1:]
             )
-            return ''.join(x.title() for x in compos)
+            return ''.join(map(filter_compo, compos))
 
     def validate_val(self, val):
         """
