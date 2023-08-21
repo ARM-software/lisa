@@ -82,7 +82,12 @@ endif
 
 VMLINUX_H_TYPE_PREFIX=KERNEL_PRIVATE_
 
-$(VMLINUX_H): $(GENERATED) $(VMLINUX_TXT) $(VMLINUX)
+python_env:
+	python3 -m pip install -r $(MODULE_SRC)/requirements.txt
+
+.PHONY: python_env
+
+$(VMLINUX_H): $(GENERATED) $(VMLINUX_TXT) $(VMLINUX) python_env
 # Some options are not upstream (yet) but they have all be published on the
 # dwarves mailing list
 #
@@ -112,9 +117,8 @@ $(VMLINUX_H): $(GENERATED) $(VMLINUX_TXT) $(VMLINUX)
 	"$(CC)" -P -E - < _header > _header_no_comment
 # Create forward declaration of every type
 	sed -r -n 's/.*(struct|union|enum) ([0-9a-zA-Z_]*) .*/\1 \2;/p' _header_no_comment | sort -u > _fwd_decl
-# Create TYPED_DEFINED_struct_foo macros for every type, so the client code can
-# check whether a given type exists before making use of it
-	sed -r -n 's/.*(struct|union|enum) ([0-9a-zA-Z_]*) .*/#define TYPE_DEFINED_\1_\2/p' _header_no_comment | sort -u >> _fwd_decl
+# Create type introspection macros
+	python3 $(MODULE_SRC)/introspect_header.py _header >> _fwd_decl
 	cat _fwd_decl _header > $@
 # cat $@
 
