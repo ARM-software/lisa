@@ -576,11 +576,11 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         return sorted(attrs)
 
     @classmethod
-    def from_conf(cls, conf: TargetConf, res_dir: ArtifactPath = None, plat_info: PlatformInfo = None) -> 'Target':
+    def from_conf(cls, conf: TargetConf, res_dir: ArtifactPath = None, plat_info: PlatformInfo = None, **kwargs) -> 'Target':
         cls.get_logger().info(f'Target configuration:\n{conf}')
-        kwargs = cls.conf_to_init_kwargs(conf)
-        kwargs['res_dir'] = res_dir
-        kwargs['plat_info'] = plat_info
+        _kwargs = cls.conf_to_init_kwargs(conf)
+        _kwargs['res_dir'] = res_dir
+        _kwargs['plat_info'] = plat_info
 
         # Create a devlib Platform instance out of the configuration file
         devlib_platform_conf = conf['devlib']['platform']
@@ -597,10 +597,12 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         # Actually build the devlib Platform object
         devlib_platform = devlib_platform_cls(**devlib_platform_kwargs)
-        kwargs['devlib_platform'] = devlib_platform
+        _kwargs['devlib_platform'] = devlib_platform
 
-        cls.check_init_param(**kwargs)
-        return cls(**kwargs)
+        _kwargs.update(kwargs)
+
+        cls.check_init_param(**_kwargs)
+        return cls(**_kwargs)
 
     @classmethod
     def from_default_conf(cls):
