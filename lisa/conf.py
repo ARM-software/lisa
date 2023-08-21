@@ -675,8 +675,9 @@ class VariadicLevelKeyDesc(LevelKeyDesc):
     """
     Level key descriptor that allows configuration-source-defined sub-level keys.
 
-    :param child: Variadic level, which should be a
-    :class:`lisa.conf.LevelKeyDesc`.
+    :param child: Variadic level. Its name will only be used for documentation
+        purposes, the configuration instances will be able to hold any string.
+    :type child: lisa.conf.LevelKeyDesc
 
     :Variable keyword arguments: Forwarded to :class:`lisa.conf.LevelKeyDesc`.
 
