@@ -758,18 +758,29 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         platform_info = None
 
         if args.conf:
+            exceps = []
+            def load(cls):
+                try:
+                    return cls.from_yaml_map(args.conf)
+                except (KeyError, ValueError) as e:
+                    exceps.append(e)
+
             # Tentatively load a PlatformInfo from the conf file
-            with contextlib.suppress(KeyError, ValueError):
-                platform_info = PlatformInfo.from_yaml_map(args.conf)
+            platform_info = load(PlatformInfo)
 
             # Load the TargetConf from the file, and update it with command
             # line arguments
-            try:
-                conf = TargetConf.from_yaml_map(args.conf)
-            except (KeyError, ValueError):
-                pass
-            else:
+            conf = load(TargetConf)
+            if conf is not None:
                 target_conf.add_src(args.conf, conf)
+
+            if (conf, platform_info) == (None, None):
+                sep = '\n    '
+                exceps = sep.join(
+                    f'{e.__class__.__qualname__}: {e}'
+                    for e in exceps
+                )
+                parser.error(f'Could not load {args.conf}:{sep}{exceps}')
 
         target_conf.add_src('command-line', {
             k: v for k, v in vars(args).items()

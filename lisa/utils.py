@@ -49,7 +49,7 @@ from pathlib import Path
 import importlib
 import pkgutil
 import operator
-from operator import attrgetter
+from operator import attrgetter, itemgetter
 import threading
 import itertools
 import weakref
@@ -887,8 +887,20 @@ class Serializable(
     def _yaml_call_constructor(cls, loader, suffix, node):
         # Restrict to keyword arguments to have improve stability of
         # configuration files.
-        kwargs = loader.construct_mapping(node, deep=True)
-        return loader.make_python_instance(suffix, node, kwds=kwargs, newobj=False)
+        conf = loader.construct_mapping(node, deep=True)
+
+        args = {}
+        kwargs = {}
+        for name, value in conf.items():
+            if isinstance(name, int):
+                args[name] = value
+            else:
+                kwargs[name] = value
+
+        if args:
+            _, args = zip(*sorted(args.items(), key=itemgetter(0)))
+
+        return loader.make_python_instance(suffix, node, args=args, kwds=kwargs, newobj=False)
 
     # Allow !include to use relative paths from the current file. Since we
     # introduce a global state, we use thread-local storage.

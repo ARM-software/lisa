@@ -145,7 +145,7 @@ from lisa.utils import nullcontext, Loggable, LISA_CACHE_HOME, checksum, DirCach
 from lisa._assets import ASSETS_PATH, HOST_PATH, ABI_BINARIES_FOLDER
 from lisa._unshare import ensure_root
 import lisa._git as git
-from lisa.conf import SimpleMultiSrcConf, TopLevelKeyDesc, LevelKeyDesc, KeyDesc
+from lisa.conf import SimpleMultiSrcConf, TopLevelKeyDesc, LevelKeyDesc, KeyDesc, VariadicLevelKeyDesc
 
 
 class KmodVersionError(Exception):
@@ -596,7 +596,7 @@ class OverlayResource(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def _get_checksum(self):
+    def _get_key(self):
         """
         Return the checksum of the resource.
         """
@@ -648,7 +648,7 @@ class _PathOverlayBase(_FileOverlayBase):
     # This is racy with write_to(), but we are not trying to make something
     # really secure here, we just want to compute a unique token to be used as
     # a cache key
-    def _get_checksum(self):
+    def _get_key(self):
         with open(self.path, 'rb') as f:
             check = checksum(f, 'sha256')
         return f'{self.__class__.__name__}-{check}'
@@ -689,15 +689,19 @@ class _CompressedPathFileOverlay(_PathOverlayBase):
 
 class _ContentFileOverlay(_FileOverlayBase):
     def __init__(self, content):
+        content = content.encode('utf-8') if isinstance(content, str) else content
         self.content = content
 
     def write_to(self, dst):
         with open(dst, 'wb') as f:
             f.write(self.content)
 
-    def _get_checksum(self):
+    def _get_key(self):
         check = checksum(io.BytesIO(self.content), 'sha256')
         return f'{self.__class__.__name__}-{check}'
+
+    def __str__(self):
+        return f'{self.__class__.__qualname__}({self.content})'
 
 
 class TarOverlay(_PathOverlayBase):
@@ -720,6 +724,32 @@ class TarOverlay(_PathOverlayBase):
             tar.extractall(dst)
 
 
+class PatchOverlay(OverlayResource):
+    """
+    Patch to be applied on an existing file.
+
+    :param overlay: Overlay providing the content of the patch.
+    :type overlay: _FileOverlayBase
+    """
+    def __init__(self, overlay):
+        self._overlay = overlay
+
+    def write_to(self, dst):
+        with tempfile.NamedTemporaryFile(mode='w+t') as patch:
+            self._overlay.write_to(patch.name)
+            subprocess_log(['patch', '-p0', '-r', '-', '-u', '--forward', dst, patch.name])
+
+    def _get_key(self):
+        """
+        Return the checksum of the resource.
+        """
+        csum = self._overlay._get_key()
+        return f'{self.__class__.__name__}-{csum}'
+
+    def __str__(self):
+        return f'{self.__class__.__qualname__}({self._overlay})'
+
+
 class _KernelBuildEnvConf(SimpleMultiSrcConf):
     STRUCTURE = TopLevelKeyDesc('kernel-build-env-conf', 'Build environment settings',
         (
@@ -736,6 +766,12 @@ class _KernelBuildEnvConf(SimpleMultiSrcConf):
 
             KeyDesc('overlay-backend', 'Backend to use for overlaying folders while building modules. Can be "overlayfs" (overlayfs filesystem, recommended and fastest) or "copy (plain folder copy)', [str]),
             KeyDesc('make-variables', 'Extra variables to pass to "make" command, such as "CC"', [typing.Dict[str, object]]),
+
+            VariadicLevelKeyDesc('modules', 'modules settings',
+                LevelKeyDesc('<module-name>', 'For each module. The module shipped by LISA is "lisa"', (
+                    KeyDesc('overlays', 'Overlays to apply to the sources of the given module', [typing.Dict[str, OverlayResource]]),
+                )
+            ))
         ),
     )
 
@@ -743,6 +779,22 @@ class _KernelBuildEnvConf(SimpleMultiSrcConf):
         'build-env': 'host',
         'overlay-backend': 'overlayfs',
     }
+
+    def _get_key(self):
+        return (
+            self.get('build-env'),
+            self.get('build-env-settings').to_map(),
+            sorted(self.get('make-variables', {}).items()),
+        )
+
+    def _get_key_for_kmod(self, kmod):
+        return (
+            self._get_key(),
+            sorted(
+                (name, overlay._get_key())
+                for name, overlay in self.get('modules', {}).get(kmod.mod_name, {}).get('overlays', {}).items()
+            )
+        )
 
 
 class _KernelBuildEnv(Loggable, SerializeViaConstructor):
@@ -1574,12 +1626,12 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                 #   unsuitable for compiling a module.
                 key = (
                     sorted(
-                        overlay._get_checksum()
+                        overlay._get_key()
                         for overlay, dst in overlays.items()
                     ) + [
                         tree_key,
                         str(cc),
-                        build_conf,
+                        build_conf._get_key(),
                     ]
                 )
 
@@ -1967,7 +2019,6 @@ class DynamicKmod(Loggable):
     :type kernel_build_env: lisa._kmod._KernelBuildEnv
     """
     def __init__(self, target, src, kernel_build_env=None):
-        self.src = src
         self.target = target
 
         if not isinstance(kernel_build_env, _KernelBuildEnv):
@@ -1977,6 +2028,30 @@ class DynamicKmod(Loggable):
             )
 
         self._kernel_build_env = kernel_build_env
+
+        mod_name = src.mod_name
+        logger = self.logger
+        overlays = kernel_build_env.conf.get('modules', {}).get(mod_name, {}).get('overlays', {})
+
+        def apply_overlay(src, name, overlay):
+            try:
+                content = src.src[name]
+            except KeyError:
+                pass
+            else:
+                logger.debug(f'Applying patch to module {mod_name}, file {name}: {overlay}')
+                with tempfile.NamedTemporaryFile(suffix=name) as f:
+                    path = Path(f.name)
+                    path.write_bytes(content)
+                    overlay.write_to(path)
+                    src.src[name] = path.read_bytes()
+
+        src = copy.deepcopy(src)
+        if overlays:
+            for name, overlay in overlays.items():
+                apply_overlay(src, name, overlay)
+
+        self.src = src
 
     @property
     def mod_name(self):
@@ -2040,6 +2115,7 @@ class DynamicKmod(Loggable):
         return bin_
 
     def _do_compile(self, make_vars=None):
+
         kernel_build_env = self.kernel_build_env
         extra_make_vars = make_vars or {}
         all_make_vars = {
@@ -2053,12 +2129,13 @@ class DynamicKmod(Loggable):
             if kernel_checksum is None:
                 raise ValueError('kernel build env has no checksum')
             else:
-                return (
+                key = (
                     kernel_checksum,
-                    kernel_build_env.conf,
+                    kernel_build_env.conf._get_key_for_kmod(self),
                     src.checksum,
                     all_make_vars,
                 )
+                return key
 
         def get_bin(kernel_build_env):
             return src.compile(
