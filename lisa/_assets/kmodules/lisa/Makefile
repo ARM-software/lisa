@@ -15,12 +15,17 @@
 # limitations under the License.
 #
 
+ifeq ($(srctree),.)
+	IN_TREE_BUILD := 0
+else
+	IN_TREE_BUILD := 1
+endif
+
 # Kbuild
 ifneq ($(KERNELRELEASE),)
 	MODULE_OBJ := $(obj)
 	KERNEL_SRC ?= $(srctree)
-# Kbuild in-tree build
-ifneq ($(srctree),.)
+ifeq ($(IN_TREE_BUILD),1)
 	MODULE_SRC ?= $(srctree)/$(src)
 # Kbuild out-of-tree build
 else
@@ -54,7 +59,7 @@ SYMBOL_NAMESPACES_H = $(GENERATED)/symbol_namespaces.h
 MODULE_VERSION_H = $(GENERATED)/module_version.h
 
 # in-tree build
-ifneq ($(srctree),.)
+ifeq ($(IN_TREE_BUILD),1)
 
 ccflags-y += -I$(srctree) -D_IN_TREE_BUILD
 ldflags-y += -T $(srctree)/$(obj)/$(FEATURES_LDS)
