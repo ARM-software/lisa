@@ -83,6 +83,13 @@ static int __process_features(char **selected, size_t selected_len, feature_proc
 	return ret;
 }
 
+
+static int __list_feature(struct feature* feature) {
+	if (!feature->__internal)
+		printk(KERN_CONT "%s, ", feature->name);
+	return 0;
+}
+
 static int __enable_feature_explicitly(struct feature* feature) {
 	mutex_lock(feature->lock);
 	feature->__explicitly_enabled = true;
@@ -90,28 +97,12 @@ static int __enable_feature_explicitly(struct feature* feature) {
 	return __enable_feature(feature);
 }
 
-static int __reset_feature_state(struct feature* feature) {
-	mutex_lock(feature->lock);
-
-	if (!feature->__internal)
-		printk(KERN_CONT "%s, ", feature->name);
-
-	/* Reset some state in case we are reloading the module */
-	feature->__explicitly_enabled = false;
-	feature->__enable_ret = 0;
-	feature->data = NULL;
-
-	mutex_unlock(feature->lock);
-	return 0;
-}
-
 int init_features(char **selected, size_t selected_len) {
 	BUG_ON(MAX_FEATURES < ((__lisa_features_stop - __lisa_features_start) / sizeof(struct feature)));
 
 	pr_info("Available features: ");
-	__process_features(NULL, 0, __reset_feature_state);
+	__process_features(NULL, 0, __list_feature);
 	pr_info("\n");
-
 	return __process_features(selected, selected_len, __enable_feature_explicitly);
 }
 

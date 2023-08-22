@@ -15,12 +15,17 @@
 # limitations under the License.
 #
 
+ifeq ($(srctree),.)
+	IN_TREE_BUILD := 0
+else
+	IN_TREE_BUILD := 1
+endif
+
 # Kbuild
 ifneq ($(KERNELRELEASE),)
 	MODULE_OBJ := $(obj)
 	KERNEL_SRC ?= $(srctree)
-# Kbuild in-tree build
-ifneq ($(srctree),.)
+ifeq ($(IN_TREE_BUILD),1)
 	MODULE_SRC ?= $(srctree)/$(src)
 # Kbuild out-of-tree build
 else
@@ -39,22 +44,26 @@ ifneq ($(KERNELRELEASE),)
 
 LISA_KMOD_NAME ?= lisa
 obj-m := $(LISA_KMOD_NAME).o
-$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o debugfs.o
+$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o private_types.o
 
 # -fno-stack-protector is needed to possibly undefined __stack_chk_guard symbol
-ccflags-y = "-I$(MODULE_SRC)" -std=gnu11 -fno-stack-protector -Wall -Wno-declaration-after-statement
+ccflags-y := "-I$(MODULE_SRC)" -std=gnu11 -fno-stack-protector -Wno-declaration-after-statement
+
+# Ensure we get appropriate debug info so that pahole can work on the object
+# file regardless of the kernel config.
+CFLAGS_private_types.o := -g3 -gno-split-dwarf -gdwarf -fno-eliminate-unused-debug-types
 
 FEATURES_LDS := features.lds
-GENERATED = $(MODULE_OBJ)/generated
+GENERATED := $(MODULE_OBJ)/generated
 
 $(GENERATED):
 	mkdir -p "$@"
 
-SYMBOL_NAMESPACES_H = $(GENERATED)/symbol_namespaces.h
-MODULE_VERSION_H = $(GENERATED)/module_version.h
+SYMBOL_NAMESPACES_H := $(GENERATED)/symbol_namespaces.h
+MODULE_VERSION_H := $(GENERATED)/module_version.h
 
 # in-tree build
-ifneq ($(srctree),.)
+ifeq ($(IN_TREE_BUILD),1)
 
 ccflags-y += -I$(srctree) -D_IN_TREE_BUILD
 ldflags-y += -T $(srctree)/$(obj)/$(FEATURES_LDS)
@@ -62,32 +71,38 @@ ldflags-y += -T $(srctree)/$(obj)/$(FEATURES_LDS)
 # out-of-tree build
 else
 
-VMLINUX_H = $(GENERATED)/vmlinux.h
+PRIVATE_TYPES_H := $(GENERATED)/private_types.h
 
 ldflags-y += -T $(M)/$(FEATURES_LDS)
 
-clean-files := $(VMLINUX_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H)
+clean-files := $(PRIVATE_TYPES_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H)
 
-VMLINUX_TXT = $(MODULE_SRC)/private_types.txt
+PRIVATE_TYPES_TXT := $(MODULE_SRC)/private_types.txt
 
 # Can be either a kernel image built with DWARF debug info, or the BTF blob
 # found at /sys/kernel/btf/vmlinux
-_BTF_VMLINUX = $(MODULE_SRC)/vmlinux
-_DWARF_VMLINUX = $(KERNEL_SRC)/vmlinux
-ifneq ("$(wildcard $(_BTF_VMLINUX))","")
-    VMLINUX := $(_BTF_VMLINUX)
+_BTF_VMLINUX := $(MODULE_SRC)/vmlinux
+_DWARF_VMLINUX := $(KERNEL_SRC)/vmlinux
+_SYNTHETIC_VMLINUX := $(MODULE_OBJ)/private_types.o
+
+ifeq ("$(wildcard $(_BTF_VMLINUX))","")
+ifeq ($(IN_TREE_BUILD),1)
+    VMLINUX := $(_SYNTHETIC_VMLINUX)
 else
     VMLINUX := $(_DWARF_VMLINUX)
 endif
+else
+    VMLINUX := $(_BTF_VMLINUX)
+endif
 
-VMLINUX_H_TYPE_PREFIX=KERNEL_PRIVATE_
+PRIVATE_TYPES_H_TYPE_PREFIX := KERNEL_PRIVATE_
 
 python_env:
 	python3 -m pip install -r $(MODULE_SRC)/requirements.txt
 
 .PHONY: python_env
 
-$(VMLINUX_H): $(GENERATED) $(VMLINUX_TXT) $(VMLINUX) python_env
+$(PRIVATE_TYPES_H): $(GENERATED) $(PRIVATE_TYPES_TXT) $(VMLINUX) python_env
 # Some options are not upstream (yet) but they have all be published on the
 # dwarves mailing list
 #
@@ -105,21 +120,20 @@ $(VMLINUX_H): $(GENERATED) $(VMLINUX_TXT) $(VMLINUX) python_env
 # that was not explicitly asked for. This avoids conflicting with type
 # definitions that would come from public kernel headers, while still allowing
 # easy attribute access.
-
-	pahole -F btf,dwarf -E --suppress_force_paddings --show_only_data_members --skip_missing --expand_types_once -C "file://$(VMLINUX_TXT)" "$(VMLINUX)" > _header
+	pahole -F btf,dwarf -E --suppress_force_paddings --show_only_data_members --skip_missing --expand_types_once -C "file://$(PRIVATE_TYPES_TXT)" "$(VMLINUX)" > $(MODULE_OBJ)/_header
 
 # Rename all defined types to include the prefix
-	sed "s/\(struct\|union\|enum\)\s*\([a-zA-Z0-9_]\+\)/\1 $(VMLINUX_H_TYPE_PREFIX)\2/g" -i _header
+	sed "s/\(struct\|union\|enum\)\s*\([a-zA-Z0-9_]\+\)/\1 $(PRIVATE_TYPES_H_TYPE_PREFIX)\2/g" -i $(MODULE_OBJ)/_header
 # Create a sed script to rename back to initial state the types that we explicitly asked for
-	sed -n "s@\(.*\)@s/\\\(struct\\\|union\\\|enum\\\)\\\s*$(VMLINUX_H_TYPE_PREFIX)\1/\\\1 \\1/;@gp" "$(VMLINUX_TXT)" | sed -f - -i _header
+	sed -n "s@\(.*\)@s/\\\(struct\\\|union\\\|enum\\\)\\\s*$(PRIVATE_TYPES_H_TYPE_PREFIX)\1/\\\1 \\1/;@gp" "$(PRIVATE_TYPES_TXT)" | sed -f - -i $(MODULE_OBJ)/_header
 
 # Strip comments to avoid matching them with the sed regex.
-	"$(CC)" -P -E - < _header > _header_no_comment
+	"$(CC)" -P -E - < $(MODULE_OBJ)/_header > $(MODULE_OBJ)/_header_no_comment
 # Create forward declaration of every type
-	sed -r -n 's/.*(struct|union|enum) ([0-9a-zA-Z_]*) .*/\1 \2;/p' _header_no_comment | sort -u > _fwd_decl
+	sed -r -n 's/.*(struct|union|enum) ([0-9a-zA-Z_]*) .*/\1 \2;/p' $(MODULE_OBJ)/_header_no_comment | sort -u > $(MODULE_OBJ)/_fwd_decl
 # Create type introspection macros
-	python3 $(MODULE_SRC)/introspect_header.py _header >> _fwd_decl
-	cat _fwd_decl _header > $@
+	python3 $(MODULE_SRC)/introspect$(MODULE_OBJ)/_header.py $(MODULE_OBJ)/_header >> $(MODULE_OBJ)/_fwd_decl
+	cat $(MODULE_OBJ)/_fwd_decl $(MODULE_OBJ)/_header > $@
 # cat $@
 
 # out-of-tree build
@@ -144,7 +158,7 @@ $(MODULE_VERSION_H): $(GENERATED)
 	printf "\"\n#endif\n" >> $@
 
 # Make all object files depend on the generated sources
-$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(VMLINUX_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H)
+$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(PRIVATE_TYPES_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H)
 
 # Non-Kbuild part
 else
@@ -160,6 +174,6 @@ install: build
 	"$(MAKE)" -C "$(KERNEL_SRC)" "M=$(MODULE_SRC)" modules_install
 
 clean:
-	rm -f "$(VMLINUX_H)" "$(SYMBOL_NAMESPACES_H)"
+	"$(MAKE)" -C "$(KERNEL_SRC)" "M=$(MODULE_SRC)" clean
 
 endif
