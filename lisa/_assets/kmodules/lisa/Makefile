@@ -120,20 +120,20 @@ $(PRIVATE_TYPES_H): $(GENERATED) $(PRIVATE_TYPES_TXT) $(VMLINUX) python_env
 # that was not explicitly asked for. This avoids conflicting with type
 # definitions that would come from public kernel headers, while still allowing
 # easy attribute access.
-	pahole -F btf,dwarf -E --suppress_force_paddings --show_only_data_members --skip_missing --expand_types_once -C "file://$(PRIVATE_TYPES_TXT)" "$(VMLINUX)" > _header
+	pahole -F btf,dwarf -E --suppress_force_paddings --show_only_data_members --skip_missing --expand_types_once -C "file://$(PRIVATE_TYPES_TXT)" "$(VMLINUX)" > $(MODULE_OBJ)/_header
 
 # Rename all defined types to include the prefix
-	sed "s/\(struct\|union\|enum\)\s*\([a-zA-Z0-9_]\+\)/\1 $(PRIVATE_TYPES_H_TYPE_PREFIX)\2/g" -i _header
+	sed "s/\(struct\|union\|enum\)\s*\([a-zA-Z0-9_]\+\)/\1 $(PRIVATE_TYPES_H_TYPE_PREFIX)\2/g" -i $(MODULE_OBJ)/_header
 # Create a sed script to rename back to initial state the types that we explicitly asked for
-	sed -n "s@\(.*\)@s/\\\(struct\\\|union\\\|enum\\\)\\\s*$(PRIVATE_TYPES_H_TYPE_PREFIX)\1/\\\1 \\1/;@gp" "$(PRIVATE_TYPES_TXT)" | sed -f - -i _header
+	sed -n "s@\(.*\)@s/\\\(struct\\\|union\\\|enum\\\)\\\s*$(PRIVATE_TYPES_H_TYPE_PREFIX)\1/\\\1 \\1/;@gp" "$(PRIVATE_TYPES_TXT)" | sed -f - -i $(MODULE_OBJ)/_header
 
 # Strip comments to avoid matching them with the sed regex.
-	"$(CC)" -P -E - < _header > _header_no_comment
+	"$(CC)" -P -E - < $(MODULE_OBJ)/_header > $(MODULE_OBJ)/_header_no_comment
 # Create forward declaration of every type
-	sed -r -n 's/.*(struct|union|enum) ([0-9a-zA-Z_]*) .*/\1 \2;/p' _header_no_comment | sort -u > _fwd_decl
+	sed -r -n 's/.*(struct|union|enum) ([0-9a-zA-Z_]*) .*/\1 \2;/p' $(MODULE_OBJ)/_header_no_comment | sort -u > $(MODULE_OBJ)/_fwd_decl
 # Create type introspection macros
-	python3 $(MODULE_SRC)/introspect_header.py _header >> _fwd_decl
-	cat _fwd_decl _header > $@
+	python3 $(MODULE_SRC)/introspect_header.py $(MODULE_OBJ)/_header >> $(MODULE_OBJ)/_fwd_decl
+	cat $(MODULE_OBJ)/_fwd_decl $(MODULE_OBJ)/_header > $@
 # cat $@
 
 # out-of-tree build
