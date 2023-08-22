@@ -1,18 +1,13 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 #include <linux/slab.h>
-
-#ifndef _IN_TREE_BUILD
 #include <linux/sched.h>
-#else
-#include <linux/sched/cputime.h>
-#include <kernel/sched/sched.h>
-#endif
 #include <trace/events/sched.h>
 
 #define CREATE_TRACE_POINTS
 
 #include "main.h"
 #include "ftrace_events.h"
+#include "sched_helpers.h"
 #include "wq.h"
 #include "tp.h"
 
