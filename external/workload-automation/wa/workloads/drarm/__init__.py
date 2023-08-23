@@ -25,6 +25,7 @@ class DrArm(ApkWorkload):
     name = 'drarm'
     package_names = ['com.Arm.DrArm']
     activity = 'com.unity3d.player.UnityPlayerActivity'
+    view = "SurfaceView[com.Arm.DrArm/com.unity3d.player.UnityPlayerActivity](BLAST)"
     install_timeout = 200
     description = """
     Dr. Arm’s Amazing Adventures is a “Souls-Like” Mobile Action Role Playing Game developed at Arm.
