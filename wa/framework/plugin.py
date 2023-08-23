@@ -622,19 +622,26 @@ class PluginLoader(object):
             self.logger.debug('Checking path %s', path)
             if os.path.isfile(path):
                 self._discover_from_file(path)
-            for root, _, files in os.walk(path, followlinks=True):
-                should_skip = False
-                for igpath in ignore_paths:
-                    if root.startswith(igpath):
-                        should_skip = True
-                        break
-                if should_skip:
-                    continue
-                for fname in files:
-                    if os.path.splitext(fname)[1].lower() != '.py':
+            elif os.path.exists(path):
+                for root, _, files in os.walk(path, followlinks=True):
+                    should_skip = False
+                    for igpath in ignore_paths:
+                        if root.startswith(igpath):
+                            should_skip = True
+                            break
+                    if should_skip:
                         continue
-                    filepath = os.path.join(root, fname)
-                    self._discover_from_file(filepath)
+                    for fname in files:
+                        if os.path.splitext(fname)[1].lower() != '.py':
+                            continue
+                        filepath = os.path.join(root, fname)
+                        self._discover_from_file(filepath)
+            elif not os.path.isabs(path):
+                try:
+                    for module in walk_modules(path):
+                        self._discover_in_module(module)
+                except Exception: # NOQA pylint: disable=broad-except
+                    pass
 
     def _discover_from_file(self, filepath):
         try:
