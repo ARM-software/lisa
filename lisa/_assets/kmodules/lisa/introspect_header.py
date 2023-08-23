@@ -49,32 +49,45 @@ def expand_typ(typ):
     else:
         return [typ]
 
-
-def walk_type(typ):
+def resolve_typ(typ):
     if isinstance(typ, (c_ast.Struct, c_ast.Union)):
         children = typ.decls or []
         children_typs = [
             child.type
             for child in children
         ]
+        name = typ.name
     elif isinstance(typ, c_ast.Enum):
         children = typ.values or []
         children_typs = []
+        name = typ.name
+    elif isinstance(typ, c_ast.TypeDecl):
+        name = typ.declname
+        _, children, children_typs = resolve_typ(typ.type)
     else:
+        raise ValueError('Unhandled type')
+
+    return (name, children, children_typs)
+
+
+def walk_type(typ):
+    try:
+        name, children, children_typs = resolve_typ(typ)
+    except ValueError:
         return []
+    else:
+        children_typs = itertools.chain.from_iterable(map(expand_typ, children_typs))
 
-    children_typs = itertools.chain.from_iterable(map(expand_typ, children_typs))
-
-    return itertools.chain(
-        [
-            TypeExists(type_name=typ.name)
-        ],
-        (
-            TypeMember(type_name=typ.name, member_name=child.name)
-            for child in children
-        ),
-        itertools.chain.from_iterable(map(walk_type, children_typs))
-    )
+        return itertools.chain(
+            [
+                TypeExists(type_name=name)
+            ],
+            (
+                TypeMember(type_name=name, member_name=child.name)
+                for child in children
+            ),
+            itertools.chain.from_iterable(map(walk_type, children_typs))
+        )
 
 
 def main():
@@ -103,7 +116,7 @@ def main():
     types = [
         _node.type
         for _node in node
-        if isinstance(_node, c_ast.Decl)
+        if isinstance(_node, (c_ast.Decl, c_ast.Typedef, c_ast.TypeDecl))
     ]
 
     records = set(itertools.chain.from_iterable(map(walk_type, types)))
