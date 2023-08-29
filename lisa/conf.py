@@ -121,7 +121,7 @@ class KeyDescBase(abc.ABC):
     to sanitize user input and generate help snippets used in various places.
     """
     INDENTATION = 4 * ' '
-    _VALID_NAME_PATTERN = r'^[a-zA-Z0-9-]+$'
+    _VALID_NAME_PATTERN = r'^[a-zA-Z0-9-<>]+$'
 
     def __init__(self, name, help):
         # pylint: disable=redefined-builtin
@@ -134,7 +134,7 @@ class KeyDescBase(abc.ABC):
     @classmethod
     def _check_name(cls, name):
         if not re.match(cls._VALID_NAME_PATTERN, name):
-            raise ValueError(f'Invalid key name "{name}". Key names must match: {self._VALID_NAME_PATTERN}')
+            raise ValueError(f'Invalid key name "{name}". Key names must match: {cls._VALID_NAME_PATTERN}')
 
     @property
     def qualname(self):
@@ -228,11 +228,19 @@ class KeyDesc(KeyDescBase):
         if self._newtype:
             return self._newtype
         else:
+            def filter_compo(compo):
+                return ''.join(
+                    c
+                    for c in compo
+                    # Keep only characters allowed in identifiers
+                    if c.isidentifier()
+                ).title()
+
             compos = itertools.chain.from_iterable(
                 x.split('-')
                 for x in self.path[1:]
             )
-            return ''.join(x.title() for x in compos)
+            return ''.join(map(filter_compo, compos))
 
     def validate_val(self, val):
         """
@@ -662,6 +670,40 @@ class LevelKeyDesc(KeyDescBase, Mapping):
         return help_
 
 
+class _KeyMap(dict):
+    def __init__(self, child, content):
+        self._child = child
+        super().__init__(content)
+
+    def __missing__(self, _):
+        return self._child
+
+
+class VariadicLevelKeyDesc(LevelKeyDesc):
+    """
+    Level key descriptor that allows configuration-source-defined sub-level keys.
+
+    :param child: Variadic level. Its name will only be used for documentation
+        purposes, the configuration instances will be able to hold any string.
+    :type child: lisa.conf.LevelKeyDesc
+
+    :Variable keyword arguments: Forwarded to :class:`lisa.conf.LevelKeyDesc`.
+
+    This allows "instantiating" a whole sub-configuration for variable level
+    keys.
+    """
+    def __init__(self, name, help, child, value_path=None):
+        super().__init__(name=name, help=help, children=[child], value_path=value_path)
+
+    @property
+    def _child(self):
+        return self.children[0]
+
+    @property
+    def _key_map(self):
+        return _KeyMap(self._child, super()._key_map)
+
+
 class DelegatedLevelKeyDesc(LevelKeyDesc):
     """
     Level key descriptor that imports the keys from another
@@ -1046,6 +1088,37 @@ class _HashableMultiSrcConf:
             return False
 
 
+class _SubLevelMap(dict):
+    def __init__(self, conf):
+        self._conf = conf
+
+        # Pre-hit existing known inner levels so that they will be listed when
+        # converting to a plain dictionary.
+        for key in conf._structure.keys():
+            try:
+                self[key]
+            except KeyError:
+                pass
+
+    def __missing__(self, key):
+        conf = self._conf
+        structure = conf._structure
+        key_desc = structure[key]
+
+        if isinstance(key_desc, LevelKeyDesc):
+            # Build the tree of objects for nested configuration mappings,
+            # lazily so that we can accomodate VariadicLevelKeyDesc
+            new = conf._nested_new(
+                key_desc_path=key_desc.path,
+                src_prio=conf._src_prio,
+                parent=conf,
+            )
+            self[key] = new
+            return new
+        else:
+            raise KeyError(f'No sublevel map for leaf key {key_desc.path} in {conf.__class__.__qualname__}')
+
+
 class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
     """
     Base class providing layered configuration management.
@@ -1146,15 +1219,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         Hashable proxy, mostly designed to allow instance-oriented lookup in
         mappings. DO NOT USE IT FOR OTHER PURPOSES. You have been warned.
         """
-
-        # Build the tree of objects for nested configuration mappings
-        for key, key_desc in self._structure.items():
-            if isinstance(key_desc, LevelKeyDesc):
-                self._sublevel_map[key] = self._nested_new(
-                    key_desc_path=key_desc.path,
-                    src_prio=self._src_prio,
-                    parent=self,
-                )
+        self._sublevel_map = _SubLevelMap(self)
 
     @property
     def _structure(self):

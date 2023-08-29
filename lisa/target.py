@@ -44,7 +44,7 @@ from devlib.platform.gem5 import Gem5SimulationPlatform
 
 from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath, nullcontext, ExekallTaggable, memoized, destroyablecontextmanager, ContextManagerExit, update_params_from
 from lisa._assets import ASSETS_PATH
-from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, Configurable, DelegatedLevelKeyDesc
+from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, Configurable, DelegatedLevelKeyDesc, ConfigKeyError
 from lisa._kmod import _KernelBuildEnv, DynamicKmod, _KernelBuildEnvConf
 
 from lisa.platforms.platinfo import PlatformInfo
@@ -701,6 +701,8 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         )
 
         parser.add_argument("--conf", '-c',
+            action='append',
+            default=[],
             help="Path to a TargetConf and PlatformInfo yaml file. Other options will override what is specified in the file."
         )
 
@@ -750,18 +752,13 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         platform_info = None
 
         if args.conf:
-            # Tentatively load a PlatformInfo from the conf file
-            with contextlib.suppress(KeyError, ValueError):
-                platform_info = PlatformInfo.from_yaml_map(args.conf)
-
-            # Load the TargetConf from the file, and update it with command
-            # line arguments
             try:
-                conf = TargetConf.from_yaml_map(args.conf)
-            except (KeyError, ValueError):
-                pass
-            else:
-                target_conf.add_src(args.conf, conf)
+                conf_map = SimpleMultiSrcConf.from_yaml_map_list(args.conf)
+            except ConfigKeyError as e:
+                parser.error(f'Could not load {" or ".join(args.conf)}: {e}')
+
+            platform_info = conf_map.get(PlatformInfo)
+            target_conf = conf_map.get(TargetConf, target_conf)
 
         target_conf.add_src('command-line', {
             k: v for k, v in vars(args).items()
