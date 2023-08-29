@@ -13,10 +13,16 @@ sphinx:
 # Build the docs in additional formats such as PDF and ePub
 formats: all
 
-# Set the version of Python and requirements required to build your docs
+
+# Configure the build environment
+build:
+  os: ubuntu-22.04
+  tools:
+    python: "3.11"
+
+# Ensure doc dependencies are installed before building
 python:
-   version: 3.8
    install:
-      - method: setuptools
-        path: .
       - requirements: doc/requirements.txt
+      - method: pip
+        path: .

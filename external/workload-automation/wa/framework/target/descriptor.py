@@ -339,6 +339,12 @@ CONNECTION_PARAMS = {
             the destination size to appear the same over one or more sample
             periods, causing improper transfer cancellation.
             """),
+        Parameter(
+            'adb_as_root', kind=bool,
+            default=False,
+            description="""
+            Specify whether the adb server should be started in root mode.
+            """)
     ],
     SshConnection: [
         Parameter(

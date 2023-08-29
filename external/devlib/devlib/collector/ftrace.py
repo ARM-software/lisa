@@ -60,6 +60,7 @@ class FtraceCollector(CollectorBase):
                  tracer=None,
                  trace_children_functions=False,
                  buffer_size=None,
+                 top_buffer_size=None,
                  buffer_size_step=1000,
                  tracing_path=None,
                  automark=True,
@@ -77,6 +78,7 @@ class FtraceCollector(CollectorBase):
         self.tracer = tracer
         self.trace_children_functions = trace_children_functions
         self.buffer_size = buffer_size
+        self.top_buffer_size = top_buffer_size
         self.tracing_path = self._resolve_tracing_path(target, tracing_path)
         self.automark = automark
         self.autoreport = autoreport
@@ -245,10 +247,11 @@ class FtraceCollector(CollectorBase):
         # parameter, but unfortunately some events still end up there (e.g.
         # print event). So we still need to set that size, otherwise the buffer
         # might be too small and some event lost.
-        if self.buffer_size is not None:
+        top_buffer_size = self.top_buffer_size if self.top_buffer_size else self.buffer_size
+        if top_buffer_size:
             self.target.write_value(
                 self.target.path.join(self.tracing_path, 'buffer_size_kb'),
-                self.buffer_size
+                top_buffer_size,
             )
 
         if self.functions:

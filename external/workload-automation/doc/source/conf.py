@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2018 ARM Limited
+# Copyright 2023 ARM Limited
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -68,7 +68,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'wa'
-copyright = u'2018, ARM Limited'
+copyright = u'2023, ARM Limited'
 author = u'ARM Limited'
 
 # The version info for the project you're documenting, acts as replacement for
