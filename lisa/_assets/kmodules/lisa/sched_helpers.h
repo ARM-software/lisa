@@ -7,15 +7,7 @@
 
 #include <linux/cgroup.h>
 
-#ifdef _IN_TREE_BUILD
-
-#include <linux/sched/cputime.h>
-#include <kernel/sched/sched.h>
-#include <kernel/sched/autogroup.h>
-
-#else
-
-#include "generated/vmlinux.h"
+#include "generated/private_types.h"
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 static inline struct rq *rq_of(struct cfs_rq *cfs_rq)
@@ -84,7 +76,6 @@ unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util,
 #endif
 }
 
-#endif /* _IN_TREE_BUILD */
 
 static inline void cfs_rq_tg_path(struct cfs_rq *cfs_rq, char *path, int len)
 {

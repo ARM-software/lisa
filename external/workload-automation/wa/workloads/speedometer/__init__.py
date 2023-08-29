@@ -89,7 +89,7 @@ class Speedometer(Workload):
     """
     supported_platforms = ["android"]
 
-    package_names = ["org.chromium.chrome", "com.android.chrome"]
+    package_names = ["org.chromium.chrome", "com.android.chrome", "org.bromite.chromium"]
     # This regex finds a single XML tag where property 1 and 2 are true:
     #  1. contains the attribute text="XXX" or content-desc="XXX"
     #  2. and exclusively either 2a or 2b is true:

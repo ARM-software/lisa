@@ -125,6 +125,13 @@ class TraceCmdInstrument(Instrument):
                   value by going down from the specified size in
                   ``buffer_size_step`` intervals.
                   """),
+        Parameter('top_buffer_size', kind=int, default=None,
+                  global_alias='trace_top_buffer_size',
+                  description="""
+                  The same as buffer_size except it sets the size of the
+                  top-level buffer instead of the devlib one. If left unset,
+                  it will default to the same as the devlib buffer size.
+                  """),
         Parameter('buffer_size_step', kind=int, default=1000,
                   global_alias='trace_buffer_size_step',
                   description="""
@@ -168,6 +175,7 @@ class TraceCmdInstrument(Instrument):
             events=self.events,
             functions=self.functions,
             buffer_size=self.buffer_size,
+            top_buffer_size=self.top_buffer_size,
             buffer_size_step=1000,
             automark=False,
             autoreport=True,

@@ -255,6 +255,7 @@ def _make_build_chroot(cc, abi, bind_paths=None, version=None, overlay_backend=N
             'bison',
             'flex',
             'python3',
+            'py3-pip',
         ]
 
         if is_clang(cc):

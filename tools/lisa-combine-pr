@@ -24,6 +24,7 @@ import json
 from collections import ChainMap
 from operator import itemgetter
 import argparse
+import logging
 
 from github3 import GitHub
 
@@ -40,10 +41,12 @@ def main():
     parser.add_argument('--branch', required=True, help='Name of the branch to be created. If the branch exists, it will be forcefully updated')
 
     args = parser.parse_args()
+
     owner, repo = args.repo.split('/', 1)
     labels = args.pr_label
     branch = args.branch
 
+    logging.basicConfig(level=logging.INFO)
 
     gh = GitHub()
     issues = gh.issues_on(
@@ -105,7 +108,7 @@ def main():
         }
     }
     conf = json.dumps(conf, indent=4)
-    print(conf)
+    logging.info(conf)
 
     with NamedTemporaryFile(mode='w+', suffix='.manifest.json') as f:
         f.write(conf)
@@ -114,7 +117,7 @@ def main():
         manifest = f.name
 
         cmd = ['batch-rebase', 'create', '.', '--manifest', manifest, '--create-branch', branch]
-        print(cmd)
+        logging.info(f'Running {" ".join(map(str, cmd))}')
         subprocess.check_call(cmd)
 
 main()
