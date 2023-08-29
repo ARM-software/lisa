@@ -2272,7 +2272,7 @@ class DynamicKmod(Loggable):
                 log_dmesg(dmesg_coll, logger.error)
 
                 if isinstance(e, TargetStableCalledProcessError) and e.returncode == errno.EPROTO:
-                    raise KmodVersionError('In-tree module version does not match what LISA expects.')
+                    raise KmodVersionError('In-tree module version does not match what LISA expects. If the module was pre-installed on the target, please contact the 3rd party that shared this setup to you as they took responsibility for maintaining it. This setup is available but unsupported (see online documenation)')
                 else:
                     raise
             else:
@@ -2282,7 +2282,7 @@ class DynamicKmod(Loggable):
         """
         Unload the module from the target.
         """
-        mod = quote(self.src.mod_name)
+        mod = quote(self.mod_name)
         execute = self.target.execute
 
         try:
@@ -2452,7 +2452,7 @@ class LISAFtraceDynamicKmod(FtraceDynamicKmod):
                     pass
 
             base_path = f"{modules_path_base}/{modules_version}"
-            return (base_path, f"{self.src.mod_name}.ko")
+            return (base_path, f"{self.mod_name}.ko")
 
 
         kmod_params = kmod_params or {}
@@ -2474,7 +2474,7 @@ class LISAFtraceDynamicKmod(FtraceDynamicKmod):
             logger.debug(f'Pre-installed {kmod_filename} is unsuitable, recompiling: {e}')
             ret = super().install(kmod_params=kmod_params)
         else:
-            logger.debug(f'Loaded "{self.src.mod_name}" module from pre-installed location: {kmod_path}')
+            logger.warning(f'Loaded "{self.mod_name}" module from pre-installed location: {kmod_path}. This implies that the module was compiled by a 3rd party, which is available but unsupported. If you experience issues related to module version mismatch in the future, please contact them for updating the module. This may break at any time, without notice, and regardless of the general backward compatibility policy of LISA.')
 
         return ret
 

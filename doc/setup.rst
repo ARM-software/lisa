@@ -305,19 +305,31 @@ As a last resort option, the module can be built manually. Be aware that the
 automatic route is applying a number of workarounds you might have to discover
 and replicate yourself.
 
+.. _manual-module-setup-warning:
 .. warning::
 
   There is also no stability guarantee on any of the interfaces exposed by the
-  module, such as it's CLI parameters. The behavior of enabling all features
-  by default might also change, as well as the way of selecting features. The
-  fact that all features are compiled-in and available is also not a given and
-  might change in the future, making a specific build more tailored to a
-  specific use case.
+  module, such as it's CLI parameters. The behavior of enabling all features by
+  default might also change, as well as the way of selecting features. The fact
+  that all features are compiled-in and available is also not a given and might
+  change in the future, making a specific build more tailored to a specific use
+  case.
 
 However, there is sometimes no other choice, and this might still be useful as a
 temporary workaround. Just bear in mind that doing that will force you to
 monitor more closely what is happening in LISA, and gain more knowledge of its
 internal mechanisms to keep the setup working.
+
+.. _manual-module-setup-warning2:
+.. warning::
+
+   If you share this setup with anyone else, it is your responsibility to
+   forward the appropriate documentation pointers and maintenance knowledge, and
+   most importantly to let them know what they are signing up for. It is also
+   your responsibility to assert whether it makes sense for them to embark on
+   that path. Things will break, whoever you share it with will complain (to
+   you) if you have not appropriately made them aware of the situation. You have
+   been warned.
 
 Build
 ~~~~~
@@ -346,25 +358,6 @@ Clean
 Highly recommended to clean when switching kernel trees to avoid unintentional
 breakage for using stale binaries.
 
-Pushing the module into the target
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-You need to push the module into your rootfs either by installing it directly
-there or use commands like ``scp`` to copy it into your device.
-
-.. code-block:: sh
-
-  scp -r /path/to/lisa.ko username@ip:/
-
-Loading the module
-~~~~~~~~~~~~~~~~~~
-
-On the target run:
-
-.. code-block:: sh
-
-  modprobe lisa
-
 Integrating the module in your kernel tree
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -373,12 +366,9 @@ the module into your kernel tree as a built-in module so that it's always
 present.
 
 .. warning::
-   This method is less supported than the out-of-tree method above.
-   Proceed only if this method has specific benefits for your use case or
-   for some reason you cannot build the module out-of-tree. The most common
-   reason would be accessing the kernel sources remotely thus not having a
-   kernel checkout on the machine that Lisa runs on. Otherwise, using the
-   default out-of-tree build method will likely be less error-prone.
+   This method is less supported than the out-of-tree method above. It also has
+   all the drawbacks of manual build root since it qualifies as manually
+   building the module.
 
 In order to do that, follow the steps below:
 
