@@ -2425,6 +2425,9 @@ class LISAFtraceDynamicKmod(FtraceDynamicKmod):
 
     @classmethod
     def from_target(cls, target, **kwargs):
+
+        extra = {}
+
         path = Path(ASSETS_PATH) / 'kmodules' / 'lisa'
         btf_path = '/sys/kernel/btf/vmlinux'
 
@@ -2437,9 +2440,16 @@ class LISAFtraceDynamicKmod(FtraceDynamicKmod):
             with open(f.name, 'rb') as f:
                 btf = f.read()
 
-        extra = {
-            'vmlinux': btf
-        }
+        extra['vmlinux'] = btf
+
+        try:
+            kallsyms = target.read_value('/proc/kallsyms')
+        except TargetStableError:
+            pass
+        else:
+            extra['kallsyms'] = kallsyms.encode('utf-8')
+
+
         src = KmodSrc.from_path(path, extra=extra, name='lisa')
         return cls(
             target=target,
