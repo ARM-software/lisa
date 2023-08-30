@@ -94,7 +94,7 @@ PRIVATE_TYPES_H := $(GENERATED)/private_types.h
 
 ldflags-y += -T $(M)/$(FEATURES_LDS)
 
-clean-files := $(PRIVATE_TYPES_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H)
+clean-files := $(GENERATED)
 
 PRIVATE_TYPES_TXT := $(MODULE_SRC)/private_types.txt
 
