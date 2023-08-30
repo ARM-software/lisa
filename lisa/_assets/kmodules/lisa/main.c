@@ -3,6 +3,7 @@
 
 #include "main.h"
 #include "features.h"
+#include "introspection.h"
 #include "generated/module_version.h"
 /* Import all the symbol namespaces that appear to be defined in the kernel
  * sources so that we won't trigger any warning
@@ -30,6 +31,13 @@ static int __init modinit(void) {
 	if (strcmp(version, LISA_MODULE_VERSION)) {
 		pr_err("Lisa module version check failed. Got %s, expected %s\n", version, LISA_MODULE_VERSION);
 		return -EPROTO;
+	}
+
+	pr_info("Kernel features detected. This will impact the module features that are available:\n");
+	const char *kernel_feature_names[] = {__KERNEL_FEATURE_NAMES};
+	const bool kernel_feature_values[] = {__KERNEL_FEATURE_VALUES};
+	for (size_t i=0; i < ARRAY_SIZE(kernel_feature_names); i++) {
+		pr_info("  %s: %s\n", kernel_feature_names[i], kernel_feature_values[i] ? "enabled" : "disabled");
 	}
 
 	ret = init_features(features, features_len);

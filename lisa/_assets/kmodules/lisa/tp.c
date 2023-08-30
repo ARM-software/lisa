@@ -11,6 +11,7 @@
 #include "wq.h"
 #include "tp.h"
 
+#if HAS_KERNEL_FEATURE(CFS_PELT)
 static inline void _trace_cfs(struct cfs_rq *cfs_rq,
 			      void (*trace_event)(int, char*,
 						  const struct sched_avg*))
@@ -24,8 +25,11 @@ static inline void _trace_cfs(struct cfs_rq *cfs_rq,
 	cpu = lisa_cfs_rq_cpu(cfs_rq);
 
 	trace_event(cpu, path, avg);
- }
+}
+#endif
 
+
+#if HAS_KERNEL_FEATURE(SE_PELT)
 static inline void _trace_se(struct sched_entity *se,
 			     void (*trace_event)(int, char*, char*, int,
 						 const struct sched_avg*))
@@ -47,19 +51,25 @@ static inline void _trace_se(struct sched_entity *se,
 
 	trace_event(cpu, path, comm, pid, &se->avg);
 }
+#endif
 
+#if HAS_KERNEL_FEATURE(CFS_PELT)
 static void sched_pelt_cfs_probe(void *feature, struct cfs_rq *cfs_rq)
 {
 	_trace_cfs(cfs_rq, trace_lisa__sched_pelt_cfs);
 }
 DEFINE_TP_EVENT_FEATURE(lisa__sched_pelt_cfs, pelt_cfs_tp, sched_pelt_cfs_probe);
+#endif
 
+#if HAS_KERNEL_FEATURE(CFS_UCLAMP)
 static void uclamp_util_cfs_probe(void *feature, struct cfs_rq *cfs_rq) {
 	bool __maybe_unused is_root_rq = ((struct cfs_rq *)&rq_of(cfs_rq)->cfs == cfs_rq);
 	trace_lisa__uclamp_util_cfs(is_root_rq, rq_of(cfs_rq), cfs_rq);
 }
 DEFINE_TP_EVENT_FEATURE(lisa__uclamp_util_cfs, pelt_cfs_tp, uclamp_util_cfs_probe);
+#endif
 
+#if HAS_KERNEL_FEATURE(RT_PELT)
 static void sched_pelt_rt_probe(void *feature, struct rq *rq)
 {
 	const struct sched_avg *avg = lisa_rq_avg_rt(rq);
@@ -71,7 +81,9 @@ static void sched_pelt_rt_probe(void *feature, struct rq *rq)
 	trace_lisa__sched_pelt_rt(cpu, avg);
 }
 DEFINE_TP_EVENT_FEATURE(lisa__sched_pelt_rt, pelt_rt_tp, sched_pelt_rt_probe);
+#endif
 
+#if HAS_KERNEL_FEATURE(DL_PELT)
 static void sched_pelt_dl_probe(void *feature, struct rq *rq)
 {
 	const struct sched_avg *avg = lisa_rq_avg_dl(rq);
@@ -83,7 +95,9 @@ static void sched_pelt_dl_probe(void *feature, struct rq *rq)
 	trace_lisa__sched_pelt_dl(cpu, avg);
 }
 DEFINE_TP_EVENT_FEATURE(lisa__sched_pelt_dl, pelt_dl_tp, sched_pelt_dl_probe);
+#endif
 
+#if HAS_KERNEL_FEATURE(IRQ_PELT)
 static void sched_pelt_irq_probe(void *feature, struct rq *rq)
 {
 	const struct sched_avg *avg = lisa_rq_avg_irq(rq);
@@ -95,13 +109,17 @@ static void sched_pelt_irq_probe(void *feature, struct rq *rq)
 	trace_lisa__sched_pelt_irq(cpu, avg);
 }
 DEFINE_TP_EVENT_FEATURE(lisa__sched_pelt_irq, pelt_irq_tp, sched_pelt_irq_probe);
+#endif
 
+#if HAS_KERNEL_FEATURE(SE_PELT)
 static void sched_pelt_se_probe(void *feature, struct sched_entity *se)
 {
 	_trace_se(se, trace_lisa__sched_pelt_se);
 }
 DEFINE_TP_EVENT_FEATURE(lisa__sched_pelt_se, pelt_se_tp, sched_pelt_se_probe);
+#endif
 
+#if HAS_KERNEL_FEATURE(SE_UCLAMP)
 static void uclamp_util_se_probe(void *feature, struct sched_entity *se)
 {
 
@@ -112,7 +130,9 @@ static void uclamp_util_se_probe(void *feature, struct sched_entity *se)
 				rq_of(cfs_rq));
 }
 DEFINE_TP_EVENT_FEATURE(lisa__uclamp_util_se, pelt_se_tp, uclamp_util_se_probe);
+#endif
 
+#if HAS_KERNEL_FEATURE(SCHED_OVERUTILIZED)
 static void sched_overutilized_probe(void *feature, struct root_domain *rd, bool overutilized)
 {
 	if (trace_lisa__sched_overutilized_enabled()) {
@@ -124,25 +144,30 @@ static void sched_overutilized_probe(void *feature, struct root_domain *rd, bool
 	}
 }
 DEFINE_TP_EVENT_FEATURE(lisa__sched_overutilized, sched_overutilized_tp, sched_overutilized_probe);
+#endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,9,0)
+#if HAS_KERNEL_FEATURE(RQ_NR_RUNNING)
 static void sched_update_nr_running_probe(void *feature, struct rq *rq, int change)
 {
 	if (trace_lisa__sched_update_nr_running_enabled()) {
-		  int cpu = lisa_rq_cpu(rq);
-		  int nr_running = lisa_rq_nr_running(rq);
+		int cpu = lisa_rq_cpu(rq);
+		int nr_running = lisa_rq_nr_running(rq);
 
 		trace_lisa__sched_update_nr_running(cpu, change, nr_running);
 	}
 }
 DEFINE_TP_EVENT_FEATURE(lisa__sched_update_nr_running, sched_update_nr_running_tp, sched_update_nr_running_probe);
+#endif
 
+#if HAS_KERNEL_FEATURE(CFS_UTIL_EST)
 static void sched_util_est_cfs_probe(void *feature, struct cfs_rq *cfs_rq)
 {
 	_trace_cfs(cfs_rq, trace_lisa__sched_util_est_cfs);
 }
 DEFINE_TP_EVENT_FEATURE(lisa__sched_util_est_cfs, sched_util_est_cfs_tp, sched_util_est_cfs_probe);
+#endif
 
+#if HAS_KERNEL_FEATURE(SE_UTIL_EST)
 static void sched_util_est_se_probe(void *feature, struct sched_entity *se)
 {
 	_trace_se(se, trace_lisa__sched_util_est_se);
@@ -150,13 +175,14 @@ static void sched_util_est_se_probe(void *feature, struct sched_entity *se)
 DEFINE_TP_EVENT_FEATURE(lisa__sched_util_est_se, sched_util_est_se_tp, sched_util_est_se_probe);
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,10,0) && (defined(CONFIG_ARM64) || defined(CONFIG_ARM))
+#if HAS_KERNEL_FEATURE(RQ_CAPACITY)
 static void sched_cpu_capacity_probe(void *feature, struct rq *rq)
 {
 	trace_lisa__sched_cpu_capacity(rq);
 }
 DEFINE_TP_EVENT_FEATURE(lisa__sched_cpu_capacity, sched_cpu_capacity_tp, sched_cpu_capacity_probe);
 #endif
+
 
 static int init_tp(struct feature *_)
 {

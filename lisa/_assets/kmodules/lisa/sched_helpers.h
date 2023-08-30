@@ -2,65 +2,84 @@
 #ifndef SCHED_HELPERS_H
 #define SCHED_HELPERS_H
 
-/* Required for struct irq_work which is defined in struct root_domain */
-#include <linux/irq_work.h>
+#include <linux/kconfig.h>
 
+/* Required for some structs */
+#include <linux/irq_work.h>
 #include <linux/cgroup.h>
 
-#include "generated/private_types.h"
+#include "introspection.h"
+#include "generated/introspection_data.h"
 
-#ifdef CONFIG_FAIR_GROUP_SCHED
+
+#if HAS_TYPE(struct, cfs_rq)
+#    if defined(CONFIG_FAIR_GROUP_SCHED) && HAS_MEMBER(struct, cfs_rq, rq)
 static inline struct rq *rq_of(struct cfs_rq *cfs_rq)
 {
 	return cfs_rq->rq;
 }
-#define entity_is_task(se)	(!se->my_q)
-#else
+#    else
 static inline struct rq *rq_of(struct cfs_rq *cfs_rq)
 {
 	return container_of(cfs_rq, struct rq, cfs);
 }
-#define entity_is_task(se)	1
+#    endif
 #endif
 
+
+#if HAS_MEMBER(struct, sched_entity, my_q)
+#    define entity_is_task(se)	(!(se)->my_q)
+#else
+#    define entity_is_task(se)	(1)
+#endif
+
+
+#if HAS_TYPE(struct, rq)
 static inline int cpu_of(struct rq *rq)
 {
-#ifdef CONFIG_SMP
+#    if defined(CONFIG_SMP) && HAS_MEMBER(struct, rq, cpu)
 	return rq->cpu;
-#else
+#    else
 	return 0;
-#endif
+#    endif
 }
+#endif
 
 #define cap_scale(v, s) ((v)*(s) >> SCHED_CAPACITY_SHIFT)
 
+
+#if HAS_TYPE(struct, task_group)
 static inline bool task_group_is_autogroup(struct task_group *tg)
 {
-#ifdef CONFIG_SCHED_AUTOGROUP
+#    if HAS_KERNEL_FEATURE(SCHED_AUTOGROUP)
 	return !!tg->autogroup;
-#else
+#    else
 	return false;
-#endif
+#    endif
 }
+#endif
 
+#if HAS_TYPE(struct, task_group)
 static int autogroup_path(struct task_group *tg, char *buf, int buflen)
 {
-#ifdef CONFIG_SCHED_AUTOGROUP
+#    if HAS_KERNEL_FEATURE(SCHED_AUTOGROUP) && HAS_MEMBER(struct, autogroup, id)
 	if (!task_group_is_autogroup(tg))
 		return 0;
 
 	return snprintf(buf, buflen, "%s-%ld", "/autogroup", tg->autogroup->id);
-#else
+#    else
 	return 0;
-#endif
+#    endif
 }
+#endif
 
+
+#if HAS_TYPE(struct, rq)
 /* A cut down version of the original. @p MUST be NULL */
 static __always_inline
-unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util,
-				  struct task_struct *p)
+unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util)
 {
-#ifdef CONFIG_UCLAMP_TASK
+#    if HAS_KERNEL_FEATURE(SE_UCLAMP)
 	unsigned long min_util;
 	unsigned long max_util;
 
@@ -71,52 +90,59 @@ unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util,
 		return min_util;
 
 	return clamp(util, min_util, max_util);
-#else
+#    else
 	return util;
-#endif
+#    endif
 }
+#endif
 
 
+#if HAS_TYPE(struct, cfs_rq)
 static inline void cfs_rq_tg_path(struct cfs_rq *cfs_rq, char *path, int len)
 {
 	if (!path)
 		return;
 
-#ifdef CONFIG_FAIR_GROUP_SCHED
+#    if defined(CONFIG_FAIR_GROUP_SCHED) && HAS_MEMBER(struct, cfs_rq, tg) && HAS_MEMBER(struct, task_group, css) && HAS_MEMBER(struct, cgroup_subsys_state, cgroup)
 	if (cfs_rq && task_group_is_autogroup(cfs_rq->tg))
 		autogroup_path(cfs_rq->tg, path, len);
 	else if (cfs_rq && cfs_rq->tg->css.cgroup)
 		cgroup_path((struct cgroup *)cfs_rq->tg->css.cgroup, path, len);
 	else
-#endif
+#    endif
 		strlcpy(path, "(null)", len);
 }
+#endif
 
+#if HAS_TYPE(struct, sched_entity)
 static inline struct cfs_rq *get_group_cfs_rq(struct sched_entity *se)
 {
-#ifdef CONFIG_FAIR_GROUP_SCHED
+#    if defined(CONFIG_FAIR_GROUP_SCHED) && HAS_MEMBER(struct, sched_entity, my_q)
 	return se->my_q;
-#else
+#    else
 	return NULL;
-#endif
+#    endif
 }
 
 static inline struct cfs_rq *get_se_cfs_rq(struct sched_entity *se)
 {
-#ifdef CONFIG_FAIR_GROUP_SCHED
+#    if defined(CONFIG_FAIR_GROUP_SCHED) && HAS_MEMBER(struct, sched_entity, cfs_rq)
 	return se->cfs_rq;
-#else
+#    else
 	return NULL;
-#endif
+#    endif
 }
+#endif
 
+
+#if HAS_TYPE(struct, cfs_rq)
 static inline const struct sched_avg *lisa_cfs_rq_avg(struct cfs_rq *cfs_rq)
 {
-#ifdef CONFIG_SMP
+#    if HAS_KERNEL_FEATURE(CFS_PELT)
 	return cfs_rq ? (struct sched_avg *)&cfs_rq->avg : NULL;
-#else
+#    else
 	return NULL;
-#endif
+#    endif
 }
 
 static inline char *lisa_cfs_rq_path(struct cfs_rq *cfs_rq, char *str, int len)
@@ -137,31 +163,34 @@ static inline int lisa_cfs_rq_cpu(struct cfs_rq *cfs_rq)
 	return cfs_rq ? cpu_of(rq_of(cfs_rq)) : -1;
 }
 
+#endif
+
+#if HAS_TYPE(struct, rq)
 static inline const struct sched_avg *lisa_rq_avg_rt(struct rq *rq)
 {
-#ifdef CONFIG_SMP
+#    if HAS_KERNEL_FEATURE(RT_PELT)
 	return rq ? (struct sched_avg *)&rq->avg_rt : NULL;
-#else
+#    else
 	return NULL;
-#endif
+#    endif
 }
 
 static inline const struct sched_avg *lisa_rq_avg_dl(struct rq *rq)
 {
-#ifdef CONFIG_SMP
+#    if HAS_KERNEL_FEATURE(DL_PELT)
 	return rq ? (struct sched_avg *)&rq->avg_dl : NULL;
-#else
+#    else
 	return NULL;
-#endif
+#    endif
 }
 
 static inline const struct sched_avg *lisa_rq_avg_irq(struct rq *rq)
 {
-#if defined(CONFIG_SMP) && defined(CONFIG_HAVE_SCHED_AVG_IRQ)
+#    if HAS_KERNEL_FEATURE(IRQ_PELT)
 	return rq ? (struct sched_avg *)&rq->avg_irq : NULL;
-#else
+#    else
 	return NULL;
-#endif
+#    endif
 }
 
 static inline int lisa_rq_cpu(struct rq *rq)
@@ -172,26 +201,33 @@ static inline int lisa_rq_cpu(struct rq *rq)
 static inline int lisa_rq_cpu_capacity(struct rq *rq)
 {
 	return rq ?
-#ifdef CONFIG_SMP
+#if    HAS_KERNEL_FEATURE(RQ_CAPACITY)
 		rq->cpu_capacity
-#else
+#    else
 		SCHED_CAPACITY_SCALE
-#endif
+#    endif
 		: -1;
-}
-
-static inline const struct cpumask *lisa_rd_span(struct root_domain *rd)
-{
-#ifdef CONFIG_SMP
-	return rd ? (struct cpumask *)rd->span : NULL;
-#else
-	return NULL;
-#endif
 }
 
 static inline int lisa_rq_nr_running(struct rq *rq)
 {
-	return rq ? rq->nr_running : -1;
+#    if HAS_KERNEL_FEATURE(RQ_NR_RUNNING)
+	if (rq->nr_running)
+		return rq->nr_running;
+#    endif
+	return -1;
 }
+#endif
 
-#endif /* SCHED_HELPERS */
+#if HAS_TYPE(struct, root_domain)
+static inline const struct cpumask *lisa_rd_span(struct root_domain *rd)
+{
+#    if defined(CONFIG_SMP) && HAS_MEMBER(struct, root_domain, span)
+	return rd ? (struct cpumask *)rd->span : NULL;
+#    else
+	return NULL;
+#    endif
+}
+#endif
+
+#endif /* SCHED_HELPERS_H */
