@@ -151,7 +151,7 @@ $(PRIVATE_TYPES_H): $(GENERATED) $(PRIVATE_TYPES_TXT) $(VMLINUX) python_env
 # Create forward declaration of every type
 	sed -r -n 's/.*(struct|union|enum) ([0-9a-zA-Z_]*) .*/\1 \2;/p' $(MODULE_OBJ)/_header_no_comment | sort -u > $(MODULE_OBJ)/_fwd_decl
 # Create type introspection macros
-	python3 $(MODULE_SRC)/introspect_header.py $(MODULE_OBJ)/_header >> $(MODULE_OBJ)/_fwd_decl
+	python3 $(MODULE_SRC)/introspect_header.py --header $(MODULE_OBJ)/_header >> $(MODULE_OBJ)/_fwd_decl
 	cat $(MODULE_OBJ)/_fwd_decl $(MODULE_OBJ)/_header > $@
 # cat $@
 
