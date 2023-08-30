@@ -18,6 +18,7 @@
 #
 
 
+import abc
 import itertools
 import argparse
 import subprocess
@@ -26,28 +27,34 @@ from collections import namedtuple
 from pycparser import c_parser, c_ast
 
 
-class TypeMember(namedtuple('TypeMember', ['type_name', 'member_name'])):
+class Record(abc.ABC):
+    @abc.abstractmethod
+    def make_define(self):
+        pass
+
+
+class TypeMemberRecord(namedtuple('TypeMemberRecord', ['type_name', 'member_name']), Record):
     def make_define(self):
         return f'#define _TYPE_HAS_MEMBER_{self.type_name}___{self.member_name}'
 
-    @property
-    def printable(self):
+    def is_printable(self):
         return self.type_name and self.member_name
 
 
-class TypeExists(namedtuple('TypeExists', ['type_name'])):
+class TypeExistsRecord(namedtuple('TypeExistsRecord', ['type_name']), Record):
     def make_define(self):
         return f'#define _TYPE_EXISTS_{self.type_name}'
 
-    @property
-    def printable(self):
+    def is_printable(self):
         return bool(self.type_name)
+
 
 def expand_typ(typ):
     if isinstance(typ, c_ast.TypeDecl):
         return expand_typ(typ.type)
     else:
         return [typ]
+
 
 def resolve_typ(typ):
     if isinstance(typ, (c_ast.Struct, c_ast.Union)):
@@ -80,10 +87,10 @@ def walk_type(typ):
 
         return itertools.chain(
             [
-                TypeExists(type_name=name)
+                TypeExistsRecord(type_name=name)
             ],
             (
-                TypeMember(type_name=name, member_name=child.name)
+                TypeMemberRecord(type_name=name, member_name=child.name)
                 for child in children
             ),
             itertools.chain.from_iterable(map(walk_type, children_typs))
@@ -112,23 +119,56 @@ def process_header(path):
     ]
 
     records = set(itertools.chain.from_iterable(map(walk_type, types)))
-    records = sorted(
-        record
-        for record in records
-        if record.printable
+    return itertools.chain(
+        (
+            '#define _TYPE_INTROSPECTION_INFO_AVAILABLE',
+        ),
+        (
+            record.make_define()
+            for record in records
+            if record.is_printable()
+        ),
     )
 
-    return '\n'.join(
-        itertools.chain(
-            (
-                '#define _TYPE_INTROSPECTION_INFO_AVAILABLE',
-            ),
-            (
-                record.make_define()
-                for record in records
-            ),
+
+
+
+class SymbolRecord(namedtuple('SymbolRecord', ['name']), Record):
+    def make_define(self):
+        return f'#define _SYMBOL_EXISTS_{self.name}'
+
+
+def process_kallsyms(path):
+    with open(path, 'r') as f:
+        kallsyms = f.read()
+
+    def make_record(addr, code, name):
+        # Uppercase codes are for STB_GLOBAL symbols, i.e. exported symbols.
+        if code.isupper() and name.isidentifier():
+            return SymbolRecord(name=name).make_define()
+        else:
+            return None
+
+    records = itertools.starmap(
+        make_record,
+        (
+            line.split(maxsplit=2)
+            for line in kallsyms.splitlines()
+            if line
         )
     )
+    records = set(record for record in records if record)
+
+    if records:
+        return itertools.chain(
+            records,
+            (
+                '#define _SYMBOL_INTROSPECTION_INFO_AVAILABLE',
+            ),
+        )
+    # If the file is empty, we assume there is no kallsyms available
+    else:
+        return []
 
 
 def main():
@@ -138,13 +178,22 @@ def main():
     """)
 
     parser.add_argument('--header', help='C header file to parse')
+    parser.add_argument('--kallsyms', help='kallsyms content to parse')
+
     args = parser.parse_args()
 
     out = []
     if args.header:
-        out.append(process_header(args.header))
+        out.extend(process_header(args.header))
 
-    print('\n'.join(out))
+    if args.kallsyms:
+        out.extend(process_kallsyms(args.kallsyms))
+
+    print('\n'.join(sorted(
+        s
+        for s in out
+        if s
+    )))
 
 if __name__ == '__main__':
     main()

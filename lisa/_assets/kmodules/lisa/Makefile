@@ -80,6 +80,7 @@ $(GENERATED):
 
 SYMBOL_NAMESPACES_H := $(GENERATED)/symbol_namespaces.h
 MODULE_VERSION_H := $(GENERATED)/module_version.h
+KALLSYMS := $(GENERATED)/kallsyms
 
 # in-tree build
 ifeq ($(IN_TREE_BUILD),1)
@@ -101,14 +102,14 @@ PRIVATE_TYPES_TXT := $(MODULE_SRC)/private_types.txt
 # Can be either a kernel image built with DWARF debug info, or the BTF blob
 # found at /sys/kernel/btf/vmlinux
 _BTF_VMLINUX := $(MODULE_SRC)/vmlinux
-_DWARF_VMLINUX := $(KERNEL_SRC)/vmlinux
+_REAL_VMLINUX := $(KERNEL_SRC)/vmlinux
 _SYNTHETIC_VMLINUX := $(MODULE_OBJ)/private_types.o
 
 ifeq ("$(wildcard $(_BTF_VMLINUX))","")
 ifeq ($(IN_TREE_BUILD),1)
     VMLINUX := $(_SYNTHETIC_VMLINUX)
 else
-    VMLINUX := $(_DWARF_VMLINUX)
+    VMLINUX := $(_REAL_VMLINUX)
 endif
 else
     VMLINUX := $(_BTF_VMLINUX)
@@ -121,7 +122,7 @@ python_env:
 
 .PHONY: python_env
 
-$(PRIVATE_TYPES_H): $(GENERATED) $(PRIVATE_TYPES_TXT) $(VMLINUX) python_env
+$(PRIVATE_TYPES_H): $(GENERATED) $(KALLSYMS) $(PRIVATE_TYPES_TXT) $(VMLINUX) python_env
 # Some options are not upstream (yet) but they have all be published on the
 # dwarves mailing list
 #
@@ -151,8 +152,8 @@ $(PRIVATE_TYPES_H): $(GENERATED) $(PRIVATE_TYPES_TXT) $(VMLINUX) python_env
 # Create forward declaration of every type
 	sed -r -n 's/.*(struct|union|enum) ([0-9a-zA-Z_]*) .*/\1 \2;/p' $(MODULE_OBJ)/_header_no_comment | sort -u > $(MODULE_OBJ)/_fwd_decl
 # Create type introspection macros
-	python3 $(MODULE_SRC)/introspect_header.py --header $(MODULE_OBJ)/_header >> $(MODULE_OBJ)/_fwd_decl
-	cat $(MODULE_OBJ)/_fwd_decl $(MODULE_OBJ)/_header > $@
+	python3 $(MODULE_SRC)/introspect_header.py --header $(MODULE_OBJ)/_header --kallsyms $(KALLSYMS) >> $(MODULE_OBJ)/_introspection
+	cat $(MODULE_OBJ)/_introspection $(MODULE_OBJ)/_fwd_decl $(MODULE_OBJ)/_header > $@
 # cat $@
 
 # out-of-tree build
@@ -175,6 +176,11 @@ $(MODULE_VERSION_H): $(GENERATED)
 	printf "#ifndef _MODULE_VERSION_H\n#define _MODULE_VERSION_H\n#define LISA_MODULE_VERSION \"" > $@
 	export LC_ALL=C && (cd $(MODULE_SRC) && sha1sum -- *.c *.h) | sort | sha1sum | cut -d' ' -f1 | tr -d '\n' >> $@
 	printf "\"\n#endif\n" >> $@
+
+
+$(KALLSYMS): $(GENERATED)
+	cat $(MODULE_SRC)/kallsyms > $@ || $(NM) $(_REAL_VMLINUX) > $@ || touch $@
+
 
 # Make all object files depend on the generated sources
 $(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(PRIVATE_TYPES_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H)
