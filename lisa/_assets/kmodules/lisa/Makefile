@@ -142,6 +142,11 @@ $(PRIVATE_TYPES_H): $(GENERATED) $(KALLSYMS) $(PRIVATE_TYPES_TXT) $(VMLINUX) pyt
 # easy attribute access.
 	pahole -F btf,dwarf -E --suppress_force_paddings --show_only_data_members --skip_missing --expand_types_once -C "file://$(PRIVATE_TYPES_TXT)" "$(VMLINUX)" > $(MODULE_OBJ)/_header
 
+# Create a header with all the types we can for introspection purposes. This
+# will not be included in any of the module sources, so all we care about is
+# that pycparser can parse it.
+	pahole -F btf,dwarf -E --expand_types_once --suppress_force_paddings --suppress_aligned_attribute --suppress_packed --show_only_data_members --compile --fixup_silly_bitfields "$(VMLINUX)" > $(MODULE_OBJ)/_introspection_header
+
 # Rename all defined types to include the prefix
 	sed "s/\(struct\|union\|enum\)\s*\([a-zA-Z0-9_]\+\)/\1 $(PRIVATE_TYPES_H_TYPE_PREFIX)\2/g" -i $(MODULE_OBJ)/_header
 # Create a sed script to rename back to initial state the types that we explicitly asked for
@@ -152,7 +157,7 @@ $(PRIVATE_TYPES_H): $(GENERATED) $(KALLSYMS) $(PRIVATE_TYPES_TXT) $(VMLINUX) pyt
 # Create forward declaration of every type
 	sed -r -n 's/.*(struct|union|enum) ([0-9a-zA-Z_]*) .*/\1 \2;/p' $(MODULE_OBJ)/_header_no_comment | sort -u > $(MODULE_OBJ)/_fwd_decl
 # Create type introspection macros
-	python3 $(MODULE_SRC)/introspect_header.py --header $(MODULE_OBJ)/_header --kallsyms $(KALLSYMS) >> $(MODULE_OBJ)/_introspection
+	python3 $(MODULE_SRC)/introspect_header.py --header $(MODULE_OBJ)/_introspection_header --kallsyms $(KALLSYMS) >> $(MODULE_OBJ)/_introspection
 	printf '#pragma once\n' > $@
 	cat $(MODULE_OBJ)/_introspection $(MODULE_OBJ)/_fwd_decl $(MODULE_OBJ)/_header >> $@
 # cat $@
