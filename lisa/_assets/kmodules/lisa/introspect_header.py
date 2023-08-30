@@ -90,16 +90,8 @@ def walk_type(typ):
         )
 
 
-def main():
-    parser = argparse.ArgumentParser("""
-    Parse a header file and generate macros to allow compile-time introspection
-    of types.
-    """)
-
-    parser.add_argument('header', help='C header file to parse')
-
-    args = parser.parse_args()
-    with open(args.header, 'r') as f:
+def process_header(path):
+    with open(path, 'r') as f:
         header = f.read()
 
     # Remove comments and the non-standard GNU C extensions that pycparser cannot
@@ -109,7 +101,7 @@ def main():
     header = res.stdout
 
     parser = c_parser.CParser()
-    node = parser.parse(header, filename=args.header)
+    node = parser.parse(header, filename=path)
 
     assert isinstance(node, c_ast.FileAST)
 
@@ -125,14 +117,34 @@ def main():
         for record in records
         if record.printable
     )
-    macros = '\n'.join(
-        record.make_define()
-        for record in records
+
+    return '\n'.join(
+        itertools.chain(
+            (
+                '#define _TYPE_INTROSPECTION_INFO_AVAILABLE',
+            ),
+            (
+                record.make_define()
+                for record in records
+            ),
+        )
     )
-    print('#define _TYPE_INTROSPECTION_INFO_AVAILABLE')
-    print(macros)
 
 
+def main():
+    parser = argparse.ArgumentParser("""
+    Parse a header file and generate macros to allow compile-time introspection
+    of types.
+    """)
+
+    parser.add_argument('--header', help='C header file to parse')
+    args = parser.parse_args()
+
+    out = []
+    if args.header:
+        out.append(process_header(args.header))
+
+    print('\n'.join(out))
 
 if __name__ == '__main__':
     main()
