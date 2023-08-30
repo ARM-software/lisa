@@ -153,7 +153,8 @@ $(PRIVATE_TYPES_H): $(GENERATED) $(KALLSYMS) $(PRIVATE_TYPES_TXT) $(VMLINUX) pyt
 	sed -r -n 's/.*(struct|union|enum) ([0-9a-zA-Z_]*) .*/\1 \2;/p' $(MODULE_OBJ)/_header_no_comment | sort -u > $(MODULE_OBJ)/_fwd_decl
 # Create type introspection macros
 	python3 $(MODULE_SRC)/introspect_header.py --header $(MODULE_OBJ)/_header --kallsyms $(KALLSYMS) >> $(MODULE_OBJ)/_introspection
-	cat $(MODULE_OBJ)/_introspection $(MODULE_OBJ)/_fwd_decl $(MODULE_OBJ)/_header > $@
+	printf '#pragma once\n' > $@
+	cat $(MODULE_OBJ)/_introspection $(MODULE_OBJ)/_fwd_decl $(MODULE_OBJ)/_header >> $@
 # cat $@
 
 # out-of-tree build
@@ -169,13 +170,15 @@ endif
 # There does not seem to be any other source for the info in e.g. sysfs or
 # procfs, so we rely on that hack for now.
 $(SYMBOL_NAMESPACES_H): $(GENERATED)
-	find "$(KERNEL_SRC)" '(' -name '*.c' -o -name '*.h' ')' -print0 | xargs -0 sed -n 's/MODULE_IMPORT_NS([^;]*;/\0/p' | sort -u > $@
+	printf '#pragma once\n' > $@
+	find "$(KERNEL_SRC)" '(' -name '*.c' -o -name '*.h' ')' -print0 | xargs -0 sed -n 's/MODULE_IMPORT_NS([^;]*;/\0/p' | sort -u >> $@
 	echo "MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);" >> $@
 
 $(MODULE_VERSION_H): $(GENERATED)
-	printf "#ifndef _MODULE_VERSION_H\n#define _MODULE_VERSION_H\n#define LISA_MODULE_VERSION \"" > $@
+	printf '#pragma once\n' > $@
+	printf "#define LISA_MODULE_VERSION \"" >> $@
 	export LC_ALL=C && (cd $(MODULE_SRC) && sha1sum -- *.c *.h) | sort | sha1sum | cut -d' ' -f1 | tr -d '\n' >> $@
-	printf "\"\n#endif\n" >> $@
+	printf "\"\n" >> $@
 
 
 $(KALLSYMS): $(GENERATED)
