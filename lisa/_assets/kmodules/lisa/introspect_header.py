@@ -25,6 +25,8 @@ import argparse
 import subprocess
 from collections import namedtuple
 import functools
+import json
+import re
 
 from pycparser import c_ast
 from pycparserext.ext_c_parser import GnuCParser
@@ -39,12 +41,12 @@ class Record(abc.ABC):
 
 class TypeMemberRecord(namedtuple('TypeMemberRecord', ['type_kind', 'type_name', 'member_name']), Record):
     def make_define(self):
-        return f'#define _TYPE_HAS_MEMBER_{self.type_kind}_{self.type_name}_LISA_SEPARATOR_{self.member_name}'
+        return f'#define _TYPE_HAS_MEMBER_{self.type_kind}_{self.type_name}_LISA_SEPARATOR_{self.member_name} 1'
 
 
 class TypeExistsRecord(namedtuple('TypeExistsRecord', ['type_kind', 'type_name']), Record):
     def make_define(self):
-        return f'#define _TYPE_EXISTS_{self.type_kind}_{self.type_name}'
+        return f'#define _TYPE_EXISTS_{self.type_kind}_{self.type_name} 1'
 
 
 class TypedefMemo:
@@ -199,7 +201,7 @@ def introspect_header(ast):
     records = make_records(memo, types)
     return itertools.chain(
         (
-            '#define _TYPE_INTROSPECTION_INFO_AVAILABLE',
+            '#define _TYPE_INTROSPECTION_INFO_AVAILABLE 1',
         ),
         (
             record.make_define()
@@ -307,7 +309,7 @@ def process_header(path, introspect, type_prefix, non_renamed_types):
 
 class SymbolRecord(namedtuple('SymbolRecord', ['name']), Record):
     def make_define(self):
-        return f'#define _SYMBOL_EXISTS_{self.name}'
+        return f'#define _SYMBOL_EXISTS_{self.name} 1'
 
 
 def process_kallsyms(path):
@@ -335,12 +337,56 @@ def process_kallsyms(path):
         return itertools.chain(
             records,
             (
-                '#define _SYMBOL_INTROSPECTION_INFO_AVAILABLE',
+                '#define _SYMBOL_INTROSPECTION_INFO_AVAILABLE 1',
             ),
         )
     # If the file is empty, we assume there is no kallsyms available
     else:
         return []
+
+
+def process_kernel_features(path):
+    with open(path, 'r') as f:
+        features = json.load(f)
+
+    # Macros cannot be recursive, so we expand them manually.
+    def expand(value):
+        def replace(m):
+            name = m.group(1)
+            name = name.strip()
+            value = features[name]
+            expanded = expand(value)
+            return f'({expanded})'
+
+        return re.sub(r'HAS_KERNEL_FEATURE\(([a-zA-Z0-9_]+)\)', replace, value)
+
+    features = {
+        name: expand(value)
+        for name, value in features.items()
+    }
+
+    features = list(features.items())
+    names, values = zip(*features)
+
+    names = ', '.join(
+        f'"{name}"'
+        for name in names
+    )
+    names = f'#define __KERNEL_FEATURE_NAMES {names}'
+
+    values = ', '.join(
+        f'({value})'
+        for value in values
+    )
+    values = f'#define __KERNEL_FEATURE_VALUES {values}'
+
+    return itertools.chain(
+        (names, values),
+        (
+            f'#define _KERNEL_HAS_FEATURE_{name} ({value})'
+            for name, value in features
+        )
+    )
 
 
 def main():
@@ -355,6 +401,7 @@ def main():
     parser.add_argument('--type-prefix', help='Add the given prefix to the types found in --header and dump the resulting renamed header')
     parser.add_argument('--non-renamed-types', help='File containing list of type names that will not be renamed by --type-prefix')
     parser.add_argument('--kallsyms', help='kallsyms content to parse')
+    parser.add_argument('--kernel-features', help='JSON list of kernel features')
 
     args = parser.parse_args()
 
@@ -367,6 +414,9 @@ def main():
 
     if args.kallsyms and args.introspect:
         out.append(process_kallsyms(args.kallsyms))
+
+    if args.kernel_features:
+        out.append(process_kernel_features(args.kernel_features))
 
     for rec in sorted(set(itertools.chain.from_iterable(out))):
         print(rec)

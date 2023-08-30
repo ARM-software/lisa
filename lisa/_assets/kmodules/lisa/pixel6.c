@@ -9,6 +9,7 @@
 #include "wq.h"
 #include "ftrace_events.h"
 #include "parsec.h"
+#include "introspection.h"
 
 /* There is no point in setting this value to less than 8 times what is written
  * in usec to POWER_METER_RATE_FILE
@@ -20,6 +21,8 @@
 #define POWER_METER_RATE_FILE_0 "/sys/bus/iio/devices/iio:device0/sampling_rate"
 #define POWER_METER_SAMPLE_FILE_1 "/sys/bus/iio/devices/iio:device1/energy_value"
 #define POWER_METER_RATE_FILE_1 "/sys/bus/iio/devices/iio:device1/sampling_rate"
+
+#if HAS_KERNEL_FEATURE(FILE_IO)
 
 static PARSE_RESULT(int) parse_content(parse_buffer *);
 
@@ -185,11 +188,6 @@ static int disable_p6_emeter(struct feature* feature) {
 
 	return ret;
 };
-
-DEFINE_FEATURE(event__lisa__pixel6_emeter, enable_p6_emeter, disable_p6_emeter);
-
-
-
 /***********************************************
  * Parser for the energy_value sysfs file format
  ***********************************************/
@@ -251,3 +249,18 @@ SEQUENCE(int, parse_content, ({
 	/* Parse all the following sample lines */
 	PARSE(parse_all_samples, 0);
 }))
+
+#else
+#warning "event__lisa__pixel6_emeter feature will not be available due to kernel not exporting necessary symbols"
+static int enable_p6_emeter(struct feature* feature) {
+	pr_err("The kernel does not export the required symbols for that feature");
+	return 1;
+}
+
+static int disable_p6_emeter(struct feature* feature) {
+	return 0;
+}
+#endif
+
+
+DEFINE_FEATURE(event__lisa__pixel6_emeter, enable_p6_emeter, disable_p6_emeter);

@@ -63,14 +63,14 @@ ifneq ($(KERNELRELEASE),)
 
 LISA_KMOD_NAME ?= lisa
 obj-m := $(LISA_KMOD_NAME).o
-$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o private_types.o
+$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o introspection_data.o
 
 # -fno-stack-protector is needed to possibly undefined __stack_chk_guard symbol
 ccflags-y := "-I$(MODULE_SRC)" -std=gnu11 -fno-stack-protector -Wno-declaration-after-statement
 
 # Ensure we get appropriate debug info so that pahole can work on the object
 # file regardless of the kernel config.
-CFLAGS_private_types.o := -g3 -gno-split-dwarf -gdwarf -fno-eliminate-unused-debug-types
+CFLAGS_introspection_data.o := -g3 -gno-split-dwarf -gdwarf -fno-eliminate-unused-debug-types
 
 FEATURES_LDS := features.lds
 GENERATED := $(MODULE_OBJ)/generated
@@ -91,7 +91,7 @@ ldflags-y += -T $(srctree)/$(obj)/$(FEATURES_LDS)
 # out-of-tree build
 else
 
-PRIVATE_TYPES_H := $(GENERATED)/private_types.h
+INTROSPECTION_DATA_H := $(GENERATED)/introspection_data.h
 
 ldflags-y += -T $(M)/$(FEATURES_LDS)
 
@@ -103,7 +103,7 @@ PRIVATE_TYPES_TXT := $(MODULE_SRC)/private_types.txt
 # found at /sys/kernel/btf/vmlinux
 _BTF_VMLINUX := $(MODULE_SRC)/vmlinux
 _REAL_VMLINUX := $(KERNEL_SRC)/vmlinux
-_SYNTHETIC_VMLINUX := $(MODULE_OBJ)/private_types.o
+_SYNTHETIC_VMLINUX := $(MODULE_OBJ)/introspection_data.o
 
 ifeq ("$(wildcard $(_BTF_VMLINUX))","")
 ifeq ($(IN_TREE_BUILD),1)
@@ -115,14 +115,14 @@ else
     VMLINUX := $(_BTF_VMLINUX)
 endif
 
-PRIVATE_TYPES_H_TYPE_PREFIX := KERNEL_PRIVATE_
+UNUSED_KERNEL_PRIVATE_TYPES_PREFIX := KERNEL_PRIVATE_
 
 VENV := $(MODULE_OBJ)/venv
 $(VENV):
 	python3 -m venv $(VENV)
 	. $(VENV)/bin/activate && python3 -m pip install --upgrade pip setuptools wheel && python3 -m pip install -r $(MODULE_SRC)/requirements.txt
 
-$(PRIVATE_TYPES_H): $(GENERATED) $(KALLSYMS) $(PRIVATE_TYPES_TXT) $(VMLINUX) $(VENV)
+$(INTROSPECTION_DATA_H): $(GENERATED) $(KALLSYMS) $(PRIVATE_TYPES_TXT) $(VMLINUX) $(VENV)
 # Some options are not upstream (yet) but they have all be published on the
 # dwarves mailing list
 #
@@ -156,10 +156,10 @@ $(PRIVATE_TYPES_H): $(GENERATED) $(KALLSYMS) $(PRIVATE_TYPES_TXT) $(VMLINUX) $(V
 
 # Rename all the kernel private types we are not directly interested in to avoid any clash
 	cat $(MODULE_OBJ)/_fwd_decl $(MODULE_OBJ)/_header_no_comment > $(MODULE_OBJ)/_header
-	. $(VENV)/bin/activate && python3 $(MODULE_SRC)/introspect_header.py --header $(MODULE_OBJ)/_header --type-prefix $(PRIVATE_TYPES_H_TYPE_PREFIX) --non-renamed-types $(PRIVATE_TYPES_TXT) > $(MODULE_OBJ)/_renamed_header
+	. $(VENV)/bin/activate && python3 $(MODULE_SRC)/introspect_header.py --header $(MODULE_OBJ)/_header --type-prefix $(UNUSED_KERNEL_PRIVATE_TYPES_PREFIX) --non-renamed-types $(PRIVATE_TYPES_TXT) > $(MODULE_OBJ)/_renamed_header
 
 # Create type introspection macros
-	. $(VENV)/bin/activate && python3 $(MODULE_SRC)/introspect_header.py --header $(MODULE_OBJ)/_full_header --introspect --kallsyms $(KALLSYMS) >> $(MODULE_OBJ)/_introspection_header
+	. $(VENV)/bin/activate && python3 $(MODULE_SRC)/introspect_header.py --header $(MODULE_OBJ)/_full_header --introspect --kallsyms $(KALLSYMS) --kernel-features $(MODULE_SRC)/kernel_features.json >> $(MODULE_OBJ)/_introspection_header
 
 # Build the final header
 	printf '#pragma once\n' > $@
@@ -195,7 +195,7 @@ $(KALLSYMS): $(GENERATED)
 
 
 # Make all object files depend on the generated sources
-$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(PRIVATE_TYPES_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H)
+$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(INTROSPECTION_DATA_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H)
 
 # Non-Kbuild part
 else
