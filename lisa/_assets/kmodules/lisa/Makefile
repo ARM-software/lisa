@@ -140,7 +140,7 @@ $(PRIVATE_TYPES_H): $(GENERATED) $(KALLSYMS) $(PRIVATE_TYPES_TXT) $(VMLINUX) pyt
 # that was not explicitly asked for. This avoids conflicting with type
 # definitions that would come from public kernel headers, while still allowing
 # easy attribute access.
-	pahole -F btf,dwarf -E --suppress_force_paddings --show_only_data_members --skip_missing --expand_types_once -C "file://$(PRIVATE_TYPES_TXT)" "$(VMLINUX)" > $(MODULE_OBJ)/_header
+	pahole -F btf,dwarf -E --compile --suppress_force_paddings --show_only_data_members --skip_missing --expand_types_once -C "file://$(PRIVATE_TYPES_TXT)" "$(VMLINUX)" > $(MODULE_OBJ)/_header
 
 # Create a header with all the types we can for introspection purposes. This
 # will not be included in any of the module sources, so all we care about is
