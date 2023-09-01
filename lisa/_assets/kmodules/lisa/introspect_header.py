@@ -19,13 +19,16 @@
 
 
 import abc
+import copy
 import itertools
 import argparse
 import subprocess
 from collections import namedtuple
 import functools
 
-from pycparser import c_parser, c_ast
+from pycparser import c_ast
+from pycparserext.ext_c_parser import GnuCParser
+from pycparserext.ext_c_generator import GnuCGenerator
 
 
 class Record(abc.ABC):
@@ -177,20 +180,9 @@ def make_records(memo, types):
 
     return recurse_multi(types)
 
-def process_header(path):
-    with open(path, 'r') as f:
-        header = f.read()
 
-    # Remove comments and the non-standard GNU C extensions that pycparser cannot
-    # process
-    cmd = ['cpp', '-P', '-D__attribute__(x)=', '-']
-    res = subprocess.run(cmd, input=header, capture_output=True, text=True, check=True)
-    header = res.stdout
-
-    parser = c_parser.CParser()
-    node = parser.parse(header, filename=path)
-
-    assert isinstance(node, c_ast.FileAST)
+def introspect_header(ast):
+    assert isinstance(ast, c_ast.FileAST)
 
     def expand_decl(node):
         if isinstance(node, c_ast.Decl):
@@ -199,8 +191,8 @@ def process_header(path):
             return node
 
     types = [
-        expand_decl(_node)
-        for _node in node
+        expand_decl(node)
+        for node in ast
     ]
 
     memo = TypedefMemo(types)
@@ -213,6 +205,103 @@ def process_header(path):
             record.make_define()
             for record in records
         ),
+    )
+
+
+class TypeRenameVisitor(c_ast.NodeVisitor):
+    def __init__(self, type_prefix, non_renamed):
+        self.type_prefix = type_prefix
+        self.names = {
+            name: name
+            for name in (non_renamed or [])
+        }
+
+    def _rename(self, name):
+        if name:
+            try:
+                return self.names[name]
+            except KeyError:
+                new = f'{self.type_prefix}{name}'
+                self.names[name] = new
+                return new
+        else:
+            return name
+
+    def visit_IdentifierType(self, node):
+        node.names = [
+            self.names.get(name, name)
+            for name in node.names
+        ]
+
+    def visit_Typedef(self, node):
+        def rename_decl(node, name):
+            if isinstance(node, c_ast.TypeDecl):
+                node.declname = name
+            else:
+                # Go through layers of PtrDecl, ArrayDecl etc
+                return rename_decl(node.type, name)
+
+        new = self._rename(node.name)
+        node.name = new
+        rename_decl(node.type, new)
+        self.visit(node.type)
+
+    def visit_Enum(self, node):
+        node.name = self._rename(node.name)
+        if node.values is not None:
+            self.visit(node.values)
+
+    def visit_Enumerator(self, node):
+        node.name = self._rename(node.name)
+
+    def _visit_StructUnion(self, node):
+        node.name = self._rename(node.name)
+        # Not a forward decl
+        if node.decls is not None:
+            self.visit(node.decls)
+
+    def visit_Struct(self, node):
+        self._visit_StructUnion(node)
+
+    def visit_Union(self, node):
+        self._visit_StructUnion(node)
+
+    # pycparserext types added by:
+    # https://github.com/inducer/pycparserext/pull/76
+    visit_EnumExt = visit_Enum
+    visit_StructExt = visit_Struct
+    visit_UnionExt = visit_Union
+    visit_EnumeratorExt = visit_Enumerator
+
+def rename_types(ast, type_prefix, non_renamed):
+    ast = copy.deepcopy(ast)
+    TypeRenameVisitor(type_prefix, non_renamed).visit(ast)
+    code = GnuCGenerator().visit(ast)
+    return code
+
+
+def process_header(path, introspect, type_prefix, non_renamed_types):
+    with open(path, 'r') as f:
+        header = f.read()
+
+    if non_renamed_types:
+        with open(non_renamed_types, 'r') as f:
+            non_renamed_types = [name.strip() for name in f.read().splitlines()]
+    else:
+        non_renamed_types = []
+
+    # Remove comments and the non-standard GNU C extensions that pycparser cannot
+    # process
+    cmd = ['cpp', '-P', '-']
+    res = subprocess.run(cmd, input=header, capture_output=True, text=True, check=True)
+    header = res.stdout
+
+    parser = GnuCParser()
+    ast = parser.parse(header, filename=path)
+
+    return itertools.chain(
+        introspect_header(ast) if introspect else [],
+        [rename_types(ast, type_prefix, non_renamed_types)] if type_prefix else [],
     )
 
 
@@ -261,15 +350,22 @@ def main():
     """)
 
     parser.add_argument('--header', help='C header file to parse')
+    parser.add_argument('--introspect', action='store_true', help='Create introspection macros for the given --header or --kallsyms')
+
+    parser.add_argument('--type-prefix', help='Add the given prefix to the types found in --header and dump the resulting renamed header')
+    parser.add_argument('--non-renamed-types', help='File containing list of type names that will not be renamed by --type-prefix')
     parser.add_argument('--kallsyms', help='kallsyms content to parse')
 
     args = parser.parse_args()
 
+    if args.type_prefix and not args.header:
+        parser.error('--header is required if --type-prefix is used')
+
     out = []
     if args.header:
-        out.append(process_header(args.header))
+        out.append(process_header(args.header, args.introspect, args.type_prefix, args.non_renamed_types))
 
-    if args.kallsyms:
+    if args.kallsyms and args.introspect:
         out.append(process_kallsyms(args.kallsyms))
 
     for rec in sorted(set(itertools.chain.from_iterable(out))):

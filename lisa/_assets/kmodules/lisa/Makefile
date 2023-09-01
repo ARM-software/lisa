@@ -117,12 +117,12 @@ endif
 
 PRIVATE_TYPES_H_TYPE_PREFIX := KERNEL_PRIVATE_
 
-python_env:
-	python3 -m pip install -r $(MODULE_SRC)/requirements.txt
+VENV := $(MODULE_OBJ)/venv
+$(VENV):
+	python3 -m venv $(VENV)
+	. $(VENV)/bin/activate && python3 -m pip install --upgrade pip setuptools wheel && python3 -m pip install -r $(MODULE_SRC)/requirements.txt
 
-.PHONY: python_env
-
-$(PRIVATE_TYPES_H): $(GENERATED) $(KALLSYMS) $(PRIVATE_TYPES_TXT) $(VMLINUX) python_env
+$(PRIVATE_TYPES_H): $(GENERATED) $(KALLSYMS) $(PRIVATE_TYPES_TXT) $(VMLINUX) $(VENV)
 # Some options are not upstream (yet) but they have all be published on the
 # dwarves mailing list
 #
@@ -144,22 +144,26 @@ $(PRIVATE_TYPES_H): $(GENERATED) $(KALLSYMS) $(PRIVATE_TYPES_TXT) $(VMLINUX) pyt
 
 # Create a header with all the types we can for introspection purposes. This
 # will not be included in any of the module sources, so all we care about is
-# that pycparser can parse it.
-	pahole -F btf,dwarf -E --expand_types_once --suppress_force_paddings --suppress_aligned_attribute --suppress_packed --show_only_data_members --compile --fixup_silly_bitfields "$(VMLINUX)" > $(MODULE_OBJ)/_introspection_header
-
-# Rename all defined types to include the prefix
-	sed "s/\(struct\|union\|enum\)\s*\([a-zA-Z0-9_]\+\)/\1 $(PRIVATE_TYPES_H_TYPE_PREFIX)\2/g" -i $(MODULE_OBJ)/_header
-# Create a sed script to rename back to initial state the types that we explicitly asked for
-	sed -n "s@\(.*\)@s/\\\(struct\\\|union\\\|enum\\\)\\\s*$(PRIVATE_TYPES_H_TYPE_PREFIX)\1/\\\1 \\1/;@gp" "$(PRIVATE_TYPES_TXT)" | sed -f - -i $(MODULE_OBJ)/_header
+# that pycparser can parse it. Specifically, some types may be re-defined with
+# incompatible definitions. This is expected as various drivers use the same
+# struct names.
+	pahole -F btf,dwarf -E --expand_types_once --suppress_force_paddings --suppress_aligned_attribute --suppress_packed --show_only_data_members --compile --fixup_silly_bitfields "$(VMLINUX)" > $(MODULE_OBJ)/_full_header
 
 # Strip comments to avoid matching them with the sed regex.
 	"$(CC)" -P -E - < $(MODULE_OBJ)/_header > $(MODULE_OBJ)/_header_no_comment
-# Create forward declaration of every type
+# Create forward declaration of every type to ensure the header can be parsed correctly.
 	sed -r -n 's/.*(struct|union|enum) ([0-9a-zA-Z_]*) .*/\1 \2;/p' $(MODULE_OBJ)/_header_no_comment | sort -u > $(MODULE_OBJ)/_fwd_decl
+
+# Rename all the kernel private types we are not directly interested in to avoid any clash
+	cat $(MODULE_OBJ)/_fwd_decl $(MODULE_OBJ)/_header_no_comment > $(MODULE_OBJ)/_header
+	. $(VENV)/bin/activate && python3 $(MODULE_SRC)/introspect_header.py --header $(MODULE_OBJ)/_header --type-prefix $(PRIVATE_TYPES_H_TYPE_PREFIX) --non-renamed-types $(PRIVATE_TYPES_TXT) > $(MODULE_OBJ)/_renamed_header
+
 # Create type introspection macros
-	python3 $(MODULE_SRC)/introspect_header.py --header $(MODULE_OBJ)/_introspection_header --kallsyms $(KALLSYMS) >> $(MODULE_OBJ)/_introspection
+	. $(VENV)/bin/activate && python3 $(MODULE_SRC)/introspect_header.py --header $(MODULE_OBJ)/_full_header --introspect --kallsyms $(KALLSYMS) >> $(MODULE_OBJ)/_introspection_header
+
+# Build the final header
 	printf '#pragma once\n' > $@
-	cat $(MODULE_OBJ)/_introspection $(MODULE_OBJ)/_fwd_decl $(MODULE_OBJ)/_header >> $@
+	cat $(MODULE_OBJ)/_introspection_header $(MODULE_OBJ)/_renamed_header >> $@
 # cat $@
 
 # out-of-tree build
