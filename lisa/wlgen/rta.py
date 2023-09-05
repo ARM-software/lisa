@@ -2942,6 +2942,7 @@ class PeriodicWload(WloadPropertyBase, ComposableMultiConcretePropertyBase):
 
     The task runs to complete a given amount of work, then sleeps until the end
     of the period.
+
     {params}
     """
     _ATTRIBUTES = {
