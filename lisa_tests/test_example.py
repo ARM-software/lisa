@@ -59,7 +59,8 @@ class ExampleTestBundle(RTATestBundle, TestBundle):
         self.shell_output = shell_output
 
     @classmethod
-    def _from_target(cls, target: Target, *, res_dir: ArtifactPath, collector=None) -> 'ExampleTestBundle':
+    # Uncomment that return annotation to allow exekall to work
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath, collector=None): #-> 'ExampleTestBundle':
         """
         :meta public:
 
