@@ -33,7 +33,7 @@ specified by :class:`~lisa.target.TargetConf`.
 
 .. code-block:: sh
 
-  exekall run lisa.tests --conf target_conf.yml
+  exekall run lisa lisa_tests --conf target_conf.yml
 
 When pointed at folders (or packages), ``exekall`` will recursively look for
 Python files.
@@ -50,7 +50,7 @@ to list available tests.
 .. code-block:: sh
 
   # Select and run all tests starting with PELTTask but not containing "load"
-  exekall run lisa.tests --conf target_conf.yml -s 'PELTTask*' -s '!*load*'
+  exekall run lisa lisa_tests --conf target_conf.yml -s 'PELTTask*' -s '!*load*'
 
 ``--artifact-dir`` can be used to set the location at which ``exekall`` will
 store its artifacts. By default, it will be stored in a sub directory of
@@ -172,7 +172,7 @@ of values for some of its parameters:
   # The energy_est_threshold_pct parameter of functions with a name matching
   # '*test_task_placement' will take the following values all values from 0 to 15
   # by increments of 5.
-  exekall run lisa.tests --conf target_conf.yml --sweep '*test_task_placement' energy_est_threshold_pct 0 15 5
+  exekall run lisa lisa_tests --conf target_conf.yml --sweep '*test_task_placement' energy_est_threshold_pct 0 15 5
 
 When something went wrong
 -------------------------
@@ -188,7 +188,7 @@ without needing a board at all):
 
 .. code-block:: sh
 
-  exekall run lisa.tests --load-db artifacts/VALUE_DB.pickle.xz --replay ba017f269bee4687b2a902329ba22bd9
+  exekall run lisa lisa_tests --load-db artifacts/VALUE_DB.pickle.xz --replay ba017f269bee4687b2a902329ba22bd9
 
 .. warning:: ``--replay`` currently will not restore values that were set using
   ``--sweep``.
@@ -207,14 +207,14 @@ in the pipeline will interact with the target, so it's a good place to stop:
 
 .. code-block:: sh
 
-  exekall run lisa.tests --conf target_conf.yml --goal '*TestBundle' --artifact-dir artifacts
+  exekall run lisa lisa_tests --conf target_conf.yml --goal '*TestBundle' --artifact-dir artifacts
 
 
 Later on, the processing methods can be run from the data collected:
 
 .. code-block:: sh
 
-  exekall run lisa.tests --load-db artifacts/VALUE_DB.pickle.xz --load-type '*TestBundle'
+  exekall run lisa lisa_tests --load-db artifacts/VALUE_DB.pickle.xz --load-type '*TestBundle'
 
 
 .. tip:: ``--load-db`` can also be used to re-process data from regular
@@ -222,7 +222,7 @@ Later on, the processing methods can be run from the data collected:
   processing code over the set of data acquired during an earlier session. A
   typical use case would be to look at the impact of changing a margin of a
   test like the ``energy_est_threshold_pct`` parameter of
-  :meth:`~lisa.tests.scheduler.eas_behaviour.EASBehaviour.test_task_placement`
+  :meth:`~lisa_tests.kernel..scheduler.eas_behaviour.EASBehaviour.test_task_placement`
 
 Aggregating results
 -------------------
@@ -305,7 +305,7 @@ file with this kind of content:
       # https://learnxinyminutes.com/docs/yaml/
       cmd: >
 	cd "$LISA_HOME" &&
-	exekall run lisa.tests --conf target_conf.yml -s 'OneSmallTask*'
+	exekall run lisa lisa_tests --conf target_conf.yml -s 'OneSmallTask*'
 
     # Another test example, that is not integrated with exekall
     - class: test

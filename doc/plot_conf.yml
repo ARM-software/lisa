@@ -27,7 +27,7 @@ doc-plot-conf:
                 normalize_time: true
                 plat_info: *plat_info0
 
-            wlgen_profile: &wlgen_profile0 !call:lisa.tests.scheduler.eas_behaviour.TwoBigThreeSmall.get_rtapp_profile
+            wlgen_profile: &wlgen_profile0 !call:lisa_tests.arm.kernel.scheduler.eas_behaviour.TwoBigThreeSmall.get_rtapp_profile
                 plat_info: *plat_info0
 
             task: &task0 big_0-0

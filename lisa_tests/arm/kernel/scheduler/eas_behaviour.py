@@ -41,7 +41,7 @@ from lisa.conf import (
 
 class EASBehaviourTestConf(TestConfBase):
     """
-    Configuration class for :meth:`lisa.tests.scheduler.eas_behaviour.EASBehaviour.get_big_duty_cycle`.
+    Configuration class for :meth:`lisa_tests.arm.kernel.scheduler.eas_behaviour.EASBehaviour.get_big_duty_cycle`.
 
     {generated_help}
     {yaml_example}
