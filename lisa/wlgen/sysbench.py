@@ -16,8 +16,7 @@
 #
 """
 Sysbench is a useful workload to get some performance numbers, e.g. to assert
-that higher frequencies lead to more work done (as done in
-:class:`~lisa.tests.cpufreq.sanity.UserspaceSanity`).
+that higher frequencies lead to more work done
 """
 
 import re
