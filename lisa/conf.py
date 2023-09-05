@@ -999,7 +999,7 @@ class MultiSrcConfABC(Serializable, abc.ABC):
                 )
                 for cls_ in offending
             ):
-                raise RuntimeError(f'Class {cls.__qualname__} cannot reuse top level key "{format_keys(toplevel_keys)}" as it is already used by {", ".join(offending)}')
+                raise RuntimeError(f'Class {cls.__qualname__} cannot reuse top level key "{format_keys(toplevel_keys)}" as it is already used by {", ".join(map(str, offending))}')
             else:
                 cls._REGISTERED_TOPLEVEL_KEYS[toplevel_keys] = cls
 
