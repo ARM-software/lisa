@@ -40,6 +40,8 @@ import argparse
 import time
 import datetime
 import copy
+import warnings
+import os.path
 
 DB_FILENAME = 'VALUE_DB.pickle.xz'
 
@@ -518,30 +520,52 @@ def error(msg):
     EXEKALL_LOGGER.error(msg)
 
 
-def infer_mod_name(python_src):
+def infer_mod_name(python_src, package_roots=None, excep_handler=None):
     """
     Compute the module name of a Python source file by inferring its top-level
     package
     """
-    python_src = pathlib.Path(python_src)
-    module_path = None
+    python_src = pathlib.Path(python_src).absolute()
+    module_path1 = None
+    module_path2 = None
 
     # First look for the outermost package we find in the parent directories.
     # If we were supplied a path, it will not try to go past its highest folder.
     for folder in reversed(python_src.parents):
         if pathlib.Path(folder, '__init__.py').exists():
             package_root_parent = folder.parents[0]
-            module_path = python_src.relative_to(package_root_parent)
+            module_path1 = python_src.relative_to(package_root_parent)
             break
     # If no package was found, we try to find it through sys.path in case it is
     # only using namespace packages
     else:
         for package_root_parent in sys.path:
             try:
-                module_path = python_src.relative_to(package_root_parent)
+                module_path1 = python_src.relative_to(package_root_parent)
                 break
             except ValueError:
                 continue
+
+    if package_roots:
+        for path in package_roots:
+            assert path
+            path = pathlib.Path(path).absolute()
+            package_root_parent = path.parents[0]
+            try:
+                module_path2 = python_src.relative_to(package_root_parent)
+            except ValueError:
+                continue
+            else:
+                break
+        else:
+            raise ValueError('Could not find {python_src} in any of the package roots: {package_roots}')
+
+    # Pick the longest path of both
+    paths = [module_path1, module_path2]
+    module_path, *_ = sorted(
+        filter(bool, paths),
+        key=lambda path: len(path.parents), reverse=True
+    )
 
     # If we found the top-level package
     if module_path is not None:
@@ -550,10 +574,12 @@ def infer_mod_name(python_src):
 
         # Import all parent package_names before we import the module
         for package_name in reversed(module_parents[:-1]):
-            package_name = import_file(
+            import_file(
                 pathlib.Path(package_root_parent, package_name),
                 module_name='.'.join(package_name.parts),
+                package_roots=package_roots,
                 is_package=True,
+                excep_handler=excep_handler,
             )
 
         module_dotted_path = list(module_parents[0].parts) + [module_basename]
@@ -622,16 +648,37 @@ def import_modules(paths_or_names, excep_handler=None):
     def import_it(path_or_name):
         # Recursively import all modules when passed folders
         if path_or_name.is_dir():
-            yield from import_folder(path_or_name, excep_handler=excep_handler)
+            modules = list(import_folder(path_or_name, package_roots=[path_or_name], excep_handler=excep_handler))
+            yield from modules
+
+            # Import by name the top-level package corresponding to the imports
+            # we just did, and import that top-level package by name if it is a
+            # namespace package. This will ensure we find all the legs of the
+            # namespace package, wherever they are
+            if modules:
+                names = [m.__name__ for m in modules]
+                prefix = os.path.commonprefix(names)
+                toplevel = '.'.join(prefix.split('.')[:-1])
+
+                try:
+                    toplevel = importlib.import_module(toplevel)
+                except Exception:
+                    pass
+                else:
+                    is_namespace = len(toplevel.__path__ or [])
+                    if is_namespace:
+                        # Best-effort attempt, we ignore exceptions here as a
+                        # namespace package is open to the world and we don't
+                        # want to prevent loading part of it simply because
+                        # another leg is broken.
+                        yield from import_name_recursively(toplevel.__name__, excep_handler=lambda *args, **kwargs: None)
+
         # If passed a file, a symlink or something like that
         elif path_or_name.exists():
-            try:
-                yield import_file(path_or_name)
-            except Exception as e:
-                if excep_handler:
-                    return excep_handler(str(path_or_name), e)
-                else:
-                    raise
+            mod = import_file(path_or_name, excep_handler=excep_handler)
+            # Could be an exception handler return value
+            if inspect.ismodule(mod):
+                yield mod
         # Otherwise, assume it is just a module name
         else:
             yield from import_name_recursively(path_or_name, excep_handler=excep_handler)
@@ -660,6 +707,7 @@ def import_name_recursively(name, excep_handler=None):
             return excep_handler(name_str, e)
         else:
             raise
+
     try:
         paths = mod.__path__
     # This is a plain module
@@ -667,26 +715,24 @@ def import_name_recursively(name, excep_handler=None):
         yield mod
     # This is a package, so we import all the submodules recursively
     else:
+        root, *_ = str(name).split('.', 1)
+        package_roots = importlib.import_module(root).__path__
         for path in paths:
-            yield from import_folder(pathlib.Path(path), excep_handler=excep_handler)
+            yield from import_folder(pathlib.Path(path), package_roots=package_roots, excep_handler=excep_handler)
 
 
-def import_folder(path, excep_handler=None):
+def import_folder(path, package_roots=None, excep_handler=None):
     """
     Import all modules contained in the given folder, recurisvely.
     """
     for python_src in glob.iglob(str(path / '**' / '*.py'), recursive=True):
-        try:
-            yield import_file(python_src)
-        except Exception as e:
-            if excep_handler:
-                excep_handler(python_src, e)
-                continue
-            else:
-                raise
+        mod = import_file(python_src, package_roots=package_roots, excep_handler=excep_handler)
+        # Could be an exception handler return value
+        if inspect.ismodule(mod):
+            yield mod
 
 
-def import_file(python_src, module_name=None, is_package=False):
+def import_file(python_src, *args, excep_handler=None, **kwargs):
     """
     Import a module.
 
@@ -697,11 +743,24 @@ def import_file(python_src, module_name=None, is_package=False):
         name is inferred using :func:`infer_mod_name`
     :type module_name: str
 
+    :param package_roots: Paths to the root of the package, used by
+        :func:`infer_mod_name`. A namespace package can have multiple roots.
+    :type package_roots: list(str)
+
     :param is_package: ``True`` if the module is a package. If a folder or
         ``__init__.py`` is passed, this is forcefully set to ``True``.
     :type is_package: bool
 
     """
+    try:
+        return _import_file(python_src, *args, **kwargs)
+    except Exception as e:
+        if excep_handler:
+            return excep_handler(python_src, e)
+        else:
+            raise
+
+def _import_file(python_src, module_name=None, is_package=False, package_roots=None, excep_handler=None):
     python_src = pathlib.Path(python_src).resolve()
 
     # Directly importing __init__.py does not really make much sense and may
@@ -710,14 +769,16 @@ def import_file(python_src, module_name=None, is_package=False):
         return import_file(
             python_src=python_src.parent,
             module_name=module_name,
-            is_package=True
+            package_roots=package_roots,
+            is_package=True,
+            excep_handler=excep_handler,
         )
 
     if python_src.is_dir():
         is_package = True
 
     if module_name is None:
-        module_name = infer_mod_name(python_src)
+        module_name = infer_mod_name(python_src, package_roots=package_roots, excep_handler=excep_handler)
 
     # Check if the module has already been imported
     if module_name in sys.modules:
@@ -727,21 +788,22 @@ def import_file(python_src, module_name=None, is_package=False):
     if is_package:
         # Signify that it is a package to
         # importlib.util.spec_from_file_location
-        submodule_search_locations = [str(python_src)]
         init_py = pathlib.Path(python_src, '__init__.py')
         # __init__.py does not exists for namespace packages
         if init_py.exists():
             python_src = init_py
         else:
             is_namespace_package = True
-    else:
-        submodule_search_locations = None
 
-    # Python >= 3.5 style
-    if hasattr(importlib.util, 'module_from_spec'):
-        # We manually build a ModuleSpec for namespace packages, since
-        # spec_from_file_location apparently does not handle them
-        if is_namespace_package:
+    # We manually build a ModuleSpec for namespace packages, since
+    # spec_from_file_location apparently does not handle them
+    if is_namespace_package:
+        # If we get the module spec this way, we will automatically get the
+        # full submodule_search_location so that the namespace package
+        # contains all its legs
+        spec = importlib.util.find_spec(module_name)
+
+        if spec is None:
             spec = importlib.machinery.ModuleSpec(
                 name=module_name,
                 # loader is None for namespace packages
@@ -749,59 +811,52 @@ def import_file(python_src, module_name=None, is_package=False):
                 is_package=True,
             )
             # Set __path__ for namespace packages
-            spec.submodule_search_locations = submodule_search_locations
-        else:
-            spec = importlib.util.spec_from_file_location(
-                module_name,
-                str(python_src),
-                submodule_search_locations=submodule_search_locations,
-            )
-            if spec is None:
-                raise ModuleNotFoundError(
-                    'Could not find module "{module}" at {path}'.format(
-                        module=module_name,
-                        path=python_src
-                    ),
-                    name=module_name,
-                    path=python_src,
-                )
-
-        module = importlib.util.module_from_spec(spec)
-        if not is_namespace_package:
-            try:
-                # Register module before executing it so relative imports will
-                # work
-                sys.modules[module_name] = module
-                # Nothing to execute in a namespace package
-                spec.loader.exec_module(module)
-            # If the module cannot be imported cleanly regardless of the reason,
-            # make sure we remove it from sys.modules since it's broken. Future
-            # attempt to import it should raise again, rather than returning the
-            # broken module
-            except BaseException:
-                with contextlib.suppress(KeyError):
-                    del sys.modules[module_name]
-                raise
-            else:
-
-                # Set the attribute on the parent package, so that this works:
-                #
-                #    import foo.bar
-                #    print(foo.bar)
-                try:
-                    parent_name, last = module_name.rsplit('.', 1)
-                except ValueError:
-                    pass
-                else:
-                    parent = sys.modules[parent_name]
-                    setattr(parent, last, module)
-
-
-
-    #  Python <= v3.4 style
+            spec.submodule_search_locations = [str(python_src)]
     else:
-        module = importlib.machinery.SourceFileLoader(
-            module_name, str(python_src)).load_module()
+        spec = importlib.util.spec_from_file_location(
+            module_name,
+            str(python_src),
+        )
+
+    if spec is None:
+        raise ModuleNotFoundError(
+            'Could not find module "{module}" at {path}'.format(
+                module=module_name,
+                path=python_src
+            ),
+            name=module_name,
+            path=python_src,
+        )
+
+    module = importlib.util.module_from_spec(spec)
+    try:
+        # Register module before executing it so relative imports will
+        # work
+        sys.modules[module_name] = module
+        with warnings.catch_warnings():
+            warnings.simplefilter(action='ignore')
+            spec.loader.exec_module(module)
+    # If the module cannot be imported cleanly regardless of the reason,
+    # make sure we remove it from sys.modules since it's broken. Future
+    # attempt to import it should raise again, rather than returning the
+    # broken module
+    except BaseException:
+        with contextlib.suppress(KeyError):
+            del sys.modules[module_name]
+        raise
+    else:
+
+        # Set the attribute on the parent package, so that this works:
+        #
+        #    import foo.bar
+        #    print(foo.bar)
+        try:
+            parent_name, last = module_name.rsplit('.', 1)
+        except ValueError:
+            pass
+        else:
+            parent = sys.modules[parent_name]
+            setattr(parent, last, module)
 
     sys.modules[module_name] = module
     importlib.invalidate_caches()
