@@ -321,8 +321,8 @@ def df_squash(df, start, end, column='delta'):
     # If s1 is in the interval, we just need to cap its len to
     # s1 - e1.index
 
-    prev_df = df[:start]
-    middle_df = df[start:end]
+    prev_df = df.loc[:start]
+    middle_df = df.loc[start:end]
 
     # Tweak the closest previous event to include it in the slice
     if not prev_df.empty and start not in middle_df.index:
@@ -1851,7 +1851,7 @@ def series_convert(series, dtype, nullable=None):
 
         pipelines.append(
             # Otherwise fallback to calling the type directly
-            lambda series: series.apply(convert, convert_dtype=False)
+            lambda series: series.astype(object).apply(convert)
         )
 
     # Then try with a nullable type.
@@ -1939,20 +1939,19 @@ def series_convert(series, dtype, nullable=None):
         # unusable
         if (
             series.dtype.name == 'object' and
-            series.apply(isinstance, args=(bytes,), convert_dtype=False).any()
+            series.astype(object).apply(isinstance, args=(bytes,)).any()
         ):
             string_basic = None
             # Handle mixed dtypes
-            str_basic = lambda x : x.apply(
+            str_basic = lambda x : x.astype(object).apply(
                 lambda x: x.decode('ascii') if isinstance(x, bytes) else str(x),
-                convert_dtype=False
             )
         else:
             string_basic = basic
             str_basic = make_convert(str)
 
         # Faster than Series.str.decode()
-        basic_decode = lambda x : x.apply(bytes.decode, args=('ascii',), convert_dtype=False)
+        basic_decode = lambda x : x.astype(object).apply(bytes.decode, args=('ascii',))
 
         # Significantly faster than Series.str.decode()
         def fast_decode(x):
