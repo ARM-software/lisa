@@ -29,7 +29,7 @@ from lisa.analysis.tasks import TaskState, TasksAnalysis
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
 from lisa.datautils import df_window, df_refit_index, series_mean, df_filter_task_ids
 
-from lisa.tests.scheduler.load_tracking import LoadTrackingHelpers
+from lisa_tests.arm.kernel.scheduler.load_tracking import LoadTrackingHelpers
 
 
 class UtilTrackingBase(RTATestBundle, LoadTrackingHelpers, TestBundle):

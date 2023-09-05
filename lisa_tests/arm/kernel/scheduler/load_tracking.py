@@ -611,7 +611,7 @@ class InvarianceBase(TestBundleBase, LoadTrackingHelpers, abc.ABC):
     def get_item(self, cpu, freq):
         """
         :returns: The
-            :class:`~lisa.tests.scheduler.load_tracking.InvarianceItemBase`
+            :class:`~lisa_tests.arm.kernel.scheduler.load_tracking.InvarianceItemBase`
             generated when running at a given frequency
         """
         for item in self.invariance_items:

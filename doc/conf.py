@@ -409,6 +409,9 @@ autodoc_default_options = {
 autodoc_inherit_docstrings = True
 
 ignored_refs = {
+    # They don't have a doc on RTD yet
+    r'lisa_tests.*',
+
     # gi.repository is strangely laid out, and the module in which Variant
     # (claims) to actually be defined in is not actually importable it seems
     r'gi\..*',
