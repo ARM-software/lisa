@@ -154,7 +154,7 @@ $(SYMBOL_NAMESPACES_H): $(GENERATED)
 
 $(MODULE_VERSION_H): $(GENERATED)
 	printf "#ifndef _MODULE_VERSION_H\n#define _MODULE_VERSION_H\n#define LISA_MODULE_VERSION \"" > $@
-	export LC_ALL=C && cd $(MODULE_SRC) && sha1sum -- *.c *.h | sort | sha1sum | cut -d' ' -f1 | tr -d '\n' >> $@
+	export LC_ALL=C && (cd $(MODULE_SRC) && sha1sum -- *.c *.h) | sort | sha1sum | cut -d' ' -f1 | tr -d '\n' >> $@
 	printf "\"\n#endif\n" >> $@
 
 # Make all object files depend on the generated sources
