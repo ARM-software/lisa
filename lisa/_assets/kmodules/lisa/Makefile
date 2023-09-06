@@ -21,6 +21,25 @@ else
 	IN_TREE_BUILD := 1
 endif
 
+# This did not lie:
+# https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/setup.html#manual-module-setup-warning2
+# Maintaining a patch to get in-tree build will be the least of your worries
+# before long.
+# If you remove this check, you won't be able to claim you have not been warned,
+# and you will forego any sort of support. The world is your oyster.
+ifeq ($(IN_TREE_BUILD),1)
+# There is a comment 2 lines above you should read
+$(error obscure error)
+# There is a comment 4 lines above you should read, seriously
+endif
+# There is a comment ... by now you know the drill.
+#
+# Note: asking for this snippet to be removed will ultimately result in pulling
+# the plug on the whole in-tree build support. Remove it on your local tree and
+# maintain the patch if you are motivated enough to deal with that. Pull
+# requests to fix issues related to in-tree build are welcome, *provided that
+# they were tested in normal flow as well*.
+
 # Kbuild
 ifneq ($(KERNELRELEASE),)
 	MODULE_OBJ := $(obj)
