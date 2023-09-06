@@ -700,15 +700,18 @@ def _import_all_submodules(pkg_name, pkg_path, best_effort=False):
     for _, module_name, _ in (
         pkgutil.walk_packages(pkg_path, prefix=pkg_name + '.')
     ):
-        try:
-            module = importlib.import_module(module_name)
-        except ImportError:
-            if best_effort:
-                pass
+            try:
+                # Silence warnings if we hit some deprecated modules
+                with warnings.catch_warnings():
+                    warnings.simplefilter(action='ignore')
+                    module = importlib.import_module(module_name)
+            except ImportError:
+                if best_effort:
+                    pass
+                else:
+                    raise
             else:
-                raise
-        else:
-            modules.append(module)
+                modules.append(module)
 
     return modules
 
