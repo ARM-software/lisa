@@ -136,7 +136,7 @@ static inline struct cfs_rq *get_se_cfs_rq(struct sched_entity *se)
 
 
 #if HAS_TYPE(struct, cfs_rq)
-static inline const struct sched_avg *lisa_cfs_rq_avg(struct cfs_rq *cfs_rq)
+static inline const struct sched_avg *cfs_rq_avg(struct cfs_rq *cfs_rq)
 {
 #    if HAS_KERNEL_FEATURE(CFS_PELT)
 	return cfs_rq ? (struct sched_avg *)&cfs_rq->avg : NULL;
@@ -145,7 +145,7 @@ static inline const struct sched_avg *lisa_cfs_rq_avg(struct cfs_rq *cfs_rq)
 #    endif
 }
 
-static inline char *lisa_cfs_rq_path(struct cfs_rq *cfs_rq, char *str, int len)
+static inline char *cfs_rq_path(struct cfs_rq *cfs_rq, char *str, int len)
 {
 	if (!cfs_rq) {
 		if (str)
@@ -158,7 +158,7 @@ static inline char *lisa_cfs_rq_path(struct cfs_rq *cfs_rq, char *str, int len)
 	return str;
 }
 
-static inline int lisa_cfs_rq_cpu(struct cfs_rq *cfs_rq)
+static inline int cfs_rq_cpu(struct cfs_rq *cfs_rq)
 {
 	return cfs_rq ? cpu_of(rq_of(cfs_rq)) : -1;
 }
@@ -166,7 +166,7 @@ static inline int lisa_cfs_rq_cpu(struct cfs_rq *cfs_rq)
 #endif
 
 #if HAS_TYPE(struct, rq)
-static inline const struct sched_avg *lisa_rq_avg_rt(struct rq *rq)
+static inline const struct sched_avg *rq_avg_rt(struct rq *rq)
 {
 #    if HAS_KERNEL_FEATURE(RT_PELT)
 	return rq ? (struct sched_avg *)&rq->avg_rt : NULL;
@@ -175,7 +175,7 @@ static inline const struct sched_avg *lisa_rq_avg_rt(struct rq *rq)
 #    endif
 }
 
-static inline const struct sched_avg *lisa_rq_avg_dl(struct rq *rq)
+static inline const struct sched_avg *rq_avg_dl(struct rq *rq)
 {
 #    if HAS_KERNEL_FEATURE(DL_PELT)
 	return rq ? (struct sched_avg *)&rq->avg_dl : NULL;
@@ -184,7 +184,7 @@ static inline const struct sched_avg *lisa_rq_avg_dl(struct rq *rq)
 #    endif
 }
 
-static inline const struct sched_avg *lisa_rq_avg_irq(struct rq *rq)
+static inline const struct sched_avg *rq_avg_irq(struct rq *rq)
 {
 #    if HAS_KERNEL_FEATURE(IRQ_PELT)
 	return rq ? (struct sched_avg *)&rq->avg_irq : NULL;
@@ -193,12 +193,12 @@ static inline const struct sched_avg *lisa_rq_avg_irq(struct rq *rq)
 #    endif
 }
 
-static inline int lisa_rq_cpu(struct rq *rq)
+static inline int rq_cpu(struct rq *rq)
 {
 	return rq ? cpu_of(rq) : -1;
 }
 
-static inline int lisa_rq_cpu_capacity(struct rq *rq)
+static inline int rq_cpu_capacity(struct rq *rq)
 {
 	return rq ?
 #if    HAS_KERNEL_FEATURE(RQ_CAPACITY)
@@ -209,7 +209,7 @@ static inline int lisa_rq_cpu_capacity(struct rq *rq)
 		: -1;
 }
 
-static inline int lisa_rq_nr_running(struct rq *rq)
+static inline int rq_nr_running(struct rq *rq)
 {
 #    if HAS_KERNEL_FEATURE(RQ_NR_RUNNING)
 	if (rq->nr_running)
@@ -220,7 +220,7 @@ static inline int lisa_rq_nr_running(struct rq *rq)
 #endif
 
 #if HAS_TYPE(struct, root_domain)
-static inline const struct cpumask *lisa_rd_span(struct root_domain *rd)
+static inline const struct cpumask *rd_span(struct root_domain *rd)
 {
 #    if defined(CONFIG_SMP) && HAS_MEMBER(struct, root_domain, span)
 	return rd ? (struct cpumask *)rd->span : NULL;
