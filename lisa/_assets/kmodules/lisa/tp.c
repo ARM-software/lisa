@@ -20,9 +20,9 @@ static inline void _trace_cfs(struct cfs_rq *cfs_rq,
 	char path[PATH_SIZE];
 	int cpu;
 
-	avg = lisa_cfs_rq_avg(cfs_rq);
-	lisa_cfs_rq_path(cfs_rq, path, PATH_SIZE);
-	cpu = lisa_cfs_rq_cpu(cfs_rq);
+	avg = cfs_rq_avg(cfs_rq);
+	cfs_rq_path(cfs_rq, path, PATH_SIZE);
+	cpu = cfs_rq_cpu(cfs_rq);
 
 	trace_event(cpu, path, avg);
 }
@@ -42,8 +42,8 @@ static inline void _trace_se(struct sched_entity *se,
 	pid_t pid;
 	int cpu;
 
-	lisa_cfs_rq_path(gcfs_rq, path, PATH_SIZE);
-	cpu = lisa_cfs_rq_cpu(cfs_rq);
+	cfs_rq_path(gcfs_rq, path, PATH_SIZE);
+	cpu = cfs_rq_cpu(cfs_rq);
 
 	p = gcfs_rq ? NULL : container_of(se, struct task_struct, se);
 	comm = p ? p->comm : "(null)";
@@ -72,8 +72,8 @@ DEFINE_TP_EVENT_FEATURE(lisa__uclamp_util_cfs, pelt_cfs_tp, uclamp_util_cfs_prob
 #if HAS_KERNEL_FEATURE(RT_PELT)
 static void sched_pelt_rt_probe(void *feature, struct rq *rq)
 {
-	const struct sched_avg *avg = lisa_rq_avg_rt(rq);
-	int cpu = lisa_rq_cpu(rq);
+	const struct sched_avg *avg = rq_avg_rt(rq);
+	int cpu = rq_cpu(rq);
 
 	if (!avg)
 		return;
@@ -86,8 +86,8 @@ DEFINE_TP_EVENT_FEATURE(lisa__sched_pelt_rt, pelt_rt_tp, sched_pelt_rt_probe);
 #if HAS_KERNEL_FEATURE(DL_PELT)
 static void sched_pelt_dl_probe(void *feature, struct rq *rq)
 {
-	const struct sched_avg *avg = lisa_rq_avg_dl(rq);
-	int cpu = lisa_rq_cpu(rq);
+	const struct sched_avg *avg = rq_avg_dl(rq);
+	int cpu = rq_cpu(rq);
 
 	if (!avg)
 		return;
@@ -100,8 +100,8 @@ DEFINE_TP_EVENT_FEATURE(lisa__sched_pelt_dl, pelt_dl_tp, sched_pelt_dl_probe);
 #if HAS_KERNEL_FEATURE(IRQ_PELT)
 static void sched_pelt_irq_probe(void *feature, struct rq *rq)
 {
-	const struct sched_avg *avg = lisa_rq_avg_irq(rq);
-	int cpu = lisa_rq_cpu(rq);
+	const struct sched_avg *avg = rq_avg_irq(rq);
+	int cpu = rq_cpu(rq);
 
 	if (!avg)
 		return;
@@ -138,7 +138,7 @@ static void sched_overutilized_probe(void *feature, struct root_domain *rd, bool
 	if (trace_lisa__sched_overutilized_enabled()) {
 		char span[SPAN_SIZE];
 
-		cpumap_print_to_pagebuf(false, span, lisa_rd_span(rd));
+		cpumap_print_to_pagebuf(false, span, rd_span(rd));
 
 		trace_lisa__sched_overutilized(overutilized, span);
 	}
@@ -150,8 +150,8 @@ DEFINE_TP_EVENT_FEATURE(lisa__sched_overutilized, sched_overutilized_tp, sched_o
 static void sched_update_nr_running_probe(void *feature, struct rq *rq, int change)
 {
 	if (trace_lisa__sched_update_nr_running_enabled()) {
-		int cpu = lisa_rq_cpu(rq);
-		int nr_running = lisa_rq_nr_running(rq);
+		int cpu = rq_cpu(rq);
+		int nr_running = rq_nr_running(rq);
 
 		trace_lisa__sched_update_nr_running(cpu, change, nr_running);
 	}
