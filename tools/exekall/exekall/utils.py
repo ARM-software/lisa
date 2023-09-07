@@ -52,9 +52,9 @@ def get_callable_set(module_set, verbose=False):
             visited_module_set.add(module)
 
             callable_set_ = _get_callable_set(
-                module,
-                visited_obj_set,
-                package_set=package_set,
+                namespace=module,
+                module=module,
+                visited_obj_set=visited_obj_set,
                 verbose=verbose,
             )
 
@@ -100,9 +100,10 @@ def _get_members(*args, **kwargs):
         warnings.simplefilter(action='ignore')
         return inspect.getmembers(*args, **kwargs)
 
-def _get_callable_set(namespace, visited_obj_set, package_set, verbose):
+def _get_callable_set(namespace, module, visited_obj_set, verbose):
     """
     :param namespace: Module or class
+    :param module: Module the namespace was defined in, or ``None`` to be ignored.
     """
     log_f = info if verbose else debug
     callable_pool = set()
@@ -124,13 +125,13 @@ def _get_callable_set(namespace, visited_obj_set, package_set, verbose):
         attributes.append(namespace)
 
     def select(attr):
-        module = inspect.getmodule(attr)
+        _module = inspect.getmodule(attr)
         return (
             # Module of builtins is None
-            module is None or
+            _module is None or
             # skip internal classes that may end up being exposed as a global
-            module is not engine and
-            get_package(module) in package_set
+            _module is not engine and
+            (True if module is None else _module is module)
         )
 
     visited_obj_set.update(attributes)
@@ -158,7 +159,16 @@ def _get_callable_set(namespace, visited_obj_set, package_set, verbose):
             )
         ):
             callable_pool.update(
-                _get_callable_set(callable_, visited_obj_set, package_set, verbose)
+                _get_callable_set(
+                    namespace=callable_,
+                    visited_obj_set=visited_obj_set,
+                    verbose=verbose,
+                    # We want to get all the attributes in classes, regardless
+                    # on what module owns them. For example, we want to select
+                    # a method inherited from a base class even if that base
+                    # class and the method definition lives somewhere else.
+                    module=None,
+                )
             )
 
         # Functions defined in a class are methods, and have to be wrapped so
