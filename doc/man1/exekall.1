@@ -67,8 +67,8 @@ subcommands:
 .sp
 .nf
 .ft C
-usage: exekall run [\-h] [\-s ID_PATTERN] [\-\-list] [\-n N] [\-\-load\-db LOAD_DB]
-                   [\-\-load\-type TYPE_PATTERN]
+usage: exekall run [\-h] [\-\-dependency DEPENDENCY] [\-s ID_PATTERN] [\-\-list]
+                   [\-n N] [\-\-load\-db LOAD_DB] [\-\-load\-type TYPE_PATTERN]
                    [\-\-replay REPLAY | \-\-load\-uuid LOAD_UUID]
                    [\-\-artifact\-dir ARTIFACT_DIR | \-\-artifact\-root ARTIFACT_ROOT]
                    [\-\-no\-save\-value\-db] [\-\-verbose] [\-\-pdb]
@@ -98,6 +98,11 @@ positional arguments:
 
 optional arguments:
   \-h, \-\-help            show this help message and exit
+  \-\-dependency DEPENDENCY
+                        Same as specifying a module in PYTHON_MODULES but will only be used to
+                        build an expression if it would have been selected without that module
+                        listed. Operators defined in modules listed here will not be used as
+                        the root operator in any expression.
   \-s ID_PATTERN, \-\-select ID_PATTERN
                         Only run the expressions with an ID matching any of the supplied
                         pattern. A pattern starting with \(dq!\(dq can be used to exclude IDs

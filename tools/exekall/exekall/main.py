@@ -232,6 +232,11 @@ please run ``exekall run YOUR_SOURCES_OR_MODULES --help``.
         metavar='PYTHON_MODULES',
         help="""Python modules files or module names. If passed a folder, all contained files recursively are selected. By default, the current directory is selected.""")
 
+    add_argument(run_parser, '--dependency', action='append',
+        default=[],
+        help="""Same as specifying a module in PYTHON_MODULES but will only be used to build an expression if it would have been selected without that module listed. Operators defined in modules listed here will not be used as the root operator in any expression.""",
+    )
+
     add_argument(run_parser, '-s', '--select', action='append',
         metavar='ID_PATTERN',
         default=[],
@@ -661,8 +666,10 @@ def do_run(args, parser, run_parser, argv):
         if mod.endswith('.py'):
             saved_exceps.append((mod, e))
 
+    python_files = list(itertools.chain(args.python_files, args.dependency))
+
     module_set = set()
-    for path in args.python_files:
+    for path in python_files:
         try:
             imported = utils.import_modules([path], excep_handler=best_effort)
         # This might fail, since some adaptor options may introduce "fake"
@@ -727,7 +734,8 @@ def do_run(args, parser, run_parser, argv):
         ))
         exit_after_import = True
 
-    module_set = utils.import_modules(args.python_files, excep_handler=excep_handler)
+    root_module_set = set(utils.import_modules(args.python_files, excep_handler=excep_handler))
+    module_set = root_module_set | set(utils.import_modules(args.dependency, excep_handler=excep_handler))
 
     if exit_after_import:
         return import_error_code
@@ -915,12 +923,12 @@ def do_run(args, parser, run_parser, argv):
             # Only keep the Expression where the outermost (root) operator is
             # defined in one of the files that were explicitly specified on the
             # command line.
-            inspect.getmodule(op.callable_) in module_set or
+            inspect.getmodule(op.callable_) in root_module_set or
             # Also include all methods (including the inherited ones) of
             # classes that are defined in the files explicitly specified
             (
                 isinstance(op.callable_, engine.UnboundMethod) and
-                op.callable_.cls.__module__ in map(attrgetter('__name__'), module_set)
+                op.callable_.cls.__module__ in map(attrgetter('__name__'), root_module_set)
             )
         )
     ])
