@@ -1,0 +1,37 @@
+
+# batch-rebase manifest used to create the pahole branch for LISA
+
+# The "lisa" branch in the pahole repo can be constructed with:
+# batch-rebase create . --manifest "$LISA_HOME/tools/recipes/pycparserext.manifest.yaml" --create-branch lisa
+
+rebase-conf:
+    rr-cache: ./rr-cache
+    base:
+        remote: github
+        ref: main
+
+    topics:
+        # https://github.com/inducer/pycparserext/pull/78
+        -
+            name: fix_arr_attributes
+            remote: github
+            base: main
+            tip: fix_arr_attributes
+
+        # https://github.com/inducer/pycparserext/pull/77
+        -
+            name: fix_tests
+            remote: github
+            base: main
+            tip: fix_tests
+
+        # https://github.com/inducer/pycparserext/pull/76
+        -
+            name: struct_attr
+            remote: github
+            base: main
+            tip: struct_attr
+
+    remotes:
+        github:
+          url: https://github.com/douglas-raillard-arm/pycparserext.git
