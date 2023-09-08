@@ -17,16 +17,17 @@
 
 #include "sched_helpers.h"
 
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(5,6,0)
+#if HAS_MEMBER(struct, sched_avg, runnable_load_avg)
 #define RBL_LOAD_ENTRY		rbl_load
 #define RBL_LOAD_MEMBER		runnable_load_avg
 #define RBL_LOAD_STR		"rbl_load"
-#else
+#elif HAS_MEMBER(struct, sched_avg, runnable_avg)
 #define RBL_LOAD_ENTRY		runnable
 #define RBL_LOAD_MEMBER		runnable_avg
 #define RBL_LOAD_STR		"runnable"
 #endif
 
+#if HAS_KERNEL_FEATURE(CFS_PELT)
 TRACE_EVENT(lisa__sched_pelt_cfs,
 
 	TP_PROTO(int cpu, char *path, const struct sched_avg *avg),
@@ -37,7 +38,9 @@ TRACE_EVENT(lisa__sched_pelt_cfs,
 		__field(	int,		cpu			)
 		__array(	char,		path,	PATH_SIZE	)
 		__field(	unsigned long,	load			)
+#if HAS_KERNEL_FEATURE(SCHED_AVG_RBL)
 		__field(	unsigned long,	RBL_LOAD_ENTRY		)
+#endif
 		__field(	unsigned long,	util			)
 		__field(	unsigned long long, update_time	        )
 	),
@@ -46,16 +49,29 @@ TRACE_EVENT(lisa__sched_pelt_cfs,
 		__entry->cpu		= cpu;
 		strlcpy(__entry->path, path, PATH_SIZE);
 		__entry->load		= avg->load_avg;
+#if HAS_KERNEL_FEATURE(SCHED_AVG_RBL)
 		__entry->RBL_LOAD_ENTRY	= avg->RBL_LOAD_MEMBER;
+#endif
 		__entry->util		= avg->util_avg;
 		__entry->update_time    = avg->last_update_time;
 	),
 
-	TP_printk("cpu=%d path=%s load=%lu " RBL_LOAD_STR "=%lu util=%lu update_time=%llu",
-		  __entry->cpu, __entry->path, __entry->load,
-		  __entry->RBL_LOAD_ENTRY,__entry->util, __entry->update_time)
+	TP_printk(
+		"cpu=%d path=%s load=%lu util=%lu update_time=%llu"
+#if HAS_KERNEL_FEATURE(SCHED_AVG_RBL)
+		" " RBL_LOAD_STR "=%lu"
+#endif
+		,
+		__entry->cpu, __entry->path, __entry->load,
+		__entry->util, __entry->update_time
+#if HAS_KERNEL_FEATURE(SCHED_AVG_RBL)
+		,__entry->RBL_LOAD_ENTRY
+#endif
+	)
 );
+#endif
 
+#if HAS_TYPE(struct, sched_avg)
 DECLARE_EVENT_CLASS(lisa__sched_pelt_rq_template,
 
 	TP_PROTO(int cpu, const struct sched_avg *avg),
@@ -65,7 +81,9 @@ DECLARE_EVENT_CLASS(lisa__sched_pelt_rq_template,
 	TP_STRUCT__entry(
 		__field(	int,		cpu			)
 		__field(	unsigned long,	load			)
+#if HAS_KERNEL_FEATURE(SCHED_AVG_RBL)
 		__field(	unsigned long,	RBL_LOAD_ENTRY		)
+#endif
 		__field(	unsigned long,	util			)
 		__field(	unsigned long long, update_time	        )
 	),
@@ -73,28 +91,47 @@ DECLARE_EVENT_CLASS(lisa__sched_pelt_rq_template,
 	TP_fast_assign(
 		__entry->cpu		= cpu;
 		__entry->load		= avg->load_avg;
+#if HAS_KERNEL_FEATURE(SCHED_AVG_RBL)
 		__entry->RBL_LOAD_ENTRY	= avg->RBL_LOAD_MEMBER;
+#endif
 		__entry->util		= avg->util_avg;
 		__entry->update_time    = avg->last_update_time;
 	),
 
-	TP_printk("cpu=%d load=%lu " RBL_LOAD_STR "=%lu util=%lu update_time=%llu",
-		  __entry->cpu, __entry->load,
-		  __entry->RBL_LOAD_ENTRY,__entry->util, __entry->update_time)
+	TP_printk(
+		"cpu=%d load=%lu util=%lu update_time=%llu"
+#if HAS_KERNEL_FEATURE(SCHED_AVG_RBL)
+		" " RBL_LOAD_STR "=%lu"
+#endif
+		,
+		__entry->cpu, __entry->load,
+		__entry->util, __entry->update_time
+#if HAS_KERNEL_FEATURE(SCHED_AVG_RBL)
+		,__entry->RBL_LOAD_ENTRY
+#endif
+	)
 );
+#endif
 
+#if HAS_KERNEL_FEATURE(RT_PELT)
 DEFINE_EVENT(lisa__sched_pelt_rq_template, lisa__sched_pelt_rt,
 	TP_PROTO(int cpu, const struct sched_avg *avg),
 	TP_ARGS(cpu, avg));
+#endif
 
+#if HAS_KERNEL_FEATURE(DL_PELT)
 DEFINE_EVENT(lisa__sched_pelt_rq_template, lisa__sched_pelt_dl,
 	TP_PROTO(int cpu, const struct sched_avg *avg),
 	TP_ARGS(cpu, avg));
+#endif
 
+#if HAS_KERNEL_FEATURE(IRQ_PELT)
 DEFINE_EVENT(lisa__sched_pelt_rq_template, lisa__sched_pelt_irq,
 	TP_PROTO(int cpu, const struct sched_avg *avg),
 	TP_ARGS(cpu, avg));
+#endif
 
+#if HAS_KERNEL_FEATURE(SE_PELT)
 TRACE_EVENT(lisa__sched_pelt_se,
 
 	TP_PROTO(int cpu, char *path, char *comm, int pid, const struct sched_avg *avg),
@@ -107,7 +144,9 @@ TRACE_EVENT(lisa__sched_pelt_se,
 		__array(	char,		comm,	TASK_COMM_LEN	)
 		__field(	int,		pid			)
 		__field(	unsigned long,	load			)
+#if HAS_KERNEL_FEATURE(SCHED_AVG_RBL)
 		__field(	unsigned long,	RBL_LOAD_ENTRY		)
+#endif
 		__field(	unsigned long,	util			)
 		__field(	unsigned long long, update_time	        )
 	),
@@ -118,16 +157,29 @@ TRACE_EVENT(lisa__sched_pelt_se,
 		strlcpy(__entry->comm, comm, TASK_COMM_LEN);
 		__entry->pid		= pid;
 		__entry->load		= avg->load_avg;
+#if HAS_KERNEL_FEATURE(SCHED_AVG_RBL)
 		__entry->RBL_LOAD_ENTRY	= avg->RBL_LOAD_MEMBER;
+#endif
 		__entry->util		= avg->util_avg;
 		__entry->update_time    = avg->last_update_time;
 	),
 
-	TP_printk("cpu=%d path=%s comm=%s pid=%d load=%lu " RBL_LOAD_STR "=%lu util=%lu update_time=%llu",
-		  __entry->cpu, __entry->path, __entry->comm, __entry->pid,
-		  __entry->load, __entry->RBL_LOAD_ENTRY,__entry->util, __entry->update_time)
+	TP_printk(
+		"cpu=%d path=%s comm=%s pid=%d load=%lu util=%lu update_time=%llu"
+#if HAS_KERNEL_FEATURE(SCHED_AVG_RBL)
+		" " RBL_LOAD_STR "=%lu"
+#endif
+		,
+		__entry->cpu, __entry->path, __entry->comm, __entry->pid,
+		__entry->load, __entry->util, __entry->update_time
+#if HAS_KERNEL_FEATURE(SCHED_AVG_RBL)
+		,__entry->RBL_LOAD_ENTRY
+#endif
+	)
 );
+#endif
 
+#if HAS_KERNEL_FEATURE(SCHED_OVERUTILIZED)
 TRACE_EVENT(lisa__sched_overutilized,
 
 	TP_PROTO(int overutilized, char *span),
@@ -147,8 +199,9 @@ TRACE_EVENT(lisa__sched_overutilized,
 	TP_printk("overutilized=%d span=0x%s",
 		  __entry->overutilized, __entry->span)
 );
+#endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,9,0)
+#if HAS_KERNEL_FEATURE(RQ_NR_RUNNING)
 TRACE_EVENT(lisa__sched_update_nr_running,
 
 	    TP_PROTO(int cpu, int change, unsigned int nr_running),
@@ -169,7 +222,9 @@ TRACE_EVENT(lisa__sched_update_nr_running,
 
 	    TP_printk("cpu=%d change=%d nr_running=%d", __entry->cpu, __entry->change, __entry->nr_running)
 	    );
+#endif
 
+#if HAS_KERNEL_FEATURE(SE_UTIL_EST)
 TRACE_EVENT(lisa__sched_util_est_se,
 
 	TP_PROTO(int cpu, char *path, char *comm, int pid,
@@ -201,7 +256,9 @@ TRACE_EVENT(lisa__sched_util_est_se,
 		  __entry->cpu, __entry->path, __entry->comm, __entry->pid,
 		  __entry->enqueued, __entry->ewma, __entry->util)
 );
+#endif
 
+#if HAS_KERNEL_FEATURE(CFS_UTIL_EST)
 TRACE_EVENT(lisa__sched_util_est_cfs,
 
 	TP_PROTO(int cpu, char *path, const struct sched_avg *avg),
@@ -230,8 +287,7 @@ TRACE_EVENT(lisa__sched_util_est_cfs,
 );
 #endif
 
-#ifdef CONFIG_UCLAMP_TASK
-
+#if HAS_KERNEL_FEATURE(SE_UCLAMP)
 TRACE_EVENT_CONDITION(lisa__uclamp_util_se,
 
 	TP_PROTO(bool is_task, struct task_struct *p, struct rq *rq),
@@ -253,9 +309,9 @@ TRACE_EVENT_CONDITION(lisa__uclamp_util_se,
 	TP_fast_assign(
 		__entry->pid            = p->pid;
 		memcpy(__entry->comm, p->comm, TASK_COMM_LEN);
-		__entry->cpu            = lisa_rq_cpu(rq);
+		__entry->cpu            = rq_cpu(rq);
 		__entry->util_avg       = p->se.avg.util_avg;
-		__entry->uclamp_avg     = uclamp_rq_util_with(rq, p->se.avg.util_avg, NULL);
+		__entry->uclamp_avg     = uclamp_rq_util_with(rq, p->se.avg.util_avg);
 		__entry->uclamp_min     = rq->uclamp[UCLAMP_MIN].value;
 		__entry->uclamp_max     = rq->uclamp[UCLAMP_MAX].value;
 		),
@@ -266,7 +322,12 @@ TRACE_EVENT_CONDITION(lisa__uclamp_util_se,
 		  __entry->util_avg, __entry->uclamp_avg,
 		  __entry->uclamp_min, __entry->uclamp_max)
 );
+#else
+#define trace_lisa__uclamp_util_se(is_task, p, rq) while(false) {}
+#define trace_lisa__uclamp_util_se_enabled() (false)
+#endif
 
+#if HAS_KERNEL_FEATURE(CFS_UCLAMP)
 TRACE_EVENT_CONDITION(lisa__uclamp_util_cfs,
 
 	TP_PROTO(bool is_root, struct rq *rq, struct cfs_rq *cfs_rq),
@@ -284,9 +345,9 @@ TRACE_EVENT_CONDITION(lisa__uclamp_util_cfs,
 	),
 
 	TP_fast_assign(
-		__entry->cpu            = lisa_rq_cpu(rq);
+		__entry->cpu            = rq_cpu(rq);
 		__entry->util_avg       = cfs_rq->avg.util_avg;
-		__entry->uclamp_avg     = uclamp_rq_util_with(rq, cfs_rq->avg.util_avg, NULL);
+		__entry->uclamp_avg     = uclamp_rq_util_with(rq, cfs_rq->avg.util_avg);
 		__entry->uclamp_min     = rq->uclamp[UCLAMP_MIN].value;
 		__entry->uclamp_max     = rq->uclamp[UCLAMP_MAX].value;
 		),
@@ -297,13 +358,11 @@ TRACE_EVENT_CONDITION(lisa__uclamp_util_cfs,
 		  __entry->uclamp_min, __entry->uclamp_max)
 );
 #else
-#define trace_lisa__uclamp_util_se(is_task, p, rq) while(false) {}
-#define trace_lisa__uclamp_util_se_enabled() false
 #define trace_lisa__uclamp_util_cfs(is_root, cpu, cfs_rq) while(false) {}
-#define trace_lisa__uclamp_util_cfs_enabled() false
-#endif /* CONFIG_UCLAMP_TASK */
+#define trace_lisa__uclamp_util_cfs_enabled() (false)
+#endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,10,0) && (defined(CONFIG_ARM64) || defined(CONFIG_ARM))
+#if HAS_KERNEL_FEATURE(RQ_CAPACITY)
 TRACE_EVENT(lisa__sched_cpu_capacity,
 
 	TP_PROTO(struct rq *rq),

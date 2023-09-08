@@ -22,6 +22,18 @@ rebase-conf:
             base: master
             tip: anon_struct
 
+        -
+            name: fix_const_nested
+            remote: github
+            base: master
+            tip: fix_const_nested
+
+        -
+            name: fix_volatile_func_ptr
+            remote: github
+            base: master
+            tip: fix_volatile_func_ptr
+
     remotes:
         github:
           url: https://github.com/douglas-raillard-arm/pahole.git
