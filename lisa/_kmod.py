@@ -1812,9 +1812,12 @@ class KmodSrc(Loggable):
             if name.endswith('.c')
         }
 
-    def _checksum(self, sources_only=False):
-        sources = self.code_files if sources_only else self.src
-
+    @property
+    @memoized
+    def checksum(self):
+        """
+        Checksum of the module's sources & Makefile.
+        """
         def checksum(content):
             m = hashlib.sha1()
             content = content if isinstance(content, bytes) else content.encode('utf-8')
@@ -1823,33 +1826,17 @@ class KmodSrc(Loggable):
 
         content = sorted(
             (checksum(content), name)
-            for name, content in sources.items()
+            for name, content in self.src.items()
         )
 
         # Recreate the output of sha1sum over multiple files, and checksum
         # that.
-        return checksum(
-            '\n'.join(
-                f'{csum}  {name}'
-                for csum, name in content
-            ) + '\n'
-        )
+        content = '\n'.join(
+            f'{csum}  ./{name}'
+            for csum, name in content
+        ) + '\n'
 
-    @property
-    @memoized
-    def checksum(self):
-        """
-        Checksum of the module's sources & Makefile.
-        """
-        return self._checksum(sources_only=False)
-
-    @property
-    @memoized
-    def sources_checksum(self):
-        """
-        Checksum of the module's sources.
-        """
-        return self._checksum(sources_only=True)
+        return checksum(content)
 
     @property
     @memoized
@@ -2491,7 +2478,7 @@ class LISAFtraceDynamicKmod(FtraceDynamicKmod):
 
 
         kmod_params = kmod_params or {}
-        kmod_params['version'] = self.src.sources_checksum
+        kmod_params['version'] = self.src.checksum
 
         base_path, kmod_filename = guess_kmod_path()
         logger.debug(f'Looking for pre-installed {kmod_filename} module in {base_path}')
