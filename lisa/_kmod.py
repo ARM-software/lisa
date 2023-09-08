@@ -1025,7 +1025,6 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         bind_paths = {path: path}
 
         def fixup_kernel_build_env():
-
             if fixup_atomic_headers:
                 # TODO: re-assess
 
@@ -1057,7 +1056,6 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                             updated = join(updated)
                             _path.write_bytes(updated)
 
-
         if build_conf['build-env'] == 'alpine':
             settings = build_conf['build-env-settings']['alpine']
             version = settings.get('version', None)
@@ -1082,12 +1080,33 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         else:
             cmd_cm = lambda cmds: nullcontext(cmds)
 
+        try:
+            config_path = os.environ['KCONFIG_CONFIG']
+        except KeyError:
+            config_path = '.config'
+
+        config_path = Path(config_path)
+        if not config_path.is_absolute():
+            config_path = Path(path) / config_path
+
+        try:
+            config_content = config_path.read_bytes()
+        except FileNotFoundError:
+            config_content = None
+
         with cmd_cm(cmds) as _cmds:
             pre, post = _cmds
             logger.info(f'Preparing kernel tree for modules')
 
             if pre is not None:
                 _subprocess_log(pre, logger=logger, level=logging.DEBUG)
+
+            # Ensure the configuration is available under .config, so that we
+            # can rely on that. Overlays can now be applied to override it if
+            # they need to. KCONFIG_CONFIG is set in _process_make_vars() to
+            # ".config" so that all make commands run with these settings.
+            if config_content:
+                (path / '.config').write_bytes(config_content)
 
             # Apply the overlays before running make, so that it sees the
             # correct headers and conf etc
@@ -1125,6 +1144,10 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             str(k): str(v)
             for k, v in make_vars.items()
         }
+
+        # Force the value of .config, and we ensure somewhere else that we will
+        # end up with the correct configuration there.
+        make_vars['KCONFIG_CONFIG'] = '.config'
 
         try:
             arch = make_vars['ARCH']
@@ -1468,6 +1491,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                 target.cached_pull('/sys/kernel/kheaders.tar.xz', str(temp), via_temp=True, as_root=True)
 
                 return {
+                    # We can use .config as we control KCONFIG_CONFIG in _process_make_vars()
                     FileOverlay.from_path(temp / 'config.gz', decompress=True): '.config',
                     TarOverlay.from_path(temp / 'kheaders.tar.xz'): '.',
                 }
@@ -1485,6 +1509,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             def pull(target, temp):
                 target.cached_pull('/proc/config.gz', str(temp), as_root=True)
                 return {
+                    # We can use .config as we control KCONFIG_CONFIG in _process_make_vars()
                     FileOverlay.from_path(temp / 'config.gz', decompress=True): '.config',
                 }
 
@@ -1581,18 +1606,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         """
         logger = cls.get_logger()
         overlays = overlays or {}
-
         build_conf, cc, abi = cls._resolve_conf(build_conf)
-
-        if tree_path:
-            try:
-                config = Path(tree_path, '.config').read_bytes()
-            except FileNotFoundError:
-                restore_config = lambda _: None
-            else:
-                restore_config = lambda path: path.write_bytes(config)
-        else:
-            restore_config = lambda _: None
 
         def copy_filter(src, dst, remove_obj=False):
             return not (
@@ -1606,10 +1620,6 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             )
 
         def apply_overlays(path):
-            # Ensure .config is present if it was at the beginning, so that it
-            # survives make mrproper in _prepare_tree()
-            restore_config(path / '.config')
-
             for overlay, dst in overlays.items():
                 logger.debug(f'Unpacking overlay {overlay} -> {dst}')
                 overlay.write_to(os.path.join(path, dst))
