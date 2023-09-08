@@ -15,6 +15,11 @@
 # limitations under the License.
 #
 
+# This would break the IN_TREE_BUILD detection
+ifeq ($(KBUILD_ABS_SRCTREE),1)
+$(error KBUILD_ABS_SRCTREE=1 is not handled by the lisa module
+endif
+
 ifeq ($(srctree),.)
 	IN_TREE_BUILD := 0
 else
@@ -63,14 +68,14 @@ ifneq ($(KERNELRELEASE),)
 
 LISA_KMOD_NAME ?= lisa
 obj-m := $(LISA_KMOD_NAME).o
-$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o private_types.o
+$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o introspection_data.o
 
 # -fno-stack-protector is needed to possibly undefined __stack_chk_guard symbol
 ccflags-y := "-I$(MODULE_SRC)" -std=gnu11 -fno-stack-protector -Wno-declaration-after-statement
 
 # Ensure we get appropriate debug info so that pahole can work on the object
 # file regardless of the kernel config.
-CFLAGS_private_types.o := -g3 -gno-split-dwarf -gdwarf -fno-eliminate-unused-debug-types
+CFLAGS_introspection_data.o := -g3 -gno-split-dwarf -gdwarf -fno-eliminate-unused-debug-types
 
 FEATURES_LDS := features.lds
 GENERATED := $(MODULE_OBJ)/generated
@@ -80,6 +85,7 @@ $(GENERATED):
 
 SYMBOL_NAMESPACES_H := $(GENERATED)/symbol_namespaces.h
 MODULE_VERSION_H := $(GENERATED)/module_version.h
+KALLSYMS := $(GENERATED)/kallsyms
 
 # in-tree build
 ifeq ($(IN_TREE_BUILD),1)
@@ -90,38 +96,38 @@ ldflags-y += -T $(srctree)/$(obj)/$(FEATURES_LDS)
 # out-of-tree build
 else
 
-PRIVATE_TYPES_H := $(GENERATED)/private_types.h
+INTROSPECTION_DATA_H := $(GENERATED)/introspection_data.h
 
 ldflags-y += -T $(M)/$(FEATURES_LDS)
 
-clean-files := $(PRIVATE_TYPES_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H)
+clean-files := $(GENERATED)
 
 PRIVATE_TYPES_TXT := $(MODULE_SRC)/private_types.txt
 
 # Can be either a kernel image built with DWARF debug info, or the BTF blob
 # found at /sys/kernel/btf/vmlinux
 _BTF_VMLINUX := $(MODULE_SRC)/vmlinux
-_DWARF_VMLINUX := $(KERNEL_SRC)/vmlinux
-_SYNTHETIC_VMLINUX := $(MODULE_OBJ)/private_types.o
+_REAL_VMLINUX := $(KERNEL_SRC)/vmlinux
+_SYNTHETIC_VMLINUX := $(MODULE_OBJ)/introspection_data.o
 
 ifeq ("$(wildcard $(_BTF_VMLINUX))","")
 ifeq ($(IN_TREE_BUILD),1)
     VMLINUX := $(_SYNTHETIC_VMLINUX)
 else
-    VMLINUX := $(_DWARF_VMLINUX)
+    VMLINUX := $(_REAL_VMLINUX)
 endif
 else
     VMLINUX := $(_BTF_VMLINUX)
 endif
 
-PRIVATE_TYPES_H_TYPE_PREFIX := KERNEL_PRIVATE_
+UNUSED_KERNEL_PRIVATE_TYPES_PREFIX := KERNEL_PRIVATE_
 
-python_env:
-	python3 -m pip install -r $(MODULE_SRC)/requirements.txt
+VENV := $(MODULE_OBJ)/venv
+$(VENV):
+	python3 -m venv $(VENV)
+	. $(VENV)/bin/activate && python3 -m pip install --upgrade pip setuptools wheel && python3 -m pip install -r $(MODULE_SRC)/requirements.txt
 
-.PHONY: python_env
-
-$(PRIVATE_TYPES_H): $(GENERATED) $(PRIVATE_TYPES_TXT) $(VMLINUX) python_env
+$(INTROSPECTION_DATA_H): $(GENERATED) $(KALLSYMS) $(PRIVATE_TYPES_TXT) $(VMLINUX) $(VENV)
 # Some options are not upstream (yet) but they have all be published on the
 # dwarves mailing list
 #
@@ -139,20 +145,30 @@ $(PRIVATE_TYPES_H): $(GENERATED) $(PRIVATE_TYPES_TXT) $(VMLINUX) python_env
 # that was not explicitly asked for. This avoids conflicting with type
 # definitions that would come from public kernel headers, while still allowing
 # easy attribute access.
-	pahole -F btf,dwarf -E --suppress_force_paddings --show_only_data_members --skip_missing --expand_types_once -C "file://$(PRIVATE_TYPES_TXT)" "$(VMLINUX)" > $(MODULE_OBJ)/_header
+	pahole -F btf,dwarf -E --compile --suppress_force_paddings --show_only_data_members --skip_missing --expand_types_once -C "file://$(PRIVATE_TYPES_TXT)" "$(VMLINUX)" > $(MODULE_OBJ)/_header
 
-# Rename all defined types to include the prefix
-	sed "s/\(struct\|union\|enum\)\s*\([a-zA-Z0-9_]\+\)/\1 $(PRIVATE_TYPES_H_TYPE_PREFIX)\2/g" -i $(MODULE_OBJ)/_header
-# Create a sed script to rename back to initial state the types that we explicitly asked for
-	sed -n "s@\(.*\)@s/\\\(struct\\\|union\\\|enum\\\)\\\s*$(PRIVATE_TYPES_H_TYPE_PREFIX)\1/\\\1 \\1/;@gp" "$(PRIVATE_TYPES_TXT)" | sed -f - -i $(MODULE_OBJ)/_header
+# Create a header with all the types we can for introspection purposes. This
+# will not be included in any of the module sources, so all we care about is
+# that pycparser can parse it. Specifically, some types may be re-defined with
+# incompatible definitions. This is expected as various drivers use the same
+# struct names.
+	pahole -F btf,dwarf -E --expand_types_once --suppress_force_paddings --suppress_aligned_attribute --suppress_packed --show_only_data_members --compile --fixup_silly_bitfields "$(VMLINUX)" > $(MODULE_OBJ)/_full_header
 
 # Strip comments to avoid matching them with the sed regex.
 	"$(CC)" -P -E - < $(MODULE_OBJ)/_header > $(MODULE_OBJ)/_header_no_comment
-# Create forward declaration of every type
+# Create forward declaration of every type to ensure the header can be parsed correctly.
 	sed -r -n 's/.*(struct|union|enum) ([0-9a-zA-Z_]*) .*/\1 \2;/p' $(MODULE_OBJ)/_header_no_comment | sort -u > $(MODULE_OBJ)/_fwd_decl
+
+# Rename all the kernel private types we are not directly interested in to avoid any clash
+	cat $(MODULE_OBJ)/_fwd_decl $(MODULE_OBJ)/_header_no_comment > $(MODULE_OBJ)/_header
+	. $(VENV)/bin/activate && python3 $(MODULE_SRC)/introspect_header.py --header $(MODULE_OBJ)/_header --type-prefix $(UNUSED_KERNEL_PRIVATE_TYPES_PREFIX) --non-renamed-types $(PRIVATE_TYPES_TXT) > $(MODULE_OBJ)/_renamed_header
+
 # Create type introspection macros
-	python3 $(MODULE_SRC)/introspect_header.py $(MODULE_OBJ)/_header >> $(MODULE_OBJ)/_fwd_decl
-	cat $(MODULE_OBJ)/_fwd_decl $(MODULE_OBJ)/_header > $@
+	. $(VENV)/bin/activate && python3 $(MODULE_SRC)/introspect_header.py --header $(MODULE_OBJ)/_full_header --introspect --kallsyms $(KALLSYMS) --kernel-features $(MODULE_SRC)/kernel_features.json >> $(MODULE_OBJ)/_introspection_header
+
+# Build the final header
+	printf '#pragma once\n' > $@
+	cat $(MODULE_OBJ)/_introspection_header $(MODULE_OBJ)/_renamed_header >> $@
 # cat $@
 
 # out-of-tree build
@@ -168,16 +184,23 @@ endif
 # There does not seem to be any other source for the info in e.g. sysfs or
 # procfs, so we rely on that hack for now.
 $(SYMBOL_NAMESPACES_H): $(GENERATED)
-	find "$(KERNEL_SRC)" '(' -name '*.c' -o -name '*.h' ')' -print0 | xargs -0 sed -n 's/MODULE_IMPORT_NS([^;]*;/\0/p' | sort -u > $@
+	printf '#pragma once\n' > $@
+	find "$(KERNEL_SRC)" '(' -name '*.c' -o -name '*.h' ')' -print0 | xargs -0 sed -n 's/MODULE_IMPORT_NS([^;]*;/\0/p' | sort -u >> $@
 	echo "MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);" >> $@
 
 $(MODULE_VERSION_H): $(GENERATED)
-	printf "#ifndef _MODULE_VERSION_H\n#define _MODULE_VERSION_H\n#define LISA_MODULE_VERSION \"" > $@
-	export LC_ALL=C && (cd $(MODULE_SRC) && sha1sum -- *.c *.h) | sort | sha1sum | cut -d' ' -f1 | tr -d '\n' >> $@
-	printf "\"\n#endif\n" >> $@
+	printf '#pragma once\n' > $@
+	printf "#define LISA_MODULE_VERSION \"" >> $@
+	export LC_ALL=C && (cd $(MODULE_SRC) && find -type f '(' -name '*.c' -or -name '*.h' -or -name '*.txt' -or -name '*.json' -or -name '*.py' -or -name '*.lds' -or -name 'Makefile' -or -name 'vmlinux' -or -name 'kallsyms' ')' -and -not -path './generated/*' | xargs sha1sum) | sort | sha1sum | cut -d' ' -f1 | tr -d '\n' >> $@
+	printf "\"\n" >> $@
+
+
+$(KALLSYMS): $(GENERATED)
+	cat $(MODULE_SRC)/kallsyms > $@ || $(NM) $(_REAL_VMLINUX) > $@ || touch $@
+
 
 # Make all object files depend on the generated sources
-$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(PRIVATE_TYPES_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H)
+$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(INTROSPECTION_DATA_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H)
 
 # Non-Kbuild part
 else

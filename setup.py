@@ -164,7 +164,7 @@ if __name__ == "__main__":
             "cffi", # unshare syscall
 
             "typeguard",
-            "pycparser", # For the kernel module build
+            "pycparserext", # For the kernel module build
         ],
 
         extras_require=extras_require,
