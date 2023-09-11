@@ -34,8 +34,6 @@ static void modexit(void) {
 }
 
 static int init(void) {
-	int ret;
-
 	pr_info("Loading Lisa module version %s\n", LISA_MODULE_VERSION);
 	if (strcmp(version, LISA_MODULE_VERSION)) {
 		pr_err("Lisa module version check failed. Got %s, expected %s\n", version, LISA_MODULE_VERSION);
@@ -49,7 +47,7 @@ static int init(void) {
 		pr_info("  %s: %s\n", kernel_feature_names[i], kernel_feature_values[i] ? "enabled" : "disabled");
 	}
 
-	ret = init_features(features, features_len);
+	int ret = init_features(features, features_len);
 	if (ret)
 		pr_err("Some errors happened while loading LISA kernel module: %d\n", ret);
 	return ret;
@@ -66,20 +64,21 @@ int reload(void) {
 }
 
 static int __init modinit(void) {
+	/* First load the features, so there is no race with someone trying to
 	 * reload from debugfs at the same time.
 	 */
 	if (init()) {
 		/* If the user selected features manually, make module loading fail so
-		* that they are aware that things went wrong. Otherwise, just
-		* keep going as the user just wanted to enable as many features
-		* as possible.
-		*/
+		 * that they are aware that things went wrong. Otherwise, just
+		 * keep going as the user just wanted to enable as many features
+		 * as possible.
+		 */
 		if (features_len) {
 			/* Call modexit() explicitly, since it will not be called when ret != 0.
-			* Not calling modexit() can (and will) result in kernel panic handlers
-			* installed by the module are not deregistered before the module code
-			* vanishes.
-			*/
+			 * Not calling modexit() can (and will) result in kernel panic handlers
+			 * installed by the module are not deregistered before the module code
+			 * vanishes.
+			 */
 			modexit();
 
 			/* Use one of the standard error code */
