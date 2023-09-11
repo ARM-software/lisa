@@ -34,6 +34,12 @@ rebase-conf:
             base: master
             tip: fix_volatile_func_ptr
 
+        -
+            name: fix_float
+            remote: github
+            base: master
+            tip: fix_float
+
     remotes:
         github:
           url: https://github.com/douglas-raillard-arm/pahole.git

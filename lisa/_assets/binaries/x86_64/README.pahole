@@ -1,5 +1,5 @@
 Sources of pahole available at:
-Git commit: d7e83320c320048a948e1230598cc3ae80f24960
+Git commit: cce48c2c9e634c624327856ce99e80c8c8cbad06
 Git repository: https://github.com/douglas-raillard-arm/pahole.git
 
 
@@ -53,7 +53,6 @@ install() {
     cp -v pahole/build/pahole "$LISA_ARCH_ASSETS/pahole"
 
     source "$LISA_HOME/tools/recipes/utils.sh"
-    set -e
     install_readme pahole pahole COPYING
 }
 
