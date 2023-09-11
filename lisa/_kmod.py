@@ -2428,9 +2428,14 @@ class LISAFtraceDynamicKmod(FtraceDynamicKmod):
         extra['vmlinux'] = btf
 
         try:
-            kallsyms = target.read_value('/proc/kallsyms')
+            # Ensure addresses are real, since we will use them in a linker script
+            with target.batch_revertable_write_value((
+                dict(path='/proc/sys/kernel/kptr_restrict', value='0'),
+                dict(path='/proc/sys/kernel/perf_event_paranoid', value='-1'),
+            )):
+                kallsyms = target.read_value('/proc/kallsyms')
         except TargetStableError:
-            pass
+            extra['kallsyms'] = b''
         else:
             extra['kallsyms'] = kallsyms.encode('utf-8')
 
