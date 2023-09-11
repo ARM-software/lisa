@@ -373,21 +373,36 @@ TRACE_EVENT(lisa__sched_cpu_capacity,
 		__field(	int,		cpu		)
 		__field(	unsigned long,	capacity	)
 		__field(	unsigned long,	capacity_orig	)
+#if HAS_KERNEL_FEATURE(FREQ_INVARIANCE)
 		__field(	unsigned long,	capacity_curr	)
+#endif
 	),
 
 	unsigned long scale_cpu = rq->cpu_capacity_orig;
+#if HAS_KERNEL_FEATURE(FREQ_INVARIANCE)
 	unsigned long scale_freq = arch_scale_freq_capacity(rq->cpu);
+#endif
 
 	TP_fast_assign(
 		__entry->cpu		= rq->cpu;
 		__entry->capacity	= rq->cpu_capacity;
 		__entry->capacity_orig	= scale_cpu;
+#if HAS_KERNEL_FEATURE(FREQ_INVARIANCE)
 		__entry->capacity_curr	= cap_scale(scale_cpu, scale_freq);
+#endif
 	),
 
-	TP_printk("cpu=%d capacity=%lu capacity_orig=%lu capacity_curr=%lu",
-		  __entry->cpu, __entry->capacity, __entry->capacity_orig, __entry->capacity_curr)
+	TP_printk(
+		"cpu=%d capacity=%lu capacity_orig=%lu"
+#if HAS_KERNEL_FEATURE(FREQ_INVARIANCE)
+		" capacity_curr=%lu"
+#endif
+		  ,
+		  __entry->cpu, __entry->capacity, __entry->capacity_orig
+#if HAS_KERNEL_FEATURE(FREQ_INVARIANCE)
+		  , __entry->capacity_curr
+#endif
+	)
 );
 #endif
 
