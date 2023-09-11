@@ -312,13 +312,22 @@ class SymbolRecord(namedtuple('SymbolRecord', ['name']), Record):
         return f'#define _SYMBOL_EXISTS_{self.name} 1'
 
 
+def is_global_symbol(code):
+    if code in ('u', 'v', 'w'):
+        return True
+    elif code in ('U', ):
+        return False
+    else:
+        return code.isupper()
+
+
 def process_kallsyms(path):
     with open(path, 'r') as f:
         kallsyms = f.read()
 
     def make_record(addr, code, name):
         # Uppercase codes are for STB_GLOBAL symbols, i.e. exported symbols.
-        if code.isupper() and name.isidentifier():
+        if name.isidentifier() and is_global_symbol(code):
             return SymbolRecord(name=name).make_define()
         else:
             return None
