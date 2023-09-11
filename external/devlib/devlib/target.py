@@ -54,7 +54,8 @@ from devlib.platform import Platform
 from devlib.exception import (DevlibTransientError, TargetStableError,
                               TargetNotRespondingError, TimeoutError,
                               TargetTransientError, KernelConfigKeyError,
-                              TargetError, HostError, TargetCalledProcessError) # pylint: disable=redefined-builtin
+                              TargetError, HostError, TargetCalledProcessError,
+                              TargetStableCalledProcessError)  # pylint: disable=redefined-builtin
 from devlib.utils.ssh import SshConnection
 from devlib.utils.android import AdbConnection, AndroidProperties, LogcatMonitor, adb_command, adb_disconnect, INTENT_FLAGS
 from devlib.utils.misc import memoized, isiterable, convert_new_lines, groupby_value
@@ -278,6 +279,12 @@ class Target(object):
         if self._shutils is None:
             self._setup_shutils()
         return self._shutils
+
+    def is_running(self, comm):
+        cmd_ps = f'''{self.busybox} ps -A -T -o stat,comm'''
+        cmd_awk = f'''{self.busybox} awk 'BEGIN{{found=0}} {{state=$1; $1=""; if ($state != "Z" && $0 == " {comm}") {{found=1}}}} END {{print found}}' '''
+        result = self.execute(f"{cmd_ps} | {cmd_awk}")
+        return bool(int(result))
 
     @tls_property
     def _conn(self):
