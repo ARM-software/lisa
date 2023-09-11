@@ -58,41 +58,48 @@ int __disable_feature(struct feature* feature) {
 
 typedef int (*feature_process_t)(struct feature*);
 
-static int __select_feature(struct feature* feature, char **selected, size_t selected_len, feature_process_t process) {
-	size_t i;
-	if (selected_len) {
-		for (i=0; i < selected_len; i++) {
-			if (!strcmp(selected[i], feature->name))
-				return process(feature);
-		}
-		return 0;
-	} else if (!feature->__internal) {
-		return process(feature);
-	} else {
-		return 0;
-	}
-}
-
 static int __process_features(char **selected, size_t selected_len, feature_process_t process) {
-	struct feature *feature;
 	int ret = 0;
 
-	for (feature=__lisa_features_start; feature < __lisa_features_stop; feature++) {
-		ret |= __select_feature(feature, selected, selected_len, process);
+	if (selected) {
+		// User asked for a specific set of features
+		for (size_t i=0; i < selected_len; i++) {
+			bool found = false;
+
+			for (struct feature *feature=__lisa_features_start; feature < __lisa_features_stop; feature++) {
+				if (!strcmp(feature->name, selected[i])) {
+					found = true;
+					ret |= process(feature);
+					break;
+				}
+			}
+			if (!found) {
+				pr_err("Unknown or compile-time disabled feature: %s", selected[i]);
+				ret |= 1;
+			}
+		}
+	} else {
+		// User did not ask for any particular feature, so try to enable all non-internal features.
+		for (struct feature* feature=__lisa_features_start; feature < __lisa_features_stop; feature++) {
+			if (!feature->__internal) {
+				ret |= process(feature);
+			}
+		}
 	}
+
 	return ret;
 }
 
 
 static int __list_feature(struct feature* feature) {
 	if (!feature->__internal)
-		printk(KERN_CONT "%s, ", feature->name);
+		pr_info("  %s", feature->name);
 	return 0;
 }
 
 static int __enable_feature_explicitly(struct feature* feature) {
 	mutex_lock(feature->lock);
-	feature->__explicitly_enabled = true;
+	feature->__explicitly_enabled++;
 	mutex_unlock(feature->lock);
 	return __enable_feature(feature);
 }
@@ -100,21 +107,21 @@ static int __enable_feature_explicitly(struct feature* feature) {
 int init_features(char **selected, size_t selected_len) {
 	BUG_ON(MAX_FEATURES < ((__lisa_features_stop - __lisa_features_start) / sizeof(struct feature)));
 
-	pr_info("Available features: ");
+	pr_info("Available features:");
 	__process_features(NULL, 0, __list_feature);
-	pr_info("\n");
 	return __process_features(selected, selected_len, __enable_feature_explicitly);
 }
 
 static int __disable_explicitly_enabled_feature(struct feature* feature) {
-	bool selected;
 	int ret = 0;
 
 	mutex_lock(feature->lock);
-	selected = feature->__explicitly_enabled;
+	int selected = feature->__explicitly_enabled;
 	mutex_unlock(feature->lock);
-	if (selected)
+	while (selected) {
 		ret |= __disable_feature(feature);
+		selected--;
+	}
 	return ret;
 }
 
