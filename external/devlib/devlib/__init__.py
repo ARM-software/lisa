@@ -46,6 +46,7 @@ from devlib.derived.energy import DerivedEnergyMeasurements
 from devlib.derived.fps import DerivedGfxInfoStats, DerivedSurfaceFlingerStats
 
 from devlib.collector.ftrace import FtraceCollector
+from devlib.collector.perfetto import PerfettoCollector
 from devlib.collector.perf import PerfCollector
 from devlib.collector.serial_trace import SerialTraceCollector
 from devlib.collector.dmesg import DmesgCollector
