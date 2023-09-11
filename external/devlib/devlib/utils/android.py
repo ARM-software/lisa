@@ -699,7 +699,7 @@ def get_adb_command(device, command, adb_server=None):
     if adb_server != None:
         device_string = ' -H {}'.format(adb_server)
     device_string += ' -s {}'.format(device) if device else ''
-    return "adb{} {}".format(device_string, command)
+    return "LC_ALL=C adb{} {}".format(device_string, command)
 
 
 def adb_command(device, command, timeout=None, adb_server=None):

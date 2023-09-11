@@ -22,7 +22,7 @@ from devlib import FtraceCollector
 
 from wa import Instrument, Parameter
 from wa.framework import signal
-from wa.framework.instrument import very_slow
+from wa.framework.instrument import very_slow, is_installed
 from wa.framework.exception import InstrumentError
 from wa.utils.types import list_of_strings
 from wa.utils.misc import which
@@ -235,6 +235,8 @@ class TraceCmdInstrument(Instrument):
     def validate(self):
         if self.report and not self.report_on_target and not which('trace-cmd'):
             raise InstrumentError('trace-cmd is not in PATH; is it installed?')
+        if is_installed('perfetto'):
+            raise InstrumentError('trace-cmd cannot be used at the same time as perfetto')
 
     def mark_start(self, context):
         if self.is_enabled:
