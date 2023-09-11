@@ -71,7 +71,7 @@ obj-m := $(LISA_KMOD_NAME).o
 $(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o introspection_data.o debugfs.o
 
 # -fno-stack-protector is needed to possibly undefined __stack_chk_guard symbol
-ccflags-y := "-I$(MODULE_SRC)" -std=gnu11 -fno-stack-protector -Wno-declaration-after-statement
+ccflags-y := "-I$(MODULE_SRC)" -std=gnu11 -fno-stack-protector -Wno-declaration-after-statement -Wno-error
 
 # Ensure we get appropriate debug info so that pahole can work on the object
 # file regardless of the kernel config.
