@@ -77,8 +77,11 @@ ccflags-y := "-I$(MODULE_SRC)" -std=gnu11 -fno-stack-protector -Wno-declaration-
 # file regardless of the kernel config.
 CFLAGS_introspection_data.o := -g3 -gno-split-dwarf -gdwarf -fno-eliminate-unused-debug-types
 
-FEATURES_LDS := features.lds
 GENERATED := $(MODULE_OBJ)/generated
+FEATURES_LDS := $(MODULE_SRC)/features.lds
+SYMBOLS_LDS := $(GENERATED)/symbols.lds
+
+clean-files := $(GENERATED)
 
 $(GENERATED):
 	mkdir -p "$@"
@@ -87,21 +90,15 @@ SYMBOL_NAMESPACES_H := $(GENERATED)/symbol_namespaces.h
 MODULE_VERSION_H := $(GENERATED)/module_version.h
 KALLSYMS := $(GENERATED)/kallsyms
 
-# in-tree build
+ldflags-y += -T $(FEATURES_LDS)
+
 ifeq ($(IN_TREE_BUILD),1)
-
 ccflags-y += -I$(srctree) -D_IN_TREE_BUILD
-ldflags-y += -T $(srctree)/$(obj)/$(FEATURES_LDS)
-
-# out-of-tree build
 else
+ldflags-y += -T $(SYMBOLS_LDS)
+endif
 
 INTROSPECTION_DATA_H := $(GENERATED)/introspection_data.h
-
-ldflags-y += -T $(M)/$(FEATURES_LDS)
-
-clean-files := $(GENERATED)
-
 PRIVATE_TYPES_TXT := $(MODULE_SRC)/private_types.txt
 
 # Can be either a kernel image built with DWARF debug info, or the BTF blob
@@ -171,8 +168,8 @@ $(INTROSPECTION_DATA_H): $(GENERATED) $(KALLSYMS) $(PRIVATE_TYPES_TXT) $(VMLINUX
 	cat $(MODULE_OBJ)/_introspection_header $(MODULE_OBJ)/_renamed_header >> $@
 # cat $@
 
-# out-of-tree build
-endif
+$(SYMBOLS_LDS): $(GENERATED) $(KALLSYMS) $(VENV)
+	. $(VENV)/bin/activate && python3 $(MODULE_SRC)/introspect_header.py --kallsyms $(KALLSYMS) --symbols-lds >> $@
 
 # Some kernels require the use of MODULE_IMPORT_NS() before using symbols that are part of the given namespace:
 # https://docs.kernel.org/core-api/symbol-namespaces.html
@@ -200,7 +197,7 @@ $(KALLSYMS): $(GENERATED)
 
 
 # Make all object files depend on the generated sources
-$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(INTROSPECTION_DATA_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H)
+$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(INTROSPECTION_DATA_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H) $(SYMBOLS_LDS)
 
 # Non-Kbuild part
 else

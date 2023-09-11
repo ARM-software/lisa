@@ -21,5 +21,6 @@
   "SCHED_AUTOGROUP": "IS_ENABLED(CONFIG_SCHED_AUTOGROUP) && HAS_MEMBER(struct, task_group, autogroup)",
   "SCHED_AVG_RBL": "HAS_MEMBER(struct, sched_avg, runnable_load_avg) || HAS_MEMBER(struct, sched_avg, runnable_avg)",
 
-  "FILE_IO": "HAS_SYMBOL(kernel_read) && HAS_SYMBOL(kernel_write) && HAS_SYMBOL(filp_open)"
+  "FILE_IO": "HAS_SYMBOL(kernel_read) && HAS_SYMBOL(kernel_write) && HAS_SYMBOL(filp_open)",
+  "FREQ_INVARIANCE": "HAS_SYMBOL(arch_freq_scale)"
 }

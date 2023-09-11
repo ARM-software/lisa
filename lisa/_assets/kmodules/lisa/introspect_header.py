@@ -35,17 +35,17 @@ from pycparserext.ext_c_generator import GnuCGenerator
 
 class Record(abc.ABC):
     @abc.abstractmethod
-    def make_define(self):
+    def make_entry(self):
         pass
 
 
 class TypeMemberRecord(namedtuple('TypeMemberRecord', ['type_kind', 'type_name', 'member_name']), Record):
-    def make_define(self):
+    def make_entry(self):
         return f'#define _TYPE_HAS_MEMBER_{self.type_kind}_{self.type_name}_LISA_SEPARATOR_{self.member_name} 1'
 
 
 class TypeExistsRecord(namedtuple('TypeExistsRecord', ['type_kind', 'type_name']), Record):
-    def make_define(self):
+    def make_entry(self):
         return f'#define _TYPE_EXISTS_{self.type_kind}_{self.type_name} 1'
 
 
@@ -204,7 +204,7 @@ def introspect_header(ast):
             '#define _TYPE_INTROSPECTION_INFO_AVAILABLE 1',
         ),
         (
-            record.make_define()
+            record.make_entry()
             for record in records
         ),
     )
@@ -308,28 +308,48 @@ def process_header(path, introspect, type_prefix, non_renamed_types):
 
 
 class SymbolRecord(namedtuple('SymbolRecord', ['name']), Record):
-    def make_define(self):
+    def make_entry(self):
         return f'#define _SYMBOL_EXISTS_{self.name} 1'
 
 
-def process_kallsyms(path):
-    with open(path, 'r') as f:
-        kallsyms = f.read()
+class LinkerSymbolRecord(namedtuple('LinkerSymbolRecord', ['name', 'addr']), Record):
+    def make_entry(self):
+        return f'PROVIDE({self.name} = 0x{self.addr});'
 
+
+def is_exported_symbol(code):
+    # Unfortunately, a symbol being STB_GLOBAL does not mean it is exported, so
+    # we just scrap that address of all symbols and make a linker script for
+    # the module.
+    if code in ('U', ):
+        return False
+    elif code in ('u', 'v', 'w'):
+        return True
+    else:
+        # Since we parse kallsyms, we have access to symbols even if they were
+        # not global in the first place, so if we see it we can use it.
+        return True or code.isupper()
+
+def open_kallsyms(path):
+    with open(path, 'r') as f:
+        yield from (
+            line.split(maxsplit=2)
+            for line in map(str.strip, f)
+            if line
+        )
+
+
+def process_kallsyms_introspection(path):
     def make_record(addr, code, name):
         # Uppercase codes are for STB_GLOBAL symbols, i.e. exported symbols.
-        if code.isupper() and name.isidentifier():
-            return SymbolRecord(name=name).make_define()
+        if name.isidentifier() and is_exported_symbol(code):
+            return SymbolRecord(name=name).make_entry()
         else:
             return None
 
     records = itertools.starmap(
         make_record,
-        (
-            line.split(maxsplit=2)
-            for line in kallsyms.splitlines()
-            if line
-        )
+        open_kallsyms(path),
     )
     records = set(record for record in records if record)
 
@@ -343,6 +363,21 @@ def process_kallsyms(path):
     # If the file is empty, we assume there is no kallsyms available
     else:
         return []
+
+
+def process_kallsyms_lds(path):
+    def make_record(addr, code, name):
+        if name.isidentifier():
+            return LinkerSymbolRecord(name=name, addr=addr).make_entry()
+        else:
+            return None
+
+    records = itertools.starmap(
+        make_record,
+        open_kallsyms(path),
+    )
+    records = sorted(set(record for record in records if record))
+    return records
 
 
 def process_kernel_features(path):
@@ -402,6 +437,7 @@ def main():
     parser.add_argument('--non-renamed-types', help='File containing list of type names that will not be renamed by --type-prefix')
     parser.add_argument('--kallsyms', help='kallsyms content to parse')
     parser.add_argument('--kernel-features', help='JSON list of kernel features')
+    parser.add_argument('--symbols-lds', action='store_true', help='Create a linker script with the content of --kallsyms')
 
     args = parser.parse_args()
 
@@ -413,10 +449,13 @@ def main():
         out.append(process_header(args.header, args.introspect, args.type_prefix, args.non_renamed_types))
 
     if args.kallsyms and args.introspect:
-        out.append(process_kallsyms(args.kallsyms))
+        out.append(process_kallsyms_introspection(args.kallsyms))
 
     if args.kernel_features:
         out.append(process_kernel_features(args.kernel_features))
+
+    if args.kallsyms and args.symbols_lds:
+        out.append(process_kallsyms_lds(args.kallsyms))
 
     for rec in sorted(set(itertools.chain.from_iterable(out))):
         print(rec)
