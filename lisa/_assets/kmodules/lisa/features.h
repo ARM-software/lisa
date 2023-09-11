@@ -34,8 +34,8 @@ struct feature {
 	/* Return code of the enable() function */
 	int __enable_ret;
 
-	/* true if the feature has been explicitly enabled by the user */
-	bool __explicitly_enabled;
+	/* Count of the times the feature has been explicitly enabled by the user */
+	int __explicitly_enabled;
 	/* true if the feature is internal, i.e. not exposed to the user.
 	 * Internal features are used to share some code between feature, taking
 	 * advantage of reference counting to ensure safe setup/teardown.
@@ -66,7 +66,7 @@ int __placeholder_deinit(struct feature *feature);
 		.name = #feature_name,					\
 		.data = NULL,						\
 		.enabled = 0,						\
-		.__explicitly_enabled = false,				\
+		.__explicitly_enabled = 0,				\
 		.enable = __placeholder_init,				\
 		.disable = __placeholder_deinit,			\
 		.lock = &__lisa_mutex_feature_##feature_name,		\
@@ -80,7 +80,7 @@ int __placeholder_deinit(struct feature *feature);
 		.name = #feature_name,					\
 		.data = NULL,						\
 		.enabled = 0,						\
-		.__explicitly_enabled = false,				\
+		.__explicitly_enabled = 0,				\
 		.enable = enable_f,					\
 		.disable = disable_f,					\
 		.lock = &__lisa_mutex_feature_##feature_name,		\

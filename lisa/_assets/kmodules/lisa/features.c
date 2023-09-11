@@ -99,7 +99,7 @@ static int __list_feature(struct feature* feature) {
 
 static int __enable_feature_explicitly(struct feature* feature) {
 	mutex_lock(feature->lock);
-	feature->__explicitly_enabled = true;
+	feature->__explicitly_enabled++;
 	mutex_unlock(feature->lock);
 	return __enable_feature(feature);
 }
@@ -113,14 +113,15 @@ int init_features(char **selected, size_t selected_len) {
 }
 
 static int __disable_explicitly_enabled_feature(struct feature* feature) {
-	bool selected;
 	int ret = 0;
 
 	mutex_lock(feature->lock);
-	selected = feature->__explicitly_enabled;
+	int selected = feature->__explicitly_enabled;
 	mutex_unlock(feature->lock);
-	if (selected)
+	while (selected) {
 		ret |= __disable_feature(feature);
+		selected--;
+	}
 	return ret;
 }
 
