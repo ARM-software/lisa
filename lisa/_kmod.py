@@ -839,7 +839,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         self.checksum = None
 
     @classmethod
-    def _resolve_conf(cls, conf, abi=None):
+    def _resolve_conf(cls, conf, abi=None, target=None):
         def make_conf(conf):
             if isinstance(conf, _KernelBuildEnvConf):
                 return conf
@@ -855,7 +855,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                 raise TypeError(f'Unsupported value type for build_conf: {conf}')
 
         conf = make_conf(conf)
-        make_vars, cc, abi = cls._process_make_vars(conf, abi=abi)
+        make_vars, cc, abi = cls._process_make_vars(conf, abi=abi, target=target)
         conf.add_src(src='processed make-variables', conf={'make-variables': make_vars})
 
         return (conf, cc, abi)
@@ -1121,7 +1121,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
 
 
     @classmethod
-    def _process_make_vars(cls, build_conf, abi):
+    def _process_make_vars(cls, build_conf, abi, target=None):
         env = {
             k: str(v)
             for k, v in (
@@ -1166,7 +1166,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             },
             inplace=False,
         )
-        make_vars, cc = cls._resolve_toolchain(abi, build_conf)
+        make_vars, cc = cls._resolve_toolchain(abi, build_conf, target=target)
 
         if build_conf['build-env'] == 'alpine':
             if cc.startswith('clang'):
@@ -1224,9 +1224,51 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         return False
 
     @classmethod
-    def _resolve_toolchain(cls, abi, build_conf):
+    def _resolve_toolchain(cls, abi, build_conf, target=None):
         logger = cls.get_logger()
         env = cls._make_toolchain_env_from_conf(build_conf)
+
+        def priority_to(cc):
+            return lambda _cc, _cmd: 0 if cc in _cc else 1
+
+        cc_priority = priority_to('clang')
+
+        if target:
+            config = target.config.typed_config
+            if config.get('CONFIG_CC_IS_GCC', False):
+                cc_priority = priority_to('gcc')
+            elif config.get('CONFIG_CC_IS_CLANG', False):
+                clang_version = config.get('CONFIG_CLANG_VERSION', None)
+                if clang_version is None:
+                    cc_priority = priority_to('clang')
+                else:
+                    clang_version = clang_version // 10_000
+                    def cc_priority(cc, cmd):
+                        if 'clang' in cc:
+                            version = re.search(r'[0-9]+', cc)
+                            if version is None:
+                                return (2,)
+                            else:
+                                version = int(version.group(0))
+                                return (
+                                    0 if version >= clang_version else 1,
+                                    # Try the versions closest to the one we
+                                    # want
+                                    abs(clang_version - version)
+                                )
+                        else:
+                            return (3,)
+            else:
+                try:
+                    proc_version = target.read_value('/proc/version')
+                except TargetStableError:
+                    pass
+                else:
+                    proc_version = proc_version.lower()
+                    if 'gcc' in proc_version:
+                        cc_priority = priority_to('gcc')
+                    if 'clang' in proc_version:
+                        cc_priority = priority_to('clang')
 
         make_vars = build_conf.get('make-variables', {})
 
@@ -1268,8 +1310,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             return [cc, *([f'--target={toolchain}'] if toolchain else []), '-x' 'c', '-c', '-', '-o', '/dev/null']
 
         commands = {
-            # Try clang first so we can use the "musttail" return attribute
-            # when possible
+            'gcc': [f'{toolchain or ""}gcc', '-x' 'c', '-c', '-', '-o', '/dev/null'],
             **{
                 cc: test_cmd(cc)
                 # Try the default "clang" name first in case it's good enough
@@ -1282,7 +1323,6 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     )
                 ]
             },
-            'gcc': [f'{toolchain or ""}gcc', '-x' 'c', '-c', '-', '-o', '/dev/null']
         }
 
         cc = None
@@ -1308,6 +1348,17 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                 commands = {
                     cc: test_cmd(cc),
                 }
+
+        # Give priority for the toolchain the kernel seem to have been compiled
+        # with
+        def key(cc_cmd):
+            cc, cmd = cc_cmd
+            return cc_priority(cc, cmd)
+
+        commands = dict(sorted(
+            commands.items(),
+            key=key,
+        ))
 
         # Only run the check on host build env, as other build envs are
         # expected to be correctly configured.
@@ -1399,7 +1450,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         abi = plat_info['abi']
         kernel_info = plat_info['kernel']
 
-        build_conf, cc, _abi = cls._resolve_conf(build_conf, abi=abi)
+        build_conf, cc, _abi = cls._resolve_conf(build_conf, abi=abi, target=target)
         assert _abi == abi
 
         @contextlib.contextmanager
