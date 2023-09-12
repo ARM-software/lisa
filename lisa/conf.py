@@ -82,6 +82,23 @@ class DeferredValue:
         return f'<lazy value of {self.callback.__qualname__}>'
 
 
+class FilteredDeferredValue(DeferredValue):
+    """
+    Same as :class:`lisa.conf.DeferredValue` except that the given sentinel
+    value will be interpreted as no value .
+    """
+    def __init__(self, callback, sentinel=None):
+        @functools.wraps(callback)
+        def _callback():
+            x = callback()
+            if x == sentinel:
+                raise _DeferredInexistentError()
+            else:
+                return x
+
+        super().__init__(callback=_callback)
+
+
 class DeferredExcep(DeferredValue):
     """
     Specialization of :class:`DeferredValue` to lazily raise an exception.
@@ -358,6 +375,14 @@ class KeyComputationRecursionError(ConfigKeyError, RecursionError):
     Raised when :meth:`DerivedKeyDesc.compute_val` is reentered while computing
     a given key on a configuration instance, or when a :class:`DeferredValue`
     callback is reentered.
+    """
+
+
+class _DeferredInexistentError(Exception):
+    """
+    Raised when a :class:`lisa.conf.DeferredValue` cannot compute the value. It
+    is then interpreted by the machinery as if no value was provided for that
+    key.
     """
 
 
@@ -1234,7 +1259,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         new._nested_init(*args, **kwargs)
         return new
 
-    def __copy__(self):
+    def _copy(self, copyf):
         """
         Shallow copy of the nested configuration tree, without duplicating the
         leaf values.
@@ -1253,7 +1278,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         # make a shallow copy of the attributes so we don't end up sharing
         # metadata
         new.__dict__.update(
-            (key, copy.copy(val))
+            (key, copyf(val))
             for key, val in self.__dict__.items()
             if key not in not_copied
         )
@@ -1262,7 +1287,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         # levels as one "meta object". It's not really a deepcopy either, since
         # we don't copy the values themselves.
         def copy_sublevel(sublevel):
-            new_sublevel = copy.copy(sublevel)
+            new_sublevel = copyf(sublevel)
             # Fixup the parent
             new_sublevel._parent = new
             return new_sublevel
@@ -1275,6 +1300,16 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         new._as_hashable = _HashableMultiSrcConf(new)
 
         return new
+
+    def __copy__(self):
+        """
+        Shallow copy of the nested configuration tree, without duplicating the
+        leaf values.
+         """
+        return self._copy(copy.copy)
+
+    def __deepcopy__(self, memo):
+        return self._copy(copy.deepcopy)
 
     def to_map(self):
         """
@@ -1590,9 +1625,14 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         key_desc = self._structure[key]
         val = self._key_map[key][src]
         validate = True
+
         if isinstance(val, DeferredValue):
             try:
                 val = val(key_desc=key_desc)
+            except _DeferredInexistentError:
+                self.logger.debug(f'Lazy key "{key_desc.qualname}" was computed but no value was produced')
+                del self._key_map[key][src]
+                raise
             # Wrap into a ConfigKeyError so that the user code can easily
             # handle missing keys, and the original exception is still
             # available as excep.__cause__ since it was chained with "from"
@@ -1622,10 +1662,9 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                     val = DeferredExcep(excep)
                     validate = False
 
-            if validate:
-                key_desc.validate_val(val)
-
-            self._key_map[key][src] = val
+        if validate:
+            key_desc.validate_val(val)
+        self._key_map[key][src] = val
         return val
 
     def eval_deferred(self, cls=DeferredValue, src=None, resolve_src=True, error='raise'):
@@ -1651,19 +1690,28 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         :type error: str or None
         """
         for key, src_map in self._key_map.items():
-
-            if resolve_src and src is None:
-                resolved_src = self.resolve_src(key)
-                src_map = {resolved_src: src_map[resolved_src]}
+            if src is None:
+                if resolve_src:
+                    try:
+                        src_ = self.resolve_src(key)
+                    except ConfigKeyError:
+                        continue
+                    else:
+                        src_map = {src_: src_map[src_]}
+                else:
+                    pass
+            else:
+                src_map = {src: src_map[src]}
 
             for src_, val in src_map.items():
-                if src is not None and src != src_:
-                    continue
                 if isinstance(val, cls):
-                    self._eval_deferred_val(src_, key, error=error)
+                    try:
+                        self._eval_deferred_val(src_, key, error=error)
+                    except _DeferredInexistentError:
+                        pass
 
         for sublevel in self._sublevel_map.values():
-            sublevel.eval_deferred(cls, src, resolve_src, error=error)
+            sublevel.eval_deferred(cls, src=src, resolve_src=resolve_src, error=error)
 
     def __getstate__(self):
         """
@@ -1731,23 +1779,29 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             val = key_desc.compute_val(self, eval_deferred=eval_deferred)
             src = self.resolve_src(key)
         else:
-            # Compute the source to use for that key
-            if src is None:
-                src = self.resolve_src(key)
+            while True:
+                # Compute the source to use for that key
+                if src is None:
+                    src = self.resolve_src(key)
 
-            try:
-                val = self._key_map[key][src]
-            except KeyError:
-                # pylint: disable=raise-missing-from
-                key = key_desc.qualname
-                raise ConfigKeyError(
-                    f'Key "{key}" is not available from source "{src}"',
-                    key=key,
-                    src=src,
-                )
+                try:
+                    val = self._key_map[key][src]
+                except KeyError:
+                    # pylint: disable=raise-missing-from
+                    key = key_desc.qualname
+                    raise ConfigKeyError(
+                        f'Key "{key}" is not available from source "{src}"',
+                        key=key,
+                        src=src,
+                    )
 
-            if eval_deferred:
-                val = self._eval_deferred_val(src, key, error='raise')
+                if eval_deferred:
+                    try:
+                        val = self._eval_deferred_val(src, key, error='raise')
+                    except _DeferredInexistentError:
+                        continue
+
+                break
 
         logger = self.logger
         if not quiet and logger.isEnabledFor(logging.DEBUG):
@@ -1791,9 +1845,21 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             key = key_desc.qualname
             raise ValueError(f'Key "{key}" is a nested configuration level, it does not have a source on its own.', key)
 
+        def eval_key(src, key):
+            try:
+                val = self._eval_deferred_val(src, key, error='raise')
+            except _DeferredInexistentError:
+                return (False, None)
+            else:
+                return (True, val)
+
         return OrderedDict(
-            (src, self._eval_deferred_val(src, key, error='raise'))
-            for src in self._resolve_prio(key)
+            (src, val)
+            for src, (add, val) in (
+                (src, eval_key(src, key))
+                for src in self._resolve_prio(key)
+            )
+            if add
         )
 
     def pretty_format(self, eval_deferred=False):
@@ -1868,8 +1934,29 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
     def __getitem__(self, key):
         return self.get_key(key)
 
-    def _get_key_names(self):
-        return sorted(list(self._key_map.keys()) + list(self._sublevel_map.keys()))
+    def _get_key_names(self, eval_deferred=True):
+        if eval_deferred:
+            # Ensure we have an accurate list of keys, not including deferred value
+            # that turn out to not exist.
+            self.eval_deferred(cls=FilteredDeferredValue)
+
+        def has_key(key):
+            try:
+                self.get_key(key, src=None, eval_deferred=False, quiet=True)
+            except ConfigKeyError:
+                return False
+            else:
+                return True
+
+        return sorted(
+            [
+                key
+                for key in self._key_map.keys()
+                if has_key(key)
+            ] + list(
+                self._sublevel_map.keys()
+            )
+        )
 
     def _get_derived_key_names(self):
         return sorted(
@@ -1893,15 +1980,14 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         ``collections.abc.Mapping.items()`` to allow not evaluating deferred
         values if necessary.
         """
-
         return (
             (k, self.get_key(k, eval_deferred=eval_deferred, quiet=True))
-            for k in self.keys()
+            for k in self._get_key_names(eval_deferred=eval_deferred)
         )
 
     def _ipython_key_completions_(self):
         "Allow Jupyter keys completion in interactive notebooks"
-        regular_keys = set(self.keys())
+        regular_keys = set(self._get_key_names(eval_deferred=False))
         # For autocompletion purposes, we show the derived keys
         derived_keys = set(self._get_derived_key_names())
         return sorted(regular_keys | derived_keys)
