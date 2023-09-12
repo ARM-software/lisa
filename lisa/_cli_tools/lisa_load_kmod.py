@@ -42,6 +42,12 @@ def main():
         params=params,
     )
 
+    with target.closing() as target:
+        return _main(args, target)
+
+
+def _main(args, target):
+
     features = args.feature
     keep_loaded = not bool(args.cmd)
 

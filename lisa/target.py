@@ -1303,6 +1303,23 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         return wrapper_param
 
 
+    def closing(self):
+        """
+        Returns a context manager that will disconnect the target automatically.
+        """
+        # Do not use contextlib.contextmanager() as it would force the __exit__
+        # path to run, since destroying a suspended generator raises
+        # GeneratorExit at the yield point.
+        class _ClosingCM:
+            def __enter__(_self):
+                return self
+
+            def __exit__(_self, *args, **kwargs):
+                self.disconnect()
+
+        return _ClosingCM()
+
+
 class Gem5SimulationPlatformWrapper(Gem5SimulationPlatform):
     def __init__(self, system, simulator, **kwargs):
         simulator_args = copy.copy(simulator.get('args', []))
