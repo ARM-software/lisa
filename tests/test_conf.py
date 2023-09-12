@@ -23,7 +23,7 @@ import typing
 
 import pytest
 
-from lisa.conf import MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, DerivedKeyDesc, DeferredValue
+from lisa.conf import MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, DerivedKeyDesc, DeferredValue, FilteredDeferredValue
 from .utils import StorageTestCase, HOST_PLAT_INFO, HOST_TARGET_CONF
 
 """ A test suite for the MultiSrcConf subclasses."""
@@ -80,6 +80,19 @@ class TestTargetConf(TestMultiSrcConfBase):
         self.conf = copy.copy(HOST_TARGET_CONF)
 
 
+class TestEmptyConf(TestMultiSrcConfBase):
+    __test__ = True
+
+    class Conf(MultiSrcConf):
+        STRUCTURE = TopLevelKeyDesc('lisa-self-test-test-empty-conf', 'lisa self test empty conf',
+            []
+        )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.conf = self.Conf()
+
+
 def compute_derived(base_conf):
     return base_conf['foo'] + sum(base_conf['bar']) + base_conf['sublevel']['subkey']
 
@@ -87,6 +100,8 @@ def compute_derived(base_conf):
 INTERNAL_STRUCTURE = (
     KeyDesc('foo', 'foo help', [int]),
     KeyDesc('bar', 'bar help', [typing.Sequence[int]]),
+    KeyDesc('bar-deferred', 'bar help', [typing.Sequence[int]]),
+    KeyDesc('bar-filter-deferred', 'bar help', [typing.Sequence[int]]),
     KeyDesc('multitypes', 'multitypes help', [typing.Sequence[int], str, None]),
     LevelKeyDesc('sublevel', 'sublevel help', (
         KeyDesc('subkey', 'subkey help', [int]),
@@ -113,20 +128,23 @@ class TestConfWithDefault(MultiSrcConf):
 
     DEFAULT_SRC = {
         'bar': [0, 1, 2],
+        'bar-deferred': DeferredValue(lambda *_: [0, 1, 2]),
+        'bar-filter-deferred': FilteredDeferredValue(lambda *_: None),
     }
 
 
 class TestMultiSrcConf(TestMultiSrcConfBase):
     def test_add_src_one_key(self):
         conf = copy.deepcopy(self.conf)
-        conf_src = {'foo': 22}
+        assert dict(conf) == dict(self.conf)
+        goal = dict(self.conf)
 
+        conf_src = {'foo': 22}
         conf.add_src('mysrc', conf_src)
 
-        goal = dict(self.conf)
         goal.update(conf_src)
-        assert dict(conf) == goal
 
+        assert dict(conf) == goal
         assert conf.resolve_src('foo') == 'mysrc'
 
     def test_disallowed_val(self):
@@ -219,6 +237,14 @@ class TestTestConfWithDefault(TestMultiSrcConf):
 
     def test_default_src(self):
         ref = dict(TestConfWithDefault.DEFAULT_SRC)
+
+        # Evaluate the deferred key
+        ref['bar-deferred'] = ref['bar-deferred']()
+
+        # Remove the filtered deferred key, that will rightfully not be
+        # included when the conf is converted to dict()
+        del ref['bar-filter-deferred']
+
         # A freshly built object still has all the level keys, even if it has
         # no leaves
         ref['sublevel'] = {}
