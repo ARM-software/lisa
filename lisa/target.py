@@ -364,11 +364,8 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         self._kmod_build_env = None
 
-        def _make_kernel_build_env_spec(kmod_build_env, abi):
-            kmod_build_env, *_ = _KernelBuildEnv._resolve_conf(
-                kmod_build_env,
-                abi=abi,
-            )
+        def _make_kernel_build_env_spec(*args, **kwargs):
+            kmod_build_env, *_ = _KernelBuildEnv._resolve_conf(*args, **kwargs)
             deprecated = {
                 'overlay-backend': kmod_overlay_backend,
                 'make-variables': kmod_make_vars,
@@ -390,8 +387,9 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             )
 
         self._kmod_build_env_spec = _make_kernel_build_env_spec(
-            kmod_build_env,
+            conf=kmod_build_env,
             abi=self.plat_info['abi'],
+            target=self,
         )
 
     def _init_plat_info(self, plat_info=None, name=None, **kwargs):
