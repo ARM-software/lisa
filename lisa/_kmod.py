@@ -256,6 +256,7 @@ def _make_build_chroot(cc, abi, bind_paths=None, version=None, overlay_backend=N
             'flex',
             'python3',
             'py3-pip',
+            'perl',
         ]
 
         if is_clang(cc):
@@ -278,7 +279,7 @@ def _make_build_chroot(cc, abi, bind_paths=None, version=None, overlay_backend=N
     if (version, packages) != (None, None) and None in (version, packages):
         raise ValueError('Both version and packages need to be set or none of them')
     else:
-        version = version or '3.18.0'
+        version = version or '3.18.3'
         packages = default_packages(cc) if packages is None else packages
 
         use_qemu = (
