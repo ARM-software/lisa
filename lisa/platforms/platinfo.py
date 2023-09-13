@@ -23,8 +23,8 @@ import typing
 
 from lisa.utils import HideExekallID, group_by_value, memoized
 from lisa.conf import (
-    DeferredValue, DeferredExcep, MultiSrcConf, KeyDesc, LevelKeyDesc,
-    TopLevelKeyDesc, DerivedKeyDesc, ConfigKeyError,
+    DeferredValue, FilteredDeferredValue, DeferredExcep, MultiSrcConf, KeyDesc,
+    LevelKeyDesc, TopLevelKeyDesc, DerivedKeyDesc, ConfigKeyError,
 )
 from lisa._generic import SortedSequence
 from lisa.energy_model import EnergyModel
@@ -163,8 +163,8 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
             'abi': lambda: target.abi,
             'os': lambda: target.os,
             'rtapp': {
-                # Since it is expensive to compute, use an on-demand DeferredValue
-                'calib': DeferredValue(RTA.get_cpu_calibrations, target, rta_calib_res_dir)
+                # Since it is expensive to compute, use an on-demand FilteredDeferredValue
+                'calib': FilteredDeferredValue(functools.partial(RTA.get_cpu_calibrations, target, rta_calib_res_dir))
             },
             'cpus-count': lambda: target.number_of_cpus,
             'numa-nodes-count': lambda: target.number_of_nodes
@@ -228,7 +228,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
             'orig': get_orig_capacities,
         }
 
-        info['kernel']['symbols-address'] = DeferredValue(self._read_kallsyms, target)
+        info['kernel']['symbols-address'] = FilteredDeferredValue(functools.partial(self._read_kallsyms, target))
 
         return self._add_info(src, info, only_missing=only_missing, filter_none=True, **kwargs)
 
@@ -269,7 +269,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
                         if val is None or isinstance(val, DeferredValue):
                             return renamed_val
                         elif deferred:
-                            return DeferredValue(renamed_val)
+                            return FilteredDeferredValue(renamed_val)
                         else:
                             try:
                                 return val()
