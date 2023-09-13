@@ -1309,7 +1309,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         return self._copy(copy.copy)
 
     def __deepcopy__(self, memo):
-        return self._copy(copy.deepcopy)
+        return self._copy(lambda x: copy.deepcopy(x, memo))
 
     def to_map(self):
         """
