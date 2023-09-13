@@ -29,6 +29,11 @@ def main():
         )
     }
     args, target = Target.from_custom_cli(params=params)
+
+    with target.closing() as target:
+        return _main(args, target)
+
+def _main(args, target):
     plat_info = target.plat_info
 
     # Make sure we get all the information we can, even if it means running for

@@ -48,6 +48,11 @@ def main():
         params=params,
     )
 
+    with target.closing() as target:
+        return _main(args, target)
+
+
+def _main(args, target):
     features = args.feature or []
     features_params = args.feature_param or {}
     keep_loaded = not bool(args.cmd)
