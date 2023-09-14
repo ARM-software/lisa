@@ -79,7 +79,7 @@ static int autogroup_path(struct task_group *tg, char *buf, int buflen)
 static __always_inline
 unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util)
 {
-#    if HAS_KERNEL_FEATURE(SE_UCLAMP)
+#    if HAS_KERNEL_FEATURE(CFS_UCLAMP)
 	unsigned long min_util;
 	unsigned long max_util;
 
