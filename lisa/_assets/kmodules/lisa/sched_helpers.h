@@ -160,7 +160,7 @@ static inline char *cfs_rq_path(struct cfs_rq *cfs_rq, char *str, int len)
 
 static inline int cfs_rq_cpu(struct cfs_rq *cfs_rq)
 {
-	return cfs_rq ? cpu_of(rq_of(cfs_rq)) : -1;
+	return cpu_of(rq_of(cfs_rq));
 }
 
 #endif
@@ -195,7 +195,7 @@ static inline const struct sched_avg *rq_avg_irq(struct rq *rq)
 
 static inline int rq_cpu(struct rq *rq)
 {
-	return rq ? cpu_of(rq) : -1;
+	return cpu_of(rq);
 }
 
 static inline int rq_cpu_capacity(struct rq *rq)
@@ -239,14 +239,13 @@ static inline int rq_cpu_current_capacity(struct rq *rq)
     ;
 }
 
+#    if HAS_KERNEL_FEATURE(RQ_NR_RUNNING)
 static inline int rq_nr_running(struct rq *rq)
 {
-#    if HAS_KERNEL_FEATURE(RQ_NR_RUNNING)
-	if (rq->nr_running)
-		return rq->nr_running;
-#    endif
-	return -1;
+	return rq->nr_running;
 }
+#    endif
+
 #endif
 
 #if HAS_TYPE(struct, root_domain)
