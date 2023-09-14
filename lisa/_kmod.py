@@ -224,6 +224,18 @@ def _kbuild_make_cmd(path, targets, cc, make_vars):
     return cmd
 
 
+def _clang_version(cc):
+    try:
+        _, version = cc.split('-', 1)
+    except ValueError:
+        # apk understands "clang" even if there is no clang package
+        version = None
+    else:
+        version = int(version)
+
+    return version
+
+
 @destroyablecontextmanager
 def _make_build_chroot(cc, abi, bind_paths=None, version=None, overlay_backend=None, packages=None):
     """
@@ -260,16 +272,18 @@ def _make_build_chroot(cc, abi, bind_paths=None, version=None, overlay_backend=N
         ]
 
         if is_clang(cc):
-            try:
-                _, version = cc.split('-', 1)
-            except ValueError:
-                # apk understands "clang" even if there is no clang package
-                version = ''
+            # apk understands "clang" even if there is no real "clang" package
+            clang_version = str(_clang_version(cc) or '')
 
             packages.extend([
+                # Add version-less packages as well, so that userspace tools
+                # relying on "clang" when LLVM=1 is passed can work.
+                'llvm',
+                'clang',
+
                 'lld',
-                f'llvm{version}',
-                f'clang{version}',
+                f'llvm{clang_version}',
+                f'clang{clang_version}',
             ])
         else:
             packages.append(cc)
@@ -1171,7 +1185,9 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
 
         if build_conf['build-env'] == 'alpine':
             if cc.startswith('clang'):
-                make_vars['LLVM'] = '1'
+                version = _clang_version(cc)
+                version = f'-{version}' if version else '1'
+                make_vars['LLVM'] = version
             else:
                 # Disable CROSS_COMPILE as we are going to build in a "native"
                 # Alpine chroot, so there is no need for a cross compiler
