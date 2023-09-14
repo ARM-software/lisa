@@ -18,20 +18,27 @@ static inline struct rq *rq_of(struct cfs_rq *cfs_rq)
 {
 	return cfs_rq->rq;
 }
-#    else
+#    elif HAS_MEMBER(struct, rq, cfs)
 static inline struct rq *rq_of(struct cfs_rq *cfs_rq)
 {
 	return container_of(cfs_rq, struct rq, cfs);
 }
+#    else
+#        warning "Cannot get the parent struct rq of a struct cfs_rq"
 #    endif
 #endif
 
 
+static inline bool entity_is_task(struct sched_entity *se)
+{
+	return
 #if HAS_MEMBER(struct, sched_entity, my_q)
-#    define entity_is_task(se)	(!(se)->my_q)
+		!se->my_q
 #else
-#    define entity_is_task(se)	(1)
+		true
 #endif
+	;
+}
 
 
 #if HAS_TYPE(struct, rq)
@@ -76,8 +83,7 @@ static int autogroup_path(struct task_group *tg, char *buf, int buflen)
 
 #if HAS_TYPE(struct, rq)
 /* A cut down version of the original. @p MUST be NULL */
-static __always_inline
-unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util)
+static inline unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util)
 {
 #    if HAS_KERNEL_FEATURE(CFS_UCLAMP)
 	unsigned long min_util;
