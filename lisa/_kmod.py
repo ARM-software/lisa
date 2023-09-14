@@ -1246,7 +1246,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         env = cls._make_toolchain_env_from_conf(build_conf)
 
         def priority_to(cc):
-            return lambda _cc, _cmd: 0 if cc in _cc else 1
+            return lambda _cc: 0 if cc in _cc else 1
 
         cc_priority = priority_to('clang')
 
@@ -1260,7 +1260,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     cc_priority = priority_to('clang')
                 else:
                     clang_version = clang_version // 10_000
-                    def cc_priority(cc, cmd):
+                    def cc_priority(cc):
                         if 'clang' in cc:
                             version = re.search(r'[0-9]+', cc)
                             if version is None:
@@ -1327,7 +1327,6 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             return [cc, *([f'--target={toolchain}'] if toolchain else []), '-x' 'c', '-c', '-', '-o', '/dev/null']
 
         commands = {
-            'gcc': [f'{toolchain or ""}gcc', '-x' 'c', '-c', '-', '-o', '/dev/null'],
             **{
                 cc: test_cmd(cc)
                 # Try the default "clang" name first in case it's good enough
@@ -1340,6 +1339,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     )
                 ]
             },
+            'gcc': [f'{toolchain or ""}gcc', '-x' 'c', '-c', '-', '-o', '/dev/null'],
         }
 
         cc = None
@@ -1366,20 +1366,17 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     cc: test_cmd(cc),
                 }
 
-        # Give priority for the toolchain the kernel seem to have been compiled
-        # with
-        def key(cc_cmd):
-            cc, cmd = cc_cmd
-            return cc_priority(cc, cmd)
-
-        commands = dict(sorted(
-            commands.items(),
-            key=key,
-        ))
 
         # Only run the check on host build env, as other build envs are
         # expected to be correctly configured.
-        if build_conf['build-env'] == 'host' and commands:
+        if build_conf['build-env'] == 'host':
+            # Give priority for the toolchain the kernel seem to have been
+            # compiled with
+            commands = dict(sorted(
+                commands.items(),
+                key=lambda cc_cmd: cc_priority(cc_cmd[0]),
+            ))
+
             toolchain_path = build_conf['build-env-settings']['host'].get('toolchain-path', None)
 
             for cc, cmd in commands.items():
@@ -1403,6 +1400,26 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                         break
             else:
                 raise ValueError(f'Could not find a working toolchain for CROSS_COMPILE={toolchain}')
+
+        elif build_conf['build-env'] == 'alpine':
+            available_ccs = {
+                'clang-13',
+                'clang-14',
+                'clang-15',
+                'clang-16',
+                'clang',
+                'gcc',
+            }
+
+            possible_ccs = set(commands.keys())
+            sorted_ccs = sorted(possible_ccs & available_ccs, key=cc_priority)
+            try:
+                cc, *_ = sorted_ccs
+            except ValueError:
+                possible_ccs = ', '.join(sorted(possible_ccs))
+                available_ccs = ', '.join(sorted(available_ccs))
+                raise ValueError(f'None of the considered toolchains ({possible_ccs}) are available on Alpine Linux. Please select one of those using CC and/or LLVM make variables: {available_ccs}')
+
 
         if cc is None:
             raise ValueError(f'Could not detect which compiler to use')
