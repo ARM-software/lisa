@@ -79,7 +79,7 @@ static int autogroup_path(struct task_group *tg, char *buf, int buflen)
 static __always_inline
 unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util)
 {
-#    if HAS_KERNEL_FEATURE(SE_UCLAMP)
+#    if HAS_KERNEL_FEATURE(CFS_UCLAMP)
 	unsigned long min_util;
 	unsigned long max_util;
 
@@ -200,13 +200,43 @@ static inline int rq_cpu(struct rq *rq)
 
 static inline int rq_cpu_capacity(struct rq *rq)
 {
-	return rq ?
-#if    HAS_KERNEL_FEATURE(RQ_CAPACITY)
+	return
+#    if HAS_KERNEL_FEATURE(RQ_CAPACITY)
 		rq->cpu_capacity
 #    else
 		SCHED_CAPACITY_SCALE
 #    endif
-		: -1;
+	;
+}
+
+static inline int rq_cpu_orig_capacity(struct rq *rq)
+{
+	return
+#    if HAS_KERNEL_FEATURE(FREQ_INVARIANCE)
+		rq->cpu_capacity_orig;
+#    else
+		rq_cpu_capacity(rq)
+#    endif
+	;
+}
+
+#    if HAS_KERNEL_FEATURE(FREQ_INVARIANCE)
+DECLARE_PER_CPU(unsigned long, arch_freq_scale);
+#    endif
+
+static inline int rq_cpu_current_capacity(struct rq *rq)
+{
+	return
+#    if HAS_KERNEL_FEATURE(FREQ_INVARIANCE)
+		({
+		    unsigned long capacity_orig = rq_cpu_orig_capacity(rq);
+		    unsigned long scale_freq = per_cpu(arch_freq_scale, rq->cpu);
+		    cap_scale(capacity_orig, scale_freq);
+		})
+#    else
+		rq_cpu_orig_capacity(rq)
+#    endif
+    ;
 }
 
 static inline int rq_nr_running(struct rq *rq)
