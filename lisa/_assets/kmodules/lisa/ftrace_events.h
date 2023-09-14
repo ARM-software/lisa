@@ -312,15 +312,24 @@ TRACE_EVENT_CONDITION(lisa__uclamp_util_se,
 		__entry->cpu            = rq_cpu(rq);
 		__entry->util_avg       = p->se.avg.util_avg;
 		__entry->uclamp_avg     = uclamp_rq_util_with(rq, p->se.avg.util_avg);
+
+#    if HAS_KERNEL_FEATURE(CFS_UCLAMP)
 		__entry->uclamp_min     = rq->uclamp[UCLAMP_MIN].value;
 		__entry->uclamp_max     = rq->uclamp[UCLAMP_MAX].value;
+#    endif
 		),
 
-	TP_printk("pid=%d comm=%s cpu=%d util_avg=%lu uclamp_avg=%lu "
-		  "uclamp_min=%lu uclamp_max=%lu",
+	TP_printk("pid=%d comm=%s cpu=%d util_avg=%lu uclamp_avg=%lu"
+#    if HAS_KERNEL_FEATURE(CFS_UCLAMP)
+		  " uclamp_min=%lu uclamp_max=%lu"
+#    endif
+		  ,
 		  __entry->pid, __entry->comm, __entry->cpu,
-		  __entry->util_avg, __entry->uclamp_avg,
-		  __entry->uclamp_min, __entry->uclamp_max)
+		  __entry->util_avg, __entry->uclamp_avg
+#    if HAS_KERNEL_FEATURE(CFS_UCLAMP)
+		  ,__entry->uclamp_min, __entry->uclamp_max
+#    endif
+		)
 );
 #else
 #define trace_lisa__uclamp_util_se(is_task, p, rq) while(false) {}
@@ -372,23 +381,18 @@ TRACE_EVENT(lisa__sched_cpu_capacity,
 	TP_STRUCT__entry(
 		__field(	int,		cpu		)
 		__field(	unsigned long,	capacity	)
-		__field(	unsigned long,	capacity_orig	)
 #if HAS_KERNEL_FEATURE(FREQ_INVARIANCE)
+		__field(	unsigned long,	capacity_orig	)
 		__field(	unsigned long,	capacity_curr	)
 #endif
 	),
 
-	unsigned long scale_cpu = rq->cpu_capacity_orig;
-#if HAS_KERNEL_FEATURE(FREQ_INVARIANCE)
-	unsigned long scale_freq = arch_scale_freq_capacity(rq->cpu);
-#endif
-
 	TP_fast_assign(
 		__entry->cpu		= rq->cpu;
 		__entry->capacity	= rq->cpu_capacity;
-		__entry->capacity_orig	= scale_cpu;
 #if HAS_KERNEL_FEATURE(FREQ_INVARIANCE)
-		__entry->capacity_curr	= cap_scale(scale_cpu, scale_freq);
+		__entry->capacity_orig	= rq_cpu_orig_capacity(rq);
+		__entry->capacity_curr	= rq_cpu_current_capacity(rq);
 #endif
 	),
 

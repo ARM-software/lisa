@@ -22,5 +22,5 @@
   "SCHED_AVG_RBL": "HAS_MEMBER(struct, sched_avg, runnable_load_avg) || HAS_MEMBER(struct, sched_avg, runnable_avg)",
 
   "FILE_IO": "HAS_SYMBOL(kernel_read) && HAS_SYMBOL(kernel_write) && HAS_SYMBOL(filp_open)",
-  "FREQ_INVARIANCE": "HAS_SYMBOL(arch_freq_scale)"
+  "FREQ_INVARIANCE": "HAS_SYMBOL(arch_freq_scale) && HAS_MEMBER(struct, rq, cpu_capacity_orig)"
 }
