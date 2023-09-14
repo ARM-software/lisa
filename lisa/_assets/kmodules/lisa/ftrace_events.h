@@ -312,15 +312,24 @@ TRACE_EVENT_CONDITION(lisa__uclamp_util_se,
 		__entry->cpu            = rq_cpu(rq);
 		__entry->util_avg       = p->se.avg.util_avg;
 		__entry->uclamp_avg     = uclamp_rq_util_with(rq, p->se.avg.util_avg);
+
+#    if HAS_KERNEL_FEATURE(CFS_UCLAMP)
 		__entry->uclamp_min     = rq->uclamp[UCLAMP_MIN].value;
 		__entry->uclamp_max     = rq->uclamp[UCLAMP_MAX].value;
+#    endif
 		),
 
-	TP_printk("pid=%d comm=%s cpu=%d util_avg=%lu uclamp_avg=%lu "
-		  "uclamp_min=%lu uclamp_max=%lu",
+	TP_printk("pid=%d comm=%s cpu=%d util_avg=%lu uclamp_avg=%lu"
+#    if HAS_KERNEL_FEATURE(CFS_UCLAMP)
+		  " uclamp_min=%lu uclamp_max=%lu"
+#    endif
+		  ,
 		  __entry->pid, __entry->comm, __entry->cpu,
-		  __entry->util_avg, __entry->uclamp_avg,
-		  __entry->uclamp_min, __entry->uclamp_max)
+		  __entry->util_avg, __entry->uclamp_avg
+#    if HAS_KERNEL_FEATURE(CFS_UCLAMP)
+		  ,__entry->uclamp_min, __entry->uclamp_max
+#    endif
+		)
 );
 #else
 #define trace_lisa__uclamp_util_se(is_task, p, rq) while(false) {}
