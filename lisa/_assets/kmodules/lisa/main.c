@@ -40,7 +40,7 @@ static int __init modinit(void) {
 		pr_info("  %s: %s\n", kernel_feature_names[i], kernel_feature_values[i] ? "enabled" : "disabled");
 	}
 
-	ret = init_features(features, features_len);
+	ret = init_features(features_len ? features : NULL , features_len);
 
 	if (ret) {
 		pr_err("Some errors happened while loading LISA kernel module\n");
