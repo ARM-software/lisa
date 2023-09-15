@@ -39,6 +39,11 @@ rebase-conf:
             remote: github
             base: master
             tip: fix_float
+        -
+            name: add_missing_typedefs
+            remote: github
+            base: master
+            tip: add_missing_typedefs
 
     remotes:
         github:
