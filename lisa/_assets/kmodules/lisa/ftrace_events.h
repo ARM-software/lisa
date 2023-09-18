@@ -397,14 +397,17 @@ TRACE_EVENT(lisa__sched_cpu_capacity,
 	),
 
 	TP_printk(
-		"cpu=%d capacity=%lu capacity_orig=%lu"
+		"cpu=%d"
+		" capacity=%lu"
 #if HAS_KERNEL_FEATURE(FREQ_INVARIANCE)
+		" capacity_orig=%lu"
 		" capacity_curr=%lu"
 #endif
-		  ,
-		  __entry->cpu, __entry->capacity, __entry->capacity_orig
+		,__entry->cpu
+		,__entry->capacity
 #if HAS_KERNEL_FEATURE(FREQ_INVARIANCE)
-		  , __entry->capacity_curr
+		,__entry->capacity_orig
+		,__entry->capacity_curr
 #endif
 	)
 );

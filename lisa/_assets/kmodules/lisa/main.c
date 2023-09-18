@@ -47,7 +47,7 @@ static int init(void) {
 		pr_info("  %s: %s\n", kernel_feature_names[i], kernel_feature_values[i] ? "enabled" : "disabled");
 	}
 
-	int ret = init_features(features, features_len);
+	int ret = init_features(features_len ? features : NULL , features_len);
 	if (ret)
 		pr_err("Some errors happened while loading LISA kernel module: %d\n", ret);
 	return ret;
