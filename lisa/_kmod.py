@@ -1300,6 +1300,21 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         if make_vars.get('LLVM') == '0':
             del make_vars['LLVM']
 
+        # Some kernels have broken/old Kbuild that does not honor the LLVM=-N
+        # suffixing, so force the suffixes ourselves.
+        llvm = make_vars.get('LLVM')
+        if llvm and llvm.startswith('-'):
+            updated = {
+                'LD': f'ld.lld{llvm}',
+                'AR': f'llvm-ar{llvm}',
+                'NM': f'llvm-nm{llvm}',
+                'OBJCOPY': f'llvm-objcopy{llvm}',
+                'OBJDUMP': f'llvm-objdump{llvm}',
+                'READELF': f'llvm-readelf{llvm}',
+                'STRIP': f'llvm-strip{llvm}',
+            }
+            make_vars = {**updated, **make_vars}
+
         assert 'ARCH' in make_vars
 
         def log_fragment(var):
