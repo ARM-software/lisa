@@ -64,6 +64,7 @@ import shutil
 import platform
 import subprocess
 import multiprocessing
+import urllib.request
 
 import ruamel.yaml
 from ruamel.yaml import YAML
@@ -4075,5 +4076,27 @@ def mp_spawn_pool(import_main=False, **kwargs):
         pool = ctx.Pool(**kwargs)
 
     return pool
+
+
+def is_link_dead(url):
+    """
+    Check if link is dead. If dead, returns a truthy value, otherwise a falsy
+    one.
+    """
+
+    # Some HTTP servers (including ReadTheDocs) will return 403 Forbidden
+    # if no User-Agent is given
+    headers={
+        'User-Agent': 'Wget/1.13.4 (linux-gnu)',
+    }
+    request = urllib.request.Request(url, headers=headers)
+    try:
+        urllib.request.urlopen(request)
+    except (urllib.request.HTTPError, urllib.request.URLError) as e:
+        return e.reason
+    else:
+        return None
+
+
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
