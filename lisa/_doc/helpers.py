@@ -41,7 +41,7 @@ from sphinx.ext.autodoc import exclude_members_option
 import lisa
 import lisa.analysis
 from lisa.analysis.base import AnalysisHelpers, TraceAnalysisBase
-from lisa.utils import get_subclasses, import_all_submodules, DEPRECATED_MAP, get_sphinx_name, groupby, get_short_doc, order_as
+from lisa.utils import get_subclasses, import_all_submodules, DEPRECATED_MAP, get_sphinx_name, groupby, get_short_doc, order_as, is_link_dead
 from lisa.trace import TraceEventCheckerBase
 from lisa.conf import KeyDesc, SimpleMultiSrcConf, TopLevelKeyDesc
 from lisa.version import format_version
@@ -418,18 +418,7 @@ def find_dead_links(content):
 
     @functools.lru_cache(maxsize=None)
     def check(url):
-        # Some HTTP servers (including ReadTheDocs) will return 403 Forbidden
-        # if no User-Agent is given
-        headers={
-            'User-Agent': 'Wget/1.13.4 (linux-gnu)',
-        }
-        request = Request(url, headers=headers)
-        try:
-            urlopen(request)
-        except (HTTPError, URLError) as e:
-            return e.reason
-        else:
-            return None
+        return is_link_dead(url)
 
     errors = {
         link: check(link)

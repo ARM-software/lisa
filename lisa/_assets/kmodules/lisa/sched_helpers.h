@@ -18,20 +18,27 @@ static inline struct rq *rq_of(struct cfs_rq *cfs_rq)
 {
 	return cfs_rq->rq;
 }
-#    else
+#    elif HAS_MEMBER(struct, rq, cfs)
 static inline struct rq *rq_of(struct cfs_rq *cfs_rq)
 {
 	return container_of(cfs_rq, struct rq, cfs);
 }
+#    else
+#        warning "Cannot get the parent struct rq of a struct cfs_rq"
 #    endif
 #endif
 
 
+static inline bool entity_is_task(struct sched_entity *se)
+{
+	return
 #if HAS_MEMBER(struct, sched_entity, my_q)
-#    define entity_is_task(se)	(!(se)->my_q)
+		!se->my_q
 #else
-#    define entity_is_task(se)	(1)
+		true
 #endif
+	;
+}
 
 
 #if HAS_TYPE(struct, rq)
@@ -76,8 +83,7 @@ static int autogroup_path(struct task_group *tg, char *buf, int buflen)
 
 #if HAS_TYPE(struct, rq)
 /* A cut down version of the original. @p MUST be NULL */
-static __always_inline
-unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util)
+static inline unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util)
 {
 #    if HAS_KERNEL_FEATURE(CFS_UCLAMP)
 	unsigned long min_util;
@@ -160,7 +166,7 @@ static inline char *cfs_rq_path(struct cfs_rq *cfs_rq, char *str, int len)
 
 static inline int cfs_rq_cpu(struct cfs_rq *cfs_rq)
 {
-	return cfs_rq ? cpu_of(rq_of(cfs_rq)) : -1;
+	return cpu_of(rq_of(cfs_rq));
 }
 
 #endif
@@ -195,7 +201,7 @@ static inline const struct sched_avg *rq_avg_irq(struct rq *rq)
 
 static inline int rq_cpu(struct rq *rq)
 {
-	return rq ? cpu_of(rq) : -1;
+	return cpu_of(rq);
 }
 
 static inline int rq_cpu_capacity(struct rq *rq)
@@ -239,14 +245,13 @@ static inline int rq_cpu_current_capacity(struct rq *rq)
     ;
 }
 
+#    if HAS_KERNEL_FEATURE(RQ_NR_RUNNING)
 static inline int rq_nr_running(struct rq *rq)
 {
-#    if HAS_KERNEL_FEATURE(RQ_NR_RUNNING)
-	if (rq->nr_running)
-		return rq->nr_running;
-#    endif
-	return -1;
+	return rq->nr_running;
 }
+#    endif
+
 #endif
 
 #if HAS_TYPE(struct, root_domain)

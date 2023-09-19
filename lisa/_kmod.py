@@ -141,7 +141,7 @@ from devlib.target import KernelVersion, TypedKernelConfig, KernelConfigTristate
 from devlib.host import LocalConnection
 from devlib.exception import TargetStableError, TargetStableCalledProcessError
 
-from lisa.utils import nullcontext, Loggable, LISA_CACHE_HOME, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor, destroyablecontextmanager, ContextManagerExit, ignore_exceps, get_nested_key
+from lisa.utils import nullcontext, Loggable, LISA_CACHE_HOME, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor, destroyablecontextmanager, ContextManagerExit, ignore_exceps, get_nested_key, is_link_dead
 from lisa._assets import ASSETS_PATH, HOST_PATH, ABI_BINARIES_FOLDER
 from lisa._unshare import ensure_root
 import lisa._git as git
@@ -155,7 +155,58 @@ class KmodVersionError(Exception):
     pass
 
 
+_ALPINE_DEFAULT_VERSION = '3.18.3'
 _ALPINE_ROOTFS_URL = 'https://dl-cdn.alpinelinux.org/alpine/v{minor}/releases/{arch}/alpine-minirootfs-{version}-{arch}.tar.gz'
+_ALPINE_PACKAGE_INFO_URL = 'https://pkgs.alpinelinux.org/package/v{version}/{repo}/{arch}/{package}'
+
+
+def _get_alpine_clang_packages(cc):
+    llvm_version = _clang_version_static(cc) or ''
+    return [
+        f'clang{llvm_version}',
+        f'llvm{llvm_version}',
+        # "lld" packaging is a bit strange, any versioned lld (e.g. "lld15")
+        # conflicts with the generic "lld" package. On top of that, there is
+        # only one versionned package ("lld15") as of Alpine v3.18.
+        f'lld'
+    ]
+
+
+@functools.lru_cache(maxsize=256, typed=True)
+def _find_alpine_cc_packages(version, abi, cc, cross_compile):
+    logger = logging.getLogger(f'{__name__}.alpine_chroot.packages')
+
+    if 'gcc' in cc and cross_compile:
+        cross_compile = cross_compile.strip('-')
+        packages = [f'gcc-{cross_compile}']
+    elif 'clang' in cc:
+        packages = _get_alpine_clang_packages(cc)
+    else:
+        packages = [cc]
+
+    def check(repo, package):
+        url = _ALPINE_PACKAGE_INFO_URL.format(
+            version='.'.join(map(str, version[:2])),
+            repo=repo,
+            arch=_abi_to_alpine_arch(abi),
+            package=package,
+        )
+        logger.debug(f'Checking Alpine package URL: {url}')
+        return not is_link_dead(url)
+
+    ok = all(
+        any(
+            check(repo, package)
+            for repo in ('main', 'community')
+        )
+        for package in packages
+    )
+
+    if ok:
+        return packages
+    else:
+        raise ValueError(f'Could not find Alpine linux packages: {", ".join(packages)}')
+
 
 def _abi_to_kernel_arch(abi):
     """
@@ -176,6 +227,12 @@ def _kernel_arch_to_abi(arch):
         return 'armeabi'
     else:
         return arch
+
+def _abi_to_alpine_arch(abi):
+    return {
+        'arm64': 'aarch64',
+        'armeabi': 'armv7',
+    }.get(abi, abi)
 
 
 def _url_path(url):
@@ -224,68 +281,112 @@ def _kbuild_make_cmd(path, targets, cc, make_vars):
     return cmd
 
 
+def _clang_version_static(cc):
+    try:
+        _, version = cc.split('-', 1)
+    except ValueError:
+        # apk understands "clang" even if there is no clang package
+        version = None
+    else:
+        version = int(version)
+
+    return version
+
+
+def _clang_version(cc, env):
+    version = subprocess.check_output([cc, '--version'], env=env)
+    m = re.match(rb'.*clang version ([0-9]+)\.', version)
+    if m:
+        major = int(m.group(1))
+        return (major,)
+    else:
+        raise ValueError(f'Could not determine version of {cc}')
+
+
+def _resolve_alpine_version(version):
+    version = version or _ALPINE_DEFAULT_VERSION
+
+    # Ensure we have a full version number with 3 components
+    version = version.split('.')
+    version = list(map(int, version + ['0' for _ in range(3 - len(version))]))
+    return version
+
+
 @destroyablecontextmanager
-def _make_build_chroot(cc, abi, bind_paths=None, version=None, overlay_backend=None, packages=None):
+def _make_build_chroot(cc, cross_compile, abi, bind_paths=None, version=None, overlay_backend=None, packages=None):
     """
     Create a chroot folder ready to be used to build a kernel.
     """
     logger = logging.getLogger(f'{__name__}.alpine_chroot')
 
-    def is_clang(cc):
-        return cc.startswith('clang')
-
-    def default_packages(cc):
-        # Default packages needed to compile a linux kernel module
-        packages = [
-            'bash',
-            'binutils',
-            'coreutils',
-            'diffutils',
-            'make',
-            'file',
-            'gawk',
-            'sed',
-            'musl-dev',
-            'elfutils-dev',
-            'gmp-dev',
-            'libffi-dev',
-            'openssl-dev',
-            'linux-headers',
-            'musl',
-            'bison',
-            'flex',
-            'python3',
-            'py3-pip',
-            'perl',
-        ]
-
-        if is_clang(cc):
-            try:
-                _, version = cc.split('-', 1)
-            except ValueError:
-                # apk understands "clang" even if there is no clang package
-                version = ''
-
-            packages.extend([
-                'lld',
-                f'llvm{version}',
-                f'clang{version}',
-            ])
-        else:
-            packages.append(cc)
-
-        return packages
-
     if (version, packages) != (None, None) and None in (version, packages):
         raise ValueError('Both version and packages need to be set or none of them')
     else:
-        version = version or '3.18.3'
-        packages = default_packages(cc) if packages is None else packages
+        version = _resolve_alpine_version(version)
 
+        def is_clang(cc):
+            return cc.startswith('clang')
+
+        def default_packages(cc):
+            maybe_qemu = False
+
+            # Default packages needed to compile a linux kernel module
+            packages = [
+                'bash',
+                'binutils',
+                'coreutils',
+                'diffutils',
+                'make',
+                'file',
+                'gawk',
+                'sed',
+                'musl-dev',
+                'elfutils-dev',
+                'gmp-dev',
+                'libffi-dev',
+                'openssl-dev',
+                'linux-headers',
+                'musl',
+                'bison',
+                'flex',
+                'python3',
+                'py3-pip',
+                'perl',
+            ]
+
+            if is_clang(cc):
+                packages.extend([
+                    # Add version-less packages as well, so that userspace tools
+                    # relying on "clang" when LLVM=1 is passed can work.
+                    'llvm',
+                    'clang',
+                    'lld',
+                ])
+
+            try:
+                _packages = _find_alpine_cc_packages(
+                    version=tuple(version),
+                    abi=abi,
+                    cc=cc,
+                    cross_compile=cross_compile,
+                )
+            except ValueError:
+                # We could not find the cross compilation toolchain, so
+                # fallback on the non-cross toolchain and use QEMU
+                _packages = [cc]
+                # clang is always a cross compilation, toolchain so we
+                # would not need QEMU for that
+                maybe_qemu = not is_clang(cc)
+
+            packages.extend(_packages)
+
+            return (maybe_qemu, packages)
+
+        maybe_qemu, packages = default_packages(cc) if packages is None else packages
         use_qemu = (
+            maybe_qemu and
             # Since clang binaries support cross compilation without issues,
             # there is no need to use QEMU that will slow everything down.
-            (not is_clang(cc)) and
             abi != LISA_HOST_ABI
         )
 
@@ -332,8 +433,9 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
         # Packages have already been installed, so we can speed things up a
         # bit
         if init_cache:
-            _version = version.split('.')
-            minor = '.'.join(_version[:2])
+            version = list(map(str, version))
+            minor = '.'.join(version[:2])
+            version = '.'.join(version)
             url = _ALPINE_ROOTFS_URL.format(
                 minor=minor,
                 arch=alpine_arch,
@@ -361,16 +463,11 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
 
         install_packages(packages)
 
-    # Ensure we have a full version number with 3 components
-    version = version.split('.')
-    version = version + ['0' for _ in range(3 - len(version))]
-    version = '.'.join(version)
-
     abi = abi or LISA_HOST_ABI
     use_qemu = abi != LISA_HOST_ABI
 
     qemu_msg = f' using QEMU userspace emulation to emulate {abi} on {LISA_HOST_ABI}' if use_qemu else ''
-    logger.debug(f'Using Alpine v{version} chroot with ABI {abi}{qemu_msg}.')
+    logger.debug(f'Using Alpine v{".".join(map(str, version))} chroot with ABI {abi}{qemu_msg}.')
 
     # Check that QEMU userspace emulation is setup if we need it
     if use_qemu:
@@ -383,11 +480,7 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
         if not binfmt_path.exists():
             raise ValueError(f'Alpine chroot is setup for {qemu_arch} architecture but QEMU userspace emulation is not installed on the host (missing {binfmt_path})')
 
-    alpine_arch = {
-        'arm64': 'aarch64',
-        'armeabi': 'armv7',
-    }.get(abi, abi)
-
+    alpine_arch = _abi_to_alpine_arch(abi)
     dir_cache = DirCache(
         category='alpine_chroot',
         populate=populate,
@@ -798,6 +891,10 @@ class _KernelBuildEnvConf(SimpleMultiSrcConf):
             )
         )
 
+    def _get_alpine_version(self):
+        alpine_version = self['build-env-settings']['alpine'].get('version')
+        return _resolve_alpine_version(alpine_version)
+
 
 class _KernelBuildEnv(Loggable, SerializeViaConstructor):
     """
@@ -833,7 +930,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
 
     def __init__(self, path_cm, build_conf=None):
         self._make_path_cm = path_cm
-        self.conf, self.cc, self.abi = self._resolve_conf(build_conf)
+        self.conf, self.cc, self.cross_compile, self.abi = self._resolve_conf(build_conf)
 
         self._path_cm = None
         self.path = None
@@ -856,10 +953,10 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                 raise TypeError(f'Unsupported value type for build_conf: {conf}')
 
         conf = make_conf(conf)
-        make_vars, cc, abi = cls._process_make_vars(conf, abi=abi, target=target)
+        make_vars, cc, cross_compile, abi = cls._process_make_vars(conf, abi=abi, target=target)
         conf.add_src(src='processed make-variables', conf={'make-variables': make_vars})
 
-        return (conf, cc, abi)
+        return (conf, cc, cross_compile, abi)
 
     _SPEC_KEYS = ('path', 'checksum')
 
@@ -986,7 +1083,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
 
 
     @classmethod
-    def _prepare_tree(cls, path, cc, abi, build_conf, apply_overlays):
+    def _prepare_tree(cls, path, cc, cross_compile, abi, build_conf, apply_overlays):
         logger = cls.get_logger()
         path = Path(path)
 
@@ -1067,6 +1164,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             def cmd_cm(cmds):
                 with _make_build_chroot(
                     cc=cc,
+                    cross_compile=cross_compile,
                     abi=abi,
                     bind_paths=bind_paths,
                     overlay_backend=overlay_backend,
@@ -1123,6 +1221,8 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
 
     @classmethod
     def _process_make_vars(cls, build_conf, abi, target=None):
+        logger = cls.get_logger()
+
         env = {
             k: str(v)
             for k, v in (
@@ -1167,15 +1267,20 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             },
             inplace=False,
         )
-        make_vars, cc = cls._resolve_toolchain(abi, build_conf, target=target)
+        cc, cross_compile = cls._resolve_toolchain(abi, build_conf, target=target)
 
-        if build_conf['build-env'] == 'alpine':
-            if cc.startswith('clang'):
-                make_vars['LLVM'] = '1'
-            else:
-                # Disable CROSS_COMPILE as we are going to build in a "native"
-                # Alpine chroot, so there is no need for a cross compiler
-                make_vars.pop('CROSS_COMPILE', None)
+        if 'clang' in cc and 'LLVM' not in make_vars:
+            clang_version = _clang_version_static(cc)
+            llvm_version = f'-{clang_version}' if clang_version else '1'
+            if build_conf['build-env'] == 'alpine':
+                # TODO: Revisit:
+                # We do not use llvm_version here as Alpine does not ship
+                # multiple versions of e.g. lld, only multiple versions of
+                # clang. Kbuild fails to find ld.lld-<llvm_version> since that
+                # binary does not exist on Alpine. Same goes for other tools
+                # like "ar" or "nm"
+                llvm_version = '1'
+            make_vars['LLVM'] = llvm_version
 
         # Turn errors into warnings by default, as this otherwise prevents the
         # builds when the list of kernel symbols is not available.
@@ -1186,8 +1291,40 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         # then be re-filtered right before invoking make to remove CC=gcc as it
         # can confuse KBuild.
         make_vars['CC'] = cc
+        if cross_compile:
+            make_vars['CROSS_COMPILE'] = cross_compile
+
+
+        # LLVM=0 is treated the same way as LLVM=1 by Kbuild, so we need to
+        # remove it.
+        if make_vars.get('LLVM') == '0':
+            del make_vars['LLVM']
+
+        # Some kernels have broken/old Kbuild that does not honor the LLVM=-N
+        # suffixing, so force the suffixes ourselves.
+        llvm = make_vars.get('LLVM')
+        if llvm and llvm.startswith('-'):
+            updated = {
+                'LD': f'ld.lld{llvm}',
+                'AR': f'llvm-ar{llvm}',
+                'NM': f'llvm-nm{llvm}',
+                'OBJCOPY': f'llvm-objcopy{llvm}',
+                'OBJDUMP': f'llvm-objdump{llvm}',
+                'READELF': f'llvm-readelf{llvm}',
+                'STRIP': f'llvm-strip{llvm}',
+            }
+            make_vars = {**updated, **make_vars}
+
         assert 'ARCH' in make_vars
-        return (make_vars, cc, abi)
+
+        def log_fragment(var):
+            val = make_vars.get(var)
+            fragment = f'{var}={val}' if val is not None else ''
+            return fragment
+
+        variables = ', '.join(filter(bool, map(log_fragment, ('CC', 'CROSS_COMPILE', 'LLVM', 'ARCH'))))
+        logger.info(f'Toolchain detected: {variables}')
+        return (make_vars, cc, cross_compile, abi)
 
     @classmethod
     def _make_toolchain_env(cls, toolchain_path=None, env=None):
@@ -1213,10 +1350,11 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
     def _check_cc_version(cls, cc, toolchain_path):
         if cc == 'clang':
             env = cls._make_toolchain_env(toolchain_path)
-            version = subprocess.check_output([cc, '--version'], env=env)
-            m = re.match(rb'.*clang version ([0-9]+)\.', version)
-            if m:
-                major = int(m.group(1))
+            try:
+                major, *_ = _clang_version(cc, env=env)
+            except ValueError:
+                pass
+            else:
                 if major >= cls._MIN_CLANG_VERSION:
                     return True
         else:
@@ -1230,7 +1368,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         env = cls._make_toolchain_env_from_conf(build_conf)
 
         def priority_to(cc):
-            return lambda _cc, _cmd: 0 if cc in _cc else 1
+            return lambda _cc: 0 if cc in _cc else 1
 
         cc_priority = priority_to('clang')
 
@@ -1244,19 +1382,32 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     cc_priority = priority_to('clang')
                 else:
                     clang_version = clang_version // 10_000
-                    def cc_priority(cc, cmd):
+                    is_host_env = build_conf['build-env'] == 'host'
+
+                    def version_key(version):
+                        return (
+                            0 if version >= clang_version else 1,
+                            # Try the versions closest to the one we
+                            # want
+                            abs(clang_version - version)
+                        )
+
+                    def cc_priority(cc):
                         if 'clang' in cc:
                             version = re.search(r'[0-9]+', cc)
                             if version is None:
-                                return (2,)
+                                if is_host_env:
+                                    try:
+                                        version, *_ = _clang_version(cc, env=env)
+                                    except ValueError:
+                                        return (2,)
+                                    else:
+                                        return version_key(version)
+                                else:
+                                    return (2,)
                             else:
                                 version = int(version.group(0))
-                                return (
-                                    0 if version >= clang_version else 1,
-                                    # Try the versions closest to the one we
-                                    # want
-                                    abs(clang_version - version)
-                                )
+                                return version_key(version)
                         else:
                             return (3,)
             else:
@@ -1273,100 +1424,98 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
 
         make_vars = build_conf.get('make-variables', {})
 
-        def pick_first(toolchains):
-            found = [
-                toolchain
-                for toolchain in toolchains
-                if shutil.which(f'{toolchain}gcc') is not None
-            ]
-            # If no toolchain is found, we pick the first one that will be used
-            # for clang target triplet
-            try:
-                return found[0]
-            except IndexError:
-                return toolchains[0]
-
         if abi == LISA_HOST_ABI:
-            toolchain = None
+            cross_compiles = ['']
         else:
             try:
-                toolchain = make_vars['CROSS_COMPILE']
+                cross_compiles = [make_vars['CROSS_COMPILE']]
             except KeyError:
                 try:
-                    toolchain = os.environ['CROSS_COMPILE']
+                    cross_compiles = [os.environ['CROSS_COMPILE']]
                 except KeyError:
                     if abi == 'arm64':
-                        toolchain = pick_first(['aarch64-linux-gnu-', 'aarch64-none-elf-'])
+                        cross_compiles = ['aarch64-linux-gnu-', 'aarch64-none-elf-', 'aarch64-linux-android-', 'aarch64-none-linux-android-', 'aarch64-linux-android-']
                     elif abi == 'armeabi':
-                        toolchain = pick_first(['arm-linux-gnueabi-', 'arm-none-eabi-'])
+                        cross_compiles = ['arm-linux-gnueabi-', 'arm-none-eabi-', 'arm-none-linux-gnueabi-']
                     elif abi == 'x86':
-                        toolchain = 'i686-linux-gnu-'
+                        cross_compiles = ['i686-linux-gnu-']
                     else:
-                        toolchain = None
+                        cross_compiles = ['']
                         logger.error(f'ABI {abi} not recognized, CROSS_COMPILE env var needs to be set')
 
-                    logger.debug(f'CROSS_COMPILE env var not set, assuming "{toolchain}"')
+                    logger.debug(f'CROSS_COMPILE env var not set, assuming "{cross_compiles}"')
 
-        def test_cmd(cc):
-            return [cc, *([f'--target={toolchain}'] if toolchain else []), '-x' 'c', '-c', '-', '-o', '/dev/null']
+        cross_compiles = cross_compiles or ['']
 
-        commands = {
-            'gcc': [f'{toolchain or ""}gcc', '-x' 'c', '-c', '-', '-o', '/dev/null'],
-            **{
-                cc: test_cmd(cc)
-                # Try the default "clang" name first in case it's good enough
-                for cc in ['clang'] + [
-                    f'clang-{i}'
-                    # Try the most recent ones first
-                    for i in reversed(
-                        # Cover for the next 10 years starting from 2021
-                        range(cls._MIN_CLANG_VERSION, cls._MIN_CLANG_VERSION + 10 * 2)
-                    )
-                ]
-            },
+        # The format of "ccs" dict is:
+        # (CC=, CROSS_COMPILE=): <binary name>
+        ccs = {
+            *(
+                (f'clang-{i}', cross_compile)
+                # Cover for the next 10 years starting from 2021
+                for i in reversed(range(
+                    cls._MIN_CLANG_VERSION,
+                    cls._MIN_CLANG_VERSION + 10 * 2
+                ))
+                for cross_compile in cross_compiles
+            ),
+            *(
+                ('clang', cross_compile)
+                for cross_compile in cross_compiles
+            ),
+            *(
+                ('gcc', cross_compile)
+                for cross_compile in cross_compiles
+            ),
         }
 
-        cc = None
-
         if 'CC' in make_vars:
-            cc = make_vars['CC']
-            try:
-                commands = {cc: commands[cc]}
-            except KeyError:
-                commands = {}
-        # Default to clang on alpine, as it will be in a high-enough version
-        # and since Alpine does not ship any cross-toolchain for GCC, this will
-        # avoid having to use QEMU userspace emulation which is really slow.
-        elif build_conf['build-env'] == 'alpine':
-            cc = 'clang'
+            _cc = make_vars['CC']
+            ccs = {
+                (_cc, cross_compile)
+                for cross_compile in cross_compiles
+            }
 
         if 'LLVM' in make_vars:
-            cc = cc or 'clang'
             llvm = make_vars['LLVM']
-            version = llvm if llvm.startswith('-') else ''
-            if cc == 'clang' and version:
-                cc = cc + version
-                commands = {
-                    cc: test_cmd(cc),
+            _cc = make_vars.get('CC', 'clang')
+            llvm_version = llvm if llvm.startswith('-') else None
+            if _cc == 'clang' and llvm_version:
+                _cc = _cc + llvm_version
+                ccs = {
+                    (_cc, cross_compile)
+                    for cross_compile in cross_compiles
                 }
 
         # Give priority for the toolchain the kernel seem to have been compiled
         # with
-        def key(cc_cmd):
-            cc, cmd = cc_cmd
-            return cc_priority(cc, cmd)
+        def key(item):
+            (cc, cross_compile) = item
+            return cc_priority(cc)
 
-        commands = dict(sorted(
-            commands.items(),
-            key=key,
-        ))
+        ccs = sorted(ccs, key=key)
+
+        cc = None
+        cross_compile = None
 
         # Only run the check on host build env, as other build envs are
         # expected to be correctly configured.
-        if build_conf['build-env'] == 'host' and commands:
+        if build_conf['build-env'] == 'host':
+
+            def test_cmd(cc, cross_compile):
+                opts = ('-x' 'c', '-c', '-', '-o', '/dev/null')
+                if 'gcc' in cc:
+                    return (f'{cross_compile}{cc}', *opts)
+                elif 'clang' in cc:
+                    return (cc, *([f'--target={cross_compile}'] if cross_compile else []), *opts)
+                else:
+                    raise ValueError(f'Cannot test presence of compiler "{cc}"')
+
             toolchain_path = build_conf['build-env-settings']['host'].get('toolchain-path', None)
 
-            for cc, cmd in commands.items():
+            for (cc, cross_compile) in ccs:
+                cmd = test_cmd(cc, cross_compile)
+
                 pretty_cmd = ' '.join(cmd)
                 try:
                     subprocess.check_output(
@@ -1386,23 +1535,50 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     if cls._check_cc_version(cc, toolchain_path):
                         break
             else:
-                raise ValueError(f'Could not find a working toolchain for CROSS_COMPILE={toolchain}')
+                cross = ' or '.join(
+                    f'CROSS_COMPILE={cross_compile}'
+                    for cross_compile in cross_compiles
+                )
+                cc = make_vars.get('CC')
+                with_cc = f' with CC={cc}' if cc else ''
+                raise ValueError(f'Could not find a working toolchain for {cross}{with_cc}')
+
+        elif build_conf['build-env'] == 'alpine':
+            alpine_version = build_conf._get_alpine_version()
+
+            if ccs:
+                for (cc, cross_compile) in ccs:
+                    try:
+                        _find_alpine_cc_packages(
+                            # We check against the package list for the host
+                            # ABI, assuming we will not need emulation to run
+                            # the toolchain.
+                            abi=LISA_HOST_ABI,
+                            version=tuple(alpine_version),
+                            cc=cc,
+                            cross_compile=cross_compile,
+                        )
+                    except ValueError:
+                        pass
+                    else:
+                        break
+                else:
+                    ccs, *_ = zip(*ccs)
+                    ccs = ', '.join(sorted(ccs))
+                    alpine_version = '.'.join(map(str, alpine_version))
+                    raise ValueError(f'None of the considered toolchains are available on Alpine Linux v{alpine_version}: {ccs}')
 
         if cc is None:
-            raise ValueError(f'Could not detect which compiler to use')
+            raise ValueError(f'Could not detect which compiler to use for CC')
 
-        logger.info(f'Detected CROSS_COMPILE={toolchain} and CC={cc}')
+        if cross_compile is None:
+            raise ValueError(f'Could not detect which CROSS_COMPILE value to use')
 
-        detected = {}
-        if toolchain:
-            detected['CROSS_COMPILE'] = toolchain
+        ideal_cc = ccs[0][0]
+        if cc != ideal_cc:
+            logger.info(f'Could not find ideal CC={ideal_cc} but found CC={cc} instead')
 
-        make_vars = {
-            **detected,
-            **make_vars,
-        }
-
-        return (make_vars, cc)
+        return (cc, cross_compile)
 
     @classmethod
     @SerializeViaConstructor.constructor
@@ -1451,7 +1627,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         abi = plat_info['abi']
         kernel_info = plat_info['kernel']
 
-        build_conf, cc, _abi = cls._resolve_conf(build_conf, abi=abi, target=target)
+        build_conf, cc, cross_compile, _abi = cls._resolve_conf(build_conf, abi=abi, target=target)
         assert _abi == abi
 
         @contextlib.contextmanager
@@ -1656,7 +1832,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         """
         logger = cls.get_logger()
         overlays = overlays or {}
-        build_conf, cc, abi = cls._resolve_conf(build_conf)
+        build_conf, cc, cross_compile, abi = cls._resolve_conf(build_conf)
 
         def copy_filter(src, dst, remove_obj=False):
             return not (
@@ -1678,6 +1854,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             cls._prepare_tree(
                 path,
                 cc=cc,
+                cross_compile=cross_compile,
                 abi=abi,
                 build_conf=build_conf,
                 apply_overlays=functools.partial(apply_overlays, path),
@@ -1937,6 +2114,7 @@ class KmodSrc(Loggable):
             **(make_vars or {}),
         }
         cc = kernel_build_env.cc
+        cross_compile = kernel_build_env.cross_compile
         abi = kernel_build_env.abi
         tree_path = Path(kernel_build_env.path)
         # "inherit" the build env from the _KernelBuildEnv as we must use the same
@@ -1997,6 +2175,7 @@ class KmodSrc(Loggable):
             def cmd_cm():
                 with _make_build_chroot(
                     cc=cc,
+                    cross_compile=cross_compile,
                     bind_paths=bind_paths,
                     abi=abi,
                     overlay_backend=build_conf['overlay-backend'],
