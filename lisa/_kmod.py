@@ -2227,7 +2227,7 @@ class KmodSrc(Loggable):
         """
         def get_files(root, dirs, files):
             for f in files:
-                yield (Path(root) / f).resolve()
+                yield (Path(root) / f)
 
         path = Path(path).resolve()
         src = {
