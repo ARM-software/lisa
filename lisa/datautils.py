@@ -1419,7 +1419,7 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, prune=T
 
     # Assign the group ID to each member of the group
     df.loc[first_duplicates, 'duplicate_group'] = first_duplicates.loc[first_duplicates].index
-    df.loc[duplicates, 'duplicate_group'] = df.loc[duplicates, 'duplicate_group'].fillna(method='ffill')
+    df.loc[duplicates, 'duplicate_group'] = df.loc[duplicates, 'duplicate_group'].ffill()
 
     # For some reasons GroupBy.apply() will raise a KeyError if the index is a
     # Float64Index, go figure ...
