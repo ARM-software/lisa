@@ -300,36 +300,45 @@ provided to load the module easily:
 
 Manual route
 ............
+  .. _manual-module-setup-warning:
+  .. _manual-module-setup-warning2:
 
-As a last resort option, the module can be built manually. Be aware that the
-automatic route is applying a number of workarounds you might have to discover
-and replicate yourself.
+Manual build of the module are not supported. You may be able to hack your way
+but if you do so, you are on your own. Also keep in mind that you will need to
+re-implement internal mechanisms of LISA that might change at any time, so you
+will loose any backward compatibility guarantee.
 
-.. _manual-module-setup-warning:
-.. warning::
+.. This is not supported anymore, and also not necessary these days.
+..
+  As a last resort option, the module can be built manually. Be aware that the
+  automatic route is applying a number of workarounds you might have to discover
+  and replicate yourself.
 
-  There is also no stability guarantee on any of the interfaces exposed by the
-  module, such as it's CLI parameters. The behavior of enabling all features by
-  default might also change, as well as the way of selecting features. The fact
-  that all features are compiled-in and available is also not a given and might
-  change in the future, making a specific build more tailored to a specific use
-  case.
+  .. _manual-module-setup-warning:
+  .. warning::
 
-However, there is sometimes no other choice, and this might still be useful as a
-temporary workaround. Just bear in mind that doing that will force you to
-monitor more closely what is happening in LISA, and gain more knowledge of its
-internal mechanisms to keep the setup working.
+    There is also no stability guarantee on any of the interfaces exposed by the
+    module, such as it's CLI parameters. The behavior of enabling all features by
+    default might also change, as well as the way of selecting features. The fact
+    that all features are compiled-in and available is also not a given and might
+    change in the future, making a specific build more tailored to a specific use
+    case.
 
-.. _manual-module-setup-warning2:
-.. warning::
+  However, there is sometimes no other choice, and this might still be useful as a
+  temporary workaround. Just bear in mind that doing that will force you to
+  monitor more closely what is happening in LISA, and gain more knowledge of its
+  internal mechanisms to keep the setup working.
 
-   If you share this setup with anyone else, it is your responsibility to
-   forward the appropriate documentation pointers and maintenance knowledge, and
-   most importantly to let them know what they are signing up for. It is also
-   your responsibility to assert whether it makes sense for them to embark on
-   that path. Things will break, whoever you share it with will complain (to
-   you) if you have not appropriately made them aware of the situation. You have
-   been warned.
+  .. _manual-module-setup-warning2:
+  .. warning::
+
+    If you share this setup with anyone else, it is your responsibility to
+    forward the appropriate documentation pointers and maintenance knowledge, and
+    most importantly to let them know what they are signing up for. It is also
+    your responsibility to assert whether it makes sense for them to embark on
+    that path. Things will break, whoever you share it with will complain (to
+    you) if you have not appropriately made them aware of the situation. You have
+    been warned.
 
 Build
 ~~~~~
@@ -361,57 +370,63 @@ breakage for using stale binaries.
 Integrating the module in your kernel tree
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-If you're rebuilding your kernel tree anyway, it might be easier to integrate
-the module into your kernel tree as a built-in module so that it's always
-present.
+This method is not supported. It falls under the category of manual module
+build.
 
-.. warning::
-   This method is less supported than the out-of-tree method above. It also has
-   all the drawbacks of manual build root since it qualifies as manually
-   building the module.
+.. This block is commented out as it will not work as it stand. If we were to
+   resurrect that flow, it would be a good starting point.
+..
+    If you're rebuilding your kernel tree anyway, it might be easier to integrate
+    the module into your kernel tree as a built-in module so that it's always
+    present.
 
-In order to do that, follow the steps below:
+    .. warning::
+      This method is less supported than the out-of-tree method above. It also has
+      all the drawbacks of manual build root since it qualifies as manually
+      building the module.
 
-* Disable Google's ABI symbols checks by applying the patch found under
-  ``tools/kmodules/lisa-in-tree/android/abi`` to the tree in ``build/abi``.
+    In order to do that, follow the steps below:
 
-* Apply the patches in ``tools/kmodules/lisa-in-tree/linux``
-  to include a stub Kbuild Makefile structure for the module.
-  For Android product kernels it should be applied under ``private/gs-google``,
-  for Android mainline kernels under ``common``.
+    * Disable Google's ABI symbols checks by applying the patch found under
+      ``tools/kmodules/lisa-in-tree/android/abi`` to the tree in ``build/abi``.
 
-.. note:: Older Android product kernels might be missing some internal header
-   import guards present in newer mainline versions. For this method to work
-   make sure your kernel tree includes mainline commits 95458477f5b2dc436e3aa6aa25c0f84bb83e6195
-   and d90a2f160a1cd9a1745896c381afdf8d2812fd6b.
+    * Apply the patches in ``tools/kmodules/lisa-in-tree/linux``
+      to include a stub Kbuild Makefile structure for the module.
+      For Android product kernels it should be applied under ``private/gs-google``,
+      for Android mainline kernels under ``common``.
 
-* Additionally, on Android kernels it can be useful to apply the patches in
-  ``tools/kmodules/lisa-in-tree/android`` as well. It will include the module
-  in the vendor modules list for Android so that it is automatically loaded
-  at boot-time. The patch is specific to the Pixel 6 source tree
-  and very likely should be adjusted accordingly for any other platform.
+    .. note:: Older Android product kernels might be missing some internal header
+      import guards present in newer mainline versions. For this method to work
+      make sure your kernel tree includes mainline commits 95458477f5b2dc436e3aa6aa25c0f84bb83e6195
+      and d90a2f160a1cd9a1745896c381afdf8d2812fd6b.
 
-* Then, put the script found under ``tools/kmodules/lisa-in-tree/fetch_lisa_module.py``
-  and follow the instructions in ``--help`` to link or fetch the Lisa module sources into
-  the source tree.
+    * Additionally, on Android kernels it can be useful to apply the patches in
+      ``tools/kmodules/lisa-in-tree/android`` as well. It will include the module
+      in the vendor modules list for Android so that it is automatically loaded
+      at boot-time. The patch is specific to the Pixel 6 source tree
+      and very likely should be adjusted accordingly for any other platform.
 
-.. code-block:: sh
+    * Then, put the script found under ``tools/kmodules/lisa-in-tree/fetch_lisa_module.py``
+      and follow the instructions in ``--help`` to link or fetch the Lisa module sources into
+      the source tree.
 
-   ./fetch_lisa_module.py --module-kernel-path ./private/gs-google/drivers/soc/arm/vh/kernel/lisa --git-ref main
+    .. code-block:: sh
 
-With all these steps complete, rebuild the kernel:
+      ./fetch_lisa_module.py --module-kernel-path ./private/gs-google/drivers/soc/arm/vh/kernel/lisa --git-ref main
 
-.. code-block:: sh
+    With all these steps complete, rebuild the kernel:
 
-    ./update_symbol_list.sh
+    .. code-block:: sh
 
-The module should be built in-tree and then loaded at boot-time.
+        ./update_symbol_list.sh
 
-.. note:: The order at which the module is loaded at boot time is not guaranteed and
-   Android will not perform any of the Lisa module setup steps. Usually e.g. ``pixel6_emeter``
-   will fail to load on boot and the module will have to be reloaded with ``rmmod lisa && modprobe (..)``.
-   As loading the module in ways different than through Lisa is not officially supported, any such
-   setup is the user's responsibility.
+    The module should be built in-tree and then loaded at boot-time.
+
+    .. note:: The order at which the module is loaded at boot time is not guaranteed and
+      Android will not perform any of the Lisa module setup steps. Usually e.g. ``pixel6_emeter``
+      will fail to load on boot and the module will have to be reloaded with ``rmmod lisa && modprobe (..)``.
+      As loading the module in ways different than through Lisa is not officially supported, any such
+      setup is the user's responsibility.
 
 Updating
 ========
