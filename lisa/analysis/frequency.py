@@ -214,7 +214,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         #     freq_active[t] == 0 otherwise
         cluster_freqs = cluster_freqs.join(
             cluster_active.to_frame(name='active'), how='outer')
-        cluster_freqs.fillna(method='ffill', inplace=True)
+        cluster_freqs.ffill(inplace=True)
 
         # Compute total time by integrating the square wave
         time_df['active_time'] = pd.Series({

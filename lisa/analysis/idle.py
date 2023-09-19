@@ -118,7 +118,7 @@ class IdleAnalysis(TraceAnalysisBase):
                 how='outer'
             )
 
-        active.fillna(method='ffill', inplace=True)
+        active.ffill(inplace=True)
         # There might be NaNs in the signal where we got data from some CPUs
         # before others. That will break the .astype(int) below, so drop rows
         # with NaN in them.
@@ -215,7 +215,7 @@ class IdleAnalysis(TraceAnalysisBase):
             if cpu in cluster
         }
         cpus_df = pd.DataFrame(cols, index=idle_df.index)
-        cpus_df.fillna(method='ffill', inplace=True)
+        cpus_df.ffill(inplace=True)
 
         # Ensure accurate time-based sum of state deltas. This will extrapolate
         # the known cluster_state both to the left and the right.

@@ -748,7 +748,7 @@ class TasksAnalysis(TraceAnalysisBase):
         duty_cycle = active / (active + sleep)
 
         df['duty_cycle'] = duty_cycle
-        df['duty_cycle'].fillna(inplace=True, method='ffill')
+        df['duty_cycle'].ffill(inplace=True)
 
         return df
 
