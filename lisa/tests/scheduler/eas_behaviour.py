@@ -289,7 +289,7 @@ class EASBehaviour(RTATestBundle, TestBundle):
             for task, wlgen_task in rtapp_profile.items()
         )
         df = pd.DataFrame(cols)
-        df.fillna(method='ffill', inplace=True)
+        df.ffill(inplace=True)
         df.dropna(inplace=True)
 
         # Ensure the index is refitted so that integrals work as expected
@@ -315,7 +315,7 @@ class EASBehaviour(RTATestBundle, TestBundle):
             task_cpu(task_ids[0])
             for task, task_ids in self.rtapp_task_ids_map.items()
         ))
-        df.fillna(method='ffill', inplace=True)
+        df.ffill(inplace=True)
         df.dropna(inplace=True)
         df = df_deduplicate(df, consecutives=True, keep='first')
 
@@ -472,7 +472,7 @@ class EASBehaviour(RTATestBundle, TestBundle):
 
         df = pd.concat([task_utils_df, task_cpu_df],
                        axis=1, keys=['utils', 'cpus'])
-        df = df.sort_index().fillna(method='ffill').dropna()
+        df = df.sort_index().ffill().dropna()
 
         # Now make a DataFrame with the estimated power at each moment.
         def est_power(row):
