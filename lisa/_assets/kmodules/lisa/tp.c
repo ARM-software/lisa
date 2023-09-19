@@ -16,15 +16,14 @@ static inline void _trace_cfs(struct cfs_rq *cfs_rq,
 			      void (*trace_event)(int, char*,
 						  const struct sched_avg*))
 {
-	const struct sched_avg *avg;
-	char path[PATH_SIZE];
-	int cpu;
+	if (cfs_rq) {
+		const struct sched_avg *avg = cfs_rq_avg(cfs_rq);
+		char path[PATH_SIZE];
+		int cpu = cfs_rq_cpu(cfs_rq);
 
-	avg = cfs_rq_avg(cfs_rq);
-	cfs_rq_path(cfs_rq, path, PATH_SIZE);
-	cpu = cfs_rq_cpu(cfs_rq);
-
-	trace_event(cpu, path, avg);
+		cfs_rq_path(cfs_rq, path, PATH_SIZE);
+		trace_event(cpu, path, avg);
+	}
 }
 #endif
 
@@ -36,18 +35,14 @@ static inline void _trace_se(struct sched_entity *se,
 {
 	void *gcfs_rq = get_group_cfs_rq(se);
 	void *cfs_rq = get_se_cfs_rq(se);
-	struct task_struct *p;
 	char path[PATH_SIZE];
-	char *comm;
-	pid_t pid;
-	int cpu;
 
 	cfs_rq_path(gcfs_rq, path, PATH_SIZE);
-	cpu = cfs_rq_cpu(cfs_rq);
+	int cpu = cfs_rq ? cfs_rq_cpu(cfs_rq) : -1;
 
-	p = gcfs_rq ? NULL : container_of(se, struct task_struct, se);
-	comm = p ? p->comm : "(null)";
-	pid = p ? p->pid : -1;
+	struct task_struct *p = gcfs_rq ? NULL : container_of(se, struct task_struct, se);
+	char *comm = p ? p->comm : "(null)";
+	pid_t pid = p ? p->pid : -1;
 
 	trace_event(cpu, path, comm, pid, &se->avg);
 }
@@ -72,13 +67,15 @@ DEFINE_TP_EVENT_FEATURE(lisa__uclamp_util_cfs, pelt_cfs_tp, uclamp_util_cfs_prob
 #if HAS_KERNEL_FEATURE(RT_PELT)
 static void sched_pelt_rt_probe(void *feature, struct rq *rq)
 {
-	const struct sched_avg *avg = rq_avg_rt(rq);
-	int cpu = rq_cpu(rq);
+	if (rq) {
+		const struct sched_avg *avg = rq_avg_rt(rq);
+		int cpu = rq_cpu(rq);
 
-	if (!avg)
-		return;
+		if (!avg)
+			return;
 
-	trace_lisa__sched_pelt_rt(cpu, avg);
+		trace_lisa__sched_pelt_rt(cpu, avg);
+	}
 }
 DEFINE_TP_EVENT_FEATURE(lisa__sched_pelt_rt, pelt_rt_tp, sched_pelt_rt_probe);
 #endif
@@ -86,13 +83,15 @@ DEFINE_TP_EVENT_FEATURE(lisa__sched_pelt_rt, pelt_rt_tp, sched_pelt_rt_probe);
 #if HAS_KERNEL_FEATURE(DL_PELT)
 static void sched_pelt_dl_probe(void *feature, struct rq *rq)
 {
-	const struct sched_avg *avg = rq_avg_dl(rq);
-	int cpu = rq_cpu(rq);
+	if (rq) {
+		const struct sched_avg *avg = rq_avg_dl(rq);
+		int cpu = rq_cpu(rq);
 
-	if (!avg)
-		return;
+		if (!avg)
+			return;
 
-	trace_lisa__sched_pelt_dl(cpu, avg);
+		trace_lisa__sched_pelt_dl(cpu, avg);
+	}
 }
 DEFINE_TP_EVENT_FEATURE(lisa__sched_pelt_dl, pelt_dl_tp, sched_pelt_dl_probe);
 #endif
@@ -100,13 +99,15 @@ DEFINE_TP_EVENT_FEATURE(lisa__sched_pelt_dl, pelt_dl_tp, sched_pelt_dl_probe);
 #if HAS_KERNEL_FEATURE(IRQ_PELT)
 static void sched_pelt_irq_probe(void *feature, struct rq *rq)
 {
-	const struct sched_avg *avg = rq_avg_irq(rq);
-	int cpu = rq_cpu(rq);
+	if (rq) {
+		const struct sched_avg *avg = rq_avg_irq(rq);
+		int cpu = rq_cpu(rq);
 
-	if (!avg)
-		return;
+		if (!avg)
+			return;
 
-	trace_lisa__sched_pelt_irq(cpu, avg);
+		trace_lisa__sched_pelt_irq(cpu, avg);
+	}
 }
 DEFINE_TP_EVENT_FEATURE(lisa__sched_pelt_irq, pelt_irq_tp, sched_pelt_irq_probe);
 #endif
@@ -149,7 +150,7 @@ DEFINE_TP_EVENT_FEATURE(lisa__sched_overutilized, sched_overutilized_tp, sched_o
 #if HAS_KERNEL_FEATURE(RQ_NR_RUNNING)
 static void sched_update_nr_running_probe(void *feature, struct rq *rq, int change)
 {
-	if (trace_lisa__sched_update_nr_running_enabled()) {
+	if (rq) {
 		int cpu = rq_cpu(rq);
 		int nr_running = rq_nr_running(rq);
 

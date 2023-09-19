@@ -5813,13 +5813,22 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
         :type optional_events: bool
         """
 
+        def get_key(conf, key):
+            return conf.get_key(key, quiet=True)
+
+        def get_key_default(conf, key, default):
+            try:
+                return get_key(conf, key)
+            except KeyError:
+                return default
+
         if not isinstance(conf, self.__class__):
             conf = self.__class__(conf=conf)
 
         def merge_conf(key, val, path):
             new = _merge_conf(key, val, path)
             try:
-                existing = get_nested_key(self, path + [key])
+                existing = get_nested_key(self, path + [key], getitem=get_key)
             except KeyError:
                 return (True, new)
             else:
@@ -5830,13 +5839,13 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
         def _merge_conf(key, val, path):
 
             def non_mergeable(key):
-                if self.get(key, val) == val:
+                if get_key_default(self, key, val) == val:
                     return val
                 else:
                     raise KeyError(f'Cannot merge key "{key}": incompatible values specified: {self[key]} != {val}')
 
             if key == 'functions':
-                return sorted(set(val) | set(self.get(key, [])))
+                return sorted(set(val) | set(get_key_default(self, key, [])))
             elif key == 'events-namespaces':
                 # We already applied the namespaces to the events so the result
                 # can be cleanly merged according to the original meaning.
@@ -5851,7 +5860,7 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
                 # set the namespace to be empty (None, )
                 def get(conf, key):
                     try:
-                        return conf.get(key)
+                        return get_key(conf, key)
                     except KeyError:
                         return conf.DEFAULT_SRC.get(key)
 
@@ -5859,7 +5868,7 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
                     namespaces=get(conf, 'events-namespaces')
                 )
 
-                self_val = self.get(key, [])
+                self_val = get_key_default(self, key, [])
                 if not isinstance(self_val, TraceEventCheckerBase):
                     self_val = AndTraceEventChecker.from_events(self_val)
 
@@ -5869,11 +5878,11 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
 
                 return AndTraceEventChecker([val, self_val])
             elif key == 'buffer-size':
-                return max(val, self.get(key, 0))
+                return max(val, get_key_default(self, key, 0))
             elif key == 'trace-clock':
                 return non_mergeable(key)
             elif key == 'saved-cmdlines-nr':
-                return max(val, self.get(key, 0))
+                return max(val, get_key_default(self, key, 0))
             elif key == 'tracer':
                 return non_mergeable(key)
             elif key == 'modules':
