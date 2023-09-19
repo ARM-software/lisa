@@ -9,7 +9,6 @@
 #include <linux/cgroup.h>
 
 #include "introspection.h"
-#include "generated/introspection_data.h"
 
 
 #if HAS_TYPE(struct, cfs_rq)
