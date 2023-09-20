@@ -2991,7 +2991,7 @@ class PeriodicWload(WloadPropertyBase, ComposableMultiConcretePropertyBase):
             capa = plat_info.get_nested_key(['cpu-capacities', 'rtapp'], quiet=True)[cpu]
 
         if freq is not None:
-            freqs = plat_info.get_key(['freqs'], quiet=True)[cpu]
+            freqs = plat_info.get_key('freqs', quiet=True)[cpu]
             capa *= freq / max(freqs)
 
         capa /= PELT_SCALE
