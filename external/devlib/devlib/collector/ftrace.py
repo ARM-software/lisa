@@ -251,7 +251,7 @@ class FtraceCollector(CollectorBase):
         if top_buffer_size:
             self.target.write_value(
                 self.target.path.join(self.tracing_path, 'buffer_size_kb'),
-                top_buffer_size,
+                top_buffer_size, verify=False
             )
 
         if self.functions:
