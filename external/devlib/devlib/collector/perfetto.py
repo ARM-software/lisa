@@ -86,8 +86,8 @@ class PerfettoCollector(CollectorBase):
         self.target_output_file = target.path.join(target_output_path, OUTPUT_PERFETTO_TRACE)
 
     def start(self):
-        cmd = "cat {} | {} --txt -c - -o {}".format(
-            quote(self.config), quote(self.target_binary), quote(self.target_output_file)
+        cmd = "{} cat {} | {} --txt -c - -o {}".format(
+            quote(self.target.busybox), quote(self.config), quote(self.target_binary), quote(self.target_output_file)
         )
         # start tracing
         if self.bg_cmd is None:
@@ -117,4 +117,3 @@ class PerfettoCollector(CollectorBase):
         else:
             output.append(CollectorOutputEntry(self.output_path, 'file'))
         return output
-

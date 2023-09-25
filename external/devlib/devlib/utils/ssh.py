@@ -525,7 +525,9 @@ class SshConnection(SshConnectionBase):
 
         # No timeout
         elif self.use_scp:
-            scp = self._get_scp(timeout, callback=handle.progress_cb)
+            def progress_cb(*args, **kwargs):
+                return handle.progress_cb(*args, **kwargs)
+            scp = self._get_scp(timeout, callback=progress_cb)
             handle, cm = make_handle(scp)
 
             scp_cmd = getattr(scp, 'put' if action == 'push' else 'get')
