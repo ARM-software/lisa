@@ -352,6 +352,7 @@ def _make_build_chroot(cc, cross_compile, abi, bind_paths=None, version=None, ov
                 'python3',
                 'py3-pip',
                 'perl',
+                'pahole',
             ]
 
             if is_clang(cc):
