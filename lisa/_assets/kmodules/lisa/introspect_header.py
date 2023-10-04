@@ -22,7 +22,7 @@ import abc
 import sys
 import itertools
 import argparse
-from collections import namedtuple
+from collections import namedtuple, deque
 import functools
 import json
 import re
@@ -97,22 +97,6 @@ def process_btf(out, path, introspect, internal_type_prefix, define_typ_names):
     btf.dump_c(define_typs, fileobj=out, introspection=False, decls=True)
 
 
-# TODO: remove Record class and dump to out directly
-class Record(abc.ABC):
-    @abc.abstractmethod
-    def make_entry(self):
-        pass
-
-class SymbolRecord(namedtuple('SymbolRecord', ['name']), Record):
-    def make_entry(self):
-        return f'#define _SYMBOL_EXISTS_{self.name} 1'
-
-
-class LinkerSymbolRecord(namedtuple('LinkerSymbolRecord', ['name', 'addr']), Record):
-    def make_entry(self):
-        return f'PROVIDE({self.name} = 0x{self.addr});'
-
-
 def is_exported_symbol(code):
     # Unfortunately, a symbol being STB_GLOBAL does not mean it is exported, so
     # we just scrap that address of all symbols and make a linker script for
@@ -126,6 +110,7 @@ def is_exported_symbol(code):
         # not global in the first place, so if we see it we can use it.
         return True or code.isupper()
 
+
 def open_kallsyms(path):
     with open(path, 'r') as f:
         yield from (
@@ -136,10 +121,14 @@ def open_kallsyms(path):
 
 
 def process_kallsyms_introspection(path):
+    has_records = False
     def make_record(addr, code, name):
+        nonlocal has_records
+
         # Uppercase codes are for STB_GLOBAL symbols, i.e. exported symbols.
         if name.isidentifier() and is_exported_symbol(code):
-            return SymbolRecord(name=name).make_entry()
+            has_records = True
+            return f'#define _SYMBOL_EXISTS_{name} 1\n'
         else:
             return None
 
@@ -147,33 +136,32 @@ def process_kallsyms_introspection(path):
         make_record,
         open_kallsyms(path),
     )
-    records = set(record for record in records if record)
-
-    if records:
-        return itertools.chain(
-            records,
-            (
-                '#define _SYMBOL_INTROSPECTION_INFO_AVAILABLE 1',
-            ),
-        )
-    # If the file is empty, we assume there is no kallsyms available
-    else:
-        return []
+    return itertools.chain(
+        filter(bool, records),
+        # Make a lazy generator so that "has_records" is evaluated after the
+        # records have been dumped.
+        (
+            rec
+            for rec in ('#define _SYMBOL_INTROSPECTION_INFO_AVAILABLE 1\n',)
+            if has_records
+        ),
+    )
 
 
 def process_kallsyms_lds(path):
     def make_record(addr, code, name):
         if name.isidentifier():
-            return LinkerSymbolRecord(name=name, addr=addr).make_entry()
+            return f'PROVIDE({name} = 0x{addr});\n'
         else:
             return None
 
-    records = itertools.starmap(
-        make_record,
-        open_kallsyms(path),
+    return filter(
+        bool,
+        itertools.starmap(
+            make_record,
+            open_kallsyms(path),
+        )
     )
-    records = sorted(set(record for record in records if record))
-    return records
 
 
 def process_kernel_features(features):
@@ -200,18 +188,21 @@ def process_kernel_features(features):
         f'"{name}"'
         for name in names
     )
-    names = f'#define __KERNEL_FEATURE_NAMES {names}'
+    names = f'#define __KERNEL_FEATURE_NAMES {names}\n'
 
     values = ', '.join(
         f'({value})'
         for value in values
     )
-    values = f'#define __KERNEL_FEATURE_VALUES {values}'
+    values = f'#define __KERNEL_FEATURE_VALUES {values}\n'
 
     return itertools.chain(
-        (names, values),
         (
-            f'#define _KERNEL_HAS_FEATURE_{name} ({value})'
+            names,
+            values
+        ),
+        (
+            f'#define _KERNEL_HAS_FEATURE_{name} ({value})\n'
             for name, value in features
         )
     )
@@ -246,8 +237,9 @@ def main():
 
     out = sys.stdout
     def dump_records(records):
-        for record in records:
-            out.write(f'{record}\n')
+        # Fastest way to consume an iterator
+        deque(map(out.write, records), maxlen=0)
+
     try:
         if args.btf:
             process_btf(out, args.btf, args.introspect, args.internal_type_prefix, conf.get('btf-types', []))
