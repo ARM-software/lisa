@@ -1730,12 +1730,22 @@ def _dedup_names(typs):
 
     typedef_names = {}
     tagged_names = {}
-    enumerators = dict()
+    fwd_decl_names = {}
+    enumerators = {}
     for typ in typs:
         if isinstance(typ, BTFTypedef):
             cat = typedef_names
-        elif isinstance(typ, (BTFStruct, BTFUnion, BTFEnum, BTFForwardDecl)):
+        # BTFForwardDecl are not renamed since we don't know what they
+        # logically point to. It could be any of the types that share that
+        # name, or yet another unknown. Fortunately, they are kind of useless
+        # since we will create any actually needed forward decl when dumping C
+        # code.
+        elif isinstance(typ, (BTFStruct, BTFUnion, BTFEnum)):
             cat = tagged_names
+        # We still dedup names there, in case they end up being printed and
+        # there is e.g. "union foo;" and "struct foo;"
+        elif isinstance(typ, BTFForwardDecl):
+            cat = fwd_decl_names
         else:
             continue
 
@@ -1760,7 +1770,7 @@ def _dedup_names(typs):
 
                 _typs.append(typ)
 
-    for dup_names in (typedef_names, tagged_names):
+    for dup_names in (typedef_names, tagged_names, fwd_decl_names):
         for name, _typs in dup_names.items():
             if len(_typs) > 1:
                 dedup_typ_names(name, _typs)
