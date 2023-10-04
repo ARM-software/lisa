@@ -352,6 +352,7 @@ def _make_build_chroot(cc, cross_compile, abi, bind_paths=None, version=None, ov
                 'python3',
                 'py3-pip',
                 'perl',
+                'pahole',
             ]
 
             if is_clang(cc):
@@ -2227,7 +2228,7 @@ class KmodSrc(Loggable):
         """
         def get_files(root, dirs, files):
             for f in files:
-                yield (Path(root) / f).resolve()
+                yield (Path(root) / f)
 
         path = Path(path).resolve()
         src = {
