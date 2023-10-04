@@ -99,13 +99,14 @@ ldflags-y += -T $(SYMBOLS_LDS)
 endif
 
 INTROSPECTION_DATA_H := $(GENERATED)/introspection_data.h
-PRIVATE_TYPES_TXT := $(MODULE_SRC)/private_types.txt
 
 # Can be either a kernel image built with DWARF debug info, or the BTF blob
 # found at /sys/kernel/btf/vmlinux
 _BTF_VMLINUX := $(MODULE_SRC)/vmlinux
 _REAL_VMLINUX := $(KERNEL_SRC)/vmlinux
 _SYNTHETIC_VMLINUX := $(MODULE_OBJ)/introspection_data.o
+
+BTF_BLOB := $(GENERATED)/btf.blob
 
 ifeq ("$(wildcard $(_BTF_VMLINUX))","")
 ifeq ($(IN_TREE_BUILD),1)
@@ -117,18 +118,28 @@ else
     VMLINUX := $(_BTF_VMLINUX)
 endif
 
-UNUSED_KERNEL_PRIVATE_TYPES_PREFIX := KERNEL_PRIVATE_
+# Ensure we have a BTF blob regardless of vmlinux format (ELF with .BTF
+# section, ELF with DWARF debug info and no BTF, BTF blob).
+$(BTF_BLOB): $(GENERATED) $(VMLINUX)
+	# If file is ELF, objcopy will succeed (and possibly create an empty
+	# file if the section does not exist).
+	# Otherwise, we assume it is a BTF blob and copy it over to the output.
+	# Extracting this way avoids the costly pahole --btf_encode step that
+	# would convert DWARF to BTF even if .BTF section is already present.
+	# It also avoids calling pahole in the happy path, since
+	# --btf_encode_detached option might not be available on older
+	# versions.
+	$(OBJCOPY) -O binary --only-section=.BTF "$(VMLINUX)" "$@" || cp "$(VMLINUX)" "$@"
+	# If the file was empty, the ELF file was missing BTF info so we generate it.
+	[ -s "$@" ] || pahole --btf_gen_all --btf_encode_detached "$@" "$(VMLINUX)"
 
-VENV := $(MODULE_OBJ)/venv
-$(VENV):
-	python3 -m venv $(VENV)
-	. $(VENV)/bin/activate && python3 -m pip install --upgrade pip setuptools wheel && python3 -m pip install -r $(MODULE_SRC)/requirements.txt
+$(INTROSPECTION_DATA_H): $(GENERATED) $(KALLSYMS) $(BTF_BLOB)
+	printf '#pragma once\n' > "$@"
+	# Create type introspection macros
+	python3 "$(MODULE_SRC)/introspect_header.py" --introspect --btf "$(BTF_BLOB)" --internal-type-prefix KERNEL_PRIVATE_ --kallsyms "$(KALLSYMS)" --conf "$(MODULE_SRC)/introspection.json" >> "$@"
 
-$(INTROSPECTION_DATA_H): $(GENERATED) $(KALLSYMS) $(PRIVATE_TYPES_TXT) $(VMLINUX) $(VENV)
-	sh "$(MODULE_SRC)/make_introspection_header.sh" "$@" "$(MODULE_SRC)" "$(MODULE_OBJ)" "$(VENV)" "$(CC)" "$(PRIVATE_TYPES_TXT)" "$(VMLINUX)" "$(UNUSED_KERNEL_PRIVATE_TYPES_PREFIX)" "$(KALLSYMS)"
-
-$(SYMBOLS_LDS): $(GENERATED) $(KALLSYMS) $(VENV)
-	. $(VENV)/bin/activate && python3 $(MODULE_SRC)/introspect_header.py --kallsyms $(KALLSYMS) --symbols-lds >> $@
+$(SYMBOLS_LDS): $(GENERATED) $(KALLSYMS)
+	python3 $(MODULE_SRC)/introspect_header.py --kallsyms $(KALLSYMS) --symbols-lds >> "$@"
 
 # Some kernels require the use of MODULE_IMPORT_NS() before using symbols that are part of the given namespace:
 # https://docs.kernel.org/core-api/symbol-namespaces.html

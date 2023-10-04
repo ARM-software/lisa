@@ -247,7 +247,10 @@ else
 fi
 
 usage() {
-    echo "Usage: $0 [--help] [--cleanup-android-sdk] [--install-android-tools] [--install-android-platform-tools] [--install-doc-extras] [--install-bisector-dbus] [--install-toolchains] [--install-vagrant] [--install-all]"
+    echo "Usage: $0 [--help] [--cleanup-android-sdk] [--install-android-tools]
+    [--install-android-platform-tools] [--install-doc-extras]
+    [--install-tests-extra] [--install-bisector-dbus] [--install-toolchains]
+    [--install-vagrant] [--install-all]"
     cat << EOF
 
 Install distribution packages and other bits that don't fit in the Python
@@ -304,6 +307,14 @@ for arg in "${args[@]}"; do
         apt_packages+=(plantuml graphviz pandoc)
         # plantuml can be installed from the AUR
         pacman_packages+=(graphviz pandoc)
+        handled=1;
+        ;;&
+
+    # Requirement for LISA's self tests (in tests/ folder), not the synthetic
+    # kernel tests.
+    "--install-tests-extras" | "--install-all")
+        apt_packages+=(clang)
+        pacman_packages+=(clang)
         handled=1;
         ;;&
 
