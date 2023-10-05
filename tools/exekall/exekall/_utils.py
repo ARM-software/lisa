@@ -756,7 +756,7 @@ def import_file(python_src, *args, excep_handler=None, **kwargs):
         return _import_file(python_src, *args, **kwargs)
     except Exception as e:
         if excep_handler:
-            return excep_handler(python_src, e)
+            return excep_handler(str(python_src), e)
         else:
             raise
 
