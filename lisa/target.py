@@ -244,6 +244,11 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             # Similar issue with HiKey960, the board will crash if this is frozen
             # for too long.
             'watchdogd',
+            # AOSP 'mount' command needs to communicate with 'emulated'
+            # threads, the threads are spawn by the process 'rs.media.module',
+            # so need to avoid freezing it to avoid stuck with execute 'mount'
+            # command.
+            'rs.media.module',
         ]
     }
     """
