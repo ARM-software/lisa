@@ -243,7 +243,7 @@ class UtilClamp(RTATestBundle, TestBundle):
                 ana.rta.plot_phases(wlgen_profile=self.rtapp_profile) *
                 hv.Overlay(
                     [
-                        hv.HLine(failure).options(
+                        hv.VLine(failure).options(
                             alpha=0.5,
                             color='red'
                         )
@@ -254,7 +254,7 @@ class UtilClamp(RTATestBundle, TestBundle):
         ]
         if signal is not None:
             figs.append(
-                plot_signal(signal)
+                plot_signal(signal).opts(responsive=True, height=400)
             )
         fig = hv.Layout(figs).cols(1)
 
