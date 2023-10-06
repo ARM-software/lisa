@@ -24,7 +24,7 @@ import holoviews as hv
 
 from lisa.analysis.frequency import FrequencyAnalysis
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
-from lisa.datautils import df_refit_index
+from lisa.datautils import df_refit_index, series_mean
 from lisa.pelt import PELT_SCALE
 from lisa.tests.base import ResultBundle, TestBundle, RTATestBundle, TestMetric
 from lisa.wlgen.rta import RTAPhase, PeriodicWload
@@ -285,7 +285,7 @@ class UtilClamp(RTATestBundle, TestBundle):
 
             uclamp_val = phase['uclamp_val']
             num_activations = len(df.index)
-            cpus = set(map(int, df.cpu.dropna().unique()))
+            cpus = set(map(int, df['cpu'].dropna().unique()))
             fitting_cpus = {
                 cpu
                 for cpu, cap in cpu_max_capacities.items()
@@ -352,6 +352,7 @@ class UtilClamp(RTATestBundle, TestBundle):
         }
         cpu_capacities = self._collect_capacities(self.plat_info)
 
+        @functools.lru_cache(maxsize=4096)
         def schedutil_map_util_cap(cpu, util):
             """
             Returns, for a given util on a given CPU, the capacity that
@@ -372,9 +373,8 @@ class UtilClamp(RTATestBundle, TestBundle):
         def parse_phase(df, phase):
             uclamp_val = phase['uclamp_val']
             num_activations = df['activation_start'].sum()
-            expected = schedutil_map_util_cap(df['cpu'].unique()[0],
-                                              uclamp_val)
-            df['expected_capacity'] = expected
+
+            df['expected_capacity'] = df.apply(lambda line: schedutil_map_util_cap(line['cpu'], uclamp_val), axis=1)
 
             # Activations numbering
             df['activation'] = df['activation_start'].cumsum()
@@ -385,9 +385,9 @@ class UtilClamp(RTATestBundle, TestBundle):
             # Actual capacity at which the task is running
             for cpu, freq_to_capa in cpu_capacities.items():
                 df[cpu] = df[cpu].map(freq_to_capa)
-            df['capacity'] = df.apply(lambda line: line[line.cpu], axis=1)
+            df['capacity'] = df.apply(lambda line: line[line['cpu']], axis=1)
 
-            failures = df[df['capacity'] != expected]
+            failures = df[df['capacity'] != df['expected_capacity']]
             num_failures = failures['activation'].nunique()
 
             test_failures.extend(failures.index.tolist())
@@ -395,7 +395,7 @@ class UtilClamp(RTATestBundle, TestBundle):
 
             metrics[phase['phase']] = {
                 'uclamp-min': TestMetric(uclamp_val),
-                'expected-capacity': TestMetric(expected),
+                'expected-mean-capacity': TestMetric(series_mean(df['expected_capacity'])),
                 'bad-activations': TestMetric(
                     num_failures * 100 / num_activations, "%"),
             }
