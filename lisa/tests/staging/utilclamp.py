@@ -228,7 +228,7 @@ class UtilClamp(RTATestBundle, TestBundle):
 
         return df_phases.apply(parse_phase, axis=1)
 
-    def _plot_phases(self, test, failures, signal=None):
+    def _plot_phases(self, test, failures, signals=None):
         task, = self.rtapp_task_ids
         ana = self.trace.ana(
             task=task,
@@ -252,10 +252,14 @@ class UtilClamp(RTATestBundle, TestBundle):
                 )
             ),
         ]
-        if signal is not None:
+        if signals is not None:
             figs.append(
-                plot_signal(signal).opts(responsive=True, height=400)
+                hv.Overlay([
+                    plot_signal(signals[signal]).opts(responsive=True, height=400)
+                    for signal in signals.columns
+                ])
             )
+
         fig = hv.Layout(figs).cols(1)
 
         self._save_debug_plot(fig, name=f'utilclamp_{test}')
@@ -311,6 +315,7 @@ class UtilClamp(RTATestBundle, TestBundle):
 
     @FrequencyAnalysis.df_cpus_frequency.used_events
     @LoadTrackingAnalysis.df_tasks_signal.used_events
+    @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
     def test_freq_selection(self) -> ResultBundle:
         """
         For each phase, checks if the task placement and frequency selection
@@ -369,6 +374,7 @@ class UtilClamp(RTATestBundle, TestBundle):
             num_activations = df['activation_start'].sum()
             expected = schedutil_map_util_cap(df['cpu'].unique()[0],
                                               uclamp_val)
+            df['expected_capacity'] = expected
 
             # Activations numbering
             df['activation'] = df['activation_start'].cumsum()
@@ -385,7 +391,7 @@ class UtilClamp(RTATestBundle, TestBundle):
             num_failures = failures['activation'].nunique()
 
             test_failures.extend(failures.index.tolist())
-            capacity_dfs.append(df[['capacity']])
+            capacity_dfs.append(df[['capacity', 'expected_capacity']])
 
             metrics[phase['phase']] = {
                 'uclamp-min': TestMetric(uclamp_val),
@@ -402,7 +408,7 @@ class UtilClamp(RTATestBundle, TestBundle):
         self._plot_phases(
             'test_frequency',
             test_failures,
-            signal=pd.concat(capacity_dfs),
+            signals=pd.concat(capacity_dfs)
         )
 
         return res
