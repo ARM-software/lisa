@@ -285,7 +285,7 @@ class UtilClamp(RTATestBundle, TestBundle):
 
             uclamp_val = phase['uclamp_val']
             num_activations = len(df.index)
-            cpus = set(map(int, df.cpu.dropna().unique()))
+            cpus = set(map(int, df['cpu'].dropna().unique()))
             fitting_cpus = {
                 cpu
                 for cpu, cap in cpu_max_capacities.items()
@@ -385,7 +385,7 @@ class UtilClamp(RTATestBundle, TestBundle):
             # Actual capacity at which the task is running
             for cpu, freq_to_capa in cpu_capacities.items():
                 df[cpu] = df[cpu].map(freq_to_capa)
-            df['capacity'] = df.apply(lambda line: line[line.cpu], axis=1)
+            df['capacity'] = df.apply(lambda line: line[line['cpu']], axis=1)
 
             failures = df[df['capacity'] != df['expected_capacity']]
             num_failures = failures['activation'].nunique()
