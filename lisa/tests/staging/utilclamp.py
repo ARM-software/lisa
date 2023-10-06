@@ -315,6 +315,7 @@ class UtilClamp(RTATestBundle, TestBundle):
 
     @FrequencyAnalysis.df_cpus_frequency.used_events
     @LoadTrackingAnalysis.df_tasks_signal.used_events
+    @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
     def test_freq_selection(self) -> ResultBundle:
         """
         For each phase, checks if the task placement and frequency selection
