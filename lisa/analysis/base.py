@@ -762,8 +762,12 @@ class AnalysisHelpers(Loggable, abc.ABC):
                         hv_fig,
                         name='tools',
                         val=[
-                            'undo',
-                            'redo',
+                            # TODO: revisit:
+                            # undo/redo tools are currently broken for some plots:
+                            # https://github.com/holoviz/holoviews/issues/5928
+                            #
+                            # 'undo',
+                            # 'redo',
                             'crosshair',
                             'hover',
                         ],
