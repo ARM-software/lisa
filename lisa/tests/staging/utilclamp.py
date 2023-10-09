@@ -134,6 +134,10 @@ class UtilClamp(RTATestBundle, TestBundle):
 
         def make_phase(band):
             uclamp = band_mid(band)
+            # We don't ask for the middle of the band, we ask for the util that
+            # will map to a frequency in the middle of the band when processed
+            # by schedutil
+            uclamp *= cls.CAPACITY_MARGIN
             util = uclamp / 2
             name = f'uclamp-{uclamp}'
             return (name, (uclamp, util))
