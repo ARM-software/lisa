@@ -79,8 +79,9 @@ class UtilClamp(RTATestBundle, TestBundle):
         """
 
         max_capacities = plat_info['cpu-capacities']['rtapp']
+        capacity_classes = plat_info['capacity-classes']
 
-        return {
+        capacities = {
             cpu: {
                 freq: int(max_capacities[cpu] * freq / max(freqs))
                 for freq in freqs
@@ -88,35 +89,59 @@ class UtilClamp(RTATestBundle, TestBundle):
             for cpu, freqs in plat_info['freqs'].items()
         }
 
+
+        # Ensure there is no overlap between CPUs by ignoring all capacities
+        # that are lower than the max capacity of CPUs with lower max cap. For
+        # example, the capacities of a big CPU that will be considered will
+        # always be higher than the capacities of any LITTLE.
+        #
+        # This avoids choosing any uclamp value that could be placed on one CPU
+        # or another.
+        for cpu, max_cap in max_capacities.items():
+            for _cpu, _max_cap in max_capacities.items():
+                if _max_cap > max_cap:
+                    capacities[_cpu] = {
+                        freq: cap
+                        for freq, cap in capacities[_cpu].items()
+                        if cap >= max_cap
+                    }
+
+        return capacities
+
+
     @classmethod
-    def _collect_capacities_flatten(cls, plat_info):
-        capacities = [
-            capa
+    def _collect_capacity_classes(cls, plat_info):
+        return sorted(set(
+            tuple(sorted(freq_capas.values()))
             for freq_capas in cls._collect_capacities(plat_info).values()
-            for capa in freq_capas.values()
-        ]
-
-        # Remove the duplicates from the list
-        return sorted(set(capacities))
+        ))
 
     @classmethod
-    def _get_bands(cls, capacities):
-        bands = list(zip(capacities, capacities[1:]))
+    def _get_bands(cls, capacity_classes):
 
-        # Only keep a number of bands
-        nr_bands = cls.NR_PHASES
-        if len(bands) > nr_bands:
-            # Pick the bands covering the widest range of util, since they
-            # are easier to test
-            bands = sorted(
-                bands,
-                key=lambda band: band[1] - band[0],
-                reverse=True
-            )
-            bands = bands[:nr_bands]
-            bands = sorted(bands, key=itemgetter(0))
+        def get_bands(capacities):
+            bands = list(zip(capacities, capacities[1:]))
 
-        return bands
+            # Only keep a number of bands
+            nr_bands = cls.NR_PHASES
+            if len(bands) > nr_bands:
+                # Pick the bands covering the widest range of util, since they
+                # are easier to test
+                bands = sorted(
+                    bands,
+                    key=lambda band: band[1] - band[0],
+                    reverse=True
+                )
+                bands = bands[:nr_bands]
+                bands = sorted(bands, key=itemgetter(0))
+
+            return bands
+
+        return [
+            band
+            for capacities in capacity_classes
+            for band in get_bands(capacities)
+        ]
 
     @classmethod
     def _get_phases(cls, plat_info):
@@ -126,8 +151,8 @@ class UtilClamp(RTATestBundle, TestBundle):
           (uclamp_val, util)
         """
 
-        capacities = cls._collect_capacities_flatten(plat_info)
-        bands = cls._get_bands(capacities)
+        capacity_classes = cls._collect_capacity_classes(plat_info)
+        bands = cls._get_bands(capacity_classes)
 
         def band_mid(band):
             return int((band[1] + band[0]) / 2)
