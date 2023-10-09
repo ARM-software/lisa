@@ -122,18 +122,15 @@ class UtilClamp(RTATestBundle, TestBundle):
         def get_bands(capacities):
             bands = list(zip(capacities, capacities[1:]))
 
-            # Only keep a number of bands
-            nr_bands = cls.NR_PHASES
-            if len(bands) > nr_bands:
-                # Pick the bands covering the widest range of util, since they
-                # are easier to test
-                bands = sorted(
-                    bands,
-                    key=lambda band: band[1] - band[0],
-                    reverse=True
-                )
-                bands = bands[:nr_bands]
-                bands = sorted(bands, key=itemgetter(0))
+            # Pick the bands covering the widest range of util, since they
+            # are easier to test
+            bands = sorted(
+                bands,
+                key=lambda band: band[1] - band[0],
+                reverse=True
+            )
+            bands = bands[:cls.NR_PHASES]
+            bands = sorted(bands, key=itemgetter(0))
 
             return bands
 
