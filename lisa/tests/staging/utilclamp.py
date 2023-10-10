@@ -161,6 +161,8 @@ class UtilClamp(RTATestBundle, TestBundle):
             # by schedutil
             uclamp *= cls.CAPACITY_MARGIN
             util = uclamp / 2
+
+            uclamp = int(uclamp)
             name = f'uclamp-{uclamp}'
             return (name, (uclamp, util))
 
