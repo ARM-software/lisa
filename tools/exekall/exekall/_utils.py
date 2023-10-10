@@ -858,9 +858,16 @@ def _import_file(python_src, module_name=None, is_package=False, package_roots=N
             parent = sys.modules[parent_name]
             setattr(parent, last, module)
 
-    sys.modules[module_name] = module
-    importlib.invalidate_caches()
-    return module
+        # Allow the module to change its entry in sys.modules, and get that if
+        # it did. This is consistent with the behaviour of the import
+        # statement.
+        try:
+            module = sys.modules[module_name]
+        except KeyError:
+            sys.modules[module_name] = module
+
+        importlib.invalidate_caches()
+        return module
 
 
 def flatten_seq(seq, levels=1):
