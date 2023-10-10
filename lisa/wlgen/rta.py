@@ -2341,10 +2341,12 @@ class ComposableMultiConcretePropertyBase(MultiConcreteProperty):
 
     def __init__(self, **kwargs):
         def check(key, val):
-            if key in self._ATTRIBUTES:
-                return val
-            else:
+            try:
+                desc = self._ATTRIBUTES[key]
+            except KeyError:
                 raise TypeError(f'Unknown parameter "{key}". Only {sorted(self._ATTRIBUTES)} are allowed')
+            else:
+                return desc.get('type_', lambda x: x)(val)
 
         attrs = {
             key: check(key, val)
