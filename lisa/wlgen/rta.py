@@ -193,6 +193,7 @@ from itertools import chain, product, starmap, islice
 from operator import itemgetter
 from shlex import quote
 from statistics import mean
+import typing
 
 from devlib import TargetStableError
 from devlib.target import KernelConfigTristate
@@ -228,6 +229,7 @@ from lisa.wlgen.workload import Workload
 from lisa.conf import DeferredValueComputationError
 from lisa.monad import StateDiscard, TransformerStack
 from lisa.fuzz import GenMonad
+from lisa._generic import check_type
 
 
 def _to_us(x):
@@ -2346,7 +2348,15 @@ class ComposableMultiConcretePropertyBase(MultiConcreteProperty):
             except KeyError:
                 raise TypeError(f'Unknown parameter "{key}". Only {sorted(self._ATTRIBUTES)} are allowed')
             else:
-                return desc.get('type_', lambda x: x)(val)
+                try:
+                    hint = desc['type_']
+                except KeyError:
+                    pass
+                else:
+                    hint = typing.Union[hint, self._ATTRIBUTE_DEFAULT.__class__]
+                    check_type(val, hint)
+
+                return val
 
         attrs = {
             key: check(key, val)
@@ -2390,9 +2400,12 @@ class ComposableMultiConcretePropertyBase(MultiConcreteProperty):
 
     @classmethod
     def _get_rst_param_doc(cls):
+        default = cls._ATTRIBUTE_DEFAULT
+        default = None if default is None else default.__class__.__qualname__
+
         def make(param, desc):
             fst = f':param {param}: {desc["doc"]}'
-            snd = f':type {param}: {get_cls_name(desc["type_"])} or None'
+            snd = f':type {param}: {get_cls_name(desc["type_"])} or {default}'
             return f'{fst}\n{snd}'
 
         return '\n\n'.join(starmap(make, cls._ATTRIBUTES.items()))
@@ -2957,7 +2970,7 @@ class PeriodicWload(WloadPropertyBase, ComposableMultiConcretePropertyBase):
             type_=float,
         ),
         'duration': dict(
-            doc="Duration of the workload in seconds. If ``None``, keep running forever",
+            doc="Duration of the workload in seconds.",
             type_=float,
         ),
         'scale_for_cpu': dict(
