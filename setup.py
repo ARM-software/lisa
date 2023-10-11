@@ -52,13 +52,18 @@ with os.scandir('lisa/_cli_tools/') as scanner:
         if entry.name.endswith('.py') and entry.is_file()
     ]
 
-packages = ['lisa'] + [
-    f'lisa.{pkg}'
-    for pkg in sorted(set(itertools.chain(
-        find_namespace_packages(where='lisa'),
-        find_packages(where='lisa'),
-    )))
-]
+
+def _find_packages(toplevel):
+    return [toplevel] + [
+        f'{toplevel}.{pkg}'
+        for pkg in sorted(set(itertools.chain(
+            find_namespace_packages(where=toplevel),
+            find_packages(where=toplevel),
+        )))
+    ]
+
+packages = _find_packages('lisa') + _find_packages('lisa_tests')
+
 package_data = {
     package: ['*']
     for package in packages

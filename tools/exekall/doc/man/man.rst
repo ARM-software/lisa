@@ -28,7 +28,7 @@ exekall run
 
    # Give the python module to exekall to get the LISA options in addition to
    # the generic ones.
-   exekall run lisa.tests --help
+   exekall run lisa --help
 
 exekall compare
 ---------------

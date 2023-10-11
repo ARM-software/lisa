@@ -26,7 +26,7 @@ fi
 latest_link="$LISA_HOME/$("$LISA_PYTHON" -c 'from lisa.utils import LATEST_LINK; print(LATEST_LINK)')"
 
 cmd=(
-  exekall run lisa.tests				\
+  exekall run lisa lisa_tests				\
 	"${conf_opt[@]}"									\
 	--symlink-artifact-dir-to "$latest_link"			\
 	--share '*.Target'									\

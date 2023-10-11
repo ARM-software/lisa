@@ -40,7 +40,7 @@ The following tests are available. They can be used as:
 
   # Disable warnings to avoid dependencies to break the reStructuredText output
   export PYTHONWARNINGS="ignore"
-  exekall run lisa.tests --rst-list --inject-empty-target-conf
+  exekall run lisa lisa_tests --rst-list --inject-empty-target-conf
 
 Running tests
 =============
@@ -176,14 +176,15 @@ It can be executed using:
 
 .. code-block:: sh
 
-    exekall run lisa.test_example --conf $LISA_CONF
+    exekall run lisa lisa_tests.test_example --conf $LISA_CONF
 
 .. exec::
     # Check that links inside 'test_example.py' are not broken.
     from lisa._doc.helpers import check_dead_links
-    check_dead_links('test_example.py')
+    from lisa_tests import test_example
+    check_dead_links(test_example.__file__)
 
-.. literalinclude:: test_example.py
+.. literalinclude:: ../lisa_tests/test_example.py
    :language: python
    :pyobject: ExampleTestBundle
    :linenos:
@@ -195,113 +196,4 @@ Base classes
 ++++++++++++
 
 .. automodule:: lisa.tests.base
-   :members:
-
-.. TODO:: Make those imports more generic
-
-Scheduler tests
-+++++++++++++++
-
-EAS tests
----------
-
-.. inheritance-diagram:: lisa.tests.scheduler.eas_behaviour
-   :top-classes: lisa.tests.base.TestBundleBase
-   :parts: 1
-
-|
-
-.. automodule:: lisa.tests.scheduler.eas_behaviour
-   :members:
-
-Load tracking tests
--------------------
-
-.. inheritance-diagram:: lisa.tests.scheduler.load_tracking
-   :top-classes: lisa.tests.base.TestBundleBase
-   :parts: 1
-
-|
-
-.. automodule:: lisa.tests.scheduler.load_tracking
-   :members:
-
-|
-
-.. inheritance-diagram:: lisa.tests.scheduler.util_tracking
-   :top-classes: lisa.tests.base.TestBundleBase
-   :parts: 1
-
-|
-
-.. automodule:: lisa.tests.scheduler.util_tracking
-   :members:
-
-Misfit tests
-------------
-
-.. inheritance-diagram:: lisa.tests.scheduler.misfit
-   :top-classes: lisa.tests.base.TestBundleBase
-   :parts: 1
-
-|
-
-.. automodule:: lisa.tests.scheduler.misfit
-   :members:
-
-Sanity tests
-------------
-
-.. inheritance-diagram:: lisa.tests.scheduler.sanity
-   :top-classes: lisa.tests.base.TestBundleBase
-   :parts: 1
-
-|
-
-.. automodule:: lisa.tests.scheduler.sanity
-   :members:
-
-Hotplug tests
-+++++++++++++
-
-.. inheritance-diagram:: lisa.tests.hotplug
-   :top-classes: lisa.tests.base.TestBundleBase
-   :parts: 1
-
-|
-
-.. automodule:: lisa.tests.hotplug
-   :members:
-
-Cpufreq tests
-+++++++++++++
-
-.. inheritance-diagram:: lisa.tests.cpufreq.sanity
-   :top-classes: lisa.tests.base.TestBundleBase
-   :parts: 1
-
-|
-
-.. automodule:: lisa.tests.cpufreq.sanity
-   :members:
-
-Android tests
-+++++++++++++
-
-.. automodule:: lisa.tests.scheduler.sched_android
-   :members:
-
-Staging tests
-+++++++++++++
-
-Those are tests that have been merged into LISA but whose behaviour are being
-actively evaluated.
-
-.. automodule:: lisa.tests.staging.schedutil
-   :members:
-
-.. automodule:: lisa.tests.staging.numa_behaviour
-   :members:
-
-.. automodule:: lisa.tests.staging.utilclamp
    :members:

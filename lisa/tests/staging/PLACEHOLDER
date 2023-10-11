@@ -1,0 +1,5 @@
+import warnings
+warnings.warn('The module lisa.tests.staging.PLACEHOLDER has been moved to lisa_tests.arm.kernel.staging.PLACEHOLDER')
+
+from lisa_tests.arm.kernel.staging.PLACEHOLDER import *
+
