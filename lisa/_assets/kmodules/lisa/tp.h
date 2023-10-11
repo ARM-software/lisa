@@ -111,4 +111,16 @@ __attribute__((unused)) static struct tracepoint *__find_tracepoint(const char *
  * with automatic "event__" prefixing of the feature name.
  */
 #define DEFINE_EXTENDED_TP_EVENT_FEATURE(event_name, tp_name, probe, enable_f, disable_f) DEFINE_EXTENDED_TP_FEATURE(__EVENT_FEATURE(event_name), tp_name, probe, enable_f, disable_f)
+
+/**
+ * DEFINE_TP_DEPRECATED_EVENT_FEATURE() - Same as DEFINE_TP_EVENT_FEATURE()
+ * with extra deprecation warnings upon init.
+ */
+#define DEFINE_TP_DEPRECATED_EVENT_FEATURE(msg, event_name, tp_name, probe) \
+static int __enable_deprecated_feature_##__EVENT_FEATURE(event_name)(struct feature *feature) \
+{ \
+	pr_err("The feature %s is deprecated: " msg, feature->name); \
+	return 0; \
+} \
+DEFINE_EXTENDED_TP_EVENT_FEATURE(event_name, tp_name, probe, __enable_deprecated_feature_##__EVENT_FEATURE(event_name), NULL)
 #endif
