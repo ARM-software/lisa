@@ -1482,6 +1482,27 @@ class TxtTraceParser(TxtTraceParserBase):
                 'update_time': _KERNEL_DTYPE['timestamp'],
             },
         ),
+        'lisa__sched_pelt_cfs_task': dict(
+            fields={
+                'comm': _KERNEL_DTYPE['comm'],
+                'cpu': _KERNEL_DTYPE['cpu'],
+                'load': _KERNEL_DTYPE['util'],
+                'pid': _KERNEL_DTYPE['signed_pid'],
+                'rbl_load': _KERNEL_DTYPE['util'],
+                'util': _KERNEL_DTYPE['util'],
+                'update_time': _KERNEL_DTYPE['timestamp'],
+            },
+        ),
+        'lisa__sched_pelt_cfs_tg': dict(
+            fields={
+                'cpu': _KERNEL_DTYPE['cpu'],
+                'load': _KERNEL_DTYPE['util'],
+                'path': _KERNEL_DTYPE['cgroup_path'],
+                'rbl_load': _KERNEL_DTYPE['util'],
+                'util': _KERNEL_DTYPE['util'],
+                'update_time': _KERNEL_DTYPE['timestamp'],
+            },
+        ),
         'sched_migrate_task': dict(
             fields={
                 'comm': _KERNEL_DTYPE['comm'],
@@ -1577,13 +1598,29 @@ class TxtTraceParser(TxtTraceParserBase):
         ),
         'lisa__uclamp_util_se': dict(
             fields={
+                'pid': _KERNEL_DTYPE['pid'],
                 'comm': _KERNEL_DTYPE['comm'],
                 'cpu': _KERNEL_DTYPE['cpu'],
-                'pid': _KERNEL_DTYPE['pid'],
                 'uclamp_avg': _KERNEL_DTYPE['util'],
                 'uclamp_max': _KERNEL_DTYPE['util'],
                 'uclamp_min': _KERNEL_DTYPE['util'],
                 'util_avg': _KERNEL_DTYPE['util'],
+            },
+        ),
+        'lisa__uclamp_cfs_task': dict(
+            fields={
+                'pid': _KERNEL_DTYPE['pid'],
+                'comm': _KERNEL_DTYPE['comm'],
+                'cpu': _KERNEL_DTYPE['cpu'],
+                'uclamp_avg': _KERNEL_DTYPE['util'],
+                'util_avg': _KERNEL_DTYPE['util'],
+            },
+        ),
+        'lisa__uclamp_rq': dict(
+            fields={
+                'cpu': _KERNEL_DTYPE['cpu'],
+                'uclamp_max': _KERNEL_DTYPE['util'],
+                'uclamp_min': _KERNEL_DTYPE['util'],
             },
         ),
     }

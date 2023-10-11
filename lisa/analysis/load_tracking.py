@@ -42,7 +42,8 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
     name = 'load_tracking'
 
-    _SCHED_PELT_SE_NAMES = [
+    _SCHED_PELT_TASK_NAMES = [
+        'sched_pelt_cfs_task',
         'sched_pelt_se',
         'sched_load_se',
         'sched_load_avg_task'
@@ -52,7 +53,8 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
     kernel versions (Android, mainline etc)
     """
 
-    _SCHED_PELT_CFS_NAMES = [
+    _SCHED_PELT_TG_NAMES = [
+        'sched_pelt_cfs_tg',
         'sched_pelt_cfs',
         'sched_load_cfs_rq',
         'sched_load_avg_cpu',
@@ -60,6 +62,15 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
     """
     All the names that the per-CPU load tracking event ever had in various
     kernel versions (Android, mainline etc)
+    """
+
+    _SCHED_UTIL_EST_TASK_NAMES = [
+        'sched_util_est_cfs_task',
+        'sched_util_est_se'
+    ]
+    """
+    All the names that the per-task util est event ever had in various
+    kernel and LISA kernel module versions.
     """
 
     @classmethod
@@ -89,7 +100,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         """
         The extra columns not shared between trace event versions
         """
-        if event in [*cls._SCHED_PELT_CFS_NAMES, 'sched_load_se', 'sched_pelt_se']:
+        if event in [*cls._SCHED_PELT_TG_NAMES, 'sched_load_se', 'sched_pelt_se', 'sched_pelt_cfs_task']:
             return ['path', 'rbl_load', 'runnable']
 
         if event in ['sched_load_avg_task']:
@@ -104,11 +115,13 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         # Legacy sched_load_avg_* events don't have a `path` field.
         if not event.startswith('sched_load_avg_'):
-            if event in self._SCHED_PELT_SE_NAMES:
-                df = df[df.path == "(null)"]
+            # sched_pelt_cfs_task does not contain any taskgroup record so no
+            # need to filter anything
+            if event != 'sched_pelt_cfs_task' and event in self._SCHED_PELT_TASK_NAMES:
+                df = df[df['path'] == "(null)"]
 
-            if event in self._SCHED_PELT_CFS_NAMES:
-                df = df[df.path == "/"]
+            if event in self._SCHED_PELT_TG_NAMES:
+                df = df[df['path'] == "/"]
 
         to_drop = self._columns_to_drop(event)
         df.drop(columns=to_drop, inplace=True, errors='ignore')
@@ -129,7 +142,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         )
 
     @will_use_events_from(
-        requires_one_event_of(*_SCHED_PELT_CFS_NAMES),
+        requires_one_event_of(*_SCHED_PELT_TG_NAMES),
         'sched_util_est_cfs',
         'sched_cpu_capacity',
     )
@@ -155,7 +168,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         """
 
         if signal in ('util', 'load'):
-            df = self._df_either_event(self._SCHED_PELT_CFS_NAMES)
+            df = self._df_either_event(self._SCHED_PELT_TG_NAMES)
         elif signal == 'enqueued':
             df = self._df_uniformized_signal('sched_util_est_cfs')
         elif signal == 'capacity':
@@ -179,7 +192,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         return df
 
     @deprecate(replaced_by=df_cpus_signal, deprecated_in='2.0', removed_in='4.0')
-    @requires_one_event_of(*_SCHED_PELT_CFS_NAMES)
+    @requires_one_event_of(*_SCHED_PELT_TG_NAMES)
     def df_cpus_signals(self):
         """
         Get the load-tracking signals for the CPUs
@@ -189,12 +202,12 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
           * A ``util`` column (the average utilization of a CPU at time t)
           * A ``load`` column (the average load of a CPU at time t)
         """
-        return self._df_either_event(self._SCHED_PELT_CFS_NAMES)
+        return self._df_either_event(self._SCHED_PELT_TG_NAMES)
 
     @TraceAnalysisBase.cache
     @will_use_events_from(
-        requires_one_event_of(*_SCHED_PELT_SE_NAMES),
-        'sched_util_est_se'
+        requires_one_event_of(*_SCHED_PELT_TASK_NAMES),
+        requires_one_event_of(*_SCHED_UTIL_EST_TASK_NAMES),
     )
     def df_tasks_signal(self, signal):
         """
@@ -215,10 +228,10 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         :type signal: str
         """
         if signal in ('util', 'load'):
-            df = self._df_either_event(self._SCHED_PELT_SE_NAMES)
+            df = self._df_either_event(self._SCHED_PELT_TASK_NAMES)
 
         elif signal in ('enqueued', 'ewma'):
-            df = self._df_uniformized_signal('sched_util_est_se')
+            df = self._df_either_event(self._SCHED_UTIL_EST_TASK_NAMES)
 
         elif signal == 'required_capacity':
             # Add a column which represents the max capacity of the smallest
@@ -231,7 +244,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                         return capacity
 
                 return capacities[-1]
-            df = self._df_either_event(self._SCHED_PELT_SE_NAMES)
+            df = self._df_either_event(self._SCHED_PELT_TASK_NAMES)
             df['required_capacity'] = df['util'].map(fits_capacity)
 
         else:
@@ -258,7 +271,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         return df_filter_task_ids(df, [task_id])
 
     @deprecate(replaced_by=df_tasks_signal, deprecated_in='2.0', removed_in='4.0')
-    @requires_one_event_of(*_SCHED_PELT_SE_NAMES)
+    @requires_one_event_of(*_SCHED_PELT_TASK_NAMES)
     def df_tasks_signals(self):
         """
         Get the load-tracking signals for the tasks
@@ -273,7 +286,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
           * A ``required_capacity`` column (the minimum available CPU capacity
             required to run this task without being CPU-bound)
         """
-        df = self._df_either_event(self._SCHED_PELT_SE_NAMES)
+        df = self._df_either_event(self._SCHED_PELT_TASK_NAMES)
 
         if "orig" in self.trace.plat_info['cpu-capacities']:
             df['required_capacity'] = self.df_tasks_signal('required_capacity')['required_capacity']
@@ -301,7 +314,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         df = self.df_tasks_signal('util')
 
         # Compute number of samples above threshold
-        samples = df[df.util > util_threshold].groupby('pid', observed=True, sort=False, group_keys=False).count()["util"]
+        samples = df[df['util'] > util_threshold].groupby('pid', observed=True, sort=False, group_keys=False).count()["util"]
         samples = samples[samples > min_samples]
         samples = samples.sort_values(ascending=False)
 

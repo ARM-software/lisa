@@ -2080,6 +2080,11 @@ _SIGNALS = [
     SignalDesc('sched_load_se', ['comm', 'pid']),
     SignalDesc('sched_util_est_se', ['comm', 'pid']),
 
+    SignalDesc('sched_pelt_cfs_task', ['comm', 'pid']),
+    SignalDesc('sched_pelt_cfs_tg', ['path', 'cpu']),
+    SignalDesc('sched_util_est_cfs_task', ['comm', 'pid']),
+    SignalDesc('sched_util_est_cfs_tg', ['path']),
+
     SignalDesc('sched_util_est_cfs', ['cpu']),
     SignalDesc('sched_pelt_cfs', ['path', 'cpu']),
     SignalDesc('sched_load_cfs_rq', ['path', 'cpu']),
@@ -2089,6 +2094,9 @@ _SIGNALS = [
 
     SignalDesc('uclamp_util_se', ['pid', 'comm']),
     SignalDesc('uclamp_util_cfs', ['cpu']),
+
+    SignalDesc('uclamp_rq', ['cpu']),
+    SignalDesc('uclamp_cfs_task', ['pid', 'comm']),
 
     SignalDesc('sched_overutilized', []),
     SignalDesc('sched_process_wait', ['comm', 'pid']),
