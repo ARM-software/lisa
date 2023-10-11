@@ -2626,7 +2626,7 @@ class FtraceDynamicKmod(DynamicKmod):
         })
 
 
-class LISADynamicKmod(FtraceDynamicKmod):
+class LISAFtraceDynamicKmod(FtraceDynamicKmod):
     """
     Module providing ftrace events used in various places by :mod:`lisa`.
 
