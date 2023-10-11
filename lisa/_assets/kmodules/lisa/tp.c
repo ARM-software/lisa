@@ -56,7 +56,7 @@ static void sched_pelt_cfs_probe(void *feature, struct cfs_rq *cfs_rq)
 DEFINE_TP_EVENT_FEATURE(lisa__sched_pelt_cfs, pelt_cfs_tp, sched_pelt_cfs_probe);
 #endif
 
-#if HAS_KERNEL_FEATURE(CFS_UCLAMP)
+#if HAS_KERNEL_FEATURE(RQ_UCLAMP)
 static void uclamp_util_cfs_probe(void *feature, struct cfs_rq *cfs_rq) {
 	bool __maybe_unused is_root_rq = ((struct cfs_rq *)&rq_of(cfs_rq)->cfs == cfs_rq);
 	trace_lisa__uclamp_util_cfs(is_root_rq, rq_of(cfs_rq), cfs_rq);

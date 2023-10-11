@@ -313,20 +313,20 @@ TRACE_EVENT_CONDITION(lisa__uclamp_util_se,
 		__entry->util_avg       = p->se.avg.util_avg;
 		__entry->uclamp_avg     = uclamp_rq_util_with(rq, p->se.avg.util_avg);
 
-#    if HAS_KERNEL_FEATURE(CFS_UCLAMP)
+#    if HAS_KERNEL_FEATURE(RQ_UCLAMP)
 		__entry->uclamp_min     = rq->uclamp[UCLAMP_MIN].value;
 		__entry->uclamp_max     = rq->uclamp[UCLAMP_MAX].value;
 #    endif
 		),
 
 	TP_printk("pid=%d comm=%s cpu=%d util_avg=%lu uclamp_avg=%lu"
-#    if HAS_KERNEL_FEATURE(CFS_UCLAMP)
+#    if HAS_KERNEL_FEATURE(RQ_UCLAMP)
 		  " uclamp_min=%lu uclamp_max=%lu"
 #    endif
 		  ,
 		  __entry->pid, __entry->comm, __entry->cpu,
 		  __entry->util_avg, __entry->uclamp_avg
-#    if HAS_KERNEL_FEATURE(CFS_UCLAMP)
+#    if HAS_KERNEL_FEATURE(RQ_UCLAMP)
 		  ,__entry->uclamp_min, __entry->uclamp_max
 #    endif
 		)
@@ -336,7 +336,7 @@ TRACE_EVENT_CONDITION(lisa__uclamp_util_se,
 #define trace_lisa__uclamp_util_se_enabled() (false)
 #endif
 
-#if HAS_KERNEL_FEATURE(CFS_UCLAMP)
+#if HAS_KERNEL_FEATURE(RQ_UCLAMP)
 TRACE_EVENT_CONDITION(lisa__uclamp_util_cfs,
 
 	TP_PROTO(bool is_root, struct rq *rq, struct cfs_rq *cfs_rq),
