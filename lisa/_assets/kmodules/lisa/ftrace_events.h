@@ -134,7 +134,7 @@ DEFINE_EVENT(lisa__sched_pelt_rq_template, lisa__sched_pelt_irq,
 #if HAS_KERNEL_FEATURE(SE_PELT)
 TRACE_EVENT(lisa__sched_pelt_se,
 
-	TP_PROTO(int cpu, char *path, char *comm, int pid, const struct sched_avg *avg),
+	TP_PROTO(int cpu, const char *path, const char *comm, int pid, const struct sched_avg *avg),
 
 	TP_ARGS(cpu, path, comm, pid, avg),
 
@@ -182,7 +182,7 @@ TRACE_EVENT(lisa__sched_pelt_se,
 #if HAS_KERNEL_FEATURE(SCHED_OVERUTILIZED)
 TRACE_EVENT(lisa__sched_overutilized,
 
-	TP_PROTO(int overutilized, char *span),
+	TP_PROTO(int overutilized, const char *span),
 
 	TP_ARGS(overutilized, span),
 
@@ -227,7 +227,7 @@ TRACE_EVENT(lisa__sched_update_nr_running,
 #if HAS_KERNEL_FEATURE(SE_UTIL_EST)
 TRACE_EVENT(lisa__sched_util_est_se,
 
-	TP_PROTO(int cpu, char *path, char *comm, int pid,
+	TP_PROTO(int cpu, const char *path, const char *comm, int pid,
 		 const struct sched_avg *avg),
 
 	TP_ARGS(cpu, path, comm, pid, avg),
@@ -290,7 +290,7 @@ TRACE_EVENT(lisa__sched_util_est_cfs,
 #if HAS_KERNEL_FEATURE(SE_UCLAMP)
 TRACE_EVENT_CONDITION(lisa__uclamp_util_se,
 
-	TP_PROTO(bool is_task, struct task_struct *p, struct rq *rq),
+	TP_PROTO(bool is_task, const struct task_struct *p, const struct rq *rq),
 
 	TP_ARGS(is_task, p, rq),
 
@@ -339,7 +339,7 @@ TRACE_EVENT_CONDITION(lisa__uclamp_util_se,
 #if HAS_KERNEL_FEATURE(RQ_UCLAMP)
 TRACE_EVENT_CONDITION(lisa__uclamp_util_cfs,
 
-	TP_PROTO(bool is_root, struct rq *rq, struct cfs_rq *cfs_rq),
+	TP_PROTO(bool is_root, const struct rq *rq, const struct cfs_rq *cfs_rq),
 
 	TP_ARGS(is_root, rq, cfs_rq),
 
@@ -417,7 +417,7 @@ TRACE_EVENT(lisa__sched_cpu_capacity,
 #define PIXEL6_EMETER_CHAN_NAME_MAX_SIZE 64
 
 TRACE_EVENT(lisa__pixel6_emeter,
-	TP_PROTO(unsigned long ts, unsigned int device, unsigned int chan, char *chan_name, unsigned long value),
+	TP_PROTO(unsigned long ts, unsigned int device, unsigned int chan, const char *chan_name, unsigned long value),
 	TP_ARGS(ts, device, chan, chan_name, value),
 
 	TP_STRUCT__entry(

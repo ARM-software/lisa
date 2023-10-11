@@ -30,11 +30,11 @@ static inline void _trace_cfs(struct cfs_rq *cfs_rq,
 
 #if HAS_KERNEL_FEATURE(SE_PELT)
 static inline void _trace_se(struct sched_entity *se,
-			     void (*trace_event)(int, char*, char*, int,
+			     void (*trace_event)(int, const char*, const char*, int,
 						 const struct sched_avg*))
 {
-	void *gcfs_rq = get_group_cfs_rq(se);
-	void *cfs_rq = get_se_cfs_rq(se);
+	const struct cfs_rq *gcfs_rq = get_group_cfs_rq(se);
+	const struct cfs_rq *cfs_rq = get_se_cfs_rq(se);
 	char path[PATH_SIZE];
 
 	cfs_rq_path(gcfs_rq, path, PATH_SIZE);
@@ -124,7 +124,7 @@ DEFINE_TP_EVENT_FEATURE(lisa__sched_pelt_se, pelt_se_tp, sched_pelt_se_probe);
 static void uclamp_util_se_probe(void *feature, struct sched_entity *se)
 {
 
-	struct cfs_rq __maybe_unused *cfs_rq = get_se_cfs_rq(se);
+	const struct cfs_rq __maybe_unused *cfs_rq = get_se_cfs_rq(se);
 
 	trace_lisa__uclamp_util_se(entity_is_task(se),
 				container_of(se, struct task_struct, se),
