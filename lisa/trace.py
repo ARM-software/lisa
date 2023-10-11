@@ -63,7 +63,7 @@ from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc
 from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString
-from lisa._kmod import LISAFtraceDynamicKmod
+from lisa._kmod import LISADynamicKmod
 from lisa._assets import get_bin
 
 
@@ -6034,7 +6034,7 @@ class FtraceCollector(CollectorBase, Configurable):
     Thin wrapper around :class:`devlib.collector.ftrace.FtraceCollector`.
 
     .. note:: Events are expected to be provided by the target's kernel, but if
-        they are not :class:`lisa._kmod.LISAFtraceDynamicKmod` will build a
+        they are not :class:`lisa._kmod.LISADynamicKmod` will build a
         kernel module to attempt to satisfy the missing events. This will
         typically require correct target setup, see
         :class:`lisa.target.TargetConf` ``kernel/src`` configurations.
@@ -6059,7 +6059,7 @@ class FtraceCollector(CollectorBase, Configurable):
         tracing_path = devlib.FtraceCollector.find_tracing_path(target)
         target_available_events, avoided = self._target_available_events(target, tracing_path)
 
-        kmod = target.get_kmod(LISAFtraceDynamicKmod)
+        kmod = target.get_kmod(LISADynamicKmod)
         # Get the events possibly defined in the module. Note that it's a
         # superset of the events actually defined as this is based on pretty
         # crude filtering of the source files, rather than analyzing the events
@@ -6247,7 +6247,7 @@ class FtraceCollector(CollectorBase, Configurable):
 
     @classmethod
     def _get_kmod(cls, target, target_available_events, needed_events):
-        kmod = target.get_kmod(LISAFtraceDynamicKmod)
+        kmod = target.get_kmod(LISADynamicKmod)
         defined_events = set(kmod.defined_events)
         needed = needed_events & defined_events
         if needed:
