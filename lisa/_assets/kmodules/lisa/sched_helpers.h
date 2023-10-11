@@ -203,6 +203,14 @@ static inline int rq_cpu(const struct rq *rq)
 	return cpu_of(rq);
 }
 
+
+static inline int se_cpu(const struct sched_entity *se)
+{
+	const struct cfs_rq *cfs_rq = get_se_cfs_rq(se);
+	int cpu = cfs_rq ? cfs_rq_cpu(cfs_rq) : -1;
+	return cpu;
+}
+
 static inline int rq_cpu_capacity(const struct rq *rq)
 {
 	return
