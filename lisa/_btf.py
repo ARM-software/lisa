@@ -182,8 +182,8 @@ class _CDecl:
     def _do_dump_c_decls(self, ctx):
         pass
 
-    def _dump_c_decls(self, ctx, memoize=True, **kwargs):
-        if memoize:
+    def _dump_c_decls(self, ctx, **kwargs):
+        if kwargs.get('memoize', True):
             try:
                 x = ctx._memo[self]
             except KeyError:
@@ -483,7 +483,7 @@ class _BTFStructUnion(_CDecl, BTFType):
             for member in self.members:
                 member._dump_c_introspection(ctx)
 
-    def _do_dump_c_decls(self, ctx, anonymous=False):
+    def _do_dump_c_decls(self, ctx, anonymous=False, memoize=True):
         members = self._all_members
         size = self.size
         kind = self._KIND
