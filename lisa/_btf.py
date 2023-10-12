@@ -133,6 +133,12 @@ class BTFType(metaclass=_BTFTypeMeta):
             typ._map_typs(lambda x: x, visited=reachable_typs)
         return reachable_typs
 
+    @classmethod
+    def map_typs(cls, f, typs):
+        visited = set()
+        for typ in typs:
+            typ._map_typs(f, visited=visited)
+
     def _map_typs(self, f, visited):
         if self in visited:
             return

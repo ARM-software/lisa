@@ -22,7 +22,7 @@ import abc
 import sys
 import itertools
 import argparse
-from collections import namedtuple, deque
+from collections import namedtuple, deque, defaultdict
 import functools
 import json
 import re
@@ -80,8 +80,20 @@ def process_btf(out, path, introspect, internal_type_prefix, define_typ_names):
         else:
             return rename(name)
 
+    tagged = {
+        cls: defaultdict(set)
+        for cls in (btf.BTFStruct, btf.BTFUnion, btf.BTFEnum)
+    }
+    fwd_decls = set()
+
     for typ in reachable_typs:
-        if isinstance(typ, btf.BTFEnum):
+        for _cls, _typs in tagged.items():
+            if isinstance(typ, _cls):
+                _typs[typ.name].add(typ)
+
+        if isinstance(typ, btf.BTFForwardDecl):
+            fwd_decls.add(typ)
+        elif isinstance(typ, btf.BTFEnum):
             typ.enumerators = {
                 (
                     name
@@ -90,11 +102,36 @@ def process_btf(out, path, introspect, internal_type_prefix, define_typ_names):
                 ): value
                 for name, value in typ.enumerators.items()
             }
+
+    resolved = {}
+    for typ in fwd_decls:
+        for _cls, _typs in tagged.items():
+            if issubclass(typ.typ_cls, _cls):
+                try:
+                    (target,) = _typs[typ.name]
+                except (KeyError, ValueError):
+                    pass
+                else:
+                    resolved[typ] = target
+                break
+
+    # Resolve all the forward declarations we can to the type they point to.
+    # This prevents arbitrary breakage of code in pointer chains spanning
+    # multiple structs that were not explicitly asked by the user.
+    #
+    # The main risk is e.g. "struct foo;" forward decl being matched with a
+    # "struct foo {...};" that was done in another file and has nothing to do
+    # with it. But as long as we only print a subset of kernel types, we are
+    # unlikely to run into that, or at least less likely to run into that than
+    # running into broken pointer chains because of forward decls.
+    btf.BTFType.map_typs(lambda typ: resolved.get(typ, typ), reachable_typs)
+
+    for typ in reachable_typs:
         if isinstance(typ, named_classes) and typ.name:
             typ.name = rename_internal_typ(typ)
 
     # Dump declaration for all the types we are interested in
-    btf.dump_c(define_typs, fileobj=out, introspection=False, decls=True)
+    btf.dump_c(reachable_typs, fileobj=out, introspection=False, decls=True)
 
 
 def is_exported_symbol(code):
