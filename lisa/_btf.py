@@ -133,6 +133,12 @@ class BTFType(metaclass=_BTFTypeMeta):
             typ._map_typs(lambda x: x, visited=reachable_typs)
         return reachable_typs
 
+    @classmethod
+    def map_typs(cls, f, typs):
+        visited = set()
+        for typ in typs:
+            typ._map_typs(f, visited=visited)
+
     def _map_typs(self, f, visited):
         if self in visited:
             return
@@ -176,8 +182,8 @@ class _CDecl:
     def _do_dump_c_decls(self, ctx):
         pass
 
-    def _dump_c_decls(self, ctx, memoize=True, **kwargs):
-        if memoize:
+    def _dump_c_decls(self, ctx, **kwargs):
+        if kwargs.get('memoize', True):
             try:
                 x = ctx._memo[self]
             except KeyError:
@@ -477,7 +483,7 @@ class _BTFStructUnion(_CDecl, BTFType):
             for member in self.members:
                 member._dump_c_introspection(ctx)
 
-    def _do_dump_c_decls(self, ctx, anonymous=False):
+    def _do_dump_c_decls(self, ctx, anonymous=False, memoize=True):
         members = self._all_members
         size = self.size
         kind = self._KIND
@@ -732,21 +738,27 @@ class BTFStruct(_BTFStructUnion):
 
     @property
     def alignment(self):
-        alignment = self._alignment
-        if alignment is None:
-            max_alignment = self._max_alignment
-            # We have something weird going on, like a struct manually padded using
-            # anonymous bitfields at the end.
-            self._alignment = self._min_alignment if self.size % max_alignment else max_alignment
-            return self._alignment
+        size = self.size
+        max_alignment = self._max_alignment
+
+        # We have something weird going on, like a struct manually padded using
+        # anonymous bitfields at the end.
+        if size % max_alignment:
+            return 1
         else:
-            return alignment
+            alignment = self._alignment
+            if alignment is None:
+                # We have something weird going on, like a struct manually padded using
+                # anonymous bitfields at the end.
+                self._alignment = self._min_alignment if self.size % max_alignment else max_alignment
+                return self._alignment
+            else:
+                return alignment
 
     @property
     def _align_attribute(self):
         members = self.members
         size = self.size
-        alignment = self.alignment
         min_alignment = self._min_alignment
         max_alignment = self._max_alignment
 
@@ -776,9 +788,10 @@ class BTFStruct(_BTFStructUnion):
                 )
                 align = None
         else:
+            alignment = self.alignment
             padding = None
             align = f'aligned({alignment})' if alignment > min_alignment else ''
-            packed = ''
+            packed = None
 
         attrs = ','.join(attr for attr in (packed, align) if attr)
         return (
@@ -1735,11 +1748,11 @@ def _dedup_names(typs):
     for typ in typs:
         if isinstance(typ, BTFTypedef):
             cat = typedef_names
-        # BTFForwardDecl are not renamed since we don't know what they
-        # logically point to. It could be any of the types that share that
-        # name, or yet another unknown. Fortunately, they are kind of useless
-        # since we will create any actually needed forward decl when dumping C
-        # code.
+        # BTFForwardDecl are renamed independently from the type they declare
+        # since we don't know what they logically point to. It could be any of
+        # the types that share that name, or yet another unknown. Fortunately,
+        # they are kind of useless since we will create any actually needed
+        # forward decl when dumping C code.
         elif isinstance(typ, (BTFStruct, BTFUnion, BTFEnum)):
             cat = tagged_names
         # We still dedup names there, in case they end up being printed and
