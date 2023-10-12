@@ -23,7 +23,7 @@ from wa.framework.instrument import very_slow, very_fast
 from wa.utils.types import list_of_strings
 
 from lisa.target import Target as LISATarget
-from lisa._kmod import LISAFtraceDynamicKmod
+from lisa._kmod import LISADynamicKmod
 from lisa.utils import get_nested_key
 
 
@@ -232,7 +232,7 @@ class LisaKmodInstrument(Instrument):
         # Note that this function will be ran for each monkey patched
         # instrument, unlike the other methods ran in job context.
         events = self._all_ftrace_events(context)
-        kmod = self._lisa_target.get_kmod(LISAFtraceDynamicKmod)
+        kmod = self._lisa_target.get_kmod(LISADynamicKmod)
         self._features = set(kmod._event_features(events))
         self._kmod = kmod
 

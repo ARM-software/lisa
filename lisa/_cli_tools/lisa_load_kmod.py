@@ -11,7 +11,7 @@ import tempfile
 import shlex
 
 from lisa.target import Target
-from lisa._kmod import LISAFtraceDynamicKmod
+from lisa._kmod import LISADynamicKmod
 from lisa.utils import ignore_exceps
 
 def main():
@@ -59,7 +59,7 @@ def _main(args, target):
     if features is not None:
         kmod_params['features'] = list(features)
 
-    kmod = target.get_kmod(LISAFtraceDynamicKmod)
+    kmod = target.get_kmod(LISADynamicKmod)
     _kmod_cm = kmod.run(kmod_params=kmod_params)
 
     if keep_loaded:
