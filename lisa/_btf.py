@@ -738,21 +738,27 @@ class BTFStruct(_BTFStructUnion):
 
     @property
     def alignment(self):
-        alignment = self._alignment
-        if alignment is None:
-            max_alignment = self._max_alignment
-            # We have something weird going on, like a struct manually padded using
-            # anonymous bitfields at the end.
-            self._alignment = self._min_alignment if self.size % max_alignment else max_alignment
-            return self._alignment
+        size = self.size
+        max_alignment = self._max_alignment
+
+        # We have something weird going on, like a struct manually padded using
+        # anonymous bitfields at the end.
+        if size % max_alignment:
+            return 1
         else:
-            return alignment
+            alignment = self._alignment
+            if alignment is None:
+                # We have something weird going on, like a struct manually padded using
+                # anonymous bitfields at the end.
+                self._alignment = self._min_alignment if self.size % max_alignment else max_alignment
+                return self._alignment
+            else:
+                return alignment
 
     @property
     def _align_attribute(self):
         members = self.members
         size = self.size
-        alignment = self.alignment
         min_alignment = self._min_alignment
         max_alignment = self._max_alignment
 
@@ -782,9 +788,10 @@ class BTFStruct(_BTFStructUnion):
                 )
                 align = None
         else:
+            alignment = self.alignment
             padding = None
             align = f'aligned({alignment})' if alignment > min_alignment else ''
-            packed = ''
+            packed = None
 
         attrs = ','.join(attr for attr in (packed, align) if attr)
         return (
