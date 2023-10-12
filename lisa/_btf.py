@@ -1735,11 +1735,11 @@ def _dedup_names(typs):
     for typ in typs:
         if isinstance(typ, BTFTypedef):
             cat = typedef_names
-        # BTFForwardDecl are not renamed since we don't know what they
-        # logically point to. It could be any of the types that share that
-        # name, or yet another unknown. Fortunately, they are kind of useless
-        # since we will create any actually needed forward decl when dumping C
-        # code.
+        # BTFForwardDecl are renamed independently from the type they declare
+        # since we don't know what they logically point to. It could be any of
+        # the types that share that name, or yet another unknown. Fortunately,
+        # they are kind of useless since we will create any actually needed
+        # forward decl when dumping C code.
         elif isinstance(typ, (BTFStruct, BTFUnion, BTFEnum)):
             cat = tagged_names
         # We still dedup names there, in case they end up being printed and
