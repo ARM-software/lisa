@@ -12,7 +12,7 @@
 #include "tp.h"
 
 #if HAS_KERNEL_FEATURE(CFS_PELT)
-static inline void _trace_cfs(const struct cfs_rq *cfs_rq,
+static inline void _deprecated_trace_cfs_rq(const struct cfs_rq *cfs_rq,
 			      void (*trace_event)(int, const char*,
 						  const struct sched_avg*))
 {
@@ -74,22 +74,33 @@ static inline void _trace_cfs_tg(struct sched_entity *se, trace_cfs_tg trace_tg)
 	}
 }
 
+static inline void _trace_cfs_tg_rq(const struct cfs_rq *cfs_rq, trace_cfs_tg trace_tg)
+{
+	if (cfs_rq) {
+		int cpu = cfs_rq_cpu(cfs_rq);
+
+		char path[PATH_SIZE];
+		cfs_rq_path(cfs_rq, path, PATH_SIZE);
+		const struct sched_avg *avg = cfs_tg_avg(cfs_rq);
+
+		if (avg)
+			trace_tg(cpu, path, avg);
+	}
+}
+
 #if HAS_KERNEL_FEATURE(CFS_PELT)
 static void sched_pelt_cfs_probe(void *feature, struct cfs_rq *cfs_rq)
 {
-	_trace_cfs(cfs_rq, trace_lisa__sched_pelt_cfs);
+	_deprecated_trace_cfs_rq(cfs_rq, trace_lisa__sched_pelt_cfs);
 }
-DEFINE_TP_EVENT_FEATURE(lisa__sched_pelt_cfs, TP_PROBES(TP_PROBE("pelt_cfs_tp", sched_pelt_cfs_probe)));
+DEFINE_TP_DEPRECATED_EVENT_FEATURE("use lisa__sched_pelt_cfs_tg instead", lisa__sched_pelt_cfs, TP_PROBES(TP_PROBE("pelt_cfs_tp", sched_pelt_cfs_probe)));
 #endif
 
 #if HAS_KERNEL_FEATURE(RQ_UCLAMP)
 static void uclamp_rq_probe(void *feature, struct cfs_rq *cfs_rq) {
-	if (cfs_rq) {
+	if (cfs_rq && cfs_rq_is_root(cfs_rq)) {
 		const struct rq *rq = rq_of(cfs_rq);
-		bool is_root_rq = (&rq->cfs == cfs_rq);
-		if (is_root_rq) {
-			trace_lisa__uclamp_rq(rq);
-		}
+		trace_lisa__uclamp_rq(rq);
 	}
 }
 
@@ -164,8 +175,12 @@ static void sched_pelt_cfs_tg_probe(void *feature, struct sched_entity *se)
 {
 	_trace_cfs_tg(se, trace_lisa__sched_pelt_cfs_tg);
 }
+static void sched_pelt_cfs_tg_rq_probe(void *feature, const struct cfs_rq *cfs_rq)
+{
+	_trace_cfs_tg_rq(cfs_rq, trace_lisa__sched_pelt_cfs_tg);
+}
 DEFINE_TP_EVENT_FEATURE(lisa__sched_pelt_cfs_task, TP_PROBES(TP_PROBE("pelt_se_tp", sched_pelt_cfs_task_probe)));
-DEFINE_TP_EVENT_FEATURE(lisa__sched_pelt_cfs_tg, TP_PROBES(TP_PROBE("pelt_se_tp", sched_pelt_cfs_tg_probe)));
+DEFINE_TP_EVENT_FEATURE(lisa__sched_pelt_cfs_tg, TP_PROBES(TP_PROBE("pelt_se_tp", sched_pelt_cfs_tg_probe), TP_PROBE("pelt_cfs_tp", sched_pelt_cfs_tg_rq_probe)));
 #endif
 
 #if HAS_KERNEL_FEATURE(SE_UCLAMP)
@@ -210,9 +225,9 @@ DEFINE_TP_EVENT_FEATURE(lisa__sched_update_nr_running, TP_PROBES(TP_PROBE("sched
 #if HAS_KERNEL_FEATURE(CFS_UTIL_EST)
 static void sched_util_est_cfs_probe(void *feature, struct cfs_rq *cfs_rq)
 {
-	_trace_cfs(cfs_rq, trace_lisa__sched_util_est_cfs);
+	_deprecated_trace_cfs_rq(cfs_rq, trace_lisa__sched_util_est_cfs);
 }
-DEFINE_TP_EVENT_FEATURE(lisa__sched_util_est_cfs, TP_PROBES(TP_PROBE("sched_util_est_cfs_tp", sched_util_est_cfs_probe)));
+DEFINE_TP_DEPRECATED_EVENT_FEATURE("use lisa__sched_util_est_cfs_tg instead", lisa__sched_util_est_cfs, TP_PROBES(TP_PROBE("sched_util_est_cfs_tp", sched_util_est_cfs_probe)));
 #endif
 
 #if HAS_KERNEL_FEATURE(SE_UTIL_EST)
@@ -232,8 +247,13 @@ static void sched_util_est_cfs_tg_probe(void *feature, struct sched_entity *se)
 {
 	_trace_cfs_tg(se, trace_lisa__sched_util_est_cfs_tg);
 }
+static void sched_util_est_cfs_tg_rq_probe(void *feature, const struct cfs_rq *cfs_rq)
+{
+	_trace_cfs_tg_rq(cfs_rq, trace_lisa__sched_util_est_cfs_tg);
+}
 DEFINE_TP_EVENT_FEATURE(lisa__sched_util_est_cfs_task, TP_PROBES(TP_PROBE("sched_util_est_se_tp", sched_util_est_cfs_task_probe)));
-DEFINE_TP_EVENT_FEATURE(lisa__sched_util_est_cfs_tg, TP_PROBES(TP_PROBE("sched_util_est_se_tp", sched_util_est_cfs_tg_probe)));
+// TODO: can we attach to pelt_cfs_tp and expect the util est value to be relevant there ?
+DEFINE_TP_EVENT_FEATURE(lisa__sched_util_est_cfs_tg, TP_PROBES(TP_PROBE("sched_util_est_se_tp", sched_util_est_cfs_tg_probe), TP_PROBE("pelt_cfs_tp", sched_util_est_cfs_tg_rq_probe)));
 #endif
 
 #if HAS_KERNEL_FEATURE(RQ_CAPACITY)

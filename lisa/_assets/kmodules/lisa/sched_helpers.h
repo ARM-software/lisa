@@ -141,6 +141,11 @@ static inline const struct cfs_rq *get_se_cfs_rq(const struct sched_entity *se)
 
 
 #if HAS_TYPE(struct, cfs_rq)
+static inline int cfs_rq_cpu(const struct cfs_rq *cfs_rq)
+{
+	return cpu_of(rq_of(cfs_rq));
+}
+
 static inline const struct sched_avg *cfs_rq_avg(const struct cfs_rq *cfs_rq)
 {
 #    if HAS_KERNEL_FEATURE(CFS_PELT)
@@ -148,6 +153,36 @@ static inline const struct sched_avg *cfs_rq_avg(const struct cfs_rq *cfs_rq)
 #    else
 	return NULL;
 #    endif
+}
+
+
+#    if HAS_MEMBER(struct, cfs_rq, rq) && HAS_MEMBER(struct, rq, cfs)
+static inline bool cfs_rq_is_root(const struct cfs_rq *cfs_rq)
+{
+	return (&cfs_rq->rq->cfs == cfs_rq);
+}
+#    endif
+
+static inline const struct sched_avg *cfs_tg_avg(const struct cfs_rq *cfs_rq)
+{
+#    if defined(CONFIG_FAIR_GROUP_SCHED) && HAS_MEMBER(struct, cfs_rq, tg) && HAS_MEMBER(struct, task_group, cfs_rq) && HAS_MEMBER(struct, task_group, se)
+	if (!cfs_rq || cfs_rq_is_root(cfs_rq)) {
+		// For the root cfs_rq, we simply do not have any associated
+		// taskgroup
+		return NULL;
+	} else {
+		const struct task_group *tg = cfs_rq->tg;
+		if (tg) {
+			int cpu = cfs_rq_cpu(cfs_rq);
+
+			// Check the cfs_rq for that CPU on the task_group is
+			// the one we expect
+			BUG_ON(tg->cfs_rq[cpu] != cfs_rq);
+			return (const struct sched_avg *)&tg->se[cpu]->avg;
+		}
+	}
+#    endif
+	return NULL;
 }
 
 static inline char *cfs_rq_path(const struct cfs_rq *cfs_rq, char *str, int len)
@@ -161,11 +196,6 @@ static inline char *cfs_rq_path(const struct cfs_rq *cfs_rq, char *str, int len)
 
 	cfs_rq_tg_path(cfs_rq, str, len);
 	return str;
-}
-
-static inline int cfs_rq_cpu(const struct cfs_rq *cfs_rq)
-{
-	return cpu_of(rq_of(cfs_rq));
 }
 
 #endif
