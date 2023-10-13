@@ -2227,8 +2227,12 @@ class KmodSrc(Loggable):
         :type extra: dict(str, str)
         """
         def get_files(root, dirs, files):
-            for f in files:
-                yield (Path(root) / f)
+            root = Path(root)
+            if root.name == '__pycache__':
+                return
+            else:
+                for f in files:
+                    yield (root / f)
 
         path = Path(path).resolve()
         src = {
