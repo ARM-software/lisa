@@ -2673,6 +2673,8 @@ class LISADynamicKmod(FtraceDynamicKmod):
 
 
         src = KmodSrc.from_path(path, extra=extra, name='lisa')
+        src_list = "\n".join(sorted(src.src.keys()))
+        cls.get_logger().debug(f'Sources of the {cls.__qualname__} module:\n{src_list}')
         return cls(
             target=target,
             src=src,

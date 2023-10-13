@@ -158,6 +158,8 @@ $(SYMBOL_NAMESPACES_H): $(GENERATED)
 $(MODULE_VERSION_H): $(GENERATED)
 	printf '#pragma once\n' > $@
 	printf "#define LISA_MODULE_VERSION \"" >> $@
+	# Show the content of the folder to debug mismatching sha1sum issues
+	ls -laR $(MODULE_SRC)
 	export LC_ALL=C && (cd $(MODULE_SRC) && find -type f '(' -name '*.c' -or -name '*.h' -or -name '*.txt' -or -name '*.json' -or -name '*.py' -or -name '*.sh' -or -name '*.lds' -or -name 'Makefile' -or -name 'vmlinux' -or -name 'kallsyms' ')' -and -not -path './generated/*' -and -not -path './__pycache__/*' | xargs sha1sum) | sort | sha1sum | cut -d' ' -f1 | tr -d '\n' >> $@
 	printf "\"\n" >> $@
 
