@@ -24,7 +24,7 @@
  * they can depend on each other easily.
  */
 struct feature {
-	char *name;
+	const char *name;
 	void *data;
 	u64 enabled;
 	struct mutex *lock;
