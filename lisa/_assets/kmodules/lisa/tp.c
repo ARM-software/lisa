@@ -29,29 +29,32 @@ static inline void _trace_cfs(const struct cfs_rq *cfs_rq,
 
 static inline void _deprecated_trace_se(const struct sched_entity *se, void (*trace_event)(int cpu, const char *path, const char *comm, int pid, const struct sched_avg *avg))
 {
-	const char *path = "(null)";
-	const char *comm = "(null)";
-	int pid = -1;
-	int cpu = se_cpu(se);
+	if (se) {
+		const char *path = "(null)";
+		const char *comm = "(null)";
+		int pid = -1;
+		int cpu = se_cpu(se);
 
-	if (entity_is_task(se)) {
-		struct task_struct *p = container_of(se, struct task_struct, se);
-		comm = p->comm;
-		pid = p->pid;
-	} else {
-		const struct cfs_rq *gcfs_rq = get_group_cfs_rq(se);
-		char _path[PATH_SIZE];
-		cfs_rq_path(gcfs_rq, _path, PATH_SIZE);
-		path = _path;
+		if (entity_is_task(se)) {
+			struct task_struct *p = container_of(se, struct task_struct, se);
+			comm = p->comm;
+			pid = p->pid;
+		} else {
+			const struct cfs_rq *gcfs_rq = get_group_cfs_rq(se);
+			char _path[PATH_SIZE];
+			cfs_rq_path(gcfs_rq, _path, PATH_SIZE);
+			path = _path;
+		}
+		return trace_event(cpu, path, comm, pid, &se->avg);
 	}
-	return trace_event(cpu, path, comm, pid, &se->avg);
 }
 
 typedef void (*trace_cfs_task)(int cpu, int pid, const char* comm, const struct sched_avg *avg);
 static inline void _trace_cfs_task(struct sched_entity *se, trace_cfs_task trace_task)
 {
-	if (entity_is_task(se)) {
+	if (se && entity_is_task(se)) {
 		int cpu = se_cpu(se);
+		BUG_ON(cpu < 0);
 		const struct task_struct *p = container_of(se, struct task_struct, se);
 		return trace_task(cpu, p->pid, p->comm, &se->avg);
 	}
@@ -60,7 +63,7 @@ static inline void _trace_cfs_task(struct sched_entity *se, trace_cfs_task trace
 typedef void (*trace_cfs_tg)(int cpu, const char* path, const struct sched_avg *avg);
 static inline void _trace_cfs_tg(struct sched_entity *se, trace_cfs_tg trace_tg)
 {
-	if (!entity_is_task(se)) {
+	if (se && !entity_is_task(se)) {
 		int cpu = se_cpu(se);
 
 		const struct cfs_rq *gcfs_rq = get_group_cfs_rq(se);
@@ -81,10 +84,12 @@ DEFINE_TP_EVENT_FEATURE(lisa__sched_pelt_cfs, TP_PROBES(TP_PROBE("pelt_cfs_tp", 
 
 #if HAS_KERNEL_FEATURE(RQ_UCLAMP)
 static void uclamp_rq_probe(void *feature, struct cfs_rq *cfs_rq) {
-	const struct rq *rq = rq_of(cfs_rq);
-	bool is_root_rq = (&rq->cfs == cfs_rq);
-	if (is_root_rq) {
-		trace_lisa__uclamp_rq(rq);
+	if (cfs_rq) {
+		const struct rq *rq = rq_of(cfs_rq);
+		bool is_root_rq = (&rq->cfs == cfs_rq);
+		if (is_root_rq) {
+			trace_lisa__uclamp_rq(rq);
+		}
 	}
 }
 
@@ -166,7 +171,7 @@ DEFINE_TP_EVENT_FEATURE(lisa__sched_pelt_cfs_tg, TP_PROBES(TP_PROBE("pelt_se_tp"
 #if HAS_KERNEL_FEATURE(SE_UCLAMP)
 static void uclamp_cfs_task_probe(void *feature, struct sched_entity *se)
 {
-	if (entity_is_task(se))
+	if (se && entity_is_task(se))
 		trace_lisa__uclamp_cfs_task(
 			container_of(se, struct task_struct, se),
 			rq_of(get_se_cfs_rq(se))
@@ -178,7 +183,7 @@ DEFINE_TP_EVENT_FEATURE(lisa__uclamp_cfs_task, TP_PROBES(TP_PROBE("pelt_se_tp", 
 #if HAS_KERNEL_FEATURE(SCHED_OVERUTILIZED)
 static void sched_overutilized_probe(void *feature, struct root_domain *rd, bool overutilized)
 {
-	if (trace_lisa__sched_overutilized_enabled()) {
+	if (rd && trace_lisa__sched_overutilized_enabled()) {
 		char span[SPAN_SIZE];
 
 		cpumap_print_to_pagebuf(false, span, rd_span(rd));
