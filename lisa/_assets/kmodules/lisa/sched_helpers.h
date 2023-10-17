@@ -13,7 +13,7 @@
 
 #if HAS_TYPE(struct, cfs_rq)
 #    if defined(CONFIG_FAIR_GROUP_SCHED) && HAS_MEMBER(struct, cfs_rq, rq)
-static inline struct rq *rq_of(struct cfs_rq *cfs_rq)
+static inline const struct rq *rq_of(const struct cfs_rq *cfs_rq)
 {
 	return cfs_rq->rq;
 }
@@ -28,7 +28,7 @@ static inline struct rq *rq_of(struct cfs_rq *cfs_rq)
 #endif
 
 
-static inline bool entity_is_task(struct sched_entity *se)
+static inline bool entity_is_task(const struct sched_entity *se)
 {
 	return
 #if HAS_MEMBER(struct, sched_entity, my_q)
@@ -41,7 +41,7 @@ static inline bool entity_is_task(struct sched_entity *se)
 
 
 #if HAS_TYPE(struct, rq)
-static inline int cpu_of(struct rq *rq)
+static inline int cpu_of(const struct rq *rq)
 {
 #    if defined(CONFIG_SMP) && HAS_MEMBER(struct, rq, cpu)
 	return rq->cpu;
@@ -55,7 +55,7 @@ static inline int cpu_of(struct rq *rq)
 
 
 #if HAS_TYPE(struct, task_group)
-static inline bool task_group_is_autogroup(struct task_group *tg)
+static inline bool task_group_is_autogroup(const struct task_group *tg)
 {
 #    if HAS_KERNEL_FEATURE(SCHED_AUTOGROUP)
 	return !!tg->autogroup;
@@ -66,7 +66,7 @@ static inline bool task_group_is_autogroup(struct task_group *tg)
 #endif
 
 #if HAS_TYPE(struct, task_group)
-static int autogroup_path(struct task_group *tg, char *buf, int buflen)
+static int autogroup_path(const struct task_group *tg, char *buf, int buflen)
 {
 #    if HAS_KERNEL_FEATURE(SCHED_AUTOGROUP) && HAS_MEMBER(struct, autogroup, id)
 	if (!task_group_is_autogroup(tg))
@@ -82,9 +82,9 @@ static int autogroup_path(struct task_group *tg, char *buf, int buflen)
 
 #if HAS_TYPE(struct, rq)
 /* A cut down version of the original. @p MUST be NULL */
-static inline unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util)
+static inline unsigned long uclamp_rq_util_with(const struct rq *rq, unsigned long util)
 {
-#    if HAS_KERNEL_FEATURE(CFS_UCLAMP)
+#    if HAS_KERNEL_FEATURE(RQ_UCLAMP)
 	unsigned long min_util;
 	unsigned long max_util;
 
@@ -103,7 +103,7 @@ static inline unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long uti
 
 
 #if HAS_TYPE(struct, cfs_rq)
-static inline void cfs_rq_tg_path(struct cfs_rq *cfs_rq, char *path, int len)
+static inline void cfs_rq_tg_path(const struct cfs_rq *cfs_rq, char *path, int len)
 {
 	if (!path)
 		return;
@@ -120,7 +120,7 @@ static inline void cfs_rq_tg_path(struct cfs_rq *cfs_rq, char *path, int len)
 #endif
 
 #if HAS_TYPE(struct, sched_entity)
-static inline struct cfs_rq *get_group_cfs_rq(struct sched_entity *se)
+static inline const struct cfs_rq *get_group_cfs_rq(const struct sched_entity *se)
 {
 #    if defined(CONFIG_FAIR_GROUP_SCHED) && HAS_MEMBER(struct, sched_entity, my_q)
 	return se->my_q;
@@ -129,7 +129,7 @@ static inline struct cfs_rq *get_group_cfs_rq(struct sched_entity *se)
 #    endif
 }
 
-static inline struct cfs_rq *get_se_cfs_rq(struct sched_entity *se)
+static inline const struct cfs_rq *get_se_cfs_rq(const struct sched_entity *se)
 {
 #    if defined(CONFIG_FAIR_GROUP_SCHED) && HAS_MEMBER(struct, sched_entity, cfs_rq)
 	return se->cfs_rq;
@@ -141,7 +141,7 @@ static inline struct cfs_rq *get_se_cfs_rq(struct sched_entity *se)
 
 
 #if HAS_TYPE(struct, cfs_rq)
-static inline const struct sched_avg *cfs_rq_avg(struct cfs_rq *cfs_rq)
+static inline const struct sched_avg *cfs_rq_avg(const struct cfs_rq *cfs_rq)
 {
 #    if HAS_KERNEL_FEATURE(CFS_PELT)
 	return cfs_rq ? (struct sched_avg *)&cfs_rq->avg : NULL;
@@ -150,7 +150,7 @@ static inline const struct sched_avg *cfs_rq_avg(struct cfs_rq *cfs_rq)
 #    endif
 }
 
-static inline char *cfs_rq_path(struct cfs_rq *cfs_rq, char *str, int len)
+static inline char *cfs_rq_path(const struct cfs_rq *cfs_rq, char *str, int len)
 {
 	if (!cfs_rq) {
 		if (str)
@@ -163,7 +163,7 @@ static inline char *cfs_rq_path(struct cfs_rq *cfs_rq, char *str, int len)
 	return str;
 }
 
-static inline int cfs_rq_cpu(struct cfs_rq *cfs_rq)
+static inline int cfs_rq_cpu(const struct cfs_rq *cfs_rq)
 {
 	return cpu_of(rq_of(cfs_rq));
 }
@@ -180,7 +180,7 @@ static inline const struct sched_avg *rq_avg_rt(struct rq *rq)
 #    endif
 }
 
-static inline const struct sched_avg *rq_avg_dl(struct rq *rq)
+static inline const struct sched_avg *rq_avg_dl(const struct rq *rq)
 {
 #    if HAS_KERNEL_FEATURE(DL_PELT)
 	return rq ? (struct sched_avg *)&rq->avg_dl : NULL;
@@ -189,7 +189,7 @@ static inline const struct sched_avg *rq_avg_dl(struct rq *rq)
 #    endif
 }
 
-static inline const struct sched_avg *rq_avg_irq(struct rq *rq)
+static inline const struct sched_avg *rq_avg_irq(const struct rq *rq)
 {
 #    if HAS_KERNEL_FEATURE(IRQ_PELT)
 	return rq ? (struct sched_avg *)&rq->avg_irq : NULL;
@@ -198,12 +198,12 @@ static inline const struct sched_avg *rq_avg_irq(struct rq *rq)
 #    endif
 }
 
-static inline int rq_cpu(struct rq *rq)
+static inline int rq_cpu(const struct rq *rq)
 {
 	return cpu_of(rq);
 }
 
-static inline int rq_cpu_capacity(struct rq *rq)
+static inline int rq_cpu_capacity(const struct rq *rq)
 {
 	return
 #    if HAS_KERNEL_FEATURE(RQ_CAPACITY)
@@ -214,7 +214,7 @@ static inline int rq_cpu_capacity(struct rq *rq)
 	;
 }
 
-static inline int rq_cpu_orig_capacity(struct rq *rq)
+static inline int rq_cpu_orig_capacity(const struct rq *rq)
 {
 	return
 #    if HAS_KERNEL_FEATURE(FREQ_INVARIANCE)
@@ -229,7 +229,7 @@ static inline int rq_cpu_orig_capacity(struct rq *rq)
 DECLARE_PER_CPU(unsigned long, arch_freq_scale);
 #    endif
 
-static inline int rq_cpu_current_capacity(struct rq *rq)
+static inline int rq_cpu_current_capacity(const struct rq *rq)
 {
 	return
 #    if HAS_KERNEL_FEATURE(FREQ_INVARIANCE)
@@ -245,7 +245,7 @@ static inline int rq_cpu_current_capacity(struct rq *rq)
 }
 
 #    if HAS_KERNEL_FEATURE(RQ_NR_RUNNING)
-static inline int rq_nr_running(struct rq *rq)
+static inline int rq_nr_running(const struct rq *rq)
 {
 	return rq->nr_running;
 }
@@ -254,7 +254,7 @@ static inline int rq_nr_running(struct rq *rq)
 #endif
 
 #if HAS_TYPE(struct, root_domain)
-static inline const struct cpumask *rd_span(struct root_domain *rd)
+static inline const struct cpumask *rd_span(const struct root_domain *rd)
 {
 #    if defined(CONFIG_SMP) && HAS_MEMBER(struct, root_domain, span)
 	return rd ? (struct cpumask *)rd->span : NULL;

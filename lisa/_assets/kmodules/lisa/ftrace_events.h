@@ -35,14 +35,14 @@ TRACE_EVENT(lisa__sched_pelt_cfs,
 	TP_ARGS(cpu, path, avg),
 
 	TP_STRUCT__entry(
-		__field(	int,		cpu			)
-		__array(	char,		path,	PATH_SIZE	)
-		__field(	unsigned long,	load			)
+		__field(	unsigned long long, update_time	        )
 #if HAS_KERNEL_FEATURE(SCHED_AVG_RBL)
 		__field(	unsigned long,	RBL_LOAD_ENTRY		)
 #endif
 		__field(	unsigned long,	util			)
-		__field(	unsigned long long, update_time	        )
+		__field(	unsigned long,	load			)
+		__field(	int,		cpu			)
+		__array(	char,		path,	PATH_SIZE	)
 	),
 
 	TP_fast_assign(
@@ -79,13 +79,13 @@ DECLARE_EVENT_CLASS(lisa__sched_pelt_rq_template,
 	TP_ARGS(cpu, avg),
 
 	TP_STRUCT__entry(
-		__field(	int,		cpu			)
+		__field(	unsigned long long, update_time	        )
 		__field(	unsigned long,	load			)
 #if HAS_KERNEL_FEATURE(SCHED_AVG_RBL)
 		__field(	unsigned long,	RBL_LOAD_ENTRY		)
 #endif
 		__field(	unsigned long,	util			)
-		__field(	unsigned long long, update_time	        )
+		__field(	int,		cpu			)
 	),
 
 	TP_fast_assign(
@@ -134,21 +134,21 @@ DEFINE_EVENT(lisa__sched_pelt_rq_template, lisa__sched_pelt_irq,
 #if HAS_KERNEL_FEATURE(SE_PELT)
 TRACE_EVENT(lisa__sched_pelt_se,
 
-	TP_PROTO(int cpu, char *path, char *comm, int pid, const struct sched_avg *avg),
+	TP_PROTO(int cpu, const char *path, const char *comm, int pid, const struct sched_avg *avg),
 
 	TP_ARGS(cpu, path, comm, pid, avg),
 
 	TP_STRUCT__entry(
-		__field(	int,		cpu			)
-		__array(	char,		path,	PATH_SIZE	)
-		__array(	char,		comm,	TASK_COMM_LEN	)
-		__field(	int,		pid			)
+		__field(	unsigned long long, update_time	        )
 		__field(	unsigned long,	load			)
 #if HAS_KERNEL_FEATURE(SCHED_AVG_RBL)
 		__field(	unsigned long,	RBL_LOAD_ENTRY		)
 #endif
 		__field(	unsigned long,	util			)
-		__field(	unsigned long long, update_time	        )
+		__field(	int,		cpu			)
+		__field(	int,		pid			)
+		__array(	char,		path,	PATH_SIZE	)
+		__array(	char,		comm,	TASK_COMM_LEN	)
 	),
 
 	TP_fast_assign(
@@ -182,7 +182,7 @@ TRACE_EVENT(lisa__sched_pelt_se,
 #if HAS_KERNEL_FEATURE(SCHED_OVERUTILIZED)
 TRACE_EVENT(lisa__sched_overutilized,
 
-	TP_PROTO(int overutilized, char *span),
+	TP_PROTO(int overutilized, const char *span),
 
 	TP_ARGS(overutilized, span),
 
@@ -204,42 +204,42 @@ TRACE_EVENT(lisa__sched_overutilized,
 #if HAS_KERNEL_FEATURE(RQ_NR_RUNNING)
 TRACE_EVENT(lisa__sched_update_nr_running,
 
-	    TP_PROTO(int cpu, int change, unsigned int nr_running),
+	TP_PROTO(int cpu, int change, unsigned int nr_running),
 
-	    TP_ARGS(cpu, change, nr_running),
+	TP_ARGS(cpu, change, nr_running),
 
-	    TP_STRUCT__entry(
-			     __field(         int,        cpu           )
-			     __field(         int,        change        )
-			     __field(unsigned int,        nr_running    )
-			     ),
+	TP_STRUCT__entry(
+		__field(         int,        cpu           )
+		__field(         int,        change        )
+		__field(unsigned int,        nr_running    )
+	),
 
-	    TP_fast_assign(
-			   __entry->cpu        = cpu;
-			   __entry->change     = change;
-			   __entry->nr_running = nr_running;
-			   ),
+	TP_fast_assign(
+		__entry->cpu        = cpu;
+		__entry->change     = change;
+		__entry->nr_running = nr_running;
+	),
 
-	    TP_printk("cpu=%d change=%d nr_running=%d", __entry->cpu, __entry->change, __entry->nr_running)
-	    );
+	TP_printk("cpu=%d change=%d nr_running=%d", __entry->cpu, __entry->change, __entry->nr_running)
+);
 #endif
 
 #if HAS_KERNEL_FEATURE(SE_UTIL_EST)
 TRACE_EVENT(lisa__sched_util_est_se,
 
-	TP_PROTO(int cpu, char *path, char *comm, int pid,
+	TP_PROTO(int cpu, const char *path, const char *comm, int pid,
 		 const struct sched_avg *avg),
 
 	TP_ARGS(cpu, path, comm, pid, avg),
 
 	TP_STRUCT__entry(
-		__field(	int,		cpu			)
-		__array(	char,		path,	PATH_SIZE	)
-		__array(	char,		comm,	TASK_COMM_LEN	)
-		__field(	int,		pid			)
+		__field(	unsigned long,	util			)
 		__field( 	unsigned int,	enqueued		)
 		__field( 	unsigned int,	ewma			)
-		__field(	unsigned long,	util			)
+		__field(	int,		cpu			)
+		__field(	int,		pid			)
+		__array(	char,		path,	PATH_SIZE	)
+		__array(	char,		comm,	TASK_COMM_LEN	)
 	),
 
 	TP_fast_assign(
@@ -266,11 +266,11 @@ TRACE_EVENT(lisa__sched_util_est_cfs,
 	TP_ARGS(cpu, path, avg),
 
 	TP_STRUCT__entry(
-		__field(	int,		cpu			)
-		__array(	char,		path,	PATH_SIZE	)
+		__field(	unsigned long,	util			)
 		__field( 	unsigned int,	enqueued		)
 		__field( 	unsigned int,	ewma			)
-		__field(	unsigned long,	util			)
+		__field(	int,		cpu			)
+		__array(	char,		path,	PATH_SIZE	)
 	),
 
 	TP_fast_assign(
@@ -290,20 +290,20 @@ TRACE_EVENT(lisa__sched_util_est_cfs,
 #if HAS_KERNEL_FEATURE(SE_UCLAMP)
 TRACE_EVENT_CONDITION(lisa__uclamp_util_se,
 
-	TP_PROTO(bool is_task, struct task_struct *p, struct rq *rq),
+	TP_PROTO(bool is_task, const struct task_struct *p, const struct rq *rq),
 
 	TP_ARGS(is_task, p, rq),
 
 	TP_CONDITION(is_task),
 
 	TP_STRUCT__entry(
-		__field(	pid_t,	pid			)
-		__array(	char,	comm,   TASK_COMM_LEN	)
-		__field(	 int,	cpu			)
 		__field(unsigned long,	util_avg		)
 		__field(unsigned long,	uclamp_avg		)
 		__field(unsigned long,	uclamp_min		)
 		__field(unsigned long,	uclamp_max		)
+		__field(	 int,	cpu			)
+		__field(	pid_t,	pid			)
+		__array(	char,	comm,   TASK_COMM_LEN	)
 	),
 
 	TP_fast_assign(
@@ -313,20 +313,20 @@ TRACE_EVENT_CONDITION(lisa__uclamp_util_se,
 		__entry->util_avg       = p->se.avg.util_avg;
 		__entry->uclamp_avg     = uclamp_rq_util_with(rq, p->se.avg.util_avg);
 
-#    if HAS_KERNEL_FEATURE(CFS_UCLAMP)
+#    if HAS_KERNEL_FEATURE(RQ_UCLAMP)
 		__entry->uclamp_min     = rq->uclamp[UCLAMP_MIN].value;
 		__entry->uclamp_max     = rq->uclamp[UCLAMP_MAX].value;
 #    endif
 		),
 
 	TP_printk("pid=%d comm=%s cpu=%d util_avg=%lu uclamp_avg=%lu"
-#    if HAS_KERNEL_FEATURE(CFS_UCLAMP)
+#    if HAS_KERNEL_FEATURE(RQ_UCLAMP)
 		  " uclamp_min=%lu uclamp_max=%lu"
 #    endif
 		  ,
 		  __entry->pid, __entry->comm, __entry->cpu,
 		  __entry->util_avg, __entry->uclamp_avg
-#    if HAS_KERNEL_FEATURE(CFS_UCLAMP)
+#    if HAS_KERNEL_FEATURE(RQ_UCLAMP)
 		  ,__entry->uclamp_min, __entry->uclamp_max
 #    endif
 		)
@@ -336,21 +336,21 @@ TRACE_EVENT_CONDITION(lisa__uclamp_util_se,
 #define trace_lisa__uclamp_util_se_enabled() (false)
 #endif
 
-#if HAS_KERNEL_FEATURE(CFS_UCLAMP)
+#if HAS_KERNEL_FEATURE(RQ_UCLAMP)
 TRACE_EVENT_CONDITION(lisa__uclamp_util_cfs,
 
-	TP_PROTO(bool is_root, struct rq *rq, struct cfs_rq *cfs_rq),
+	TP_PROTO(bool is_root, const struct rq *rq, const struct cfs_rq *cfs_rq),
 
 	TP_ARGS(is_root, rq, cfs_rq),
 
 	TP_CONDITION(is_root),
 
 	TP_STRUCT__entry(
-		__field(	 int,	cpu			)
 		__field(unsigned long,	util_avg		)
 		__field(unsigned long,	uclamp_avg		)
 		__field(unsigned long,	uclamp_min		)
 		__field(unsigned long,	uclamp_max		)
+		__field(	 int,	cpu			)
 	),
 
 	TP_fast_assign(
@@ -379,12 +379,12 @@ TRACE_EVENT(lisa__sched_cpu_capacity,
 	TP_ARGS(rq),
 
 	TP_STRUCT__entry(
-		__field(	int,		cpu		)
 		__field(	unsigned long,	capacity	)
 #if HAS_KERNEL_FEATURE(FREQ_INVARIANCE)
 		__field(	unsigned long,	capacity_orig	)
 		__field(	unsigned long,	capacity_curr	)
 #endif
+		__field(	int,		cpu		)
 	),
 
 	TP_fast_assign(
@@ -417,7 +417,7 @@ TRACE_EVENT(lisa__sched_cpu_capacity,
 #define PIXEL6_EMETER_CHAN_NAME_MAX_SIZE 64
 
 TRACE_EVENT(lisa__pixel6_emeter,
-	TP_PROTO(unsigned long ts, unsigned int device, unsigned int chan, char *chan_name, unsigned long value),
+	TP_PROTO(unsigned long ts, unsigned int device, unsigned int chan, const char *chan_name, unsigned long value),
 	TP_ARGS(ts, device, chan, chan_name, value),
 
 	TP_STRUCT__entry(
