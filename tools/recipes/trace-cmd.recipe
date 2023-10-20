@@ -1,7 +1,10 @@
 #! /bin/bash
 
+# We are stuck at v3.16 for now since:
+# * 3.17 does not have some static lib
+# * 3.18 make hangs on some Makfiles: https://bugzilla.kernel.org/show_bug.cgi?id=218028
 ALPINE_VERSION=v3.16
-ALPINE_BUILD_DEPENDENCIES=(bash gcc git make linux-headers musl-dev pkgconfig bison flex zstd-dev zstd-static)
+ALPINE_BUILD_DEPENDENCIES=(bash gcc git make linux-headers musl-dev pkgconfig bison flex zstd-dev zstd-static zlib-dev zlib-static)
 BROKEN_CROSS_COMPILATION=1
 
 download() {
