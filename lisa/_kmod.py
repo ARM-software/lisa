@@ -930,12 +930,18 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
     _MIN_CLANG_VERSION = 11
 
     def __init__(self, path_cm, build_conf=None):
-        self._make_path_cm = path_cm
-        self.conf, self.cc, self.cross_compile, self.abi = self._resolve_conf(build_conf)
+        self.conf, self.cc, self.cross_compile, self._cc_key, self.abi = self._resolve_conf(build_conf)
 
+        self._make_path_cm = path_cm
         self._path_cm = None
         self.path = None
         self.checksum = None
+
+    def _get_key_for_kmod(self, kmod):
+        return (
+            str(self._cc_key),
+            *self.conf._get_key_for_kmod(kmod),
+        )
 
     @classmethod
     def _resolve_conf(cls, conf, abi=None, target=None):
@@ -954,10 +960,10 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                 raise TypeError(f'Unsupported value type for build_conf: {conf}')
 
         conf = make_conf(conf)
-        make_vars, cc, cross_compile, abi = cls._process_make_vars(conf, abi=abi, target=target)
+        make_vars, cc, cross_compile, cc_key, abi = cls._process_make_vars(conf, abi=abi, target=target)
         conf.add_src(src='processed make-variables', conf={'make-variables': make_vars})
 
-        return (conf, cc, cross_compile, abi)
+        return (conf, cc, cross_compile, cc_key, abi)
 
     _SPEC_KEYS = ('path', 'checksum')
 
@@ -1268,7 +1274,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             },
             inplace=False,
         )
-        cc, cross_compile = cls._resolve_toolchain(abi, build_conf, target=target)
+        cc, cross_compile, cc_key = cls._resolve_toolchain(abi, build_conf, target=target)
 
         if 'clang' in cc and 'LLVM' not in make_vars:
             clang_version = _clang_version_static(cc)
@@ -1325,7 +1331,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
 
         variables = ', '.join(filter(bool, map(log_fragment, ('CC', 'CROSS_COMPILE', 'LLVM', 'ARCH'))))
         logger.info(f'Toolchain detected: {variables}')
-        return (make_vars, cc, cross_compile, abi)
+        return (make_vars, cc, cross_compile, cc_key, abi)
 
     @classmethod
     def _make_toolchain_env(cls, toolchain_path=None, env=None):
@@ -1498,19 +1504,27 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
 
         cc = None
         cross_compile = None
+        cc_key = None
 
         # Only run the check on host build env, as other build envs are
         # expected to be correctly configured.
         if build_conf['build-env'] == 'host':
 
-            def test_cmd(cc, cross_compile):
-                opts = ('-x' 'c', '-c', '-', '-o', '/dev/null')
+            def cc_cmd(cc, cross_compile, opts):
                 if 'gcc' in cc:
                     return (f'{cross_compile}{cc}', *opts)
                 elif 'clang' in cc:
                     return (cc, *([f'--target={cross_compile}'] if cross_compile else []), *opts)
                 else:
                     raise ValueError(f'Cannot test presence of compiler "{cc}"')
+
+            def test_cmd(cc, cross_compile):
+                opts = ('-x' 'c', '-c', '-', '-o', '/dev/null')
+                return cc_cmd(cc, cross_compile, opts)
+
+            def version_cmd(cc, cross_compile):
+                opts = ('--version',)
+                return cc_cmd(cc, cross_compile, opts)
 
             toolchain_path = build_conf['build-env-settings']['host'].get('toolchain-path', None)
 
@@ -1534,6 +1548,10 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     continue
                 else:
                     if cls._check_cc_version(cc, toolchain_path):
+                        cc_key = subprocess.check_output(
+                            version_cmd(cc, cross_compile),
+                            env=env,
+                        )
                         break
             else:
                 cross = ' or '.join(
@@ -1579,7 +1597,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         if cc != ideal_cc:
             logger.info(f'Could not find ideal CC={ideal_cc} but found CC={cc} instead')
 
-        return (cc, cross_compile)
+        return (cc, cross_compile, cc_key)
 
     @classmethod
     @SerializeViaConstructor.constructor
@@ -1628,7 +1646,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         abi = plat_info['abi']
         kernel_info = plat_info['kernel']
 
-        build_conf, cc, cross_compile, _abi = cls._resolve_conf(build_conf, abi=abi, target=target)
+        build_conf, cc, cross_compile, cc_key, _abi = cls._resolve_conf(build_conf, abi=abi, target=target)
         assert _abi == abi
 
         @contextlib.contextmanager
@@ -1833,7 +1851,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         """
         logger = cls.get_logger()
         overlays = overlays or {}
-        build_conf, cc, cross_compile, abi = cls._resolve_conf(build_conf)
+        build_conf, cc, cross_compile, cc_key, abi = cls._resolve_conf(build_conf)
 
         def copy_filter(src, dst, remove_obj=False):
             return not (
@@ -1884,7 +1902,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                         for overlay, dst in overlays.items()
                     ) + [
                         tree_key,
-                        str(cc),
+                        str(cc_key),
                         build_conf._get_key(),
                     ]
                 )
@@ -2378,7 +2396,7 @@ class DynamicKmod(Loggable):
             else:
                 key = (
                     kernel_checksum,
-                    kernel_build_env.conf._get_key_for_kmod(self),
+                    kernel_build_env._get_key_for_kmod(self),
                     src.checksum,
                     all_make_vars,
                 )
