@@ -1467,7 +1467,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     cross_compiles = [os.environ['CROSS_COMPILE']]
                 except KeyError:
                     if abi == 'arm64':
-                        cross_compiles = ['aarch64-linux-gnu-', 'aarch64-none-elf-', 'aarch64-linux-android-', 'aarch64-none-linux-android-', 'aarch64-linux-android-']
+                        cross_compiles = ['aarch64-linux-gnu-', 'aarch64-none-elf-', 'aarch64-none-linux-android-', 'aarch64-linux-android-']
                     elif abi == 'armeabi':
                         cross_compiles = ['arm-linux-gnueabi-', 'arm-none-eabi-', 'arm-none-linux-gnueabi-']
                     elif abi == 'x86':
