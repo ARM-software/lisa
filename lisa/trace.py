@@ -5415,16 +5415,16 @@ class OrTraceEventChecker(AssociativeTraceEventChecker):
 
     def _select_events(self, check, event_set):
         if self.checkers:
-            failed_checker_set = set()
+            failed_checkers = []
             for checker in self.checkers:
                 try:
                     return checker._select_events(check=check, event_set=event_set)
                 except MissingTraceEventError as e:
-                    failed_checker_set.add(e.missing_events)
+                    failed_checkers.extend(e.missing_events)
 
             cls = type(self)
             raise MissingTraceEventError(
-                cls(failed_checker_set),
+                cls.from_events(failed_checkers),
                 available_events=event_set,
             )
         else:
@@ -5488,7 +5488,7 @@ class AndTraceEventChecker(AssociativeTraceEventChecker):
 
     def _select_events(self, check, event_set):
         if self.checkers:
-            failed_checker_set = set()
+            failed_checkers = []
             selected = set()
             for checker in self.checkers:
                 try:
@@ -5496,12 +5496,12 @@ class AndTraceEventChecker(AssociativeTraceEventChecker):
                         checker._select_events(check=check, event_set=event_set)
                     )
                 except MissingTraceEventError as e:
-                    failed_checker_set.add(e.missing_events)
+                    failed_checkers.extend(e.missing_events)
 
-            if failed_checker_set:
+            if failed_checkers:
                 cls = type(self)
                 raise MissingTraceEventError(
-                    cls(failed_checker_set),
+                    cls.from_events(failed_checkers),
                     available_events=event_set,
                 )
             else:
@@ -6042,7 +6042,12 @@ class FtraceCollector(CollectorBase, Configurable):
         try:
             events_checker.check_events(events, check_optional=True)
         except MissingTraceEventError as e:
-            self.logger.info(f'Optional events missing: {str(e)}')
+            e = MissingTraceEventError(
+                e.missing_events,
+                available_events=target_available_events | kmod_defined_events,
+                msg='{missing_events}{available}',
+            )
+            self.logger.info(f'Optional events missing: {e}')
 
         if not events:
             raise ValueError('No ftrace events selected')
@@ -6086,8 +6091,14 @@ class FtraceCollector(CollectorBase, Configurable):
 
     @classmethod
     def _get_kmod(cls, target, target_available_events, needed_events):
+        logger = cls.get_logger()
         kmod = target.get_kmod(LISADynamicKmod)
         defined_events = set(kmod.defined_events)
+        possible_events = set(kmod.possible_events)
+
+        logger.debug(f'Kernel module possible events: {possible_events}')
+        logger.debug(f'Kernel module defined events: {defined_events}')
+
         needed = needed_events & defined_events
         if needed:
             overlapping = defined_events & target_available_events
