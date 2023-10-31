@@ -6042,7 +6042,12 @@ class FtraceCollector(CollectorBase, Configurable):
         try:
             events_checker.check_events(events, check_optional=True)
         except MissingTraceEventError as e:
-            self.logger.info(f'Optional events missing: {str(e)}')
+            e = MissingTraceEventError(
+                e.missing_events,
+                available_events=target_available_events | kmod_defined_events,
+                msg='{missing_events}{available}',
+            )
+            self.logger.info(f'Optional events missing: {e}')
 
         if not events:
             raise ValueError('No ftrace events selected')
