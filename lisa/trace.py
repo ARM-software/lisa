@@ -6091,8 +6091,14 @@ class FtraceCollector(CollectorBase, Configurable):
 
     @classmethod
     def _get_kmod(cls, target, target_available_events, needed_events):
+        logger = cls.get_logger()
         kmod = target.get_kmod(LISADynamicKmod)
         defined_events = set(kmod.defined_events)
+        possible_events = set(kmod.possible_events)
+
+        logger.debug(f'Kernel module possible events: {possible_events}')
+        logger.debug(f'Kernel module defined events: {defined_events}')
+
         needed = needed_events & defined_events
         if needed:
             overlapping = defined_events & target_available_events
