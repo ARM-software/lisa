@@ -5415,16 +5415,16 @@ class OrTraceEventChecker(AssociativeTraceEventChecker):
 
     def _select_events(self, check, event_set):
         if self.checkers:
-            failed_checker_set = set()
+            failed_checkers = []
             for checker in self.checkers:
                 try:
                     return checker._select_events(check=check, event_set=event_set)
                 except MissingTraceEventError as e:
-                    failed_checker_set.add(e.missing_events)
+                    failed_checkers.extend(e.missing_events)
 
             cls = type(self)
             raise MissingTraceEventError(
-                cls(failed_checker_set),
+                cls.from_events(failed_checkers),
                 available_events=event_set,
             )
         else:
@@ -5488,7 +5488,7 @@ class AndTraceEventChecker(AssociativeTraceEventChecker):
 
     def _select_events(self, check, event_set):
         if self.checkers:
-            failed_checker_set = set()
+            failed_checkers = []
             selected = set()
             for checker in self.checkers:
                 try:
@@ -5496,12 +5496,12 @@ class AndTraceEventChecker(AssociativeTraceEventChecker):
                         checker._select_events(check=check, event_set=event_set)
                     )
                 except MissingTraceEventError as e:
-                    failed_checker_set.add(e.missing_events)
+                    failed_checkers.extend(e.missing_events)
 
-            if failed_checker_set:
+            if failed_checkers:
                 cls = type(self)
                 raise MissingTraceEventError(
-                    cls(failed_checker_set),
+                    cls.from_events(failed_checkers),
                     available_events=event_set,
                 )
             else:
