@@ -69,6 +69,9 @@ def _main(args, target):
         features.setdefault(feature, {})[param_name] = param_value
 
     kmod = target.get_kmod(LISADynamicKmod)
+    pretty_events = ', '.join(kmod.defined_events)
+    logging.info(f'Kernel module provides the following ftrace events: {pretty_events}')
+
     _kmod_cm = kmod.run(features=features)
 
     if keep_loaded:

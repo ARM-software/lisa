@@ -2767,21 +2767,36 @@ class LISADynamicKmod(FtraceDynamicKmod):
 
         base_path, kmod_filename = guess_kmod_path()
         logger.debug(f'Looking for pre-installed {kmod_filename} module in {base_path}')
+
+        super_ = super()
+        def preinstalled_broken(e):
+            logger.debug(f'Pre-installed {kmod_filename} is unsuitable, recompiling: {e}')
+            return super_.install(kmod_params=kmod_params)
+
         try:
             kmod_path = target.execute(
                 f"{busybox} find {base_path} -name {quote(kmod_filename)}"
             ).strip()
-
-            @contextlib.contextmanager
-            def kmod_cm():
-                yield kmod_path
-
-            ret = self._install(kmod_cm(), kmod_params=kmod_params)
-        except (TargetStableCalledProcessError, KmodVersionError) as e:
-            logger.debug(f'Pre-installed {kmod_filename} is unsuitable, recompiling: {e}')
-            ret = super().install(kmod_params=kmod_params)
+        except TargetStableCalledProcessError as e:
+            ret = preinstalled_broken(e)
         else:
-            logger.warning(f'Loaded "{self.mod_name}" module from pre-installed location: {kmod_path}. This implies that the module was compiled by a 3rd party, which is available but unsupported. If you experience issues related to module version mismatch in the future, please contact them for updating the module. This may break at any time, without notice, and regardless of the general backward compatibility policy of LISA.')
+            if kmod_path:
+
+                if len(kmod_path.splitlines()) > 1:
+                    ret = preinstalled_broken(FileNotFoundError(kmod_filename))
+                else:
+                    @contextlib.contextmanager
+                    def kmod_cm():
+                        yield kmod_path
+
+                    try:
+                        ret = self._install(kmod_cm(), kmod_params=kmod_params)
+                    except (TargetStableCalledProcessError, KmodVersionError) as e:
+                        ret = preinstalled_broken(e)
+                    else:
+                        logger.warning(f'Loaded "{self.mod_name}" module from pre-installed location: {kmod_path}. This implies that the module was compiled by a 3rd party, which is available but unsupported. If you experience issues related to module version mismatch in the future, please contact them for updating the module. This may break at any time, without notice, and regardless of the general backward compatibility policy of LISA.')
+            else:
+                ret = preinstalled_broken(FileNotFoundError(kmod_filename))
 
         return ret
 
