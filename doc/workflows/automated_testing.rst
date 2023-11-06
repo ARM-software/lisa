@@ -38,6 +38,9 @@ specified by :class:`~lisa.target.TargetConf`.
 When pointed at folders (or packages), ``exekall`` will recursively look for
 Python files.
 
+.. note:: ``lisa_tests`` package is now distributed separately from the
+	``lisa`` package.
+
 A subset of the tests can be selected using ``-s PATTERN``. The pattern is a
 globbing-style pattern, where ``*`` stands as a wildcard. If the pattern starts
 with an ``!``, no test matching that pattern will be selected. Use ``--list``

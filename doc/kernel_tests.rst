@@ -35,13 +35,6 @@ The following tests are available. They can be used as:
   * the individual classes/methods they are composed of can be used in custom
     scripts/jupyter notebooks (see ipynb/tests/synthetics_example.ipynb)
 
-.. run-command::
-  :capture-stderr:
-
-  # Disable warnings to avoid dependencies to break the reStructuredText output
-  export PYTHONWARNINGS="ignore"
-  exekall run lisa lisa_tests --rst-list --inject-empty-target-conf
-
 Running tests
 =============
 
@@ -177,17 +170,6 @@ It can be executed using:
 .. code-block:: sh
 
     exekall run lisa lisa_tests.test_example --conf $LISA_CONF
-
-.. exec::
-    # Check that links inside 'test_example.py' are not broken.
-    from lisa._doc.helpers import check_dead_links
-    from lisa_tests import test_example
-    check_dead_links(test_example.__file__)
-
-.. literalinclude:: ../lisa_tests/test_example.py
-   :language: python
-   :pyobject: ExampleTestBundle
-   :linenos:
 
 API
 ===

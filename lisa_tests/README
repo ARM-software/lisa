@@ -1,6 +1,0 @@
-This package is a namespace Package.
-
-Sub-packages at that level must identify the entity creating the test, such as
-the company name. This ensures freedom of conflicts between all the users of
-that namespace.
-
