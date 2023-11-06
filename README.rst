@@ -1,3 +1,9 @@
+
+⚠️ ``lisa_tests`` package will be moved to another repository in
+January 2024. When more details are available, this pull request will be
+updated: https://github.com/ARM-software/lisa/pull/2140 ⚠️
+
+
 Introduction |CI status| |Documentation Status|
 ===================================================
 
