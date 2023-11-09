@@ -865,7 +865,9 @@ class RTA(Workload):
             else:
                 return None
 
-        pload = dict(filter(bool, map(parse, out['stdout'].splitlines())))
+        stdout = out['stdout']
+        self.logger.debug("rt-app calibration run output: {stdout!r}")
+        pload = dict(filter(bool, map(parse, stdout.splitlines())))
 
         return {'calib': pload}
 
