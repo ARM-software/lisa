@@ -2631,17 +2631,26 @@ class FtraceDynamicKmod(DynamicKmod):
         """
         Ftrace events defined in that module.
         """
-        def parse(name):
-            return re.match(r'__event_(.*)', name)
+        def from_section(section):
+            def parse(name):
+                return re.match(r'__event_(.*)', name)
 
-        events = set(
-            m.group(1)
-            for m in map(
-                parse,
-                self._get_symbols('_ftrace_events')
+            events = set(
+                m.group(1)
+                for m in map(
+                    parse,
+                    self._get_symbols(section)
+                )
+                if m
             )
-            if m
-        )
+            return events
+
+        try:
+            events = from_section('_ftrace_events')
+        except KeyError:
+            # Some android kernels seem to strip the _ftrace_events section, so
+            # we widen the scope to all symbols defined in the module.
+            events = from_section(None)
 
         # Ensure that the possible_events() implementation is indeed a superset
         # of the events actually defined.
