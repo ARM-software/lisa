@@ -214,11 +214,15 @@ static inline int rq_cpu_capacity(const struct rq *rq)
 	;
 }
 
+#    if HAS_KERNEL_FEATURE(UARCH_INVARIANCE)
+DECLARE_PER_CPU(unsigned long, cpu_scale);
+#    endif
+
 static inline int rq_cpu_orig_capacity(const struct rq *rq)
 {
 	return
-#    if HAS_KERNEL_FEATURE(FREQ_INVARIANCE)
-		rq->cpu_capacity_orig;
+#    if HAS_KERNEL_FEATURE(UARCH_INVARIANCE)
+		 per_cpu(cpu_scale, rq->cpu)
 #    else
 		rq_cpu_capacity(rq)
 #    endif
