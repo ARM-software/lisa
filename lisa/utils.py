@@ -2273,10 +2273,18 @@ def dispatch_kwargs(funcs, kwargs, call=True, allow_overlap=False):
     """
     funcs = list(funcs)
 
+    def get_sig(f):
+        # If this is a method, we need to bind it to something to get rid
+        # of the "self" parameter.
+        if isinstance(f, UnboundMethodType):
+            f = f.__get__(0)
+
+        return inspect.signature(f)
+
     params = {
         func: {
             param.name
-            for param in inspect.signature(func).parameters.values()
+            for param in get_sig(func).parameters.values()
             if param.kind not in (
                 param.VAR_POSITIONAL,
                 param.VAR_KEYWORD,
