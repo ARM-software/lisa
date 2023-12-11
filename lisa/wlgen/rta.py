@@ -625,7 +625,7 @@ class RTA(Workload):
         # Don't add code here, use the early/late init methods instead.
         # This lets us factorize some code for the class methods that serve as
         # alternate constructors.
-        self._early_init(**_early_init_kwargs)
+        self.__class__._early_init(**_early_init_kwargs)
 
         from_path_kwargs.update(
             path=json_file,
