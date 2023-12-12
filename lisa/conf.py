@@ -96,6 +96,13 @@ class FilteredDeferredValue(DeferredValue):
             else:
                 return x
 
+        # Cheat on the name to have better DeferredValue.__str__ output
+        try:
+            _callback.__qualname__ = callback.__qualname__
+        # Not all callbacks have a __qualname__
+        except AttributeError:
+            pass
+
         super().__init__(callback=_callback)
 
 
