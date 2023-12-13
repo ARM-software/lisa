@@ -3,6 +3,7 @@
 #ifndef _TP_H
 #define _TP_H
 
+#include "utils.h"
 #include "features.h"
 
 struct __find_tracepoint_params {
