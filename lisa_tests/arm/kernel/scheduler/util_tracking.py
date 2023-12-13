@@ -178,9 +178,10 @@ class UtilConvergence(UtilTrackingBase):
         self._save_debug_plot(fig, name=f'util_est_{test}')
         return fig
 
-    @requires_events('sched_util_est_se')
+    @requires_events('sched_util_est_se', 'perf_counter')
     @LoadTrackingAnalysis.df_tasks_signal.used_events
     @RTAEventsAnalysis.task_phase_windows.used_events
+    @RTATestBundle.test_estiamted_freq.undecided_filter()
     @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
     def test_means(self) -> ResultBundle:
         """
@@ -227,6 +228,10 @@ class UtilConvergence(UtilTrackingBase):
             apply_phase_window = functools.partial(df_refit_index, window=(phase.start, phase.end))
 
             ue_phase_df = apply_phase_window(ue_df)
+            if ue_phase_df.shape[0] <= 1:
+                self.logger.warning(f"Not enough events recorded for phase {phase.id} to proceed")
+                continue
+
             mean_enqueued = series_mean(ue_phase_df['enqueued'])
             mean_ewma = series_mean(ue_phase_df['ewma'])
 
