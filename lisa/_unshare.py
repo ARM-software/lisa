@@ -33,6 +33,7 @@ import contextlib
 import multiprocessing
 import threading
 import logging
+import logging.handlers
 import queue
 from importlib.util import module_from_spec
 from importlib.machinery import ModuleSpec
@@ -90,7 +91,7 @@ def _do_unshare():
     libc.mount(b"none", b"/", ffi.NULL, mount_flags, ffi.NULL);
 
 
-def _unshare_wrapper(args):
+def _unshare_wrapper(configure, f):
     # If we are already root, we don't need to do anything. This will increase
     # the odds of all that working in a CI environment inside an existing
     # container.
@@ -102,12 +103,17 @@ def _unshare_wrapper(args):
     # pickle would import all the necessary modules to deserialize the objects,
     # leading to importing modules like pyarrow that create a background
     # thread, preventing the unshare(CLONE_NEWUSER) syscall from working.
-    f, log_configure, args, kwargs = pickle.loads(args)
+    configure = pickle.loads(configure)
 
     # Configure logging module to get the records back in the parent thread
-    # where they will be processed as usual.
-    log_configure()
-    return f(*args, **kwargs)
+    # where they will be processed as usual. We need to do this before
+    # unpickling the function and its data, as unpickling will trigger some
+    # __new__/__init__ calls that Otherwise would run with the wrong logging
+    # setup
+    configure()
+
+    f = pickle.loads(f)
+    return f()
 
 
 @contextlib.contextmanager
@@ -190,10 +196,11 @@ def _with_unshare(f, args=tuple(), kwargs={}):
         # are unpickled (triggering imports) by pickling them ourselves.
         ctx = multiprocessing.get_context('spawn')
         with _empty_main(), ctx.Pool(processes=1) as pool:
-            data = pickle.dumps((f, configure, args, kwargs))
+            configure = pickle.dumps(configure)
+            f = pickle.dumps(functools.partial(f, *args, **kwargs))
             return pool.apply(
                 _unshare_wrapper,
-                args=(data,),
+                args=(configure, f),
             )
 
 
