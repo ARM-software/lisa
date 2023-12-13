@@ -411,6 +411,7 @@ class InvarianceItemBase(RTATestBundle, LoadTrackingHelpers, TestBundle, Exekall
 
     @memoized
     @get_simulated_pelt.used_events
+    @RTATestBundle.test_estiamted_freq.undecided_filter(skip_verification=True)
     @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
     def _test_correctness(self, signal_name, mean_error_margin_pct, max_error_margin_pct):
 
@@ -711,6 +712,7 @@ class TaskInvariance(InvarianceBase):
 
         @memoized
         @_test_behaviour.used_events
+        @RTATestBundle.test_estiamted_freq.undecided_filter(skip_verification=True)
         @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
         def test_util_behaviour(self, error_margin_pct=5) -> ResultBundle:
             """
@@ -730,6 +732,7 @@ class TaskInvariance(InvarianceBase):
 
         @memoized
         @_test_behaviour.used_events
+        @RTATestBundle.test_estiamted_freq.undecided_filter(skip_verification=True)
         @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
         def test_load_behaviour(self, error_margin_pct=5) -> ResultBundle:
             """
