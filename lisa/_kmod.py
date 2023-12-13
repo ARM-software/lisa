@@ -379,6 +379,7 @@ def _make_build_chroot(cc, cross_compile, abi, bind_paths=None, version=None, ov
                 'py3-pip',
                 'perl',
                 'pahole',
+                'git',
             ]
 
             if is_clang(cc):
@@ -1118,7 +1119,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
     @classmethod
     def _prepare_tree(cls, path, cc, cross_compile, abi, build_conf, apply_overlays):
         logger = cls.get_logger()
-        path = Path(path)
+        path = Path(path).resolve()
 
         def make(*targets):
             return _kbuild_make_cmd(
@@ -1128,7 +1129,39 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                 make_vars=build_conf.get('make-variables', {}),
             )
 
-        cmds = [
+        def make_runner(cmd, allow_fail=False, **kwargs):
+            def runner(amend_cmd=lambda cmd: cmd):
+                _cmd = amend_cmd(cmd)
+
+                try:
+                    return _subprocess_log(
+                        _cmd,
+                        logger=logger,
+                        level=logging.DEBUG,
+                        **kwargs,
+                    )
+                except subprocess.CalledProcessError as e:
+                    if allow_fail:
+                        pretty_cmd = ' '.join(map(quote, map(str, cmd)))
+                        logger.debug(f'Failed to run command {pretty_cmd}: {e}')
+                        return ''
+                    else:
+                        raise e
+
+            return runner
+
+        def rewrite_runner(runner, amend_cmd):
+            def new_runner(_amend_cmd=lambda cmd: cmd):
+                __amend_cmd = lambda cmd: _amend_cmd(amend_cmd(cmd))
+                return runner(__amend_cmd)
+            return new_runner
+
+
+        # Since GIT_CEILING_DIRECTORIES is colon-separated, we cannot
+        # accept colons in the path
+        assert ':' not in str(path)
+
+        cmds = (
             # On non-host build env, we need to clean first, as binaries compiled
             # in e.g. scripts/ will probably not work inside the Alpine container,
             # since they would be linked against shared libraries on the host
@@ -1149,11 +1182,25 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             # the cache, but would not be ready. "make modules" would probably
             # fix that but we could still have possibly issues with different
             # toolchains etc.
-            make('mrproper'),
-            make('olddefconfig', 'modules_prepare'),
-        ]
-
-        bind_paths = {path: path}
+            (
+                lambda path: make_runner(
+                    ('git', '-C', path, 'clean', '-fdx'),
+                    allow_fail=True,
+                    env={
+                        **os.environ,
+                        # Make sure we don't accidentally end up acting on a
+                        # .git in e.g. $HOME if the kernel tree is not a git
+                        # repo. This is especially important as we are using
+                        # git clean.
+                        'GIT_CEILING_DIRECTORIES': str(path),
+                    },
+                ),
+                lambda path: make_runner(make('mrproper')),
+            ),
+            (
+                lambda path: make_runner(make('olddefconfig', 'modules_prepare')),
+            )
+        )
 
         def fixup_kernel_build_env():
             # TODO: re-assess
@@ -1199,17 +1246,31 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     cc=cc.name,
                     cross_compile=cross_compile,
                     abi=abi,
-                    bind_paths=bind_paths,
+                    bind_paths={path: path},
                     overlay_backend=overlay_backend,
                     version=version,
                     packages=alpine_packages,
                 ) as chroot:
                     yield [
-                        _make_build_chroot_cmd(chroot, cmd) if cmd else None
-                        for cmd in cmds
+                        [
+                            rewrite_runner(
+                                make_runner(path),
+                                lambda cmd: _make_build_chroot_cmd(chroot, cmd)
+                            )
+                            for make_runner in runners
+                        ]
+                        for runners in cmds
                     ]
         else:
-            cmd_cm = lambda cmds: nullcontext(cmds)
+            @contextlib.contextmanager
+            def cmd_cm(cmds):
+                yield [
+                    [
+                        make_runner(path)
+                        for make_runner in runners
+                    ]
+                    for runners in cmds
+                ]
 
         try:
             config_path = os.environ['KCONFIG_CONFIG']
@@ -1218,7 +1279,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
 
         config_path = Path(config_path)
         if not config_path.is_absolute():
-            config_path = Path(path) / config_path
+            config_path = path / config_path
 
         try:
             config_content = config_path.read_bytes()
@@ -1229,8 +1290,8 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             pre, post = _cmds
             logger.info(f'Preparing kernel tree for modules')
 
-            if pre is not None:
-                _subprocess_log(pre, logger=logger, level=logging.DEBUG)
+            for runner in pre:
+                runner()
 
             # Ensure the configuration is available under .config, so that we
             # can rely on that. Overlays can now be applied to override it if
@@ -1244,7 +1305,8 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             apply_overlays()
             fixup_kernel_build_env()
 
-            _subprocess_log(post, logger=logger, level=logging.DEBUG)
+            for runner in post:
+                runner()
 
             # Re-apply the overlays, since we could have overwritten important
             # things, such as include/linux/vermagic.h
@@ -1723,44 +1785,47 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     raise ValueError(f'Building from /lib/modules/.../build/ is only supported for local targets')
 
         @contextlib.contextmanager
-        def _from_target_sources(configs, pull, **kwargs):
+        def _from_target_sources(pull, **kwargs):
             """
             Overlay some content taken from the target on the user tree, such
             as /proc/config.gz
             """
             version = kernel_info['version']
-            config = kernel_info['config']
-            if not all(
-                config.get(conf) == KernelConfigTristate.YES
-                for conf in configs
-            ):
-                configs = ' and '.join(
-                    f'{conf}=y'
-                    for conf in configs
-                )
-                raise ValueError(f'Needs {configs}')
-            else:
-                with tempfile.TemporaryDirectory() as temp:
-                    temp = Path(temp)
-                    overlays = pull(target, temp)
+            with tempfile.TemporaryDirectory() as temp:
+                temp = Path(temp)
+                overlays = pull(target, temp)
 
-                    with cls.from_overlays(
-                        version=version,
-                        overlays=overlays,
-                        cache=cache,
-                        tree_path=tree_path,
-                        build_conf=build_conf,
-                        **kwargs,
-                    ) as tree:
-                        yield tree._to_spec()
+                with cls.from_overlays(
+                    version=version,
+                    overlays=overlays,
+                    cache=cache,
+                    tree_path=tree_path,
+                    build_conf=build_conf,
+                    **kwargs,
+                ) as tree:
+                    yield tree._to_spec()
+
+        def missing_configs(configs):
+            configs = ' and '.join(
+                f'{conf}=y'
+                for conf in configs
+            )
+            return ValueError(f'Needs {configs}')
 
         def from_sysfs_headers():
             """
             From /sys/kernel/kheaders.tar.xz and /proc/config.gz
             """
             def pull(target, temp):
-                target.cached_pull('/proc/config.gz', str(temp), as_root=True)
-                target.cached_pull('/sys/kernel/kheaders.tar.xz', str(temp), via_temp=True, as_root=True)
+                try:
+                    target.cached_pull('/proc/config.gz', str(temp), as_root=True)
+                except Exception:
+                    raise missing_configs(('CONFIG_IKCONFIG_PROC',))
+
+                try:
+                    target.cached_pull('/sys/kernel/kheaders.tar.xz', str(temp), via_temp=True, as_root=True)
+                except Exception:
+                    raise missing_configs(('CONFIG_IKHEADERS',))
 
                 return {
                     # We can use .config as we control KCONFIG_CONFIG in _process_make_vars()
@@ -1768,26 +1833,24 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     TarOverlay.from_path(temp / 'kheaders.tar.xz'): '.',
                 }
 
-            return _from_target_sources(
-                configs=['CONFIG_IKHEADERS', 'CONFIG_IKCONFIG_PROC'],
-                pull=pull,
-            )
+            return _from_target_sources(pull)
 
         def from_proc_config():
             """
             From /proc/config.gz
             """
             def pull(target, temp):
-                target.cached_pull('/proc/config.gz', str(temp), as_root=True)
+                try:
+                    target.cached_pull('/proc/config.gz', str(temp), as_root=True)
+                except Exception:
+                    raise missing_configs(('CONFIG_IKCONFIG_PROC',))
+
                 return {
                     # We can use .config as we control KCONFIG_CONFIG in _process_make_vars()
                     FileOverlay.from_path(temp / 'config.gz', decompress=True): '.config',
                 }
 
-            return _from_target_sources(
-                configs=['CONFIG_IKCONFIG_PROC'],
-                pull=pull,
-            )
+            return _from_target_sources(pull)
 
         @contextlib.contextmanager
         def from_user_tree():
