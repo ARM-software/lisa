@@ -1785,44 +1785,47 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     raise ValueError(f'Building from /lib/modules/.../build/ is only supported for local targets')
 
         @contextlib.contextmanager
-        def _from_target_sources(configs, pull, **kwargs):
+        def _from_target_sources(pull, **kwargs):
             """
             Overlay some content taken from the target on the user tree, such
             as /proc/config.gz
             """
             version = kernel_info['version']
-            config = kernel_info['config']
-            if not all(
-                config.get(conf) == KernelConfigTristate.YES
-                for conf in configs
-            ):
-                configs = ' and '.join(
-                    f'{conf}=y'
-                    for conf in configs
-                )
-                raise ValueError(f'Needs {configs}')
-            else:
-                with tempfile.TemporaryDirectory() as temp:
-                    temp = Path(temp)
-                    overlays = pull(target, temp)
+            with tempfile.TemporaryDirectory() as temp:
+                temp = Path(temp)
+                overlays = pull(target, temp)
 
-                    with cls.from_overlays(
-                        version=version,
-                        overlays=overlays,
-                        cache=cache,
-                        tree_path=tree_path,
-                        build_conf=build_conf,
-                        **kwargs,
-                    ) as tree:
-                        yield tree._to_spec()
+                with cls.from_overlays(
+                    version=version,
+                    overlays=overlays,
+                    cache=cache,
+                    tree_path=tree_path,
+                    build_conf=build_conf,
+                    **kwargs,
+                ) as tree:
+                    yield tree._to_spec()
+
+        def missing_configs(configs):
+            configs = ' and '.join(
+                f'{conf}=y'
+                for conf in configs
+            )
+            return ValueError(f'Needs {configs}')
 
         def from_sysfs_headers():
             """
             From /sys/kernel/kheaders.tar.xz and /proc/config.gz
             """
             def pull(target, temp):
-                target.cached_pull('/proc/config.gz', str(temp), as_root=True)
-                target.cached_pull('/sys/kernel/kheaders.tar.xz', str(temp), via_temp=True, as_root=True)
+                try:
+                    target.cached_pull('/proc/config.gz', str(temp), as_root=True)
+                except Exception:
+                    raise missing_configs(('CONFIG_IKCONFIG_PROC',))
+
+                try:
+                    target.cached_pull('/sys/kernel/kheaders.tar.xz', str(temp), via_temp=True, as_root=True)
+                except Exception:
+                    raise missing_configs(('CONFIG_IKHEADERS',))
 
                 return {
                     # We can use .config as we control KCONFIG_CONFIG in _process_make_vars()
@@ -1830,26 +1833,24 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     TarOverlay.from_path(temp / 'kheaders.tar.xz'): '.',
                 }
 
-            return _from_target_sources(
-                configs=['CONFIG_IKHEADERS', 'CONFIG_IKCONFIG_PROC'],
-                pull=pull,
-            )
+            return _from_target_sources(pull)
 
         def from_proc_config():
             """
             From /proc/config.gz
             """
             def pull(target, temp):
-                target.cached_pull('/proc/config.gz', str(temp), as_root=True)
+                try:
+                    target.cached_pull('/proc/config.gz', str(temp), as_root=True)
+                except Exception:
+                    raise missing_configs(('CONFIG_IKCONFIG_PROC',))
+
                 return {
                     # We can use .config as we control KCONFIG_CONFIG in _process_make_vars()
                     FileOverlay.from_path(temp / 'config.gz', decompress=True): '.config',
                 }
 
-            return _from_target_sources(
-                configs=['CONFIG_IKCONFIG_PROC'],
-                pull=pull,
-            )
+            return _from_target_sources(pull)
 
         @contextlib.contextmanager
         def from_user_tree():
