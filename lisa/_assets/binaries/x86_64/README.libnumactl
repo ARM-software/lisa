@@ -7,7 +7,7 @@ Build host info:
 
 NAME="Alpine Linux"
 ID=alpine
-VERSION_ID=3.18.2
+VERSION_ID=3.18.5
 PRETTY_NAME="Alpine Linux v3.18"
 HOME_URL="https://alpinelinux.org/"
 BUG_REPORT_URL="https://gitlab.alpinelinux.org/alpine/aports/-/issues"
@@ -16,11 +16,13 @@ BUG_REPORT_URL="https://gitlab.alpinelinux.org/alpine/aports/-/issues"
 Build recipe:
 
 export ARCH=x86_64
-export BUILD_DIR=/tmp/tmppesjvipw/x86_64/source
+export BUILD_DIR=/tmp/tmpebd5a_4e/x86_64/source
 export LISA_ARCH_ASSETS=/lisa/_assets/binaries/x86_64
 export LISA_HOME=''
 #! /bin/bash
 
+# We are stuck on Alpine 3.18 until that is fixed:
+# https://github.com/numactl/numactl/issues/185
 ALPINE_VERSION=v3.18
 ALPINE_BUILD_DEPENDENCIES=(autoconf automake bash cmake gcc git make libtool linux-headers musl-dev)
 
@@ -56,14 +58,15 @@ build_rtapp() {
 download() {
     git clone https://github.com/json-c/json-c json-c
     # git -C json-c checkout ddd049045d98dd3163d01a7d79184b3c7fb95a14
-    git -C json-c checkout json-c-0.16-20220414
+    git -C json-c checkout json-c-0.17-20230812
+
 
     git clone https://github.com/numactl/numactl.git
     git -C numactl checkout v2.0.16
 
     git clone https://github.com/douglas-raillard-arm/rt-app.git
     # Branch: lisa
-    git -C rt-app checkout 857d6a6624469ba275a37493a10ebba00a50b467
+    git -C rt-app checkout eccc991f77e7e02ba42d1c89c0558f8cbdccf762
 
 }
 
