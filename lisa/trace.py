@@ -3417,9 +3417,11 @@ class Trace(Loggable, TraceBase):
         collected on.
     :type plat_info: lisa.platforms.platinfo.PlatformInfo
 
-    :param normalize_time: Make the first timestamp in the trace 0 instead
-        of the system timestamp that was captured when tracing.
-    :type normalize_time: bool
+    :param normalize_time: If ``True``, make the first timestamp in the trace 0
+        instead of the system timestamp that was captured when tracing. If a
+        number is used, this will be taken as an offset substracted from
+        timestamps of all dataframes returned.
+    :type normalize_time: bool or float
 
     :param parser: Optional trace parser to use as a backend. It must
         implement the API defined by :class:`TraceParserBase`, and will be
@@ -4296,11 +4298,19 @@ class Trace(Loggable, TraceBase):
                 raise
         return df_map
 
-    def _apply_normalize_time(self, df, inplace):
-        df = df if inplace else df.copy(deep=False)
+    @property
+    def _time_offset(self):
+        offset = self.normalize_time
+        if isinstance(offset, bool):
+            offset = self.basetime if offset else 0
 
-        if self.normalize_time:
-            df.index -= self.basetime
+        return offset
+
+    def _apply_normalize_time(self, df, inplace):
+        offset = self._time_offset
+        if offset:
+            df = df if inplace else df.copy(deep=False)
+            df.index -= offset
 
         return df
 
@@ -4610,7 +4620,7 @@ class Trace(Loggable, TraceBase):
 
     @property
     def start(self):
-        return 0 if self.normalize_time else self.basetime
+        return self.basetime - self._time_offset
 
     @property
     def end(self):
