@@ -32,7 +32,7 @@ rebase-conf:
         -
             remote: github
             base: master
-            tip: log_calib
+            tip: fix_calib
 
 
     remotes:
