@@ -2428,7 +2428,8 @@ class TraceBase(abc.ABC):
     @abc.abstractmethod
     def get_view(self, *args, **kwargs):
         """
-        Get a view on a trace cropped time-wise to fit in ``window``.
+        Get a view on a trace cropped time-wise to fit in ``window`` and with
+        event dataframes post processed with ``process_df``.
 
         :Variable arguments: Forwarded to the contructor of the view.
         """
@@ -2518,6 +2519,10 @@ class TraceView(Loggable, TraceBase):
         base trace will be selected.
     :type window: tuple(float, float) or None
 
+    :param process_df: Function used to post process the event dataframes
+        returned by :meth:`TraceBase.df_event`.
+    :type process_df: typing.Callable[[str, pandas.DataFrame], pandas.DataFrame] or None
+
     :Attributes:
         * ``base_trace``: The original :class`:`Trace` this view is based on.
         * ``ana``: The analysis proxy on the trimmed down :class`:`Trace`.
@@ -2549,7 +2554,7 @@ class TraceView(Loggable, TraceBase):
         mimics a regular :class:`Trace` using :func:`getattr`.
     """
 
-    def __init__(self, trace, window=None, clear_base_cache=False):
+    def __init__(self, trace, window=None, clear_base_cache=False, process_df=None):
         super().__init__()
         self.base_trace = trace
 
@@ -2561,12 +2566,21 @@ class TraceView(Loggable, TraceBase):
         t_min, t_max = window or (None, None)
         self.start = t_min if t_min is not None else self.base_trace.start
         self.end = t_max if t_max is not None else self.base_trace.end
+        self._process_df = process_df or self._default_process_df
+
+    @staticmethod
+    def _default_process_df(event, df):
+        return df
 
     @property
     def trace_state(self):
+        f = self._process_df
         return (
             self.start,
             self.end,
+            # This likely will be a value that cannot be serialized to JSON if
+            # it was user-provided. This will prevent caching as it should.
+            None if f == self._default_process_df else f,
             self.base_trace.trace_state,
         )
 
@@ -2591,9 +2605,9 @@ class TraceView(Loggable, TraceBase):
         kwargs['window'] = window
 
         df = self.base_trace.df_event(event, **kwargs)
-        return df
+        return self._process_df(event, df)
 
-    def get_view(self, window=None, **kwargs):
+    def get_view(self, window=None, process_df=None, **kwargs):
         window = window or (None, None)
         start = self.start
         end = self.end
@@ -2604,9 +2618,14 @@ class TraceView(Loggable, TraceBase):
         if window[1]:
             end = min(end, window[1])
 
+        process_df = process_df or self._default_process_df
+        def _process_df(event, df):
+            return process_df(event, self._process_df(event, df))
+
         return TraceView(
             self,
             window=(start, end),
+            process_df=_process_df,
             **kwargs
         )
 
