@@ -2419,12 +2419,23 @@ class TraceBase(abc.ABC):
         return (self.start, self.end)
 
     @abc.abstractmethod
-    def get_view(self, window, **kwargs):
+    def df_event(self, event, *args, **kwargs):
         """
-        Get a view on a trace cropped time-wise to fit in ``window``
+        Return the :class:`pandas.DataFrame` for the given ``event``.
+        """
+        pass
 
-        :Variable keyword arguments: Forwarded to the contructor of the view.
+    @abc.abstractmethod
+    def get_view(self, *args, **kwargs):
         """
+        Get a view on a trace cropped time-wise to fit in ``window``.
+
+        :Variable arguments: Forwarded to the contructor of the view.
+        """
+
+    @abc.abstractmethod
+    def _clear_cache(self):
+        pass
 
     def __getitem__(self, window):
         if not isinstance(window, slice):
@@ -2503,8 +2514,9 @@ class TraceView(Loggable, TraceBase):
         anymore, apart as a data server for the view.
     :type clear_base_cache: bool
 
-    :param window: The time window to base this view on
-    :type window: tuple(float, float)
+    :param window: The time window to base this view on. If ``None``, the whole
+        base trace will be selected.
+    :type window: tuple(float, float) or None
 
     :Attributes:
         * ``base_trace``: The original :class`:`Trace` this view is based on.
@@ -2537,22 +2549,26 @@ class TraceView(Loggable, TraceBase):
         mimics a regular :class:`Trace` using :func:`getattr`.
     """
 
-    def __init__(self, trace, window, clear_base_cache=False):
+    def __init__(self, trace, window=None, clear_base_cache=False):
         super().__init__()
         self.base_trace = trace
 
         # evict all the non-raw dataframes from the base cache, as they are
         # unlikely to be used anymore.
         if clear_base_cache:
-            self.base_trace._cache.clear_all_events(raw=False)
+            self._clear_cache()
 
-        t_min, t_max = window
+        t_min, t_max = window or (None, None)
         self.start = t_min if t_min is not None else self.base_trace.start
         self.end = t_max if t_max is not None else self.base_trace.end
 
     @property
     def trace_state(self):
-        return (self.start, self.end, self.base_trace.trace_state)
+        return (
+            self.start,
+            self.end,
+            self.base_trace.trace_state,
+        )
 
     def __getattr__(self, name):
         return getattr(self.base_trace, name)
@@ -2574,9 +2590,11 @@ class TraceView(Loggable, TraceBase):
             window = self.window
         kwargs['window'] = window
 
-        return self.base_trace.df_event(event, **kwargs)
+        df = self.base_trace.df_event(event, **kwargs)
+        return df
 
-    def get_view(self, window, **kwargs):
+    def get_view(self, window=None, **kwargs):
+        window = window or (None, None)
         start = self.start
         end = self.end
 
@@ -2586,7 +2604,14 @@ class TraceView(Loggable, TraceBase):
         if window[1]:
             end = min(end, window[1])
 
-        return self.base_trace.get_view(window=(start, end), **kwargs)
+        return TraceView(
+            self,
+            window=(start, end),
+            **kwargs
+        )
+
+    def _clear_cache(self):
+        self.base_trace._clear_cache()
 
 # One might be tempted to make that a subclass of collections.abc.Set: don't.
 # The problem is that Set expects new instances to be created by passing an
@@ -2810,6 +2835,10 @@ class _CacheDataDescNF:
         return cls(nf=nf, fmt=fmt)
 
 
+class _CannotWriteSwapEntry(Exception):
+    pass
+
+
 class _CacheDataSwapEntry:
     """
     Entry in the data swap area of :class:`Trace`.
@@ -2854,10 +2883,18 @@ class _CacheDataSwapEntry:
         """
         Return a mapping suitable for JSON serialization.
         """
+        desc = self.cache_desc_nf.to_json_map()
+        try:
+            # Use json.dumps() here to fail early if the descriptor cannot be
+            # dumped to JSON
+            desc = json.dumps(desc)
+        except TypeError as e:
+            raise _CannotWriteSwapEntry(e)
+
         return {
             'version-token': VERSION_TOKEN,
             'name': self.name,
-            'desc': self.cache_desc_nf.to_json_map(),
+            'encoded_desc': desc,
         }
 
     @classmethod
@@ -2868,7 +2905,8 @@ class _CacheDataSwapEntry:
         if mapping['version-token'] != VERSION_TOKEN:
             raise TraceCacheSwapVersionError('Version token differ')
 
-        cache_desc_nf = _CacheDataDescNF.from_json_map(mapping['desc'])
+        desc = json.loads(mapping['encoded_desc'])
+        cache_desc_nf = _CacheDataDescNF.from_json_map(desc)
         name = mapping['name']
         return cls(cache_desc_nf=cache_desc_nf, name=name, written=written)
 
@@ -3345,10 +3383,20 @@ class TraceCache(Loggable):
             else:
                 # Update the swap entry on disk
                 if write_meta:
-                    swap_entry.to_path(
-                        self._path_of_swap_entry(swap_entry)
-                    )
-                    swap_entry.written = True
+                    try:
+                        swap_entry.to_path(
+                            self._path_of_swap_entry(swap_entry)
+                        )
+                    # We have a swap entry that cannot be written to the swap,
+                    # probably because the descriptor includes something that
+                    # cannot be serialized to JSON.
+                    except _CannotWriteSwapEntry as e:
+                        self.logger.debug(f'Could not write {cache_desc} to swap: {e}')
+                        swap_entry.written = False
+                        return
+                    else:
+                        swap_entry.written = True
+
                 self._swap_content[swap_entry.cache_desc_nf] = swap_entry
 
                 # Assume that reading from the swap will take as much time as
@@ -3611,12 +3659,12 @@ class TraceCache(Loggable):
             if force or self._should_evict_to_swap(cache_desc, data):
                 self._write_swap(cache_desc, data, write_meta)
 
-    def write_swap_all(self):
+    def write_swap_all(self, **kwargs):
         """
         Attempt to write all cached data to the swap.
         """
         for cache_desc in self._cache.keys():
-            self.write_swap(cache_desc)
+            self.write_swap(cache_desc, **kwargs)
 
     def clear_event(self, event, raw=None):
         """
@@ -3989,6 +4037,9 @@ class Trace(Loggable, TraceBase):
         # the Trace is almost fully initialized
         self.plat_info = plat_info.add_trace_src(self)
 
+    def _clear_cache(self):
+        self._cache.clear_all_events(raw=False)
+
     @bothmethod
     def _resolve_namespaces(self_or_cls, namespaces=None):
         if not isinstance(self_or_cls, type):
@@ -4210,6 +4261,9 @@ class Trace(Loggable, TraceBase):
         class TraceProxy(TraceBase):
             def get_view(self, *args, **kwargs):
                 return self.base_trace.get_view(*args, **kwargs)
+
+            def _clear_cache(self):
+                self.base_trace._clear_cache()
 
             def __getattr__(self, attr):
                 try:
@@ -4871,8 +4925,8 @@ class Trace(Loggable, TraceBase):
         else:
             return True
 
-    def get_view(self, window, **kwargs):
-        return TraceView(self, window, **kwargs)
+    def get_view(self, *args, **kwargs):
+        return TraceView(self, *args, **kwargs)
 
     @property
     def start(self):
