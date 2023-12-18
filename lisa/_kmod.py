@@ -2534,14 +2534,9 @@ class DynamicKmod(Loggable):
 
         return (bin_, kernel_build_env._to_spec())
 
-    def install(self, kmod_params=None):
+    def install(self):
         """
         Install and load the module on the target.
-
-        :param kmod_params: Parameters to pass to the module via ``insmod``.
-            Non-string iterable values will be turned into a comma-separated
-            string following the ``module_param_array()`` kernel API syntax.
-        :type kmod_params: dict(str, object) or None
         """
         target = self.target
 
@@ -2565,9 +2560,9 @@ class DynamicKmod(Loggable):
                 finally:
                     target.remove(str(target_temp))
 
-        return self._install(kmod_cm(), kmod_params=kmod_params)
+        return self._install(kmod_cm())
 
-    def _install(self, kmod_cm, kmod_params):
+    def _install(self, kmod_cm):
         # Avoid circular import
         from lisa.trace import DmesgCollector
 
@@ -2596,15 +2591,6 @@ class DynamicKmod(Loggable):
         logger = self.logger
         target = self.target
 
-        kmod_params = kmod_params or {}
-        params = ' '.join(
-            f'{quote(k)}={quote(make_str(v))}'
-            for k, v in sorted(
-                kmod_params.items(),
-                key=itemgetter(0),
-            )
-        )
-
         try:
             self.uninstall()
         except Exception:
@@ -2619,7 +2605,7 @@ class DynamicKmod(Loggable):
 
             try:
                 with dmesg_coll as dmesg_coll:
-                    target.execute(f'{quote(target.busybox)} insmod {quote(str(ko_path))} {params}', as_root=True)
+                    target.execute(f'{quote(target.busybox)} insmod {quote(str(ko_path))}', as_root=True)
 
             except Exception as e:
                 log_dmesg(dmesg_coll, logger.error)
@@ -2879,7 +2865,7 @@ class LISADynamicKmod(FtraceDynamicKmod):
             for event in fnmatch.filter(all_events, pattern)
         )
 
-    def install(self, kmod_params=None):
+    def install(self):
 
         target = self.target
         logger = self.logger
@@ -2903,17 +2889,13 @@ class LISADynamicKmod(FtraceDynamicKmod):
             base_path = f"{modules_path_base}/{modules_version}"
             return (base_path, f"{self.mod_name}.ko")
 
-
-        kmod_params = kmod_params or {}
-        kmod_params['version'] = self.src.checksum
-
         base_path, kmod_filename = guess_kmod_path()
         logger.debug(f'Looking for pre-installed {kmod_filename} module in {base_path}')
 
         super_ = super()
         def preinstalled_broken(e):
             logger.debug(f'Pre-installed {kmod_filename} is unsuitable, recompiling: {e}')
-            return super_.install(kmod_params=kmod_params)
+            return super_.install()
 
         try:
             kmod_path = target.execute(
@@ -2932,7 +2914,7 @@ class LISADynamicKmod(FtraceDynamicKmod):
                         yield kmod_path
 
                     try:
-                        ret = self._install(kmod_cm(), kmod_params=kmod_params)
+                        ret = self._install(kmod_cm())
                     except (TargetStableCalledProcessError, KmodVersionError) as e:
                         ret = preinstalled_broken(e)
                     else:
