@@ -90,7 +90,6 @@ static int __process_features(char **selected, size_t selected_len, feature_proc
 	return ret;
 }
 
-
 static int __list_feature(struct feature* feature) {
 	if (!feature->__internal)
 		pr_info("  %s", feature->name);
@@ -109,7 +108,16 @@ int init_features(char **selected, size_t selected_len) {
 
 	pr_info("Available features:");
 	__process_features(NULL, 0, __list_feature);
-	return __process_features(selected, selected_len, __enable_feature_explicitly);
+
+	// TODO: features are now only initialized if the event is requested.
+	// __process_features(selected, selected_len, __enable_feature_explicitly);
+
+	return 0;
+}
+
+int init_single_feature(char *selected)
+{
+	return __process_features(&selected, 1, __enable_feature_explicitly);
 }
 
 static int __disable_explicitly_enabled_feature(struct feature* feature) {
@@ -125,6 +133,10 @@ static int __disable_explicitly_enabled_feature(struct feature* feature) {
 	return ret;
 }
 
+int deinit_single_features(char *selected) {
+	return __process_features(&selected, 1, __disable_explicitly_enabled_feature);
+}
+
 int deinit_features(void) {
 	return __process_features(NULL, 0, __disable_explicitly_enabled_feature);
 }
@@ -136,4 +148,24 @@ int __placeholder_init(struct feature *feature) {
 
 int __placeholder_deinit(struct feature *feature) {
 	return 0;
+}
+
+struct feature *find_feature(char *name)
+{
+	struct feature *feature;
+
+	for_each_feature(feature)
+		if (!strcmp(name, feature->name))
+			return feature;
+	return NULL;
+}
+
+struct feature_param *find_feature_param(char *name, struct feature *feature)
+{
+	struct feature_param *param = NULL, **pparam;
+
+	for_each_feature_param(param, pparam, feature)
+		if (!strcmp(name, param->name))
+			break;
+	return param;
 }
