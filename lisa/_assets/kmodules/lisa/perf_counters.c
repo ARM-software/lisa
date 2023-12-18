@@ -8,24 +8,13 @@
 #include "ftrace_events.h"
 #include "tp.h"
 
+#include "features.h"
+
 #define MAX_PERF_COUNTERS	6
 
-#define __PERFCTR_PARAM(name, param_name, type, param_type, desc)	\
-	static type param_name[MAX_PERF_COUNTERS];			\
-	static unsigned int param_name##_count;				\
-	module_param_array_named(name, param_name, param_type,		\
-				 &param_name##_count, 0644);		\
-	MODULE_PARM_DESC(name, desc);
-
-#define PERFCTR_PARAM(name, type, param_type, desc)	\
-	__PERFCTR_PARAM(perf_counter_##name, name##_param, type, param_type, desc)
-
-/* Set of perf counters to enable - comma-separated names of events */
-PERFCTR_PARAM(generic_perf_events, char *, charp,
-	      "Comma-separated list of symbolic names for generic perf events");
-/* Set of perf counters to enable - comma-separated PMU raw counter ids */
-PERFCTR_PARAM(pmu_raw_counters, unsigned int , uint,
-	      "Comma-separated list of raw PMU event counter ids");
+#define GENERIC_COUNTERS_STR "generic_counters"
+#define PMU_RAW_COUNTERS_STR "pmu_raw_counters"
+#define PMU_TEST_SINGLE_STR "pmu_test_single"
 
 /* Initial set of supported counters to be enabled through module params */
 struct perfctr_desc {
@@ -303,24 +292,35 @@ static void perfctr_sched_switch_probe(struct feature *feature, bool preempt,
 	}
 }
 
-static int perfctr_register_events(struct perfctr_core *perf_data)
+static int perfctr_register_events(struct perfctr_core *perf_data, struct feature *feature)
 {
+	struct feature_param *generic_cnt_param, *pmu_raw_param, *pmu_test_single_param;
 	struct perfctr_match match;
 	unsigned int count;
 	int result = 0;
 
-	count = generic_perf_events_param_count + pmu_raw_counters_param_count;
+	unsigned long generic_perf_events_count, pmu_raw_counters_count, pmu_test_single_count;
+	struct feature_param_entry_value *val;
+
+	generic_cnt_param = find_feature_param(GENERIC_COUNTERS_STR, feature);
+	pmu_raw_param = find_feature_param(PMU_RAW_COUNTERS_STR, feature);
+	pmu_test_single_param = find_feature_param(PMU_TEST_SINGLE_STR, feature);
+
+	generic_perf_events_count = list_count_elements(&generic_cnt_param->global_value);
+	pmu_raw_counters_count = list_count_elements(&pmu_raw_param->global_value);
+	pmu_test_single_count = list_count_elements(&pmu_test_single_param->global_value);
+
+	count = generic_perf_events_count + pmu_raw_counters_count;
 	if (count > perf_data->max_nr_events) {
 		pr_err("Requested more than max %d counters\n",
 		       perf_data->max_nr_events);
 		return -EINVAL;
 	}
 
-	count = generic_perf_events_param_count;
-	if (count) {
+	if (generic_perf_events_count) {
 		match.type = PERFCTR_MATCH_NAME;
-		for (; count > 0; --count) {
-			match.name  = generic_perf_events_param[count - 1];
+		list_for_each_entry(val, &generic_cnt_param->global_value, node) {
+			match.name  = (char*)val->data;
 			result = perfctr_event_activate(perf_data, &match);
 			if (result) {
 				pr_err("Failed to activate event counter: %s\n",
@@ -331,8 +331,7 @@ static int perfctr_register_events(struct perfctr_core *perf_data)
 		}
 	}
 
-	count = pmu_raw_counters_param_count;
-	if (count) {
+	if (pmu_raw_counters_count) {
 		struct perf_event_attr attr = {
 			.size		= sizeof(struct perf_event_attr),
 			.type		= PERF_TYPE_RAW,
@@ -340,11 +339,11 @@ static int perfctr_register_events(struct perfctr_core *perf_data)
 			.disabled	= 1,
 		};
 
-		for (; count > 0; --count) {
+		list_for_each_entry(val, &pmu_raw_param->global_value, node) {
 			struct perfctr_event_group *group;
 			bool duplicate = false;
 
-			attr.config = pmu_raw_counters_param[count -1];
+			attr.config = val->value;
 			/* Skip duplicates */
 			list_for_each_entry(group, &perf_data->events, node) {
 				if (group->raw_id == attr.config) {
@@ -359,7 +358,6 @@ static int perfctr_register_events(struct perfctr_core *perf_data)
 				       attr.config);
 				goto done;
 			};
-
 		}
 	}
 	if (!perf_data->nr_events) {
@@ -461,14 +459,13 @@ static int perfctr_enable(struct feature *feature)
 
 	perfctr_pmu_discover(perf_data);
 
-	if (perfctr_register_events(perf_data))
+	if (perfctr_register_events(perf_data, feature))
 		return 1;
 
 	if (!perf_data->nr_events)
 		pr_warn("No counters have been activated\n");
 
 	return 0;
-
 }
 
 static int perfctr_disable(struct feature *feature)
@@ -487,5 +484,15 @@ static int perfctr_disable(struct feature *feature)
 	return 0;
 }
 DEFINE_EXTENDED_TP_EVENT_FEATURE(lisa__perf_counter,
-				 sched_switch, perfctr_sched_switch_probe,
-				 perfctr_enable, perfctr_disable);
+				 TP_PROBES(TP_PROBE("sched_switch", perfctr_sched_switch_probe)),
+				 perfctr_enable, perfctr_disable,
+				 FEATURE_PARAMS(
+					PARAM_SET(GENERIC_COUNTERS_STR,
+					      S_IFREG | S_IRUGO | S_IWUGO,
+					      typeof(char *), lisa__perf_counter),
+					PARAM_SET(PMU_RAW_COUNTERS_STR,
+					      S_IFREG | S_IRUGO | S_IWUGO,
+					      typeof(unsigned int), lisa__perf_counter),
+					PARAM_SINGLE(PMU_TEST_SINGLE_STR, /* TODO Only for testing. */
+					      S_IFREG | S_IRUGO | S_IWUGO,
+					      typeof(unsigned int), lisa__perf_counter)));
