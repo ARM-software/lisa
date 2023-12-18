@@ -2631,17 +2631,88 @@ class DynamicKmod(Loggable):
             else:
                 log_dmesg(dmesg_coll, logger.debug)
 
+        self.mount_lisa_fs()
+
+    def mount_lisa_fs(self):
+        """
+        Mount lisa_fs on mount_path.
+        """
+        # TODO android:
+        self.lisa_fs_path = Path("/data/local/lisa")
+        # TODO: mainline:
+        # self.lisa_fs_path = Path("/lisa")
+        self.target.execute(f'mkdir -p {self.lisa_fs_path}')
+        self.target.execute(f'mount -t lisa none {self.lisa_fs_path}')
+
     def uninstall(self):
         """
         Unload the module from the target.
         """
         mod = quote(self.mod_name)
         execute = self.target.execute
+        self.umount_lisa_fs()
 
         try:
             execute(f'rmmod {mod}')
         except TargetStableError:
             execute(f'rmmod -f {mod}')
+
+    def umount_lisa_fs(self):
+        """
+        Mount lisa_fs on mount_path.
+        """
+        self.target.execute(f'umount {self.lisa_fs_path}')
+        self.target.execute(f'rmdir {self.lisa_fs_path}')
+
+    def setup_config(self, cfg_name=None, features=None):
+        """
+        config is a dict: { "cfg_name": { "feature": ["asd"] } }
+        """
+        # Create the config file
+        cfg_path = self.lisa_fs_path / "configs" / cfg_name
+        self.target.execute(f'mkdir {cfg_path}')
+
+        # Write the config
+        if features:
+            for f in features:
+                self.target.execute(f'echo {f} >> {cfg_path / "set_features" }')
+
+                if not features[f]:
+                    continue
+
+                for arg in features[f]:
+                    for val in features[f][arg]:
+                        self.target.execute(f'echo {val} >> {cfg_path / f / arg}')
+
+        # Enable the config
+        self.target.execute(f'echo 1 > {cfg_path / "activate"}')
+
+    def teardown_config(self, cfg_name=None, features=None):
+        cfg_path = self.lisa_fs_path / "configs" / cfg_name
+
+        if self.target.execute(f'test -d {cfg_path}'):
+            return
+
+        self.target.execute(f'rmdir {cfg_path}')
+
+    @destroyablecontextmanager
+    def with_features(self, **kwargs):
+        try:
+            self.teardown_config(**kwargs)
+        except Exception:
+            pass
+
+        x = self.setup_config(**kwargs)
+        try:
+            yield x
+        except ContextManagerExit:
+            self.teardown_config(**kwargs)
+
+    def enable_feature(self, cfg_name, features):
+        cfg_path = self.lisa_fs_path / cfg_name
+        self.target.execute(f'mkdir {cfg_path}')
+        for f in features:
+            self.target.execute(f'echo  {cfg_path}')
 
     @destroyablecontextmanager
     def run(self, **kwargs):
@@ -2791,6 +2862,14 @@ class LISADynamicKmod(FtraceDynamicKmod):
             src=src,
             **kwargs,
         )
+
+    def _event_features_dict(self, events):
+        all_events = self.defined_events
+        return {
+            event: f'event__{event}'
+            for pattern in events
+            for event in fnmatch.filter(all_events, pattern)
+        }
 
     def _event_features(self, events):
         all_events = self.defined_events
