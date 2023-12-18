@@ -221,11 +221,7 @@ class LisaKmodInstrument(Instrument):
     def _run(self):
         features = sorted(self._features)
         self.logger.info(f'Enabling LISA kmod features {", ".join(features)}')
-        return self._kmod.run(
-            kmod_params={
-                'features': features,
-            }
-        )
+        return self._kmod.run()
 
     @contextmanager
     def _initialize_cm(self, context):

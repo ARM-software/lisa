@@ -6134,9 +6134,6 @@ class FtraceCollector(CollectorBase, Configurable):
                     needed,
                     functools.partial(
                         kmod.run,
-                        kmod_params={
-                            'features': sorted(kmod._event_features(needed))
-                        }
                     ),
                     kmod_feat_config
                 )
