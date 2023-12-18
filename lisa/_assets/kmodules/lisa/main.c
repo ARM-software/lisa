@@ -29,6 +29,20 @@ static void modexit(void) {
 		pr_err("Some errors happened while unloading LISA kernel module\n");
 }
 
+/*
+ * Note: Cannot initialize global_value list of an unnamed struct in __PARAM
+ * using LIST_HEAD_INIT. Need to have a function to do this.
+ */
+void init_feature_param(void)
+{
+	struct feature_param *param, **pparam;
+	struct feature *feature;
+
+	for_each_feature(feature)
+		for_each_feature_param(param, pparam, feature)
+			INIT_LIST_HEAD(&param->global_value);
+}
+
 static int __init modinit(void) {
 	int ret;
 
@@ -37,6 +51,7 @@ static int __init modinit(void) {
 		pr_err("Lisa module version check failed. Got %s, expected %s\n", version, LISA_MODULE_VERSION);
 		return -EPROTO;
 
+	init_feature_param();
 	ret = init_lisa_fs();
 	if (ret) {
 		pr_err("Failed to setup lisa_fs\n");

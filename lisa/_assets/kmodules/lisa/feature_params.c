@@ -35,6 +35,7 @@ void init_feature_param_entry_value_global(struct feature_param_entry_value *val
 void free_feature_param_entry_value(struct feature_param_entry_value *val)
 {
 	list_del(&val->node);
+	val->entry->param->ops->free_value(val);
 	kfree(val);
 }
 
@@ -340,6 +341,11 @@ new_val:
 	return val;
 }
 
+static void feature_param_free_value_uint(struct feature_param_entry_value *val)
+{
+	return;
+}
+
 static size_t
 feature_param_stringify_uint(const struct feature_param_entry_value *val,
 			     char *buffer)
@@ -388,6 +394,11 @@ new_val:
 	return val;
 }
 
+static void feature_param_free_value_string(struct feature_param_entry_value *val)
+{
+	kfree(val->data);
+}
+
 static size_t
 feature_param_stringify_string(const struct feature_param_entry_value *val,
 			       char *buf)
@@ -415,6 +426,7 @@ feature_param_copy_string(const struct feature_param_entry_value *src_val,
 
 const struct feature_param_ops feature_param_ops_uint = {
 	.set = feature_param_set_uint,
+	.free_value = feature_param_free_value_uint,
 	.stringify = feature_param_stringify_uint,
 	.is_equal = feature_param_is_equal_uint,
 	.copy = feature_param_copy_uint,
@@ -422,6 +434,7 @@ const struct feature_param_ops feature_param_ops_uint = {
 
 const struct feature_param_ops feature_param_ops_string = {
 	.set = feature_param_set_string,
+	.free_value = feature_param_free_value_string,
 	.stringify = feature_param_stringify_string,
 	.is_equal = feature_param_is_equal_string,
 	.copy = feature_param_copy_string,

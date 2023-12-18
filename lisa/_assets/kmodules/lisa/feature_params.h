@@ -106,6 +106,7 @@ struct feature_param {
 
 struct feature_param_ops {
 	struct feature_param_entry_value *(*set) (const char *, struct feature_param_entry *);
+	void (*free_value) (struct feature_param_entry_value *);
 	size_t (*stringify) (const struct feature_param_entry_value *, char *);
 	int (*is_equal) (const void *, const struct feature_param_entry_value *);
 	int (*copy) (const struct feature_param_entry_value *, struct feature_param_entry_value *);

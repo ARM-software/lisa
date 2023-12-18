@@ -5,9 +5,6 @@
 #include "configs.h"
 #include "feature_params.h"
 
-/* List of configs. */
-HLIST_HEAD(cfg_list);
-
 void lisa_fs_remove(struct dentry *dentry);
 
 struct lisa_cfg *allocate_lisa_cfg(const char *name)
@@ -29,12 +26,11 @@ error:
 	return NULL;
 }
 
-int init_lisa_cfg(struct lisa_cfg *cfg, struct hlist_head *cfg_list,
+void init_lisa_cfg(struct lisa_cfg *cfg, struct hlist_head *cfg_list,
 		  struct dentry *dentry)
 {
 	cfg->dentry = dentry;
 	hlist_add_head(&cfg->node, cfg_list);
-	return 0;
 }
 
 void free_lisa_cfg(struct lisa_cfg *cfg)
@@ -61,10 +57,11 @@ void drain_lisa_cfg(struct hlist_head *head)
 		free_lisa_cfg(cfg);
 }
 
-struct lisa_cfg *find_lisa_cfg(const char *name)
+struct lisa_cfg *find_lisa_cfg(struct hlist_head *cfg_list, const char *name)
 {
 	struct lisa_cfg *cfg;
-	hlist_for_each_entry(cfg, &cfg_list, node) {
+
+	hlist_for_each_entry(cfg, cfg_list, node) {
 		if (!strcmp(cfg->name, name))
 			return cfg;
 	}

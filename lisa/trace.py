@@ -5889,7 +5889,7 @@ class FtraceCollector(CollectorBase, Configurable):
     TOOLS = ['trace-cmd']
     _COMPOSITION_ORDER = 0
 
-    def __init__(self, target, *, events=None, functions=None, buffer_size=10240, output_path=None, autoreport=False, trace_clock=None, saved_cmdlines_nr=8192, tracer=None, kmod_auto_load=True, events_namespaces=('lisa', None), **kwargs):
+    def __init__(self, target, *, events=None, functions=None, buffer_size=10240, output_path=None, autoreport=False, trace_clock=None, saved_cmdlines_nr=8192, tracer=None, kmod_auto_load=True, events_namespaces=('lisa', None), kmod_features=None, **kwargs):
 
         kconfig = target.plat_info['kernel']['config']
         if not kconfig.get('FTRACE'):
@@ -5949,9 +5949,12 @@ class FtraceCollector(CollectorBase, Configurable):
         }
 
         events_checker = events_checker.map(rewrite)
+
         events_checker = events_checker.expand_namespaces(namespaces=events_namespaces)
+
         # Expand the wildcards after having expanded the namespaces.
         events_checker = events_checker.map(wildcard)
+
         self.logger.debug(f'Will try to collect events: {events_checker}')
 
         # Select the events, after having expanded the namespaces
@@ -5981,8 +5984,14 @@ class FtraceCollector(CollectorBase, Configurable):
         # in custom modules
         needed_from_kmod = kmod_available_events & events
 
+        # Create an empty config if no config was provided.
+        # TODO: 'perf_counter' won't work, need to provide 'lisa__perf_counter'
+        if not kmod_features:
+            kmod_features = {}
+
         kmod_defined_events = set()
         kmod_cm = None
+        kmod_feat_cm = None
         if needed_from_kmod:
             # If anything wrong happens, we will be restricted to the events
             # already available.
@@ -5991,10 +6000,11 @@ class FtraceCollector(CollectorBase, Configurable):
             if kmod_auto_load:
                 self.logger.info(f'Building kernel module to try to provide the following events that are not currently available on the target: {", ".join(sorted(needed_from_kmod))}')
                 try:
-                    kmod_defined_events, provided, kmod_cm = self._get_kmod(
+                    kmod_defined_events, provided, kmod_cm, kmod_feat_cm = self._get_kmod(
                         target,
                         target_available_events=target_available_events,
                         needed_events=needed_from_kmod,
+                        kmod_features=kmod_features
                     )
                 except Exception as e:
                     try:
@@ -6025,6 +6035,7 @@ class FtraceCollector(CollectorBase, Configurable):
                     )
 
         self._kmod_cm = kmod_cm
+        self._kmod_feat_cm = kmod_feat_cm
 
         ############################################
         # Final checks after we enabled all we could
@@ -6090,7 +6101,7 @@ class FtraceCollector(CollectorBase, Configurable):
         super().__init__(collector, output_path=output_path)
 
     @classmethod
-    def _get_kmod(cls, target, target_available_events, needed_events):
+    def _get_kmod(cls, target, target_available_events, needed_events, kmod_features):
         logger = cls.get_logger()
         kmod = target.get_kmod(LISADynamicKmod)
         defined_events = set(kmod.defined_events)
@@ -6105,6 +6116,19 @@ class FtraceCollector(CollectorBase, Configurable):
             if overlapping:
                 raise ValueError(f'Events defined in {mod.src.mod_name} ({", ".join(needed)}) are needed but some events overlap with the ones already provided by the kernel: {", ".join(overlapping)}')
             else:
+
+                # Update the name of the needed features and give them an empty config.
+                feat_dict = kmod._event_features_dict(needed)
+                needed_kmod_features = {feat: None for feat in kmod._event_features(needed)}
+                # If a config is provided, replace the empty one.
+                needed_kmod_features.update({feat_dict[feat]: kmod_features[feat] for feat in kmod_features.keys()})
+
+                kmod_feat_config = functools.partial(
+                    kmod.with_features,
+                    cfg_name='lisa_notebook',
+                    features=needed_kmod_features
+                )
+
                 return (
                     defined_events,
                     needed,
@@ -6113,17 +6137,21 @@ class FtraceCollector(CollectorBase, Configurable):
                         kmod_params={
                             'features': sorted(kmod._event_features(needed))
                         }
-                    )
+                    ),
+                    kmod_feat_config
                 )
         else:
-            return (defined_events, set(), None)
+            return (defined_events, set(), None, None)
 
     @contextlib.contextmanager
     def _make_cm(self, record=True):
         with contextlib.ExitStack() as stack:
             kmod_cm = self._kmod_cm
+            kmod_feat_cm = self._kmod_feat_cm
             if kmod_cm is not None:
                 stack.enter_context(kmod_cm())
+            if kmod_feat_cm is not None:
+                stack.enter_context(kmod_feat_cm())
 
             if record:
                 proxy = super()

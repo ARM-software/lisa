@@ -19,14 +19,12 @@ struct lisa_cfg {
 	char *name;
 };
 
-extern struct hlist_head cfg_list;
-
 struct lisa_cfg *allocate_lisa_cfg(const char *name);
-int init_lisa_cfg(struct lisa_cfg *cfg, struct hlist_head *cfg_list,
+void init_lisa_cfg(struct lisa_cfg *cfg, struct hlist_head *cfg_list,
 		  struct dentry *dentry);
 void free_lisa_cfg(struct lisa_cfg *cfg);
 void drain_lisa_cfg(struct hlist_head *head);
-struct lisa_cfg *find_lisa_cfg(const char *name);
+struct lisa_cfg *find_lisa_cfg(struct hlist_head *cfg_list, const char *name);
 int activate_lisa_cfg(struct lisa_cfg *cfg, bool value);
 
 #endif // _CONFIGS_H

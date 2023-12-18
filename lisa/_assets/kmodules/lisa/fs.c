@@ -10,7 +10,7 @@
 #include "features.h"
 #include "configs.h"
 
-static int lisa_fs_create_files(struct dentry *dentry, bool is_top_level, struct lisa_cfg *cfg);
+static int lisa_fs_create_files(struct dentry *dentry, struct lisa_cfg *cfg);
 static struct dentry *
 lisa_fs_create_single(struct dentry *parent, const char *name,
 		      const struct inode_operations *i_ops,
@@ -19,8 +19,35 @@ lisa_fs_create_single(struct dentry *parent, const char *name,
 
 #define LISA_FS_SUPER_MAGIC 0xcdb11bc9
 
-/* Protect the interface. */
-static struct mutex interface_lock;
+struct lisa_sb_info {
+	/* Protect the interface. */
+	struct mutex interface_lock;
+
+	/* List of configs. */
+	struct hlist_head cfg_list;
+};
+
+static inline void lisa_sb_lock(struct super_block *sb)
+{
+	struct lisa_sb_info *si = sb->s_fs_info;
+	mutex_lock(&si->interface_lock);
+}
+
+static inline void lisa_sb_unlock(struct super_block *sb)
+{
+	struct lisa_sb_info *si = sb->s_fs_info;
+	mutex_unlock(&si->interface_lock);
+}
+
+static inline struct hlist_head *lisa_sb_get_cfg_list(struct super_block *sb)
+{
+	struct lisa_sb_info *si = sb->s_fs_info;
+
+	/* If vfs initialization failed. */
+	if (!si)
+		return NULL;
+	return &si->cfg_list;
+}
 
 static struct inode *lisa_fs_create_inode(struct super_block *sb, int mode)
 {
@@ -85,9 +112,9 @@ static ssize_t lisa_activate_write(struct file *file, const char __user *buf,
 	if (kstrtobool_from_user(buf, count, &value))
 		return -EINVAL;
 
-	mutex_lock(&interface_lock);
+	lisa_sb_lock(file->f_inode->i_sb);
 	ret = activate_lisa_cfg((struct lisa_cfg *)s->private, value);
-	mutex_unlock(&interface_lock);
+	lisa_sb_unlock(file->f_inode->i_sb);
 
 	return ret < 0 ? ret : count;
 }
@@ -117,7 +144,7 @@ static void *lisa_param_feature_seq_start(struct seq_file *s, loff_t *pos)
 	struct feature_param_entry *entry;
 	void *ret;
 
-	mutex_lock(&interface_lock);
+	lisa_sb_lock(s->file->f_inode->i_sb);
 
 	entry = *(struct feature_param_entry **)s->private;
 	ret = seq_list_start(&entry->list_values, *pos);
@@ -162,7 +189,7 @@ static void *lisa_param_feature_seq_next(struct seq_file *s, void *v, loff_t *po
 
 static void lisa_param_feature_seq_stop(struct seq_file *s, void *v)
 {
-	mutex_unlock(&interface_lock);
+	lisa_sb_unlock(s->file->f_inode->i_sb);
 }
 
 static const struct seq_operations lisa_param_feature_seq_ops = {
@@ -209,7 +236,7 @@ static ssize_t lisa_param_feature_write(struct file *file,
 		return -EBUSY;
 	}
 
-	mutex_lock(&interface_lock);
+	lisa_sb_lock(file->f_inode->i_sb);
 
 	if (!(file->f_flags & O_APPEND))
 		drain_feature_param_entry_value(&entry->list_values);
@@ -270,7 +297,7 @@ static ssize_t lisa_param_feature_write(struct file *file,
 done:
 	kfree(kbuf);
 leave:
-	mutex_unlock(&interface_lock);
+	lisa_sb_unlock(file->f_inode->i_sb);
 	return done;
 }
 
@@ -300,19 +327,23 @@ static struct file_operations lisa_param_feature_fops = {
  *                    umode_t);
  */
 
-static int lisa_fs_syscall_mkdir(struct mnt_idmap *idmap,
-				 struct inode *inode, struct dentry *dentry,
-				 umode_t mode)
+static int lisa_fs_mkdir(struct mnt_idmap *idmap, struct inode *inode,
+			 struct dentry *dentry, umode_t mode)
 {
 	struct dentry *my_dentry;
+	struct hlist_head *cfg_list;
+	struct super_block *sb;
 	struct lisa_cfg *cfg;
 	int ret;
+
+	sb = inode->i_sb;
+	cfg_list = lisa_sb_get_cfg_list(sb);
 
 	cfg = allocate_lisa_cfg(dentry->d_name.name);
 	if (!cfg)
 		return -ENOMEM;
 
-	mutex_lock(&interface_lock);
+	lisa_sb_lock(sb);
 
 	my_dentry = lisa_fs_create_single(dentry->d_parent, dentry->d_name.name,
 					  &simple_dir_inode_operations,
@@ -323,44 +354,48 @@ static int lisa_fs_syscall_mkdir(struct mnt_idmap *idmap,
 		goto error;
 	}
 
-	ret = init_lisa_cfg(cfg, &cfg_list, my_dentry);
-	if (ret) {
-		ret = -ENOMEM;
-		goto error;
-	}
+	init_lisa_cfg(cfg, cfg_list, my_dentry);
 
-	lisa_fs_create_files(my_dentry, false, cfg);
-	mutex_unlock(&interface_lock);
+	ret = lisa_fs_create_files(my_dentry, cfg);
+	if (ret)
+		goto error;
+
+	lisa_sb_unlock(sb);
 	return 0;
 
 error:
 	free_lisa_cfg(cfg);
-	mutex_unlock(&interface_lock);
+	lisa_sb_unlock(sb);
 	return ret;
 }
 
 void lisa_fs_remove(struct dentry *dentry)
 {
-	simple_recursive_removal(dentry, NULL);
+	d_genocide(dentry);
 }
 
-static int lisa_fs_syscall_rmdir(struct inode *inode, struct dentry *dentry)
+static int lisa_fs_rmdir(struct inode *inode, struct dentry *dentry)
 {
+	struct hlist_head *cfg_list;
+	struct super_block *sb;
 	struct lisa_cfg *cfg;
+
+	sb = inode->i_sb;
 	cfg = inode->i_private;
 
 	inode_unlock(inode);
 	inode_unlock(d_inode(dentry));
 
-	mutex_lock(&interface_lock);
+	lisa_sb_lock(inode->i_sb);
 
-	cfg = find_lisa_cfg(dentry->d_name.name);
+	cfg_list = lisa_sb_get_cfg_list(sb);
+	cfg = find_lisa_cfg(cfg_list, dentry->d_name.name);
 	if (!cfg)
 		pr_err("Failed to find config: %s\n", dentry->d_name.name);
 	else
 		free_lisa_cfg(cfg);
 
-	mutex_unlock(&interface_lock);
+	lisa_sb_unlock(inode->i_sb);
 
 	inode_lock_nested(inode, I_MUTEX_PARENT);
 	inode_lock(d_inode(dentry));
@@ -370,8 +405,8 @@ static int lisa_fs_syscall_rmdir(struct inode *inode, struct dentry *dentry)
 
 const struct inode_operations lisa_fs_dir_inode_operations = {
 	.lookup = simple_lookup,
-	.mkdir = lisa_fs_syscall_mkdir,
-	.rmdir = lisa_fs_syscall_rmdir,
+	.mkdir = lisa_fs_mkdir,
+	.rmdir = lisa_fs_rmdir,
 };
 
 /////////////////////////////////////
@@ -412,9 +447,13 @@ lisa_fs_create_single(struct dentry *parent, const char *name,
 	return dentry;
 }
 
-/* Called with interface_lock */
+/*
+ * Note: Upon failure, the caller must call free_lisa_cfg(), which will go
+ * over the elements of (struct lisa_cfg)->list_params and free them.
+ * These elements are of the 'struct feature_param_entry' type.
+ */
 static int
-lisa_fs_create_files(struct dentry *parent, bool is_top_level, struct lisa_cfg *cfg)
+lisa_fs_create_files(struct dentry *parent, struct lisa_cfg *cfg)
 {
 	struct feature_param_entry *entry;
 	struct feature *feature;
@@ -429,10 +468,8 @@ lisa_fs_create_files(struct dentry *parent, bool is_top_level, struct lisa_cfg *
 	if (!lisa_fs_create_single(parent, "set_features",
 			      NULL,
 			      &lisa_param_feature_fops,
-			      S_IFREG | S_IRUGO | S_IWUGO, entry)) {
-		free_feature_param_entry(entry);
+			      S_IFREG | S_IRUGO | S_IWUGO, entry))
 		return -ENOMEM;
-	}
 
 	/* available_features: list available features - RO. */
 	if (!lisa_fs_create_single(parent, "available_features",
@@ -448,8 +485,8 @@ lisa_fs_create_files(struct dentry *parent, bool is_top_level, struct lisa_cfg *
 			      S_IFREG | S_IRUGO | S_IWUGO, cfg))
 		return -ENOMEM;
 
-	/* configs: Dir containing configurations, only setup at the top level. */
-	if (is_top_level) {
+	/* configs: Dir containing configurations, only setup at the top/root level. */
+	if (parent->d_sb->s_root == parent) {
 		if (!lisa_fs_create_single(parent, "configs",
 				&lisa_fs_dir_inode_operations,
 				&simple_dir_operations,
@@ -484,10 +521,8 @@ lisa_fs_create_files(struct dentry *parent, bool is_top_level, struct lisa_cfg *
 
 			if (!lisa_fs_create_single(dentry, param->name, NULL,
 						   &lisa_param_feature_fops,
-						   S_IFREG | S_IRUGO, entry)) {
-				free_feature_param_entry(entry);
+						   S_IFREG | S_IRUGO, entry))
 				return -ENOMEM;
-			}
 		}
 	}
 
@@ -504,6 +539,7 @@ static struct super_operations lisa_super_ops = {
 
 static int lisa_fs_fill_super(struct super_block *sb, struct fs_context *fc)
 {
+	struct lisa_sb_info *lisa_info;
 	struct lisa_cfg *cfg;
 	struct inode *root;
 	int ret = -ENOMEM;
@@ -514,9 +550,17 @@ static int lisa_fs_fill_super(struct super_block *sb, struct fs_context *fc)
 	sb->s_magic = LISA_FS_SUPER_MAGIC;
 	sb->s_op = &lisa_super_ops;
 
+	lisa_info = kzalloc(sizeof(*lisa_info), GFP_KERNEL);
+	if (!lisa_info)
+		return -ENOMEM;
+
+	mutex_init(&lisa_info->interface_lock);
+	INIT_HLIST_HEAD(&lisa_info->cfg_list);
+	sb->s_fs_info = lisa_info;
+
 	root = lisa_fs_create_inode(sb, S_IFDIR | S_IRUGO);
 	if (!root)
-		return -ENOMEM;
+		goto error0;
 
 	root->i_op = &simple_dir_inode_operations;
 	root->i_fop = &simple_dir_operations;
@@ -529,28 +573,23 @@ static int lisa_fs_fill_super(struct super_block *sb, struct fs_context *fc)
 	if (!cfg)
 		goto error2;
 
-	mutex_lock(&interface_lock);
+	init_lisa_cfg(cfg, &lisa_info->cfg_list, sb->s_root);
 
-	ret = lisa_fs_create_files(sb->s_root, true, cfg);
+	ret = lisa_fs_create_files(sb->s_root, cfg);
 	if (ret)
 		goto error3;
 
-	ret = init_lisa_cfg(cfg, &cfg_list, NULL);
-	if (ret)
-		goto error4;
-
-	mutex_unlock(&interface_lock);
-
 	return 0;
 
-error4:
-	free_lisa_cfg(cfg);
 error3:
-	mutex_unlock(&interface_lock);
+	free_lisa_cfg(cfg);
 error2:
 	dput(sb->s_root);
 error1:
 	iput(root);
+error0:
+	kfree(lisa_info);
+	sb->s_fs_info = NULL;
 
 	return ret;
 }
@@ -575,7 +614,14 @@ static int lisa_init_fs_context(struct fs_context *fc)
 
 static void lisa_fs_kill_sb(struct super_block *sb)
 {
-	drain_lisa_cfg(&cfg_list);
+	struct hlist_head *cfg_list;
+
+	cfg_list = lisa_sb_get_cfg_list(sb);
+	if (cfg_list)
+		drain_lisa_cfg(cfg_list);
+
+	kfree(sb->s_fs_info);
+	sb->s_root = NULL;
 
 	/*
 	 * Free the lisa_features_param param,
@@ -594,26 +640,9 @@ static struct file_system_type lisa_fs_type = {
 	.kill_sb = lisa_fs_kill_sb,
 };
 
-/*
- * Note: Cannot initialize global_value list of an unnamed struct in __PARAM
- * using LIST_HEAD_INIT. Need to have a function to do this.
- */
-void init_feature_param(void)
-{
-	struct feature_param *param, **pparam;
-	struct feature *feature;
-
-	for_each_feature(feature)
-		for_each_feature_param(param, pparam, feature)
-			INIT_LIST_HEAD(&param->global_value);
-}
-
 int init_lisa_fs(void)
 {
 	int ret;
-
-	init_feature_param();
-	mutex_init(&interface_lock);
 
 	ret = sysfs_create_mount_point(fs_kobj, "lisa");
 	if (ret)
