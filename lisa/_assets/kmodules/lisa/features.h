@@ -70,7 +70,7 @@ int __placeholder_deinit(struct feature *feature);
 #define __FEATURE_NAME(name) __lisa_feature_##name
 
 /* Weak definition, can be useful to deal with compiled-out features */
-#define __DEFINE_FEATURE_WEAK(feature_name)				\
+#define __DEFINE_FEATURE_WEAK(feature_name, ...)			\
 	__attribute__((weak)) DEFINE_MUTEX(__lisa_mutex_feature_##feature_name); \
 	__attribute__((weak)) struct feature __FEATURE_NAME(feature_name) = { \
 		.name = #feature_name,					\
@@ -84,7 +84,7 @@ int __placeholder_deinit(struct feature *feature);
 		.__enable_ret = 0,					\
 	};
 
-#define __DEFINE_FEATURE_STRONG(feature_name, enable_f, disable_f, internal)	\
+#define __DEFINE_FEATURE_STRONG(feature_name, enable_f, disable_f, internal, ...)	\
 	DEFINE_MUTEX(__lisa_mutex_feature_##feature_name);		\
 	struct feature __FEATURE_NAME(feature_name) __attribute__((unused,section(".__lisa_features"))) = { \
 		.name = #feature_name,					\
@@ -96,6 +96,7 @@ int __placeholder_deinit(struct feature *feature);
 		.lock = &__lisa_mutex_feature_##feature_name,		\
 		.__internal = internal,					\
 		.__enable_ret = 0,					\
+		DEFINE_FEATURE_PARAMS(__VA_ARGS__)			\
 	};
 
 /**
@@ -109,7 +110,9 @@ int __placeholder_deinit(struct feature *feature);
  * DISABLE_FEATURE() on all the features that were enabled by ENABLE_FEATURE()
  * in enable_f() in order to keep accurate reference-counting.
  */
-#define DEFINE_FEATURE(feature_name, enable_f, disable_f) __DEFINE_FEATURE_STRONG(feature_name, enable_f, disable_f, false)
+#define DEFINE_FEATURE(feature_name, enable_f, disable_f, ...) \
+	__DEFINE_FEATURE_STRONG(feature_name, enable_f, disable_f, false, ##__VA_ARGS__)
+
 
 /**
  * DEFINE_INTERNAL_FEATURE() - Same as DEFINE_FEATURE() but for internal features.
@@ -119,7 +122,8 @@ int __placeholder_deinit(struct feature *feature);
  * multiple other features, e.g. to initialize and teardown the use of a kernel
  * API (workqueues, tracepoints etc).
  */
-#define DEFINE_INTERNAL_FEATURE(feature_name, enable_f, disable_f) __DEFINE_FEATURE_STRONG(feature_name, enable_f, disable_f, true)
+#define DEFINE_INTERNAL_FEATURE(feature_name, enable_f, disable_f, ...) \
+	__DEFINE_FEATURE_STRONG(feature_name, enable_f, disable_f, true, ##__VA_ARGS__)
 
 /**
  * DECLARE_FEATURE() - Declare a feature to test for its presence dynamically.
@@ -135,7 +139,7 @@ int __placeholder_deinit(struct feature *feature);
  * Note that because of weak symbols limitations, a given compilation unit
  * cannot contain both DECLARE_FEATURE() and DEFINE_FEATURE().
  */
-#define DECLARE_FEATURE(feature_name) __DEFINE_FEATURE_WEAK(feature_name)
+#define DECLARE_FEATURE(feature_name, ...) __DEFINE_FEATURE_WEAK(feature_name, ##__VA_ARGS__)
 
 /**
  * FEATURE() - Pointer the the struct feature

@@ -106,9 +106,9 @@ struct __tp_probe {
  * user-defined enable/disable functions. If the tracepoint is not found, the
  * user functions will not be called.
  */
-#define DEFINE_EXTENDED_TP_FEATURE(feature_name, probes, enable_f, disable_f) \
+#define DEFINE_EXTENDED_TP_FEATURE(feature_name, probes, enable_f, disable_f, ...) \
 	DEFINE_TP_ENABLE_DISABLE(feature_name, probes, CONCATENATE(__tp_feature_enable_, feature_name), enable_f, CONCATENATE(__tp_feature_disable_, feature_name), disable_f); \
-	DEFINE_FEATURE(feature_name, CONCATENATE(__tp_feature_enable_, feature_name), CONCATENATE(__tp_feature_disable_, feature_name));
+	DEFINE_FEATURE(feature_name, CONCATENATE(__tp_feature_enable_, feature_name), CONCATENATE(__tp_feature_disable_, feature_name), ##__VA_ARGS__);
 
 /**
  * DEFINE_TP_FEATURE() - Same as DEFINE_EXTENDED_TP_FEATURE() without custom
@@ -128,7 +128,8 @@ struct __tp_probe {
  * DEFINE_EXTENDED_TP_EVENT_FEATURE() - Same as DEFINE_EXTENDED_TP_FEATURE()
  * with automatic "event__" prefixing of the feature name.
  */
-#define DEFINE_EXTENDED_TP_EVENT_FEATURE(event_name, probes, enable_f, disable_f) DEFINE_EXTENDED_TP_FEATURE(__EVENT_FEATURE(event_name), probes, enable_f, disable_f)
+#define DEFINE_EXTENDED_TP_EVENT_FEATURE(event_name, probes, enable_f, disable_f, ...)	\
+	DEFINE_EXTENDED_TP_FEATURE(__EVENT_FEATURE(event_name), probes, enable_f, disable_f, ##__VA_ARGS__)
 
 #define __DEPRECATED_EVENT_ENABLE(event_name) CONCATENATE(__enable_deprecated_feature_, __EVENT_FEATURE(event_name))
 /**
