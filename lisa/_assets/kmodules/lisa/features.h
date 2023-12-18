@@ -1,13 +1,16 @@
 /* SPDX-License-Identifier: GPL-2.0 */
+
+#ifndef _FEATURE_H
+#define _FEATURE_H
+
 #include <linux/mutex.h>
 #include <linux/string.h>
 #include <linux/types.h>
 #include <linux/module.h>
-
 #include <linux/tracepoint.h>
 
-#ifndef _FEATURE_H
-#define _FEATURE_H
+#include "feature_params.h"
+#include "main.h"
 
 /**
  * struct feature - LISA kernel module feature
@@ -18,6 +21,7 @@
  * @lock: Lock taken when enabling and disabling the feature.
  * @enable: Function pointer to the enable function. Return non-zero value in case of error.
  * @disable: Function pointer to the disable function. Return non-zero value in case of error.
+ * @params: Array of pointer to this feature's parameters.
  *
  * A struct feature represent an independent feature of the kernel module that
  * can be enabled and disabled dynamically. Features are ref-counted so that
@@ -41,6 +45,9 @@ struct feature {
 	 * advantage of reference counting to ensure safe setup/teardown.
 	 */
 	bool __internal;
+
+	/* Array of pointer to this feature's parameters. */
+	struct feature_param **params;
 };
 
 /* Start and stop address of the ELF section containing the struct feature
@@ -48,6 +55,9 @@ struct feature {
  */
 extern struct feature __lisa_features_start[];
 extern struct feature __lisa_features_stop[];
+
+#define for_each_feature(feature)	\
+	for (feature=__lisa_features_start; feature < __lisa_features_stop; feature++)
 
 /**
  * MAX_FEATURES - Maximum number of features allowed in this module.
@@ -185,10 +195,46 @@ int __placeholder_deinit(struct feature *feature);
 int init_features(char **selected, size_t selected_len);
 
 /**
+ * init_single_feature() - Initialize one feature
+ * @selected: Name of the feature to initialize.
+ *
+ * Cf. init_features()
+ */
+int init_single_feature(char *selected);
+
+/**
  * deinit_features() - De-initialize features
  *
  * De-initialize features initialized with init_features().
  * Return: non-zero in case of errors.
  */
 int deinit_features(void);
+
+/**
+ * deinit_single_features() - De-initialize one feature
+ *
+ * Cf. deinit_features()
+ */
+int deinit_single_features(char *selected);
+
+/**
+ * find_feature() - Find the (struct feature) matching the input name.
+ * @name: Name of the feature to find.
+ *
+ * Return: (struct feature*) matching the input name if success.
+ * NULL otherwise.
+ */
+struct feature *find_feature(char *name);
+
+/**
+ * find_feature_param() - Find the (struct feature_param) of a feature
+ * matching the input name.
+ * @name: Name of the feature to find.
+ * @feature: Feature to search the (struct feature_param) from.
+ *
+ * Return: (struct feature_param*) matching the input name if success.
+ * NULL otherwise.
+ */
+struct feature_param *find_feature_param(char *name, struct feature *feature);
+
 #endif

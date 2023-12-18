@@ -14,12 +14,17 @@ static char* version = LISA_MODULE_VERSION;
 module_param(version, charp, 0);
 MODULE_PARM_DESC(version, "Module version defined as sha1sum of the module sources");
 
+
+int init_lisa_fs(void);
+void exit_lisa_fs(void);
+
 static char *features[MAX_FEATURES];
 unsigned int features_len = 0;
 module_param_array(features, charp, &features_len, 0);
 MODULE_PARM_DESC(features, "Comma-separated list of features to enable. Available features are printed when loading the module");
 
 static void modexit(void) {
+	exit_lisa_fs();
 	if (deinit_features())
 		pr_err("Some errors happened while unloading LISA kernel module\n");
 }
@@ -31,6 +36,11 @@ static int __init modinit(void) {
 	if (strcmp(version, LISA_MODULE_VERSION)) {
 		pr_err("Lisa module version check failed. Got %s, expected %s\n", version, LISA_MODULE_VERSION);
 		return -EPROTO;
+
+	ret = init_lisa_fs();
+	if (ret) {
+		pr_err("Failed to setup lisa_fs\n");
+		return ret;
 	}
 
 	pr_info("Kernel features detected. This will impact the module features that are available:\n");
@@ -44,6 +54,8 @@ static int __init modinit(void) {
 
 	if (ret) {
 		pr_err("Some errors happened while loading LISA kernel module\n");
+
+		exit_lisa_fs();
 
 		/* Use one of the standard error code */
 		ret = -EINVAL;
