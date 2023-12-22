@@ -3694,7 +3694,7 @@ class Trace(Loggable, TraceBase):
         # That said, it's not the end of the world if we don't filter on that
         # as the meta event name is supposed to be unique anyway
         if not is_numeric_dtype(df['ip'].dtype):
-            df = df[df['ip'] == 'tracing_mark_write']
+            df = df[df['ip'].str.startswith('tracing_mark_write')]
         return (df, 'buf')
 
     def _select_trace_printk(self, source_event, meta_event, df):
