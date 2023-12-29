@@ -2985,7 +2985,7 @@ class PeriodicWload(WloadPropertyBase, ComposableMultiConcretePropertyBase):
         ),
         'run_wload': dict(
             doc="Workload factory callback used for the running part. It will be called with a single ``duration`` parameter (in seconds) and must return a :class:`WloadPropertyBase`. Note that the passed duration is scaled according to ``scale_for_cpu`` and ``scale_for_freq``",
-            type_=type,
+            type_=Callable,
         ),
         'sleep_wload': dict(
             doc="Workload factory callback used for the sleeping part. It will be called with a ``duration`` parameter and ``period`` parameter (in seconds) and must return a :class:`WloadPropertyBase`. Note that the passed duration is scaled according to ``scale_for_cpu`` and ``scale_for_freq``",
