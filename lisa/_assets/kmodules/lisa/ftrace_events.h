@@ -234,8 +234,7 @@ TRACE_EVENT(lisa__sched_util_est_se,
 
 	TP_STRUCT__entry(
 		__field(	unsigned long,	util			)
-		__field( 	unsigned int,	enqueued		)
-		__field( 	unsigned int,	ewma			)
+		__field( 	unsigned int,	util_est		)
 		__field(	int,		cpu			)
 		__field(	int,		pid			)
 		__array(	char,		path,	PATH_SIZE	)
@@ -247,14 +246,13 @@ TRACE_EVENT(lisa__sched_util_est_se,
 		strlcpy(__entry->path, path, PATH_SIZE);
 		strlcpy(__entry->comm, comm, TASK_COMM_LEN);
 		__entry->pid		= pid;
-		__entry->enqueued	= avg->util_est.enqueued & ~UTIL_AVG_UNCHANGED;
-		__entry->ewma		= avg->util_est.ewma;
 		__entry->util		= avg->util_avg;
+		__entry->util_est	= avg->util_est & ~UTIL_AVG_UNCHANGED;
 	),
 
-	TP_printk("cpu=%d path=%s comm=%s pid=%d enqueued=%u ewma=%u util=%lu",
+	TP_printk("cpu=%d path=%s comm=%s pid=%d util=%lu util_est=%u",
 		  __entry->cpu, __entry->path, __entry->comm, __entry->pid,
-		  __entry->enqueued, __entry->ewma, __entry->util)
+		  __entry->util, __entry->util_est)
 );
 #endif
 
@@ -267,8 +265,7 @@ TRACE_EVENT(lisa__sched_util_est_cfs,
 
 	TP_STRUCT__entry(
 		__field(	unsigned long,	util			)
-		__field( 	unsigned int,	enqueued		)
-		__field( 	unsigned int,	ewma			)
+		__field( 	unsigned int,	util_est		)
 		__field(	int,		cpu			)
 		__array(	char,		path,	PATH_SIZE	)
 	),
@@ -276,14 +273,12 @@ TRACE_EVENT(lisa__sched_util_est_cfs,
 	TP_fast_assign(
 		__entry->cpu		= cpu;
 		strlcpy(__entry->path, path, PATH_SIZE);
-		__entry->enqueued	= avg->util_est.enqueued;
-		__entry->ewma		= avg->util_est.ewma;
 		__entry->util		= avg->util_avg;
+		__entry->util_est	= avg->util_est;
 	),
 
-	TP_printk("cpu=%d path=%s enqueued=%u ewma=%u util=%lu",
-		  __entry->cpu, __entry->path, __entry->enqueued,
-		 __entry->ewma, __entry->util)
+	TP_printk("cpu=%d path=%s util=%lu util_est=%u",
+		  __entry->cpu, __entry->path, __entry->util, __entry->util_est)
 );
 #endif
 
