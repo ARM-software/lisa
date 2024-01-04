@@ -36,7 +36,7 @@ build_tracecmd() {
     # All variables need to be exported, NOT SET ON THE CLI of make-trace-cmd.sh
     # itself. Otherwise they will internally conflict with existing ones.
     export LDFLAGS="-static" NO_AUDIT=yes NO_PYTHON=yes CFLAGS="-O3"
-    ./make-trace-cmd.sh install install_libs
+    ./make-trace-cmd.sh install
     strip "$TRACE_CMD_BIN"
 }
 
