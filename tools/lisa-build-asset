@@ -6,9 +6,11 @@ import os
 import tempfile
 import shutil
 import sys
-
 from contextlib import nullcontext, contextmanager
 from shlex import quote
+from pathlib import Path
+
+import psutil
 
 LISA_HOME = os.environ['LISA_HOME']
 ARCHITECTURES = ['arm64', 'armeabi', 'x86_64', 'x86', 'ppc64le']
@@ -119,6 +121,30 @@ def is_alpine_build(asset, arch, native_build, **kwargs):
             return True
         return False
 
+
+def recursive_umount(path):
+    def is_relative(parent, child):
+        try:
+            Path(child).relative_to(parent)
+        except ValueError:
+            return False
+        else:
+            return True
+
+    mount_points = list(reversed(sorted(
+        {
+            point.mountpoint
+            for point in psutil.disk_partitions(all=True)
+            if is_relative(parent=path, child=point.mountpoint)
+        },
+        key=lambda path: len(Path(path).parents)
+    )))
+
+    for mount_point in mount_points:
+        print(f'Unmounting {mount_point} ...')
+        subprocess.check_call(['sudo', 'umount', '-fnl', '--', mount_point])
+
+
 @contextmanager
 def make_chroot(asset, arch, build_dir, recipe_dir, arch_chroot_dir):
     # Create a chroot at arch_chroot_dir as a contextmanager.
@@ -188,7 +214,8 @@ def make_chroot(asset, arch, build_dir, recipe_dir, arch_chroot_dir):
         yield arch_chroot_dir
     finally:
         # Clean-up the chroot
-        subprocess.check_call([os.path.join(arch_chroot_dir, 'destroy'), '--remove'])
+        recursive_umount(arch_chroot_dir)
+        subprocess.check_call(['sudo', 'rm', '-r', '--preserve-root', '--', arch_chroot_dir])
 
 def make(asset, arch, actions, build_dir, recipe_dir, toolchain=None, arch_chroot_dir=None, get_output=False):
     if arch_chroot_dir:
