@@ -3540,7 +3540,6 @@ class Trace(Loggable, TraceBase):
     def _select_trace_printk(self, source_event, meta_event, df):
         content_col = {
             'bprint': 'buf',
-            'bputs': 'str',
         }[source_event]
         return (df, content_col)
 
@@ -3550,7 +3549,6 @@ class Trace(Loggable, TraceBase):
         },
         'trace_printk': {
             'bprint': _select_trace_printk,
-            'bputs': _select_trace_printk,
         },
     }
     """
