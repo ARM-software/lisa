@@ -159,7 +159,7 @@ def sphinx_nitpick_ignore():
     Set of objects to ignore without warning when cross referencing in Sphinx.
     """
     # Make sure the set is populated
-    import_all_submodules(lisa)
+    import_all_submodules(lisa, best_effort=True)
     return _SPHINX_NITPICK_IGNORE
 
 
