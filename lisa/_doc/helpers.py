@@ -506,7 +506,7 @@ def get_deprecated_map():
     """
 
     # Import everything there is to import, so the map is fully populated
-    import_all_submodules(lisa)
+    import_all_submodules(lisa, best_effort=True)
     return DEPRECATED_MAP
 
 def get_deprecated_table():
