@@ -64,6 +64,10 @@ The shortest path to executing a test from a shell is:
     # To run a test matching a pattern
     lisa-test '*test_task_placement'
 
+    # For reStructuredText to have its bullet point closing blank line
+    printf "\n"
+
+
 More advanced workflows are described at :ref:`automated-testing-page`.
 
 From a python environment
