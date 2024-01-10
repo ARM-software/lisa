@@ -429,7 +429,7 @@ TRACE_EVENT(lisa__pixel6_emeter,
 	),
 
 	TP_fast_assign(
-		__entry->ts		    = ts;
+		__entry->ts		= ts;
 		__entry->device		= device;
 		__entry->chan		= chan;
 		__entry->value		= value;
@@ -440,6 +440,29 @@ TRACE_EVENT(lisa__pixel6_emeter,
 		  __entry->ts, __entry->device, __entry->chan, __entry->chan_name, __entry->value)
 );
 
+#include <uapi/linux/thermal.h> // THERMAL_NAME_LENGTH
+
+TRACE_EVENT(lisa__thermal,
+	TP_PROTO(u64 ts, int id, int temp, const char *name),
+	TP_ARGS(ts, id, temp, name),
+
+	TP_STRUCT__entry(
+		__field(u64,		ts				)
+		__field(int, 		id				)
+		__field(int,		temp				)
+		__array(char,		name,	THERMAL_NAME_LENGTH	)
+	),
+
+	TP_fast_assign(
+		__entry->ts     = ts;
+		__entry->id	= id;
+		__entry->temp	= temp;
+		strlcpy(__entry->name, name, sizeof(__entry->name));
+	),
+
+	TP_printk("ts=%llu id=%d name=%s temp=%d",
+		  __entry->ts, __entry->id, __entry->name, __entry->temp)
+);
 #endif /* _FTRACE_EVENTS_H */
 
 /* This part must be outside protection */

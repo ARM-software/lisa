@@ -1585,6 +1585,14 @@ class TxtTraceParser(TxtTraceParserBase):
                 'util_avg': _KERNEL_DTYPE['util'],
             },
         ),
+        'lisa__thermal': dict(
+            fields={
+                'ts': 'uint64',
+                'id': 'int32',
+                'temp': 'int32',
+                'name': 'str'
+            }
+        )
     }
 
     @PartialInit.factory
