@@ -1,0 +1,24 @@
+[package]
+name = "lisa-rust-analysis"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+analysis = { path = "../analysis" }
+
+futures = "0.3"
+serde = { version = "1.0", features = ["derive", "alloc"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"]}
+
+# CLI only
+clap = { version = "3.0", features = ["derive"] }
+memmap2 = "0.5"
+
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+mimalloc = {version = "0.1", default-features = false }
+
+# Static build:
+# rustup target add x86_64-unknown-linux-musl
+# RUSTFLAGS='-C target-feature=+crt-static' cargo build --release --target x86_64-unknown-linux-musl

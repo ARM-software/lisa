@@ -1,0 +1,41 @@
+#! /bin/bash
+
+ALPINE_VERSION=v3.16
+ALPINE_BUILD_DEPENDENCIES=(bash git curl musl-dev gcc)
+# We technically could cross compile, but would require to auto detect a cross linker, by setting e.g.:
+# export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-ld
+CROSS_COMPILATION_BROKEN=1
+
+run_rustup() {
+    export CARGO_HOME="$(readlink -f .)/.cargo"
+    export RUSTUP_HOME="$(readlink -f .)/.rustup"
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain none -y --no-modify-path
+    source $CARGO_HOME/env
+
+    # unholy invocation: allow use of unstable feature on stable rust. LISA's
+    # rust analysis relies on unstable features such as generators, but we don't
+    # want the instability of a nightly toolchain when generating the binaries,
+    # as we need something somewhat reproducible (nightly changes every day)
+    export RUSTC_BOOTSTRAP=1
+    rustup toolchain install stable --allow-downgrade --profile minimal
+}
+
+build_analysis() {
+    cd analysis &&
+    cargo build --release
+}
+
+download() {
+    cp -a "$LISA_HOME/tools/analysis" .
+    cp "$LISA_HOME/LICENSE.txt" analysis/
+}
+
+build() {
+    run_rustup && (build_analysis)
+}
+
+install() {
+    source "$LISA_HOME/tools/recipes/utils.sh"
+    cp -v analysis/target/release/lisa-rust-analysis "$LISA_ARCH_ASSETS/"
+    install_readme lisa-rust-analysis analysis/ LICENSE.txt
+}
