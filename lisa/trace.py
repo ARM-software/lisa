@@ -591,7 +591,7 @@ class TxtEventParser(EventParserBase):
             if field in ('__timestamp', '__event')
         )
 
-        regex = r'^.*:?{blank}{__comm}-{__pid}{blank}\[{__cpu}\]{blank}{__timestamp}:{blank}{__event}:'.format(**compos, blank=blank)
+        regex = r'(?:(?:^.*?:)|^){blank}{__comm}-{__pid}{blank}\[{__cpu}\]{blank}{__timestamp}:{blank}{__event}:'.format(**compos, blank=blank)
         return regex
 
     def _get_regex(self, event, fields, positional_field, greedy_field):
