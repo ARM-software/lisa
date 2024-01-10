@@ -4181,6 +4181,8 @@ class Trace(Loggable, TraceBase):
                   will emit a bputs event that will be ignored at the moment.
                   We need to get a bprint event.
 
+                * Field names *must* be unique.
+
               .. code-block:: C
 
                   // trace.df_event('trace_printk@myevent')
@@ -4194,6 +4196,8 @@ class Trace(Loggable, TraceBase):
 
                   # trace.df_event('userspace@myevent')
                   echo "myevent: field1=foo field2=42" > /sys/kernel/debug/tracing/trace_marker
+
+              Note that the field names must be unique.
 
             .. note:: All meta event names are expected to be valid C language
                 identifiers. Usage of other characters will prevent correct
