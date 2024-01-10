@@ -383,22 +383,10 @@ class TestEstimateFromTrace(TestCase):
             <idle>-0  [000] 0000.0020: cpu_idle:        state=2 cpu_id=2
             """
         )
-
-        with tempfile.TemporaryDirectory() as directory:
-            path = os.path.join(directory, 'trace.txt')
-            with open(path, 'w') as f:
-                f.write(trace_data)
-
-            trace = Trace(path,
-                events=['cpu_idle', 'cpu_frequency'],
-                normalize_time=False,
-                # Disable swap since the folder is going to get removed
-                enable_swap=False,
-                # Parse all the events eagerly since the trace file is going to
-                # be removed.
-                strict_events=True,
-                parser=TxtTraceParser.from_txt_file,
-            )
+        trace = Trace(
+            normalize_time=False,
+            parser=TxtTraceParser.from_string(trace_data),
+        )
 
         energy_df = em.estimate_from_trace(trace)
 
