@@ -1,0 +1,49 @@
+#! /bin/bash
+
+ALPINE_VERSION=v3.18
+ALPINE_BUILD_DEPENDENCIES=(bash git curl musl-dev gcc)
+CROSS_COMPILATION_BROKEN=0
+
+run_rustup() {
+    export CARGO_HOME="$(readlink -f .)/.cargo"
+    export RUSTUP_HOME="$(readlink -f .)/.rustup"
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain none -y --no-modify-path
+    source $CARGO_HOME/env
+    rustup toolchain install stable --allow-downgrade --profile minimal
+}
+
+build_tracedump() {
+    cd trace-tools &&
+    case $ARCH in
+        x86_64)
+            local triplet="x86_64-unknown-linux-musl"
+            ;;
+        arm64)
+            local triplet="aarch64-unknown-linux-musl"
+            ;;
+        *)
+            echo "Target architecture $ARCH not supported" >&2
+            return 1
+            ;;
+    esac
+    # x86_64 host, non-x86_64 target
+    if [[ "$(arch)" == "x86_64" && "$ARCH" != "x86_64" ]]; then
+        export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-ld
+    fi
+    time RUSTFLAGS='-C target-feature=+crt-static' cargo build --release --target="$triplet"
+}
+
+download() {
+    cp -a "$LISA_HOME/tools/trace-parser" .
+    cp "$LISA_HOME/LICENSE.txt" trace-tools/
+}
+
+build() {
+    run_rustup && (build_tracedump)
+}
+
+install() {
+    source "$LISA_HOME/tools/recipes/utils.sh"
+    cp -v trace-tools/trace-dump/target/release/trace-dump "$LISA_ARCH_ASSETS/"
+    install_readme trace-dump trace-tools/ LICENSE.txt
+}
