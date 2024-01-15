@@ -73,11 +73,8 @@ class ShowCommand(Command):
 
         if which('pandoc'):
             p = Popen(['pandoc', '-f', 'rst', '-t', 'man'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-            if sys.version_info[0] == 3:
-                output, _ = p.communicate(rst_output.encode(sys.stdin.encoding))
-                output = output.decode(sys.stdout.encoding)
-            else:
-                output, _ = p.communicate(rst_output)
+            output, _ = p.communicate(rst_output.encode(sys.stdin.encoding))
+            output = output.decode(sys.stdout.encoding)
 
             # Make sure to double escape back slashes
             output = output.replace('\\', '\\\\\\')

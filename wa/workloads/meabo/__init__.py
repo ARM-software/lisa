@@ -256,10 +256,7 @@ class Meabo(Workload):
 
         outfile = os.path.join(context.output_directory, 'meabo-output.txt')
         with open(outfile, 'wb') as wfh:
-            if sys.version_info[0] == 3:
-                wfh.write(self.output.encode('utf-8'))
-            else:
-                wfh.write(self.output)
+            wfh.write(self.output.encode('utf-8'))
         context.add_artifact('meabo-output', outfile, kind='raw')
 
         cur_phase = 0

@@ -25,10 +25,6 @@ from wa.framework.target.manager import TargetManager
 from wa.utils.revent import ReventRecorder
 
 
-if sys.version_info[0] == 3:
-    raw_input = input  # pylint: disable=redefined-builtin
-
-
 class RecordCommand(Command):
 
     name = 'record'
@@ -137,11 +133,11 @@ class RecordCommand(Command):
     def record(self, revent_file, name, output_path):
         msg = 'Press Enter when you are ready to record {}...'
         self.logger.info(msg.format(name))
-        raw_input('')
+        input('')
         self.revent_recorder.start_record(revent_file)
         msg = 'Press Enter when you have finished recording {}...'
         self.logger.info(msg.format(name))
-        raw_input('')
+        input('')
         self.revent_recorder.stop_record()
 
         if not os.path.isdir(output_path):

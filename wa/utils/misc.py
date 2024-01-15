@@ -21,10 +21,12 @@ Miscellaneous functions that don't fit anywhere else.
 
 import errno
 import hashlib
-import imp
+import importlib
+import inspect
 import logging
 import math
 import os
+import pathlib
 import random
 import re
 import shutil
@@ -39,10 +41,7 @@ from functools import reduce  # pylint: disable=redefined-builtin
 from operator import mul
 from tempfile import gettempdir, NamedTemporaryFile
 from time import sleep
-if sys.version_info[0] == 3:
-    from io import StringIO
-else:
-    from io import BytesIO as StringIO
+from io import StringIO
 # pylint: disable=wrong-import-position,unused-import
 from itertools import chain, cycle
 from distutils.spawn import find_executable  # pylint: disable=no-name-in-module, import-error
@@ -234,7 +233,12 @@ def load_class(classpath):
     """Loads the specified Python class. ``classpath`` must be a fully-qualified
     class name (i.e. namspaced under module/package)."""
     modname, clsname = classpath.rsplit('.', 1)
-    return getattr(__import__(modname), clsname)
+    mod = importlib.import_module(modname)
+    cls = getattr(mod, clsname)
+    if isinstance(cls, type):
+        return cls
+    else:
+        raise ValueError(f'The classpath "{classpath}" does not point at a class: {cls}')
 
 
 def get_pager():
@@ -285,7 +289,7 @@ def get_article(word):
               in all case; e.g. this will return ``"a hour"``.
 
     """
-    return'an' if word[0] in 'aoeiu' else 'a'
+    return 'an' if word[0] in 'aoeiu' else 'a'
 
 
 def get_random_string(length):
@@ -308,32 +312,57 @@ class LoadSyntaxError(Exception):
 RAND_MOD_NAME_LEN = 30
 
 
-def load_struct_from_python(filepath=None, text=None):
+def import_path(filepath, module_name=None):
+    """
+    Programmatically import the given Python source file under the name
+    ``module_name``. If ``module_name`` is not provided, a stable name based on
+    ``filepath`` will be created. Note that this module name cannot be relied
+    on, so don't make write import statements assuming this will be stable in
+    the future.
+    """
+    if not module_name:
+        path = pathlib.Path(filepath).resolve()
+        id_ = to_identifier(str(path))
+        module_name = f'wa._user_import.{id_}'
+
+    try:
+        return sys.modules[module_name]
+    except KeyError:
+        spec = importlib.util.spec_from_file_location(module_name, filepath)
+        module = importlib.util.module_from_spec(spec)
+        try:
+            sys.modules[module_name] = module
+            spec.loader.exec_module(module)
+        except BaseException:
+            sys.modules.pop(module_name, None)
+            raise
+        else:
+            # We could return the "module" object, but that would not take into
+            # account any manipulation the module did on sys.modules when
+            # executing. To be consistent with the import statement, re-lookup
+            # the module name.
+            return sys.modules[module_name]
+
+
+def load_struct_from_python(filepath):
     """Parses a config structure from a .py file. The structure should be composed
     of basic Python types (strings, ints, lists, dicts, etc.)."""
-    if not (filepath or text) or (filepath and text):
-        raise ValueError('Exactly one of filepath or text must be specified.')
+
     try:
-        if filepath:
-            modname = to_identifier(filepath)
-            mod = imp.load_source(modname, filepath)
-        else:
-            modname = get_random_string(RAND_MOD_NAME_LEN)
-            while modname in sys.modules:  # highly unlikely, but...
-                modname = get_random_string(RAND_MOD_NAME_LEN)
-            mod = imp.new_module(modname)
-            exec(text, mod.__dict__)  # pylint: disable=exec-used
-        return dict((k, v)
-                    for k, v in mod.__dict__.items()
-                    if not k.startswith('_'))
+        mod = import_path(filepath)
     except SyntaxError as e:
         raise LoadSyntaxError(e.message, filepath, e.lineno)
+    else:
+        return {
+            k: v
+            for k, v in inspect.getmembers(mod)
+            if not k.startswith('_')
+        }
 
 
 def load_struct_from_yaml(filepath=None, text=None):
     """Parses a config structure from a .yaml file. The structure should be composed
     of basic Python types (strings, ints, lists, dicts, etc.)."""
-
     # Import here to avoid circular imports
     # pylint: disable=wrong-import-position,cyclic-import, import-outside-toplevel
     from wa.utils.serializer import yaml
