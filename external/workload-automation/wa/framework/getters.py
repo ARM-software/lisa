@@ -244,10 +244,7 @@ class Http(ResourceGetter):
                                              response.status_code,
                                              response.reason))
             return {}
-        if sys.version_info[0] == 3:
-            content = response.content.decode('utf-8')
-        else:
-            content = response.content
+        content = response.content.decode('utf-8')
         return json.loads(content)
 
     def download_asset(self, asset, owner_name):

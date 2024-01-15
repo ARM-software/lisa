@@ -32,17 +32,11 @@ def transform(mod):
                 if b'pylint:' in text[0]:
                     msg = 'pylint directive found on the first line of {}; please move to below copyright header'
                     raise RuntimeError(msg.format(mod.name))
-                if sys.version_info[0] == 3:
-                    char = chr(text[0][0])
-                else:
-                    char = text[0][0]
+                char = chr(text[0][0])
                 if text[0].strip() and char != '#':
                     msg = 'first line of {} is not a comment; is the copyright header missing?'
                     raise RuntimeError(msg.format(mod.name))
-                if sys.version_info[0] == 3:
-                    text[0] = '# pylint: disable={}'.format(','.join(errors)).encode('utf-8')
-                else:
-                    text[0] = '# pylint: disable={}'.format(','.join(errors))
+                text[0] = '# pylint: disable={}'.format(','.join(errors)).encode('utf-8')
                 mod.file_bytes = b'\n'.join(text)
 
                 # This is what *should* happen, but doesn't work.

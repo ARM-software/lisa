@@ -33,6 +33,7 @@ states.
                   iterations: 1
                   runtime_parameters:
                         screen_on: false
+                        unlock_screen: 'vertical'
                 - name: benchmarkpi
                   iterations: 1
         sections:
@@ -207,6 +208,13 @@ Android Specific Runtime Parameters
 
 :screen_on: A ``boolean`` to specify whether the devices screen should be
     turned on. Defaults to ``True``.
+
+:unlock_screen: A ``String`` to specify how the devices screen should be
+    unlocked. Unlocking screen is disabled by default. ``vertical``, ``diagonal``
+    and ``horizontal`` are the supported values (see :meth:`devlib.AndroidTarget.swipe_to_unlock`).
+    Note that unlocking succeeds when no passcode is set. Since unlocking screen
+    requires turning on the screen, this option overrides value of ``screen_on``
+    option.
 
 .. _setting-sysfiles:
 
