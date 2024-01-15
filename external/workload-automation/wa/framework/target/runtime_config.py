@@ -878,6 +878,11 @@ class AndroidRuntimeConfig(RuntimeConfig):
         if value is not None:
             obj.config['screen_on'] = value
 
+    @staticmethod
+    def set_unlock_screen(obj, value):
+        if value is not None:
+            obj.config['unlock_screen'] = value
+
     def __init__(self, target):
         self.config = defaultdict(dict)
         super(AndroidRuntimeConfig, self).__init__(target)
@@ -930,6 +935,16 @@ class AndroidRuntimeConfig(RuntimeConfig):
                     Specify whether the device screen should be on
                     """)
 
+            param_name = 'unlock_screen'
+            self._runtime_params[param_name] = \
+                RuntimeParameter(
+                    param_name, kind=str,
+                    default=None,
+                    setter=self.set_unlock_screen,
+                    description="""
+                    Specify how the device screen should be unlocked (e.g., vertical)
+                    """)
+
     def check_target(self):
         if self.target.os != 'android' and self.target.os != 'chromeos':
             raise ConfigError('Target does not appear to be running Android')
@@ -940,6 +955,7 @@ class AndroidRuntimeConfig(RuntimeConfig):
         pass
 
     def commit(self):
+        # pylint: disable=too-many-branches
         if 'airplane_mode' in self.config:
             new_airplane_mode = self.config['airplane_mode']
             old_airplane_mode = self.target.get_airplane_mode()
@@ -964,13 +980,20 @@ class AndroidRuntimeConfig(RuntimeConfig):
 
         if 'brightness' in self.config:
             self.target.set_brightness(self.config['brightness'])
+
         if 'rotation' in self.config:
             self.target.set_rotation(self.config['rotation'])
+
         if 'screen_on' in self.config:
             if self.config['screen_on']:
                 self.target.ensure_screen_is_on()
             else:
                 self.target.ensure_screen_is_off()
+
+        if self.config.get('unlock_screen'):
+            self.target.ensure_screen_is_on()
+            if self.target.is_screen_locked():
+                self.target.swipe_to_unlock(self.config['unlock_screen'])
 
     def clear(self):
         self.config = {}
