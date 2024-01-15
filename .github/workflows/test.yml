@@ -47,7 +47,7 @@ jobs:
           # Github seems to always block 3 jobs these days, so keep at most 3
           # versions there:
           - '3.8'
-          - '3.11'
+          - '3.12'
 
     # env:
       # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
