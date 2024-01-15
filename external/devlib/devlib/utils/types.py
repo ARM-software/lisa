@@ -136,35 +136,25 @@ def bitmask(value):
 regex_type = type(re.compile(''))
 
 
-if sys.version_info[0] == 3:
-    def regex(value):
-        if isinstance(value, regex_type):
-            if isinstance(value.pattern, str):
-                return value
-            return re.compile(value.pattern.decode(),
-                              value.flags | re.UNICODE)
-        else:
-            if isinstance(value, bytes):
-                value = value.decode()
-            return re.compile(value)
-
-
-    def bytes_regex(value):
-        if isinstance(value, regex_type):
-            if isinstance(value.pattern, bytes):
-                return value
-            return re.compile(value.pattern.encode(sys.stdout.encoding or 'utf-8'),
-                              value.flags & ~re.UNICODE)
-        else:
-            if isinstance(value, str):
-                value = value.encode(sys.stdout.encoding or 'utf-8')
-            return re.compile(value)
-else:
-    def regex(value):
-        if isinstance(value, regex_type):
+def regex(value):
+    if isinstance(value, regex_type):
+        if isinstance(value.pattern, str):
             return value
-        else:
-            return re.compile(value)
+        return re.compile(value.pattern.decode(),
+                          value.flags | re.UNICODE)
+    else:
+        if isinstance(value, bytes):
+            value = value.decode()
+        return re.compile(value)
 
 
-    bytes_regex = regex
+def bytes_regex(value):
+    if isinstance(value, regex_type):
+        if isinstance(value.pattern, bytes):
+            return value
+        return re.compile(value.pattern.encode(sys.stdout.encoding or 'utf-8'),
+                          value.flags & ~re.UNICODE)
+    else:
+        if isinstance(value, str):
+            value = value.encode(sys.stdout.encoding or 'utf-8')
+        return re.compile(value)

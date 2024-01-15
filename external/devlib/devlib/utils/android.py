@@ -88,14 +88,16 @@ INTENT_FLAGS = {
     'ACTIVITY_CLEAR_TASK' : 0x00008000
 }
 
+# Lazy init of some globals
+def __getattr__(attr):
+    env = _AndroidEnvironment()
 
-# Initialized in functions near the botton of the file
-android_home = None
-platform_tools = None
-adb = None
-aapt = None
-aapt_version = None
-fastboot = None
+    glob = globals()
+    glob.update(env.paths)
+    try:
+        return glob[attr]
+    except KeyError:
+        raise AttributeError(f"Module '{__name__}' has no attribute '{attr}'")
 
 
 class AndroidProperties(object):
@@ -162,7 +164,6 @@ class ApkInfo(object):
 
     # pylint: disable=too-many-branches
     def parse(self, apk_path):
-        _check_env()
         output = self._run([aapt, 'dump', 'badging', apk_path])
         for line in output.split('\n'):
             if line.startswith('application-label:'):
@@ -231,20 +232,22 @@ class ApkInfo(object):
             parser = etree.XMLParser(encoding='utf-8', recover=True)
             xml_tree = etree.parse(StringIO(dump), parser)
 
-            package = next((i for i in xml_tree.iter('package')
-                           if i.attrib['name'] == self.package), None)
+            package = []
+            for i in xml_tree.iter('package'):
+                if i.attrib['name'] == self.package:
+                    package.append(i)
 
-            self._methods = [(meth.attrib['name'], klass.attrib['name'])
-                             for klass in package.iter('class')
-                             for meth in klass.iter('method')] if package else []
+            for elem in package:
+                self._methods.extend([(meth.attrib['name'], klass.attrib['name'])
+                                      for klass in elem.iter('class')
+                                      for meth in klass.iter('method')])
         return self._methods
 
     def _run(self, command):
         logger.debug(' '.join(command))
         try:
             output = subprocess.check_output(command, stderr=subprocess.STDOUT)
-            if sys.version_info[0] == 3:
-                output = output.decode(sys.stdout.encoding or 'utf-8', 'replace')
+            output = output.decode(sys.stdout.encoding or 'utf-8', 'replace')
         except subprocess.CalledProcessError as e:
             raise HostError('Error while running "{}":\n{}'
                             .format(command, e.output))
@@ -284,6 +287,7 @@ class AdbConnection(ConnectionBase):
         timeout=None,
         platform=None,
         adb_server=None,
+        adb_port=None,
         adb_as_root=False,
         connection_attempts=MAX_ATTEMPTS,
 
@@ -300,9 +304,10 @@ class AdbConnection(ConnectionBase):
         )
         self.timeout = timeout if timeout is not None else self.default_timeout
         if device is None:
-            device = adb_get_device(timeout=timeout, adb_server=adb_server)
+            device = adb_get_device(timeout=timeout, adb_server=adb_server, adb_port=adb_port)
         self.device = device
         self.adb_server = adb_server
+        self.adb_port = adb_port
         self.adb_as_root = adb_as_root
         lock, nr_active = AdbConnection.active_connections
         with lock:
@@ -317,7 +322,7 @@ class AdbConnection(ConnectionBase):
             # lead to commands hanging forever in some situations.
             except AdbRootError:
                 pass
-        adb_connect(self.device, adb_server=self.adb_server, attempts=connection_attempts)
+        adb_connect(self.device, adb_server=self.adb_server, adb_port=self.adb_port, attempts=connection_attempts)
         self._setup_ls()
         self._setup_su()
 
@@ -337,13 +342,14 @@ class AdbConnection(ConnectionBase):
 
         command = "{} {}".format(action, paths)
         if timeout:
-            adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server)
+            adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server, adb_port=self.adb_port)
         else:
             bg_cmd = adb_command_background(
                 device=self.device,
                 conn=self,
                 command=command,
-                adb_server=self.adb_server
+                adb_server=self.adb_server,
+                adb_port=self.adb_port,
             )
 
             handle = PopenTransferHandle(
@@ -362,7 +368,7 @@ class AdbConnection(ConnectionBase):
             as_root = False
         try:
             return adb_shell(self.device, command, timeout, check_exit_code,
-                             as_root, adb_server=self.adb_server, su_cmd=self.su_cmd)
+                             as_root, adb_server=self.adb_server, adb_port=self.adb_port, su_cmd=self.su_cmd)
         except subprocess.CalledProcessError as e:
             cls = TargetTransientCalledProcessError if will_succeed else TargetStableCalledProcessError
             raise cls(
@@ -404,7 +410,7 @@ class AdbConnection(ConnectionBase):
         if disconnect:
             if self.adb_as_root:
                 self.adb_root(enable=False)
-            adb_disconnect(self.device, self.adb_server)
+            adb_disconnect(self.device, self.adb_server, self.adb_port)
 
     def cancel_running_command(self):
         # adbd multiplexes commands so that they don't interfer with each
@@ -422,7 +428,7 @@ class AdbConnection(ConnectionBase):
 
         cmd = 'root' if enable else 'unroot'
         try:
-            output = adb_command(self.device, cmd, timeout=30, adb_server=self.adb_server)
+            output = adb_command(self.device, cmd, timeout=30, adb_server=self.adb_server, adb_port=self.adb_port)
         except subprocess.CalledProcessError as e:
             # Ignore if we're already root
             if 'adbd is already running as root' in e.output:
@@ -436,10 +442,10 @@ class AdbConnection(ConnectionBase):
         AdbConnection._connected_as_root[self.device] = enable
 
     def wait_for_device(self, timeout=30):
-        adb_command(self.device, 'wait-for-device', timeout, self.adb_server)
+        adb_command(self.device, 'wait-for-device', timeout, self.adb_server, self.adb_port)
 
     def reboot_bootloader(self, timeout=30):
-        adb_command(self.device, 'reboot-bootloader', timeout, self.adb_server)
+        adb_command(self.device, 'reboot-bootloader', timeout, self.adb_server, self.adb_port)
 
     # Again, we need to handle boards where the default output format from ls is
     # single column *and* boards where the default output is multi-column.
@@ -448,7 +454,7 @@ class AdbConnection(ConnectionBase):
     def _setup_ls(self):
         command = "shell '(ls -1); echo \"\n$?\"'"
         try:
-            output = adb_command(self.device, command, timeout=self.timeout, adb_server=self.adb_server)
+            output = adb_command(self.device, command, timeout=self.timeout, adb_server=self.adb_server, adb_port=self.adb_port)
         except subprocess.CalledProcessError as e:
             raise HostError(
                 'Failed to set up ls command on Android device. Output:\n'
@@ -477,7 +483,6 @@ class AdbConnection(ConnectionBase):
 
 
 def fastboot_command(command, timeout=None, device=None):
-    _check_env()
     target = '-s {}'.format(quote(device)) if device else ''
     full_command = 'fastboot {} {}'.format(target, command)
     logger.debug(full_command)
@@ -490,7 +495,7 @@ def fastboot_flash_partition(partition, path_to_image):
     fastboot_command(command)
 
 
-def adb_get_device(timeout=None, adb_server=None):
+def adb_get_device(timeout=None, adb_server=None, adb_port=None):
     """
     Returns the serial number of a connected android device.
 
@@ -501,7 +506,7 @@ def adb_get_device(timeout=None, adb_server=None):
 
     # Ensure server is started so the 'daemon started successfully' message
     # doesn't confuse the parsing below
-    adb_command(None, 'start-server', adb_server=adb_server)
+    adb_command(None, 'start-server', adb_server=adb_server, adb_port=adb_port)
 
     # The output of calling adb devices consists of a heading line then
     # a list of the devices sperated by new line
@@ -509,7 +514,7 @@ def adb_get_device(timeout=None, adb_server=None):
     # then the output length is 2 + (1 for each device)
     start = time.time()
     while True:
-        output = adb_command(None, "devices", adb_server=adb_server).splitlines()  # pylint: disable=E1103
+        output = adb_command(None, "devices", adb_server=adb_server, adb_port=adb_port).splitlines()  # pylint: disable=E1103
         output_length = len(output)
         if output_length == 3:
             # output[1] is the 2nd line in the output which has the device name
@@ -526,8 +531,7 @@ def adb_get_device(timeout=None, adb_server=None):
             time.sleep(1)
 
 
-def adb_connect(device, timeout=None, attempts=MAX_ATTEMPTS, adb_server=None):
-    _check_env()
+def adb_connect(device, timeout=None, attempts=MAX_ATTEMPTS, adb_server=None, adb_port=None):
     tries = 0
     output = None
     while tries <= attempts:
@@ -539,12 +543,12 @@ def adb_connect(device, timeout=None, attempts=MAX_ATTEMPTS, adb_server=None):
                 # adb connection may have gone "stale", resulting in adb blocking
                 # indefinitely when making calls to the device. To avoid this,
                 # always disconnect first.
-                adb_disconnect(device, adb_server)
-                adb_cmd = get_adb_command(None, 'connect', adb_server)
+                adb_disconnect(device, adb_server, adb_port)
+                adb_cmd = get_adb_command(None, 'connect', adb_server, adb_port)
                 command = '{} {}'.format(adb_cmd, quote(device))
                 logger.debug(command)
                 output, _ = check_output(command, shell=True, timeout=timeout)
-        if _ping(device, adb_server):
+        if _ping(device, adb_server, adb_port):
             break
         time.sleep(10)
     else:  # did not connect to the device
@@ -554,12 +558,11 @@ def adb_connect(device, timeout=None, attempts=MAX_ATTEMPTS, adb_server=None):
         raise HostError(message)
 
 
-def adb_disconnect(device, adb_server=None):
-    _check_env()
+def adb_disconnect(device, adb_server=None, adb_port=None):
     if not device:
         return
-    if ":" in device and device in adb_list_devices(adb_server):
-        adb_cmd = get_adb_command(None, 'disconnect', adb_server)
+    if ":" in device and device in adb_list_devices(adb_server, adb_port):
+        adb_cmd = get_adb_command(None, 'disconnect', adb_server, adb_port)
         command = "{} {}".format(adb_cmd, device)
         logger.debug(command)
         retval = subprocess.call(command, stdout=open(os.devnull, 'wb'), shell=True)
@@ -567,9 +570,8 @@ def adb_disconnect(device, adb_server=None):
             raise TargetTransientError('"{}" returned {}'.format(command, retval))
 
 
-def _ping(device, adb_server=None):
-    _check_env()
-    adb_cmd = get_adb_command(device, 'shell', adb_server)
+def _ping(device, adb_server=None, adb_port=None):
+    adb_cmd = get_adb_command(device, 'shell', adb_server, adb_port)
     command = "{} {}".format(adb_cmd, quote('ls /data/local/tmp > /dev/null'))
     logger.debug(command)
     result = subprocess.call(command, stderr=subprocess.PIPE, shell=True)
@@ -581,8 +583,7 @@ def _ping(device, adb_server=None):
 
 # pylint: disable=too-many-locals
 def adb_shell(device, command, timeout=None, check_exit_code=False,
-              as_root=False, adb_server=None, su_cmd='su -c {}'):  # NOQA
-    _check_env()
+              as_root=False, adb_server=None, adb_port=None, su_cmd='su -c {}'):  # NOQA
 
     # On older combinations of ADB/Android versions, the adb host command always
     # exits with 0 if it was able to run the command on the target, even if the
@@ -590,18 +591,14 @@ def adb_shell(device, command, timeout=None, check_exit_code=False,
     # Homogenise this behaviour by running the command then echoing the exit
     # code of the executed command itself.
     command = r'({}); echo "\n$?"'.format(command)
-
-    parts = ['adb']
-    if adb_server is not None:
-        parts += ['-H', adb_server]
-    if device is not None:
-        parts += ['-s', device]
-    parts += ['shell',
-              command if not as_root else su_cmd.format(quote(command))]
+    command = su_cmd.format(quote(command)) if as_root else command
+    command = ('shell', command)
+    parts, env = _get_adb_parts(command, device, adb_server, adb_port, quote_adb=False)
+    env = {**os.environ, **env}
 
     logger.debug(' '.join(quote(part) for part in parts))
     try:
-        raw_output, error = check_output(parts, timeout, shell=False)
+        raw_output, error = check_output(parts, timeout, shell=False, env=env)
     except subprocess.CalledProcessError as e:
         raise TargetStableError(str(e))
 
@@ -651,40 +648,72 @@ def adb_background_shell(conn, command,
     """Runs the specified command in a subprocess, returning the the Popen object."""
     device = conn.device
     adb_server = conn.adb_server
+    adb_port = conn.adb_port
+    busybox = conn.busybox
+    orig_command = command
 
-    _check_env()
     stdout, stderr, command = redirect_streams(stdout, stderr, command)
     if as_root:
-        command = 'echo {} | su'.format(quote(command))
+        command = f'{busybox} printf "%s" {quote(command)} | su'
 
-    # Attach a unique UUID to the command line so it can be looked for without
-    # any ambiguity with ps
-    uuid_ = uuid.uuid4().hex
-    uuid_var = 'BACKGROUND_COMMAND_UUID={}'.format(uuid_)
-    command = "{} sh -c {}".format(uuid_var, quote(command))
+    def with_uuid(cmd):
+        # Attach a unique UUID to the command line so it can be looked for
+        # without any ambiguity with ps
+        uuid_ = uuid.uuid4().hex
+        # Unset the var, since not all connection types set it. This will avoid
+        # anyone depending on that value.
+        cmd = f'DEVLIB_CMD_UUID={uuid_}; unset DEVLIB_CMD_UUID; {cmd}'
+        # Ensure we have an sh -c layer so that the UUID will appear on the
+        # command line parameters of at least one command.
+        cmd = f'exec {busybox} sh -c {quote(cmd)}'
+        return (uuid_, cmd)
 
-    adb_cmd = get_adb_command(device, 'shell', adb_server)
-    full_command = '{} {}'.format(adb_cmd, quote(command))
+    # Freeze the command with SIGSTOP to avoid racing with PID detection.
+    command = f"{busybox} kill -STOP $$ && exec {busybox} sh -c {quote(command)}"
+    command_uuid, command = with_uuid(command)
+
+    adb_cmd = get_adb_command(device, 'shell', adb_server, adb_port)
+    full_command = f'{adb_cmd} {quote(command)}'
     logger.debug(full_command)
     p = subprocess.Popen(full_command, stdout=stdout, stderr=stderr, stdin=subprocess.PIPE, shell=True)
 
     # Out of band PID lookup, to avoid conflicting needs with stdout redirection
-    find_pid = '{} ps -A -o pid,args | grep {}'.format(conn.busybox, quote(uuid_var))
-    ps_out = conn.execute(find_pid)
-    pids = [
-        int(line.strip().split(' ', 1)[0])
-        for line in ps_out.splitlines()
-    ]
-    # The line we are looking for is the first one, since it was started before
-    # any look up command
-    pid = sorted(pids)[0]
+    grep_cmd = f'{busybox} grep {quote(command_uuid)}'
+    # Find the PID and release the blocked background command with SIGCONT.
+    # We get multiple PIDs:
+    # * One from the grep command itself, but we remove it with another grep command.
+    # * One for each sh -c layer in the command itself.
+    #
+    # For each of the parent layer, we issue SIGCONT as it is harmless and
+    # avoids having to rely on PID ordering (which could be misleading if PIDs
+    # got recycled).
+    find_pid = f'''pids=$({busybox} ps -A -o pid,args | {grep_cmd} | {busybox} grep -v {quote(grep_cmd)} | {busybox} awk '{{print $1}}') && {busybox} printf "%s" "$pids" && {busybox} kill -CONT $pids'''
+
+    excep = None
+    for _ in range(5):
+        try:
+            pids = conn.execute(find_pid, as_root=as_root)
+            # We choose the highest PID as the "control" PID. It actually does not
+            # really matter which one we pick, as they are all equivalent sh -c layers.
+            pid = max(map(int, pids.split()))
+        except TargetStableError:
+            raise
+        except Exception as e:
+            excep = e
+            time.sleep(10e-3)
+            continue
+        else:
+            break
+    else:
+        raise TargetTransientError(f'Could not detect PID of background command: {orig_command}') from excep
+
     return (p, pid)
 
-def adb_kill_server(timeout=30, adb_server=None):
-    adb_command(None, 'kill-server', timeout, adb_server)
+def adb_kill_server(timeout=30, adb_server=None, adb_port=None):
+    adb_command(None, 'kill-server', timeout, adb_server, adb_port)
 
-def adb_list_devices(adb_server=None):
-    output = adb_command(None, 'devices', adb_server=adb_server)
+def adb_list_devices(adb_server=None, adb_port=None):
+    output = adb_command(None, 'devices', adb_server=adb_server, adb_port=adb_port)
     devices = []
     for line in output.splitlines():
         parts = [p.strip() for p in line.split()]
@@ -693,24 +722,35 @@ def adb_list_devices(adb_server=None):
     return devices
 
 
-def get_adb_command(device, command, adb_server=None):
-    _check_env()
-    device_string = ""
-    if adb_server != None:
-        device_string = ' -H {}'.format(adb_server)
-    device_string += ' -s {}'.format(device) if device else ''
-    return "LC_ALL=C adb{} {}".format(device_string, command)
+def _get_adb_parts(command, device=None, adb_server=None, adb_port=None, quote_adb=True):
+    _quote = quote if quote_adb else lambda x: x
+    parts = (
+        adb,
+        *(('-H', _quote(adb_server)) if adb_server is not None else ()),
+        *(('-P', _quote(str(adb_port))) if adb_port is not None else ()),
+        *(('-s', _quote(device)) if device is not None else ()),
+        *command,
+    )
+    env = {'LC_ALL': 'C'}
+    return (parts, env)
 
 
-def adb_command(device, command, timeout=None, adb_server=None):
-    full_command = get_adb_command(device, command, adb_server)
+def get_adb_command(device, command, adb_server=None, adb_port=None):
+    parts, env = _get_adb_parts((command,), device, adb_server, adb_port, quote_adb=True)
+    env = [quote(f'{name}={val}') for name, val in sorted(env.items())]
+    parts = [*env, *parts]
+    return ' '.join(parts)
+
+
+def adb_command(device, command, timeout=None, adb_server=None, adb_port=None):
+    full_command = get_adb_command(device, command, adb_server, adb_port)
     logger.debug(full_command)
     output, _ = check_output(full_command, timeout, shell=True)
     return output
 
 
-def adb_command_background(device, conn, command, adb_server=None):
-    full_command = get_adb_command(device, command, adb_server)
+def adb_command_background(device, conn, command, adb_server=None, adb_port=None):
+    full_command = get_adb_command(device, command, adb_server, adb_port)
     logger.debug(full_command)
     popen = get_subprocess(full_command, shell=True)
     cmd = PopenBackgroundCommand(conn=conn, popen=popen)
@@ -739,120 +779,131 @@ def grant_app_permissions(target, package):
 
 # Messy environment initialisation stuff...
 
-class _AndroidEnvironment(object):
-
+class _AndroidEnvironment:
     def __init__(self):
-        self.android_home = None
-        self.platform_tools = None
-        self.build_tools = None
-        self.adb = None
-        self.aapt = None
-        self.aapt_version = None
-        self.fastboot = None
-
-
-def _initialize_with_android_home(env):
-    logger.debug('Using ANDROID_HOME from the environment.')
-    env.android_home = android_home
-    env.platform_tools = os.path.join(android_home, 'platform-tools')
-    os.environ['PATH'] = env.platform_tools + os.pathsep + os.environ['PATH']
-    _init_common(env)
-    return env
-
-
-def _initialize_without_android_home(env):
-    adb_full_path = which('adb')
-    if adb_full_path:
-        env.adb = 'adb'
-    else:
-        raise HostError('ANDROID_HOME is not set and adb is not in PATH. '
-                        'Have you installed Android SDK?')
-    logger.debug('Discovering ANDROID_HOME from adb path.')
-    env.platform_tools = os.path.dirname(adb_full_path)
-    env.android_home = os.path.dirname(env.platform_tools)
-    _init_common(env)
-    return env
-
-def _init_common(env):
-    _discover_build_tools(env)
-    _discover_aapt(env)
-
-def _discover_build_tools(env):
-    logger.debug('ANDROID_HOME: {}'.format(env.android_home))
-    build_tools_directory = os.path.join(env.android_home, 'build-tools')
-    if os.path.isdir(build_tools_directory):
-        env.build_tools = build_tools_directory
-
-def _check_supported_aapt2(binary):
-    # At time of writing the version argument of aapt2 is not helpful as
-    # the output is only a placeholder that does not distinguish between versions
-    # with and without support for badging. Unfortunately aapt has been
-    # deprecated and fails to parse some valid apks so we will try to favour
-    # aapt2 if possible else will fall back to aapt.
-    # Try to execute the badging command and check if we get an expected error
-    # message as opposed to an unknown command error to determine if we have a
-    # suitable version.
-    cmd = '{} dump badging'.format(binary)
-    result = subprocess.run(cmd.encode('utf-8'), shell=True, stderr=subprocess.PIPE)
-    supported = bool(AAPT_BADGING_OUTPUT.search(result.stderr.decode('utf-8')))
-    msg = 'Found a {} aapt2 binary at: {}'
-    logger.debug(msg.format('supported' if supported else 'unsupported', binary))
-    return supported
-
-def _discover_aapt(env):
-    if env.build_tools:
-        aapt_path = ''
-        aapt2_path = ''
-        versions = os.listdir(env.build_tools)
-        for version in reversed(sorted(versions)):
-            if not os.path.isfile(aapt2_path):
-                aapt2_path = os.path.join(env.build_tools, version, 'aapt2')
-            if not os.path.isfile(aapt_path):
-                aapt_path = os.path.join(env.build_tools, version, 'aapt')
-                aapt_version = 1
-            # Use latest available version for aapt/appt2 but ensure at least one is valid.
-            if os.path.isfile(aapt2_path) or os.path.isfile(aapt_path):
-                break
-
-        # Use aapt2 only if present and we have a suitable version
-        if aapt2_path and _check_supported_aapt2(aapt2_path):
-            aapt_path = aapt2_path
-            aapt_version = 2
-
-        # Use the aapt version discoverted from build tools.
-        if aapt_path:
-            logger.debug('Using {} for version {}'.format(aapt_path, version))
-            env.aapt = aapt_path
-            env.aapt_version = aapt_version
-            return
-
-    # Try detecting aapt2 and aapt from PATH
-    if not env.aapt:
-            aapt2_path = which('aapt2')
-            if _check_supported_aapt2(aapt2_path):
-                env.aapt = aapt2_path
-                env.aapt_version = 2
-            else:
-                env.aapt = which('aapt')
-                env.aapt_version = 1
-
-    if not env.aapt:
-        raise HostError('aapt/aapt2 not found. Please make sure it is avaliable in PATH'
-                        ' or at least one Android platform is installed')
-
-def _check_env():
-    global android_home, platform_tools, adb, aapt, aapt_version  # pylint: disable=W0603
-    if not android_home:
         android_home = os.getenv('ANDROID_HOME')
         if android_home:
-            _env = _initialize_with_android_home(_AndroidEnvironment())
+            paths = self._from_android_home(android_home)
         else:
-            _env = _initialize_without_android_home(_AndroidEnvironment())
-        android_home = _env.android_home
-        platform_tools = _env.platform_tools
-        adb = _env.adb
-        aapt = _env.aapt
-        aapt_version = _env.aapt_version
+            paths = self._from_adb()
+
+        self.paths = paths
+
+    @classmethod
+    def _from_android_home(cls, android_home):
+        logger.debug('Using ANDROID_HOME from the environment.')
+        platform_tools = os.path.join(android_home, 'platform-tools')
+
+        return {
+            'android_home': android_home,
+            'platform_tools': platform_tools,
+            'adb': os.path.join(platform_tools, 'adb'),
+            'fastboot': os.path.join(platform_tools, 'fastboot'),
+            **cls._init_common(android_home)
+        }
+        return paths
+
+    @classmethod
+    def _from_adb(cls):
+        adb_path = which('adb')
+        if adb_path:
+            logger.debug('Discovering ANDROID_HOME from adb path.')
+            platform_tools = os.path.dirname(adb_path)
+            android_home = os.path.dirname(platform_tools)
+
+            return {
+                'android_home': android_home,
+                'platform_tools': platform_tools,
+                'adb': adb_path,
+                'fastboot': which('fastboot'),
+                **cls._init_common(android_home)
+            }
+        else:
+            raise HostError('ANDROID_HOME is not set and adb is not in PATH. '
+                            'Have you installed Android SDK?')
+
+    @classmethod
+    def _init_common(cls, android_home):
+        logger.debug(f'ANDROID_HOME: {android_home}')
+        build_tools = cls._discover_build_tools(android_home)
+        return {
+            'build_tools': build_tools,
+            **cls._discover_aapt(build_tools)
+        }
+
+    @staticmethod
+    def _discover_build_tools(android_home):
+        build_tools = os.path.join(android_home, 'build-tools')
+        if os.path.isdir(build_tools):
+            return build_tools
+        else:
+            return None
+
+    @staticmethod
+    def _check_supported_aapt2(binary):
+        # At time of writing the version argument of aapt2 is not helpful as
+        # the output is only a placeholder that does not distinguish between versions
+        # with and without support for badging. Unfortunately aapt has been
+        # deprecated and fails to parse some valid apks so we will try to favour
+        # aapt2 if possible else will fall back to aapt.
+        # Try to execute the badging command and check if we get an expected error
+        # message as opposed to an unknown command error to determine if we have a
+        # suitable version.
+        result = subprocess.run([str(binary), 'dump', 'badging'], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, universal_newlines=True)
+        supported = bool(AAPT_BADGING_OUTPUT.search(result.stderr))
+        msg = 'Found a {} aapt2 binary at: {}'
+        logger.debug(msg.format('supported' if supported else 'unsupported', binary))
+        return supported
+
+    @classmethod
+    def _discover_aapt(cls, build_tools):
+        if build_tools:
+
+            def find_aapt2(version):
+                path = os.path.join(build_tools, version, 'aapt2')
+                if os.path.isfile(path) and cls._check_supported_aapt2(path):
+                    return (2, path)
+                else:
+                    return (None, None)
+
+            def find_aapt(version):
+                path = os.path.join(build_tools, version, 'aapt')
+                if os.path.isfile(path):
+                    return (1, path)
+                else:
+                    return (None, None)
+
+            versions = os.listdir(build_tools)
+            found = (
+                (version, finder(version))
+                for version in reversed(sorted(versions))
+                for finder in (find_aapt2, find_aapt)
+            )
+
+            for version, (aapt_version, aapt_path) in found:
+                if aapt_path:
+                    logger.debug(f'Using {aapt_path} for version {version}')
+                    return dict(
+                        aapt=aapt_path,
+                        aapt_version=aapt_version,
+                    )
+
+        # Try detecting aapt2 and aapt from PATH
+        aapt2_path = which('aapt2')
+        aapt_path = which('aapt')
+        if aapt2_path and cls._check_supported_aapt2(aapt2_path):
+            return dict(
+                aapt=aapt2_path,
+                aapt_version=2,
+            )
+        elif aapt_path:
+            return dict(
+                aapt=aapt_path,
+                aapt_version=1,
+            )
+        else:
+            raise HostError('aapt/aapt2 not found. Please make sure it is avaliable in PATH or at least one Android platform is installed')
+
 
 class LogcatMonitor(object):
     """
@@ -911,7 +962,7 @@ class LogcatMonitor(object):
         if self._logcat_format:
             logcat_cmd = "{} -v {}".format(logcat_cmd, quote(self._logcat_format))
 
-        logcat_cmd = get_adb_command(self.target.conn.device, logcat_cmd, self.target.adb_server)
+        logcat_cmd = get_adb_command(self.target.conn.device, logcat_cmd, self.target.adb_server, self.target.adb_port)
 
         logger.debug('logcat command ="{}"'.format(logcat_cmd))
         self._logcat = pexpect.spawn(logcat_cmd, logfile=self._logfile, encoding='utf-8')

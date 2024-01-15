@@ -747,9 +747,14 @@ Android Target
 
 .. method:: AndroidTarget.is_screen_on()
 
-   Returns ``True`` if the targets screen is currently on and ``False``
+   Returns ``True`` if the target's screen is currently on and ``False``
    otherwise. If the display is in a "Doze" mode or similar always on state,
    this will return ``True``.
+
+.. method:: AndroidTarget.is_screen_locked()
+
+   Returns ``True`` if the target's screen is currently locked and ``False``
+   otherwise.
 
 .. method:: AndroidTarget.wait_for_device(timeout=30)
 
