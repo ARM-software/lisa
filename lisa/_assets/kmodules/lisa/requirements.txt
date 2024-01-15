@@ -1,3 +1,0 @@
-# We need the __attribute__(()) support implemented in that pull request:
-# https://github.com/inducer/pycparserext/pull/76
-https://github.com/douglas-raillard-arm/pycparserext/archive/lisa.zip

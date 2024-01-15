@@ -1,4 +1,0 @@
-The documentation of exekall is cleanly kept separate from the one of LISA, but
-is not intended to be built on its own ATM. The only part that contains a
-conf.py is the manpage.
-
