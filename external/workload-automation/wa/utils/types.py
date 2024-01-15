@@ -29,19 +29,14 @@ import os
 import re
 import numbers
 import shlex
-import sys
 from bisect import insort
-if sys.version_info[0] == 3:
-    from urllib.parse import quote, unquote  # pylint: disable=no-name-in-module, import-error
-    from past.builtins import basestring  # pylint: disable=redefined-builtin
-    long = int  # pylint: disable=redefined-builtin
-else:
-    from urllib import quote, unquote  # pylint: disable=no-name-in-module
+from urllib.parse import quote, unquote  # pylint: disable=no-name-in-module, import-error
 # pylint: disable=wrong-import-position
 from collections import defaultdict
 from collections.abc import MutableMapping
 from functools import total_ordering
 
+from past.builtins import basestring  # pylint: disable=redefined-builtin
 from future.utils import with_metaclass
 
 from devlib.utils.types import identifier, boolean, integer, numeric, caseless_string
@@ -710,8 +705,6 @@ class ParameterDict(dict):
             prefix = 'f'
         elif isinstance(obj, bool):
             prefix = 'b'
-        elif isinstance(obj, long):
-            prefix = 'i'
         elif isinstance(obj, int):
             prefix = 'i'
         elif obj is None:
@@ -792,10 +785,7 @@ class ParameterDict(dict):
         return (key, self._decode(value))
 
     def iter_encoded_items(self):
-        if sys.version_info[0] == 3:
-            return dict.items(self)
-        else:
-            return dict.iteritems(self)
+        return dict.items(self)
 
     def get_encoded_value(self, name):
         return dict.__getitem__(self, name)

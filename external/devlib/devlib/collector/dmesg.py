@@ -185,8 +185,13 @@ class DmesgCollector(CollectorBase):
         self.basic_dmesg = '--force-prefix' not in \
                 self.target.execute('dmesg -h', check_exit_code=False)
         self.facility = facility
-        self.needs_root = bool(target.config.typed_config.get(
-            'CONFIG_SECURITY_DMESG_RESTRICT', KernelConfigTristate.NO))
+        try:
+            needs_root = target.read_sysctl('kernel.dmesg_restrict')
+        except ValueError:
+            needs_root = True
+        else:
+            needs_root = bool(int(needs_root))
+        self.needs_root = needs_root
 
         self._begin_timestamp = None
         self.empty_buffer = empty_buffer

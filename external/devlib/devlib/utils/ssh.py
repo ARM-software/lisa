@@ -67,9 +67,17 @@ from devlib.connection import (ConnectionBase, ParamikoBackgroundCommand, PopenB
 DEFAULT_SSH_SUDO_COMMAND = "sudo -k -p ' ' -S -- sh -c {}"
 
 
-ssh = None
-scp = None
-sshpass = None
+# Lazy init of some globals
+def __getattr__(attr):
+    if attr in {'ssh', 'scp', 'sshpass'}:
+        path = which(attr)
+        if path:
+            globals()[attr] = path
+            return path
+        else:
+            raise HostError(f'OpenSSH must be installed on the host: could not find {attr} command')
+    else:
+        raise AttributeError(f"Module '{__name__}' has no attribute '{attr}'")
 
 
 logger = logging.getLogger('ssh')
@@ -176,7 +184,6 @@ def telnet_get_shell(host,
                   port=None,
                   timeout=10,
                   original_prompt=None):
-    _check_env()
     start_time = time.time()
     while True:
         conn = TelnetPxssh(original_prompt=original_prompt)
@@ -758,11 +765,7 @@ class SshConnection(SshConnectionBase):
         output_chunks, exit_code = _read_paramiko_streams(stdout, stderr, select_timeout, callback, [])
         # Join in one go to avoid O(N^2) concatenation
         output = b''.join(output_chunks)
-
-        if sys.version_info[0] == 3:
-            output = output.decode(sys.stdout.encoding or 'utf-8', 'replace')
-        if strip_colors:
-            output = strip_bash_colors(output)
+        output = output.decode(sys.stdout.encoding or 'utf-8', 'replace')
 
         return (exit_code, output)
 
@@ -796,7 +799,6 @@ class TelnetConnection(SshConnectionBase):
             strict_host_check=strict_host_check,
         )
 
-        _check_env()
         self.options = self._get_default_options()
 
         self.lock = threading.Lock()
@@ -970,10 +972,7 @@ class TelnetConnection(SshConnectionBase):
                 logger.debug(command)
             self._sendline(command)
         timed_out = self._wait_for_prompt(timeout)
-        if sys.version_info[0] == 3:
-            output = process_backspaces(self.conn.before.decode(sys.stdout.encoding or 'utf-8', 'replace'))
-        else:
-            output = process_backspaces(self.conn.before)
+        output = process_backspaces(self.conn.before.decode(sys.stdout.encoding or 'utf-8', 'replace'))
 
         if timed_out:
             self.cancel_running_command()
@@ -1605,23 +1604,15 @@ class AndroidGem5Connection(Gem5Connection):
 
         gem5_logger.info("Android booted")
 
+
 def _give_password(password, command):
-    if not sshpass:
+    if sshpass:
+        pass_template = "{} -p {} "
+        pass_string = pass_template.format(quote(sshpass), quote(password))
+        redacted_string = pass_template.format(quote(sshpass), quote('<redacted>'))
+        return (pass_string + command, redacted_string + command)
+    else:
         raise HostError('Must have sshpass installed on the host in order to use password-based auth.')
-    pass_template = "sshpass -p {} "
-    pass_string = pass_template.format(quote(password))
-    redacted_string = pass_template.format(quote('<redacted>'))
-    return (pass_string + command, redacted_string + command)
-
-
-def _check_env():
-    global ssh, scp, sshpass  # pylint: disable=global-statement
-    if not ssh:
-        ssh = which('ssh')
-        scp = which('scp')
-        sshpass = which('sshpass')
-    if not (ssh and scp):
-        raise HostError('OpenSSH must be installed on the host.')
 
 
 def process_backspaces(text):

@@ -217,10 +217,7 @@ class GfxinfoFrameCollector(FrameCollector):
     def collect_frames(self, wfh):
         cmd = 'dumpsys gfxinfo {} framestats'
         result = self.target.execute(cmd.format(self.package))
-        if sys.version_info[0] == 3:
-            wfh.write(result.encode('utf-8'))
-        else:
-            wfh.write(result)
+        wfh.write(result.encode('utf-8'))
 
     def clear(self):
         pass

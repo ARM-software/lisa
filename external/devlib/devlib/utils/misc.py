@@ -594,11 +594,7 @@ class LoadSyntaxError(Exception):
 
 RAND_MOD_NAME_LEN = 30
 BAD_CHARS = string.punctuation + string.whitespace
-# pylint: disable=no-member
-if sys.version_info[0] == 3:
-    TRANS_TABLE = str.maketrans(BAD_CHARS, '_' * len(BAD_CHARS))
-else:
-    TRANS_TABLE = string.maketrans(BAD_CHARS, '_' * len(BAD_CHARS))
+TRANS_TABLE = str.maketrans(BAD_CHARS, '_' * len(BAD_CHARS))
 
 
 def to_identifier(text):

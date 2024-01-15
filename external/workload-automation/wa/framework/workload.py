@@ -945,7 +945,7 @@ class TestPackageHandler(PackageHandler):
     def setup(self, context):
         self.initialize_package(context)
 
-        words = ['am', 'instrument']
+        words = ['am', 'instrument', '--user', '0']
         if self.raw:
             words.append('-r')
         if self.wait:
