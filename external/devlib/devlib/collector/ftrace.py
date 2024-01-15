@@ -408,8 +408,7 @@ class FtraceCollector(CollectorBase):
             self.logger.debug(command)
             process = subprocess.Popen(command, stderr=subprocess.PIPE, shell=True)
             _, error = process.communicate()
-            if sys.version_info[0] == 3:
-                error = error.decode(sys.stdout.encoding or 'utf-8', 'replace')
+            error = error.decode(sys.stdout.encoding or 'utf-8', 'replace')
             if process.returncode:
                 raise TargetStableError('trace-cmd returned non-zero exit code {}'.format(process.returncode))
             if error:

@@ -100,9 +100,8 @@ class MonsoonInstrument(Instrument):
         process.poll()
         if process.returncode is not None:
             stdout, stderr = process.communicate()
-            if sys.version_info[0] == 3:
-                stdout = stdout.encode(sys.stdout.encoding or 'utf-8')
-                stderr = stderr.encode(sys.stdout.encoding or 'utf-8')
+            stdout = stdout.encode(sys.stdout.encoding or 'utf-8')
+            stderr = stderr.encode(sys.stdout.encoding or 'utf-8')
             raise HostError(
                 'Monsoon script exited unexpectedly with exit code {}.\n'
                 'stdout:\n{}\nstderr:\n{}'.format(process.returncode,

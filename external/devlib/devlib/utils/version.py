@@ -42,7 +42,7 @@ def get_commit():
     p.wait()
     if p.returncode:
         return None
-    if sys.version_info[0] == 3 and isinstance(std, bytes):
+    if isinstance(std, bytes):
         return std[:8].decode(sys.stdout.encoding or 'utf-8', 'replace')
     else:
         return std[:8]

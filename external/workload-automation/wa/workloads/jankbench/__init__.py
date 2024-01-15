@@ -223,8 +223,7 @@ class JankbenchRunMonitor(threading.Thread):
                 ready, _, _ = select.select([proc.stdout, proc.stderr], [], [], 2)
                 if ready:
                     line = ready[0].readline()
-                    if sys.version_info[0] == 3:
-                        line = line.decode(sys.stdout.encoding, 'replace')
+                    line = line.decode(sys.stdout.encoding, 'replace')
                     if self.regex.search(line):
                         self.run_ended.set()
         proc.terminate()

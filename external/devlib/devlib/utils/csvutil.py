@@ -60,10 +60,7 @@ from contextlib import contextmanager
 
 @contextmanager
 def csvwriter(filepath, *args, **kwargs):
-    if sys.version_info[0] == 3:
-        wfh = open(filepath, 'w', newline='')
-    else:
-        wfh = open(filepath, 'wb')
+    wfh = open(filepath, 'w', newline='')
 
     try:
         yield csv.writer(wfh, *args, **kwargs)
@@ -73,10 +70,7 @@ def csvwriter(filepath, *args, **kwargs):
 
 @contextmanager
 def csvreader(filepath, *args, **kwargs):
-    if sys.version_info[0] == 3:
-        fh = open(filepath, 'r', newline='')
-    else:
-        fh = open(filepath, 'rb')
+    fh = open(filepath, 'r', newline='')
 
     try:
         yield csv.reader(fh, *args, **kwargs)
@@ -85,16 +79,10 @@ def csvreader(filepath, *args, **kwargs):
 
 
 def create_writer(filepath, *args, **kwargs):
-    if sys.version_info[0] == 3:
-        wfh = open(filepath, 'w', newline='')
-    else:
-        wfh = open(filepath, 'wb')
+    wfh = open(filepath, 'w', newline='')
     return csv.writer(wfh, *args, **kwargs), wfh
 
 
 def create_reader(filepath, *args, **kwargs):
-    if sys.version_info[0] == 3:
-        fh = open(filepath, 'r', newline='')
-    else:
-        fh = open(filepath, 'rb')
+    fh = open(filepath, 'r', newline='')
     return csv.reader(fh, *args, **kwargs), fh

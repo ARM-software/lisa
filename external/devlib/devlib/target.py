@@ -68,14 +68,14 @@ import devlib.utils.asyn as asyn
 
 
 FSTAB_ENTRY_REGEX = re.compile(r'(\S+) on (.+) type (\S+) \((\S+)\)')
-ANDROID_SCREEN_STATE_REGEX = re.compile('(?:mPowerState|mScreenOn|mWakefulness|Display Power: state)=([0-9]+|true|false|ON|OFF|DOZE|Asleep|Awake)',
+ANDROID_SCREEN_STATE_REGEX = re.compile('(?:mPowerState|mScreenOn|mWakefulness|Display Power: state)=([0-9]+|true|false|ON|OFF|DOZE|Dozing|Asleep|Awake)',
                                         re.IGNORECASE)
 ANDROID_SCREEN_RESOLUTION_REGEX = re.compile(r'cur=(?P<width>\d+)x(?P<height>\d+)')
 ANDROID_SCREEN_ROTATION_REGEX = re.compile(r'orientation=(?P<rotation>[0-3])')
 DEFAULT_SHELL_PROMPT = re.compile(r'^.*(shell|root|juno)@?.*:[/~]\S* *[#$] ',
                                   re.MULTILINE)
 KVERSION_REGEX = re.compile(
-    r'(?P<version>\d+)(\.(?P<major>\d+)(\.(?P<minor>\d+)(-rc(?P<rc>\d+))?)?)?(-(?P<commits>\d+)-g(?P<sha1>[0-9a-fA-F]{7,}))?'
+    r'(?P<version>\d+)(\.(?P<major>\d+)(\.(?P<minor>\d+))?(-rc(?P<rc>\d+))?)?(-android(?P<android_version>[0-9]+))?(-(?P<commits>\d+)-g(?P<sha1>[0-9a-fA-F]{7,}))?(-ab(?P<gki_abi>[0-9]+))?'
 )
 
 GOOGLE_DNS_SERVER_ADDRESS = '8.8.8.8'
@@ -1178,6 +1178,17 @@ fi
         await self.execute.asyn('rm -rf -- {}'.format(quote(path)), as_root=as_root)
 
     # misc
+    @asyn.asyncf
+    async def read_sysctl(self, parameter):
+        """
+        Returns the value of the given sysctl parameter as a string.
+        """
+        path = target.path.join('proc', 'sys', *parameter.split('.'))
+        try:
+            return await self.read_value.asyn(path)
+        except FileNotFoundError as e:
+            raise ValueError(f'systcl parameter {parameter} was not found: {e}')
+
     def core_cpus(self, core):
         return [i for i, c in enumerate(self.core_names) if c == core]
 
@@ -2018,10 +2029,7 @@ class AndroidTarget(Target):
 
         parsed_xml = xml.dom.minidom.parse(filepath)
         with open(filepath, 'w') as f:
-            if sys.version_info[0] == 3:
-                f.write(parsed_xml.toprettyxml())
-            else:
-                f.write(parsed_xml.toprettyxml().encode('utf-8'))
+            f.write(parsed_xml.toprettyxml())
 
     @asyn.asyncf
     async def is_installed(self, name):
@@ -2099,6 +2107,8 @@ class AndroidTarget(Target):
                 pass # Ignore if not requested
             elif 'Operation not allowed' in e.message:
                 pass # Ignore if not allowed
+            elif 'is managed by role' in e.message:
+                pass # Ignore if cannot be granted
             else:
                 raise
 
@@ -2203,12 +2213,19 @@ class AndroidTarget(Target):
         self.conn.reboot_bootloader()
 
     @asyn.asyncf
+    async def is_screen_locked(self):
+        screen_state = await self.execute.asyn('dumpsys window')
+        return 'mDreamingLockscreen=true' in screen_state
+
+    @asyn.asyncf
     async def is_screen_on(self):
         output = await self.execute.asyn('dumpsys power')
         match = ANDROID_SCREEN_STATE_REGEX.search(output)
         if match:
             if 'DOZE' in match.group(1).upper():
                 return True
+            if match.group(1) == 'Dozing':
+                return False
             if match.group(1) == 'Asleep':
                 return False
             if match.group(1) == 'Awake':
@@ -2222,7 +2239,7 @@ class AndroidTarget(Target):
         if not await self.is_screen_on.asyn():
             self.execute('input keyevent 26')
         if verify and not await self.is_screen_on.asyn():
-             raise TargetStableError('Display cannot be turned on.')
+            raise TargetStableError('Display cannot be turned on.')
 
     @asyn.asyncf
     async def ensure_screen_is_on_and_stays(self, verify=True, mode=7):
@@ -2527,6 +2544,10 @@ class KernelVersion(object):
     :type commits: int
     :ivar sha1: Kernel git revision hash, if available (otherwise None)
     :type sha1: str
+    :ivar android_version: Android version, if available (otherwise None)
+    :type android_version: int
+    :ivar gki_abi: GKI kernel abi, if available (otherwise None)
+    :type gki_abi: str
 
     :ivar parts: Tuple of version number components. Can be used for
                  lexicographically comparing kernel versions.
@@ -2550,6 +2571,8 @@ class KernelVersion(object):
         self.sha1 = None
         self.rc = None
         self.commits = None
+        self.gki_abi = None
+        self.android_version = None
         match = KVERSION_REGEX.match(version_string)
         if match:
             groups = match.groupdict()
@@ -2563,6 +2586,10 @@ class KernelVersion(object):
                 self.commits = int(groups['commits'])
             if groups['sha1'] is not None:
                 self.sha1 = match.group('sha1')
+            if groups['gki_abi'] is not None:
+                self.gki_abi = match.group('gki_abi')
+            if groups['android_version'] is not None:
+                self.android_version = int(match.group('android_version'))
 
         self.parts = (self.version_number, self.major, self.minor)
 

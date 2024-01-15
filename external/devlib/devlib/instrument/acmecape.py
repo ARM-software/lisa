@@ -116,10 +116,7 @@ class AcmeCapeInstrument(Instrument):
                 msg = 'Could not terminate iio-capture:\n{}'
                 raise HostError(msg.format(output))
         if self.process.returncode != 15: # iio-capture exits with 15 when killed
-            if sys.version_info[0] == 3:
-                output += self.process.stdout.read().decode(sys.stdout.encoding or 'utf-8', 'replace')
-            else:
-                output += self.process.stdout.read()
+            output += self.process.stdout.read().decode(sys.stdout.encoding or 'utf-8', 'replace')
             self.logger.info('ACME instrument encountered an error, '
                              'you may want to try rebooting the ACME device:\n'
                              '  ssh root@{} reboot'.format(self.host))

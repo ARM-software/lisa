@@ -13,11 +13,11 @@
 # limitations under the License.
 #
 
-import imp
 import os
 import sys
 import warnings
 from itertools import chain
+import types
 
 try:
     from setuptools import setup
@@ -35,15 +35,25 @@ sys.path.insert(0, os.path.join(devlib_dir, 'core'))
 warnings.filterwarnings('ignore', "Unknown distribution option: 'install_requires'")
 warnings.filterwarnings('ignore', "Unknown distribution option: 'extras_require'")
 
+
 try:
     os.remove('MANIFEST')
 except OSError:
     pass
 
 
+def _load_path(filepath):
+    # Not a proper import in many, many ways but does the job for really basic
+    # needs
+    with open(filepath) as f:
+        globals_ = dict(__file__=filepath)
+        exec(f.read(), globals_)
+        return types.SimpleNamespace(**globals_)
+
+
 vh_path = os.path.join(devlib_dir, 'utils', 'version.py')
 # can load this, as it does not have any devlib imports
-version_helper = imp.load_source('version_helper', vh_path)
+version_helper = _load_path(vh_path)
 __version__ = version_helper.get_devlib_version()
 commit = version_helper.get_commit()
 if commit:
@@ -94,6 +104,7 @@ params = dict(
         'pandas',
         'lxml', # More robust xml parsing
         'nest_asyncio', # Allows running nested asyncio loops
+        'future', # for the "past" Python package
     ],
     extras_require={
         'daq': ['daqpower>=2'],

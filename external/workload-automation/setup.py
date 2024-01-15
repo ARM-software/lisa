@@ -79,6 +79,7 @@ params = dict(
     license='Apache v2',
     maintainer='ARM Architecture & Technology Device Lab',
     maintainer_email='workload-automation@arm.com',
+    python_requires='>= 3.7',
     setup_requires=[
         'numpy<=1.16.4; python_version<"3"',
         'numpy; python_version>="3"',
