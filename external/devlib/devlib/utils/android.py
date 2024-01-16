@@ -156,7 +156,7 @@ class ApkInfo(object):
 
     # pylint: disable=too-many-branches
     def parse(self, apk_path):
-        output = self._run([self.aapt, 'dump', 'badging', apk_path])
+        output = self._run([self._aapt, 'dump', 'badging', apk_path])
         for line in output.split('\n'):
             if line.startswith('application-label:'):
                 self.label = line.split(':')[1].strip().replace('\'', '')
@@ -196,7 +196,7 @@ class ApkInfo(object):
     @property
     def activities(self):
         if self._activities is None:
-            cmd = [self.aapt, 'dump', 'xmltree', self._apk_path]
+            cmd = [self._aapt, 'dump', 'xmltree', self._apk_path]
             if self._aapt_version == 2:
                 cmd += ['--file']
             cmd += ['AndroidManifest.xml']
@@ -215,7 +215,7 @@ class ApkInfo(object):
                         extracted = z.extract('classes.dex', tmp_dir)
                     except KeyError:
                         return []
-                dexdump = os.path.join(os.path.dirname(self.aapt), 'dexdump')
+                dexdump = os.path.join(os.path.dirname(self._aapt), 'dexdump')
                 command = [dexdump, '-l', 'xml', extracted]
                 dump = self._run(command)
 
