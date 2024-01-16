@@ -19,6 +19,7 @@ Utility functions for working with Android devices through adb.
 
 """
 # pylint: disable=E1103
+import functools
 import glob
 import logging
 import os
@@ -88,18 +89,6 @@ INTENT_FLAGS = {
     'ACTIVITY_CLEAR_TASK' : 0x00008000
 }
 
-# Lazy init of some globals
-def __getattr__(attr):
-    env = _AndroidEnvironment()
-
-    glob = globals()
-    glob.update(env.paths)
-    try:
-        return glob[attr]
-    except KeyError:
-        raise AttributeError(f"Module '{__name__}' has no attribute '{attr}'")
-
-
 class AndroidProperties(object):
 
     def __init__(self, text):
@@ -162,9 +151,12 @@ class ApkInfo(object):
         if path:
             self.parse(path)
 
+        self._aapt = _ANDROID_ENV.get_env('aapt')
+        self._aapt_version = _ANDROID_ENV.get_env('aapt_version')
+
     # pylint: disable=too-many-branches
     def parse(self, apk_path):
-        output = self._run([aapt, 'dump', 'badging', apk_path])
+        output = self._run([self.aapt, 'dump', 'badging', apk_path])
         for line in output.split('\n'):
             if line.startswith('application-label:'):
                 self.label = line.split(':')[1].strip().replace('\'', '')
@@ -204,8 +196,8 @@ class ApkInfo(object):
     @property
     def activities(self):
         if self._activities is None:
-            cmd = [aapt, 'dump', 'xmltree', self._apk_path]
-            if aapt_version == 2:
+            cmd = [self.aapt, 'dump', 'xmltree', self._apk_path]
+            if self._aapt_version == 2:
                 cmd += ['--file']
             cmd += ['AndroidManifest.xml']
             matched_activities = self.activity_regex.finditer(self._run(cmd))
@@ -223,7 +215,7 @@ class ApkInfo(object):
                         extracted = z.extract('classes.dex', tmp_dir)
                     except KeyError:
                         return []
-                dexdump = os.path.join(os.path.dirname(aapt), 'dexdump')
+                dexdump = os.path.join(os.path.dirname(self.aapt), 'dexdump')
                 command = [dexdump, '-l', 'xml', extracted]
                 dump = self._run(command)
 
@@ -484,7 +476,8 @@ class AdbConnection(ConnectionBase):
 
 def fastboot_command(command, timeout=None, device=None):
     target = '-s {}'.format(quote(device)) if device else ''
-    full_command = 'fastboot {} {}'.format(target, command)
+    bin_ = _ANDROID_ENV.get_env('fastboot')
+    full_command = f'{bin} {target} {command}'
     logger.debug(full_command)
     output, _ = check_output(full_command, timeout, shell=True)
     return output
@@ -725,7 +718,7 @@ def adb_list_devices(adb_server=None, adb_port=None):
 def _get_adb_parts(command, device=None, adb_server=None, adb_port=None, quote_adb=True):
     _quote = quote if quote_adb else lambda x: x
     parts = (
-        adb,
+        _ANDROID_ENV.get_env('adb'),
         *(('-H', _quote(adb_server)) if adb_server is not None else ()),
         *(('-P', _quote(str(adb_port))) if adb_port is not None else ()),
         *(('-s', _quote(device)) if device is not None else ()),
@@ -778,16 +771,23 @@ def grant_app_permissions(target, package):
 
 
 # Messy environment initialisation stuff...
-
 class _AndroidEnvironment:
-    def __init__(self):
+    # Make the initialization lazy so that we don't trigger an exception if the
+    # user imports the module (directly or indirectly) without actually using
+    # anything from it
+    @property
+    @functools.lru_cache(maxsize=None)
+    def env(self):
         android_home = os.getenv('ANDROID_HOME')
         if android_home:
-            paths = self._from_android_home(android_home)
+            env = self._from_android_home(android_home)
         else:
-            paths = self._from_adb()
+            env = self._from_adb()
 
-        self.paths = paths
+        return env
+
+    def get_env(self, name):
+        return self.env[name]
 
     @classmethod
     def _from_android_home(cls, android_home):
@@ -801,7 +801,6 @@ class _AndroidEnvironment:
             'fastboot': os.path.join(platform_tools, 'fastboot'),
             **cls._init_common(android_home)
         }
-        return paths
 
     @classmethod
     def _from_adb(cls):
@@ -1055,3 +1054,6 @@ class LogcatMonitor(object):
 
         return [line for line in self.get_log()[next_line_num:]
                 if re.match(regexp, line)]
+
+_ANDROID_ENV = _AndroidEnvironment()
+
