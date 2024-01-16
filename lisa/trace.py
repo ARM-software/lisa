@@ -4904,9 +4904,6 @@ class Trace(Loggable, TraceBase):
         df = df.rename(columns={'cpus': 'cpumask'}, copy=False)
         df = df.copy(deep=False)
 
-        if df['cpumask'].dtype.name == 'object':
-            df['cpumask'] = df['cpumask'].apply(self._expand_bitmask_field)
-
         if event == 'thermal_power_cpu_get_power':
             if df['load'].dtype.name == 'object':
                 df['load'] = df['load'].apply(parse_load)
@@ -4950,46 +4947,6 @@ class Trace(Loggable, TraceBase):
                 if last_char == ord(b'\n'):
                     df['buf'] = df['buf'].apply(lambda x: x.rstrip(b'\n'))
 
-        return df
-
-    @staticmethod
-    def _expand_bitmask_field(mask):
-        """
-        Turn a bitmask (like cpu_mask) formated by trace-cmd in non-raw mode
-        into a list of integers for each bitmask position that is set.
-
-        ``mask`` is a string with comma-separated hex numbers like
-        "000001,12345,..."
-        """
-        numbers = mask.split(b',')
-
-        # hex number, so 4 bit per digit
-        nr_bits = len(numbers[0]) * 4
-
-        def bit_pos(number):
-            # Little endian
-            number = int(number, base=16)
-            return (
-                i
-                for i in range(nr_bits)
-                if number & (1 << i)
-            )
-
-        return tuple(
-            i + (nr_bits * offset)
-            for offset, positions in enumerate(
-                # LSB is in the number at the end of the list so we reverse it
-                map(bit_pos, reversed(numbers))
-            )
-            for i in positions
-        )
-
-    @_sanitize_event('ipi_raise')
-    def _sanitize_ipi_raise(self, event, df, aspects):
-        # pylint: disable=unused-argument,no-self-use
-
-        df = df.copy(deep=False)
-        df['target_cpus'] = df['target_cpus'].apply(self._expand_bitmask_field)
         return df
 
     @_sanitize_event('ipi_entry')
