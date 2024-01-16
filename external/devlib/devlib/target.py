@@ -1183,7 +1183,7 @@ fi
         """
         Returns the value of the given sysctl parameter as a string.
         """
-        path = target.path.join('proc', 'sys', *parameter.split('.'))
+        path = self.path.join('proc', 'sys', *parameter.split('.'))
         try:
             return await self.read_value.asyn(path)
         except FileNotFoundError as e:
