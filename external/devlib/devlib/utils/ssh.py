@@ -67,18 +67,18 @@ from devlib.connection import (ConnectionBase, ParamikoBackgroundCommand, PopenB
 DEFAULT_SSH_SUDO_COMMAND = "sudo -k -p ' ' -S -- sh -c {}"
 
 
-# Lazy init of some globals
-def __getattr__(attr):
-    if attr in {'ssh', 'scp', 'sshpass'}:
-        path = which(attr)
-        if path:
-            globals()[attr] = path
-            return path
+class _SSHEnv:
+    @functools.lru_cache(maxsize=None)
+    def get_path(self, tool):
+        if tool in {'ssh', 'scp', 'sshpass'}:
+            path = which(tool)
+            if path:
+                return path
+            else:
+                raise HostError(f'OpenSSH must be installed on the host: could not find {tool} command')
         else:
-            raise HostError(f'OpenSSH must be installed on the host: could not find {attr} command')
-    else:
-        raise AttributeError(f"Module '{__name__}' has no attribute '{attr}'")
-
+            raise AttributeError(f"Tool '{tool}' is not supported")
+_SSH_ENV = _SSHEnv()
 
 logger = logging.getLogger('ssh')
 gem5_logger = logging.getLogger('gem5-connection')
@@ -848,7 +848,7 @@ class TelnetConnection(SshConnectionBase):
         options = " ".join(["-o {}={}".format(key, val)
                             for key, val in self.options.items()])
         paths = ' '.join(map(quote, paths))
-        command = '{} {} -r {} {} {}'.format(scp,
+        command = '{} {} -r {} {} {}'.format(_SSH_ENV.get_path('scp'),
                                                 options,
                                                 keyfile_string,
                                                 port_string,
@@ -916,7 +916,7 @@ class TelnetConnection(SshConnectionBase):
                 command = self.sudo_cmd.format(command)
             options = " ".join([ "-o {}={}".format(key,val)
                                 for key,val in self.options.items()])
-            command = '{} {} {} {} {}@{} {}'.format(ssh,
+            command = '{} {} {} {} {}@{} {}'.format(_SSH_ENV.get_path('ssh'),
                                                     options,
                                                     keyfile_string,
                                                     port_string,
@@ -1606,6 +1606,7 @@ class AndroidGem5Connection(Gem5Connection):
 
 
 def _give_password(password, command):
+    sshpass = _SSH_ENV.get_path('sshpass')
     if sshpass:
         pass_template = "{} -p {} "
         pass_string = pass_template.format(quote(sshpass), quote(password))
