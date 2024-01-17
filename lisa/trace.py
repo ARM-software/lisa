@@ -5591,9 +5591,8 @@ class MissingTraceEventError(RuntimeError, ValueError):
                 )
                 if matches
             }
-            available = '. Closest available matches are: {}. Available events are: {}'.format(
+            available = '. Closest available matches are: {}'.format(
                 ', '.join(sorted(closest)),
-                ', '.join(sorted(available))
             )
         else:
             available = ''
