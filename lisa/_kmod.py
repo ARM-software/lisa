@@ -1463,7 +1463,10 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         env = cls._make_toolchain_env_from_conf(build_conf)
 
         def priority_to(cc):
-            return lambda _cc: 0 if cc in _cc.name else 1
+            def prio(_cc):
+                prio = 0 if cc in _cc.name else 1
+                return (prio, prio == 0)
+            return prio
 
         cc_priority = priority_to('clang')
 
@@ -1488,23 +1491,26 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                         )
 
                     def cc_priority(cc):
-                        if 'clang' in cc.name:
-                            version = re.search(r'[0-9]+', cc.name)
-                            if version is None:
-                                if is_host_env:
-                                    try:
-                                        version, *_ = _clang_version(cc, env=env)
-                                    except ValueError:
-                                        return (2,)
+                        def prio(cc):
+                            if 'clang' in cc.name:
+                                version = re.search(r'[0-9]+', cc.name)
+                                if version is None:
+                                    if is_host_env:
+                                        try:
+                                            version, *_ = _clang_version(cc, env=env)
+                                        except ValueError:
+                                            return (2,)
+                                        else:
+                                            return version_key(version)
                                     else:
-                                        return version_key(version)
+                                        return (2,)
                                 else:
-                                    return (2,)
+                                    version = int(version.group(0))
+                                    return version_key(version)
                             else:
-                                version = int(version.group(0))
-                                return version_key(version)
-                        else:
-                            return (3,)
+                                return (3,)
+                        prio = prio(cc)
+                        return (prio, prio == (0, 0))
             else:
                 try:
                     proc_version = target.read_value('/proc/version')
@@ -1682,7 +1688,8 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             raise ValueError(f'Could not detect which CROSS_COMPILE value to use')
 
         ideal_cc, _ = ccs[0]
-        if str(cc) != str(ideal_cc):
+        cc_is_perfect = cc_priority(cc)[1]
+        if str(cc) != str(ideal_cc) or not cc_is_perfect:
             logger.warning(f'Could not find ideal CC={ideal_cc} but found CC={cc} instead. Results may vary from working fine to crashing the kernel')
 
         return (cc, cross_compile, cc_key)
