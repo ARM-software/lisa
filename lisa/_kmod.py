@@ -1683,7 +1683,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
 
         ideal_cc, _ = ccs[0]
         if str(cc) != str(ideal_cc):
-            logger.info(f'Could not find ideal CC={ideal_cc} but found CC={cc} instead')
+            logger.warning(f'Could not find ideal CC={ideal_cc} but found CC={cc} instead. Results may vary from working fine to crashing the kernel')
 
         return (cc, cross_compile, cc_key)
 
