@@ -148,11 +148,11 @@ class ApkInfo(object):
         self._apk_path = None
         self._activities = None
         self._methods = None
-        if path:
-            self.parse(path)
-
         self._aapt = _ANDROID_ENV.get_env('aapt')
         self._aapt_version = _ANDROID_ENV.get_env('aapt_version')
+
+        if path:
+            self.parse(path)
 
     # pylint: disable=too-many-branches
     def parse(self, apk_path):
