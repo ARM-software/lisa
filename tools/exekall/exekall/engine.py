@@ -2465,17 +2465,28 @@ class Operator:
             # make sure we got some usable type annotations that only consist
             # in classes, rather than things coming from the typing module
             param_map, value_type = prototype
+
+            def is_hint(annot):
+                # Prevent things like typing.Dict[], since it will raise
+                # exceptions when being used along issubclass()
+                #
+                # Note: We cannot use isinstance/issubclass as this would
+                # result in: TypeError: Class typing.Generic cannot be used
+                # with class or instance checks
+                return (
+                    typing.Generic in inspect.getmro(annot) or
+                    # Normal classes like dict can now be parametrized, e.g.
+                    # dict[int, str]. get_origin(dict) == None but
+                    # get_origin(dict[str, int]) == dict
+                    typing.get_origin(annot) is not None
+                )
+
             if not all(
                 (hasattr(typing, 'Self') and annot == typing.Self) or
                 isinstance(annot, type) and
                 (
                     isinstance(annot, typing.TypeVar) or
-                    # Prevent things like typing.Dict[], since it will raise
-                    # exceptions when being used along issubclass()
-                    #
-                    # Note: We cannot use isinstance/issubclass as this would result in:
-                    # TypeError: Class typing.Generic cannot be used with class or instance checks
-                    not typing.Generic in inspect.getmro(annot)
+                    not is_hint(annot)
                 )
                 for annot in {value_type, *param_map.values()}
             ):
