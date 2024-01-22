@@ -93,7 +93,7 @@ def simulate_pelt(activations, init=0, index=None, clock=None, capacity=None, wi
     df = pd.DataFrame({'activations': activations})
     if capacity is not None:
         df['rel_capacity'] = capacity.reindex(df.index, method='ffill') / scale
-        df['rel_capacity'].bfill(inplace=True)
+        df['rel_capacity'] = df['rel_capacity'].bfill()
 
     if clock is None:
         # If we have the CPU capacity at hand, we can make a fake PELT clock
