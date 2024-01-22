@@ -795,7 +795,7 @@ class Stats(Loggable):
         unit_col = self._unit_col
         default_unit = ''
         if unit_col in df:
-            df[unit_col].fillna(default_unit, inplace=True)
+            df[unit_col] = df[unit_col].fillna(default_unit)
         else:
             df[unit_col] = default_unit
 
