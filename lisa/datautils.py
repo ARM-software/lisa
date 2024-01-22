@@ -1446,7 +1446,7 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, prune=T
         except KeyError:
             pass
         else:
-            init_df[output_col].fillna(fill, inplace=True)
+            init_df[output_col] = df[output_col].fillna(fill)
 
     if prune:
         # Only keep the first row of each duplicate run

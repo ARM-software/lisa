@@ -64,7 +64,7 @@ class IdleAnalysis(TraceAnalysisBase):
         # The event uses an unsigned int even though the kernel uses -1, so use
         # -1 to avoid being tied to the event field type size
         non_idle = (2 ** 32) -1
-        df['state'].replace(non_idle, -1, inplace=True)
+        df['state'] = df['state'].replace(non_idle, -1)
         return df
 
     @TraceAnalysisBase.cache
