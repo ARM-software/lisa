@@ -730,7 +730,7 @@ class TasksAnalysis(TraceAnalysisBase):
         df_add_delta(df, col='duration', inplace=True)
 
         if not np.isnan(preempted_value):
-            df['active'].fillna(preempted_value, inplace=True)
+            df['active'] = df['active'].fillna(preempted_value)
 
         # Merge consecutive activations' duration. They could have been
         # split in two by a bit of preemption, and we don't want that to
@@ -747,8 +747,7 @@ class TasksAnalysis(TraceAnalysisBase):
         sleep = sleep.reindex(active.index, method='bfill')
         duty_cycle = active / (active + sleep)
 
-        df['duty_cycle'] = duty_cycle
-        df['duty_cycle'].ffill(inplace=True)
+        df['duty_cycle'] = duty_cycle.ffill()
 
         return df
 
