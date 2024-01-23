@@ -11,12 +11,14 @@
     "RQ_NR_RUNNING": "HAS_MEMBER(struct, rq, nr_running)",
 
     "CFS_PELT": "HAS_MEMBER(struct, cfs_rq, avg) && HAS_TYPE(struct, sched_avg)",
-    "CFS_UTIL_EST": "HAS_KERNEL_FEATURE(CFS_PELT) && HAS_MEMBER(struct, sched_avg, util_est)",
+    "CFS_UTIL_EST": "HAS_KERNEL_FEATURE(CFS_PELT) && HAS_MEMBER(struct, sched_avg, util_est) && HAS_TYPE(struct, util_est)",
+    "CFS_UTIL_EST_UNIFIED": "HAS_KERNEL_FEATURE(CFS_PELT) && HAS_MEMBER(struct, sched_avg, util_est) && !HAS_TYPE(struct, util_est)",
     "RQ_UCLAMP": "IS_ENABLED(CONFIG_UCLAMP_TASK) && HAS_MEMBER(struct, rq, uclamp)",
 
     "SE_PELT": "HAS_TYPE(struct, sched_avg) && HAS_MEMBER(struct, sched_entity, avg)",
     "SE_UCLAMP": "HAS_KERNEL_FEATURE(SE_PELT) && HAS_MEMBER(struct, uclamp_se, value)",
-    "SE_UTIL_EST": "HAS_KERNEL_FEATURE(SE_PELT) && HAS_MEMBER(struct, sched_avg, util_est)",
+    "SE_UTIL_EST": "HAS_KERNEL_FEATURE(SE_PELT) && HAS_MEMBER(struct, sched_avg, util_est) && HAS_TYPE(struct, util_est)",
+    "SE_UTIL_EST_UNIFIED": "HAS_KERNEL_FEATURE(SE_PELT) && HAS_MEMBER(struct, sched_avg, util_est) && !HAS_TYPE(struct, util_est)",
 
     "DL_PELT": "HAS_MEMBER(struct, rq, avg_dl)",
 
