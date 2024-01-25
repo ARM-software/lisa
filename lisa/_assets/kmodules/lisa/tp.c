@@ -168,12 +168,28 @@ static void sched_util_est_cfs_probe(void *feature, struct cfs_rq *cfs_rq)
 DEFINE_TP_EVENT_FEATURE(lisa__sched_util_est_cfs, TP_PROBES(TP_PROBE("sched_util_est_cfs_tp", sched_util_est_cfs_probe)));
 #endif
 
+#if HAS_KERNEL_FEATURE(CFS_UTIL_EST_UNIFIED)
+static void sched_util_est_cfs_unified_probe(void *feature, struct cfs_rq *cfs_rq)
+{
+	_trace_cfs(cfs_rq, trace_lisa__sched_util_est_cfs_unified);
+}
+DEFINE_TP_EVENT_FEATURE(lisa__sched_util_est_cfs_unified, TP_PROBES(TP_PROBE("sched_util_est_cfs_tp", sched_util_est_cfs_unified_probe)));
+#endif
+
 #if HAS_KERNEL_FEATURE(SE_UTIL_EST)
 static void sched_util_est_se_probe(void *feature, struct sched_entity *se)
 {
 	_trace_se(se, trace_lisa__sched_util_est_se);
 }
 DEFINE_TP_EVENT_FEATURE(lisa__sched_util_est_se, TP_PROBES(TP_PROBE("sched_util_est_se_tp", sched_util_est_se_probe)));
+#endif
+
+#if HAS_KERNEL_FEATURE(SE_UTIL_EST_UNIFIED)
+static void sched_util_est_se_unified_probe(void *feature, struct sched_entity *se)
+{
+	_trace_se(se, trace_lisa__sched_util_est_se_unified);
+}
+DEFINE_TP_EVENT_FEATURE(lisa__sched_util_est_se_unified, TP_PROBES(TP_PROBE("sched_util_est_se_tp", sched_util_est_se_unified_probe)));
 #endif
 
 #if HAS_KERNEL_FEATURE(RQ_CAPACITY)
