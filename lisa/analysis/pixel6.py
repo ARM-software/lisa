@@ -67,7 +67,7 @@ class Pixel6Analysis(TraceAnalysisBase):
             df = pd.DataFrame(dict(power=power, channel=df['chan_name']))
             return df.dropna()
 
-        df = grouped.apply(make_chan_df)
+        df = grouped[df.columns].apply(make_chan_df)
         df['channel'] = df['channel'].astype('category').cat.rename_categories(Pixel6Analysis.EMETER_CHAN_NAMES)
 
         return df
