@@ -258,6 +258,38 @@ TRACE_EVENT(lisa__sched_util_est_se,
 );
 #endif
 
+#if HAS_KERNEL_FEATURE(SE_UTIL_EST_UNIFIED)
+TRACE_EVENT(lisa__sched_util_est_se_unified,
+
+	TP_PROTO(int cpu, const char *path, const char *comm, int pid,
+		 const struct sched_avg *avg),
+
+	TP_ARGS(cpu, path, comm, pid, avg),
+
+	TP_STRUCT__entry(
+		__field(	unsigned long,	util			)
+		__field( 	unsigned int,	util_est		)
+		__field(	int,		cpu			)
+		__field(	int,		pid			)
+		__array(	char,		path,	PATH_SIZE	)
+		__array(	char,		comm,	TASK_COMM_LEN	)
+	),
+
+	TP_fast_assign(
+		__entry->cpu		= cpu;
+		strlcpy(__entry->path, path, PATH_SIZE);
+		strlcpy(__entry->comm, comm, TASK_COMM_LEN);
+		__entry->pid		= pid;
+		__entry->util_est	= avg->util_est & ~UTIL_AVG_UNCHANGED;
+		__entry->util		= avg->util_avg;
+	),
+
+	TP_printk("cpu=%d path=%s comm=%s pid=%d util_est=%u util=%lu",
+		  __entry->cpu, __entry->path, __entry->comm, __entry->pid,
+		  __entry->util_est, __entry->util)
+);
+#endif
+
 #if HAS_KERNEL_FEATURE(CFS_UTIL_EST)
 TRACE_EVENT(lisa__sched_util_est_cfs,
 
@@ -284,6 +316,32 @@ TRACE_EVENT(lisa__sched_util_est_cfs,
 	TP_printk("cpu=%d path=%s enqueued=%u ewma=%u util=%lu",
 		  __entry->cpu, __entry->path, __entry->enqueued,
 		 __entry->ewma, __entry->util)
+);
+#endif
+
+#if HAS_KERNEL_FEATURE(CFS_UTIL_EST_UNIFIED)
+TRACE_EVENT(lisa__sched_util_est_cfs_unified,
+
+	TP_PROTO(int cpu, char *path, const struct sched_avg *avg),
+
+	TP_ARGS(cpu, path, avg),
+
+	TP_STRUCT__entry(
+		__field(	unsigned long,	util			)
+		__field( 	unsigned int,	util_est		)
+		__field(	int,		cpu			)
+		__array(	char,		path,	PATH_SIZE	)
+	),
+
+	TP_fast_assign(
+		__entry->cpu		= cpu;
+		strlcpy(__entry->path, path, PATH_SIZE);
+		__entry->util_est	= avg->util_est;
+		__entry->util		= avg->util_avg;
+	),
+
+	TP_printk("cpu=%d path=%s util_est=%u util=%lu",
+		  __entry->cpu, __entry->path, __entry->util_est, __entry->util)
 );
 #endif
 
