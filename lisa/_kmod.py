@@ -137,11 +137,11 @@ import fnmatch
 
 from elftools.elf.elffile import ELFFile
 
-from devlib.target import KernelVersion, TypedKernelConfig, KernelConfigTristate
+from devlib.target import AndroidTarget, KernelVersion, TypedKernelConfig, KernelConfigTristate
 from devlib.host import LocalConnection
 from devlib.exception import TargetStableError, TargetStableCalledProcessError
 
-from lisa.utils import nullcontext, Loggable, LISA_CACHE_HOME, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor, destroyablecontextmanager, ContextManagerExit, ignore_exceps, get_nested_key, is_link_dead
+from lisa.utils import nullcontext, Loggable, LISA_CACHE_HOME, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor, destroyablecontextmanager, ContextManagerExit, ignore_exceps, get_nested_key, is_link_dead, deduplicate
 from lisa._assets import ASSETS_PATH, HOST_PATH, ABI_BINARIES_FOLDER
 from lisa._unshare import ensure_root
 import lisa._git as git
@@ -956,8 +956,8 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
     # On top of that, the kernel does not handle clang < 10.0.1
     _MIN_CLANG_VERSION = 11
 
-    def __init__(self, path_cm, build_conf=None):
-        self.conf, self.cc, self.cross_compile, self._cc_key, self.abi = self._resolve_conf(build_conf)
+    def __init__(self, path_cm, build_conf=None, target=None):
+        self.conf, self.cc, self.cross_compile, self._cc_key, self.abi = self._resolve_conf(build_conf, target=target)
 
         self._make_path_cm = path_cm
         self._path_cm = None
@@ -1462,13 +1462,34 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         logger = cls.get_logger()
         env = cls._make_toolchain_env_from_conf(build_conf)
 
+        def get_cross_compile_prio(cross_compile):
+            # Android kernels are typically built with and android target
+            # triplet. Failing to use the correct toolchain may result in
+            # compilation errors such as non-recognized CLI options, even if
+            # the toolchain binaries are the same.
+            if target is not None and isinstance(target.target, AndroidTarget):
+                return 0 if 'android' in cross_compile else 1
+            else:
+                return 0
+
         def priority_to(cc):
-            def prio(_cc):
-                prio = 0 if cc in _cc.name else 1
-                return (prio, prio == 0)
+            def prio(_cc, _cross_compile):
+                cc_prio = 0 if cc in _cc.name else 1
+                prio = (
+                    cc_prio,
+                    get_cross_compile_prio(_cross_compile)
+                )
+                return (
+                    prio,
+                    prio == (0, 0)
+                )
             return prio
 
-        cc_priority = priority_to('clang')
+        def no_priority():
+            return lambda _cc, _cross_compile: (0, True)
+
+        # If we can't get more precise info, select anything we can
+        cc_priority = no_priority()
 
         if target:
             config = target.config.typed_config
@@ -1490,7 +1511,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                             abs(clang_version - version)
                         )
 
-                    def cc_priority(cc):
+                    def cc_priority(cc, cross_compile):
                         def prio(cc):
                             if 'clang' in cc.name:
                                 version = re.search(r'[0-9]+', cc.name)
@@ -1509,8 +1530,12 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                                     return version_key(version)
                             else:
                                 return (3,)
-                        prio = prio(cc)
-                        return (prio, prio == (0, 0))
+
+                        prio = (
+                            prio(cc),
+                            get_cross_compile_prio(cross_compile)
+                        )
+                        return (prio, prio == ((0, 0), 0))
             else:
                 try:
                     proc_version = target.read_value('/proc/version')
@@ -1535,7 +1560,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     cross_compiles = [os.environ['CROSS_COMPILE']]
                 except KeyError:
                     if abi == 'arm64':
-                        cross_compiles = ['aarch64-linux-gnu-', 'aarch64-none-elf-', 'aarch64-none-linux-android-', 'aarch64-linux-android-']
+                        cross_compiles = ['aarch64-linux-gnu-', 'aarch64-none-elf-', 'aarch64-linux-android-', 'aarch64-none-linux-android-']
                     elif abi == 'armeabi':
                         cross_compiles = ['arm-linux-gnueabi-', 'arm-none-eabi-', 'arm-none-linux-gnueabi-']
                     elif abi == 'x86':
@@ -1550,7 +1575,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
 
         # The format of "ccs" dict is:
         # (CC=, CROSS_COMPILE=): <binary name>
-        ccs = {
+        ccs = [
             *(
                 (Path(f'clang-{i}'), cross_compile)
                 # Cover for the next 10 years starting from 2021
@@ -1568,14 +1593,14 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                 (Path('gcc'), cross_compile)
                 for cross_compile in cross_compiles
             ),
-        }
+        ]
 
         if 'CC' in make_vars:
             _cc = _make_vars_cc(make_vars)
-            ccs = {
+            ccs = [
                 (_cc, cross_compile)
                 for cross_compile in cross_compiles
-            }
+            ]
 
         if 'LLVM' in make_vars:
             llvm = make_vars['LLVM']
@@ -1583,17 +1608,18 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             llvm_version = llvm if llvm.startswith('-') else None
             if _cc.name == 'clang' and llvm_version:
                 _cc = _cc.with_name(f'{_cc.name}{llvm_version}')
-                ccs = {
+                ccs = [
                     (_cc, cross_compile)
                     for cross_compile in cross_compiles
-                }
+                ]
 
         # Give priority for the toolchain the kernel seem to have been compiled
         # with
         def key(item):
             (cc, cross_compile) = item
-            return cc_priority(cc)
+            return cc_priority(cc, cross_compile)
 
+        ccs = deduplicate(ccs, keep_last=False)
         ccs = sorted(ccs, key=key)
 
         cc = None
@@ -1687,10 +1713,10 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         if cross_compile is None:
             raise ValueError(f'Could not detect which CROSS_COMPILE value to use')
 
-        ideal_cc, _ = ccs[0]
-        cc_is_perfect = cc_priority(cc)[1]
-        if str(cc) != str(ideal_cc) or not cc_is_perfect:
-            logger.warning(f'Could not find ideal CC={ideal_cc} but found CC={cc} instead. Results may vary from working fine to crashing the kernel')
+        ideal_cc, ideal_cross_compile = ccs[0]
+        cc_is_perfect = cc_priority(cc, cross_compile)[1]
+        if str(cc) != str(ideal_cc) or ideal_cross_compile != cross_compile or not cc_is_perfect:
+            logger.warning(f'Could not find ideal CC={ideal_cc} and CROSS_COMPILE={ideal_cross_compile} but found CC={cc} and CROSS_COMPILE={cross_compile} instead. Results may vary from working fine to crashing the kernel')
 
         return (cc, cross_compile, cc_key)
 
@@ -1919,6 +1945,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         return cls(
             path_cm=functools.partial(try_loaders, loaders),
             build_conf=build_conf,
+            target=target,
         )
 
     @classmethod
