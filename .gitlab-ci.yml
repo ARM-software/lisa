@@ -1,0 +1,112 @@
+# 
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copyright (C) 2024, Arm Limited and contributors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+default:
+  tags:
+    - ubuntu_22_04_amd64
+  # cancel a job if a new pipeline is triggered on the same branch
+  interruptible: true
+
+# Required for Manual runs through UI
+variables:
+  ENABLE_TEST:
+    value: "False"
+    options:
+      - "True"
+      - "False"
+    description: True to run test job. Defaults to false.
+  ENABLE_AUTOBRANCH:
+    value: "False"
+    options:
+      - "True"
+      - "False"
+    description: True to run Autobranch job. Defaults to false. Autobranch is allowed only on main.
+
+stages:
+  - Test
+  - Deploy
+
+Test:
+  stage: Test
+  rules:
+      - if: $CI_PIPELINE_SOURCE == "web" && $ENABLE_TEST == "True"
+      - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  parallel:
+    matrix:
+      - PYVERSION: [8, 11]
+  before_script:
+    - export DEBIAN_FRONTEND=noninteractive
+    - sudo apt update -y
+    - sudo apt install software-properties-common -y
+    - sudo add-apt-repository ppa:deadsnakes/ppa -y
+    - sudo apt-get update -y
+    - sudo apt-get -y install python3.${PYVERSION}-venv python3.${PYVERSION}-tk python3.${PYVERSION}-full
+  script:
+    - export LISA_PYTHON=python3.${PYVERSION}
+    - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
+    - sudo ./install_base.sh --install-all
+    - echo "$(python3 --version)"
+    - sudo chmod o+rx /sys/kernel/debug
+    - bash ./tools/tests.sh
+
+Autobranch:
+  stage: Deploy
+  variables:
+    GIT_STRATEGY: none #Required to enable the autobranch run from a specific branch:$CI_DEFAULT_BRANCH
+  rules:
+      - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $ENABLE_AUTOBRANCH == "True"
+      - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      - if: $CI_PIPELINE_SOURCE == "merge_request_event" && '$CI_MERGE_REQUEST_LABELS =~ /^autobranch$/' #regex to pickup 'autobranch' label alone
+  resource_group: autobranch
+  before_script:
+    - sudo apt update -y
+    - sudo apt install tzdata -y
+    - sudo apt install software-properties-common -y
+    - sudo apt-get update -y
+    - sudo apt-get install python3.10 git python3.10-venv -y
+    - sudo apt-get install gcc python3-dev -y
+    - |
+      git clone -b $CI_DEFAULT_BRANCH $CI_REPOSITORY_URL origin-repo
+
+      cd origin-repo &&
+
+      git config --global user.name 'Gitlab CI'
+      git config --global user.email 'gitlab-ci@arm.com'
+
+      git remote -v
+      git branch --list --remotes
+  script: 
+    - |
+      set -e
+
+      export LC_ALL=C
+
+      source init_env &&
+      pip install python-gitlab
+      source ci/autobranch-job-script.sh
+
+      ret=0
+      function keepgoing {
+          "$@" || ret=1
+      }
+
+      keepgoing update_branch for-master-autobranch master master-force
+      keepgoing update_branch for-preview-autobranch preview preview-force
+
+      exit $ret

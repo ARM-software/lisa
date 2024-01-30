@@ -1,0 +1,122 @@
+#! /usr/bin/env python3
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copyright (C) 2024, Arm Limited and contributors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+import subprocess
+from itertools import chain
+from tempfile import NamedTemporaryFile
+import json, os
+from collections import ChainMap
+from operator import itemgetter
+import argparse
+import logging
+import gitlab
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="""
+        Combine gitlab merge requests with the given tag into a branch, rebasing all
+        MRs on top of each other.
+        """,
+    )
+
+    parser.add_argument('--repo', required=True, help='Gitlab repository as owner/name')
+    parser.add_argument('--mr-label', action='append', required=True, help='Merge request labels to look for')
+    parser.add_argument('--branch', required=True, help='Name of the branch to be created. If the branch exists, it will be forcefully updated')
+
+    args = parser.parse_args()
+
+    project = args.repo
+    owner, repo = args.repo.split('/', 1)
+    labels = args.mr_label
+    branch = args.branch
+
+    logging.basicConfig(level=logging.INFO)
+
+    host_url = os.environ.get('CI_SERVER_URL')
+    server_host_ssh = os.environ.get('CI_SERVER_SHELL_SSH_HOST')
+    #Authentication token required on the Gitlab Host
+    repo_token = os.environ.get('GITLAB_REPO_TOKEN')
+
+    gl = gitlab.Gitlab(url=host_url, private_token=repo_token)
+
+    gl_project = gl.projects.get(project)
+
+    gl_mrs = gl_project.mergerequests.list(
+                state='opened',
+                labels=labels,
+                iterator=True,
+                include_diverged_commits_count=True
+            )
+
+    def make_topic(pr):
+        remote = f'remote_{pr.sha}'
+        return (
+            {
+                remote: {
+                    'url': gl.projects.get(pr.source_project_id).http_url_to_repo
+                }
+            },
+            {
+                'name': pr.source_branch,
+                'remote': remote,
+                'nr-commits': pr.commits().total,
+                'tip': pr.source_branch,
+            }
+        )
+    
+    topics = []
+    
+    for mr in gl_mrs:
+        topics += [ make_topic(mr) ]
+
+    remotes, topics = zip(*topics) if topics else ([], [])
+    remotes = dict(ChainMap(*chain(
+        [{
+            'gitlab': {
+            'url': f'https://{server_host_ssh}/{owner}/{repo}.git'
+            }
+        }],
+        remotes
+    )))
+
+    conf = {
+        'rebase-conf': {
+            'rr-cache': './rr-cache',
+            'remotes': remotes,
+            'base': {
+                'remote': 'gitlab',
+                'ref': 'main',
+            },
+            'topics': sorted(topics, key=itemgetter('name'))
+        }
+    }
+    conf = json.dumps(conf, indent=4)
+    logging.info(conf)
+
+    with NamedTemporaryFile(mode='w+', suffix='.manifest.json') as f:
+        f.write(conf)
+        f.flush()
+
+        manifest = f.name
+
+        cmd = ['batch-rebase', 'create', '.', '--manifest', manifest, '--create-branch', branch]
+        logging.info(f'Running {" ".join(map(str, cmd))}')
+        subprocess.check_call(cmd)
+
+main()
