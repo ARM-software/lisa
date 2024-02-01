@@ -37,12 +37,7 @@ variables:
       - "False"
     description: True to run Autobranch job. Defaults to false. Autobranch is allowed only on main.
 
-stages:
-  - Test
-  - Deploy
-
 Test:
-  stage: Test
   rules:
       - if: $CI_PIPELINE_SOURCE == "web" && $ENABLE_TEST == "True"
       - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -67,7 +62,8 @@ Test:
     - bash ./tools/tests.sh
 
 Autobranch:
-  stage: Deploy
+  needs: ['Test']
+
   variables:
     # Do not clone or fetch anything, as we will do it manually so that the job
     # runs with the code from the default branch (main) rather than the merge
