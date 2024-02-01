@@ -51,55 +51,91 @@ Test:
     matrix:
       - PYVERSION: [8, 11]
   before_script:
+    - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
     - export DEBIAN_FRONTEND=noninteractive
-    - sudo apt update -y
-    - sudo apt install software-properties-common -y
+    - sudo apt-get update -y
+    - sudo apt-get upgrade -y
+    - sudo apt-get install software-properties-common -y
     - sudo add-apt-repository ppa:deadsnakes/ppa -y
     - sudo apt-get update -y
     - sudo apt-get -y install python3.${PYVERSION}-venv python3.${PYVERSION}-tk python3.${PYVERSION}-full
-  script:
-    - export LISA_PYTHON=python3.${PYVERSION}
-    - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
-    - sudo ./install_base.sh --install-all
     - echo "$(python3 --version)"
     - sudo chmod o+rx /sys/kernel/debug
+  script:
+    - export LISA_PYTHON=python3.${PYVERSION}
+    - sudo ./install_base.sh --install-all
     - bash ./tools/tests.sh
 
 Autobranch:
   stage: Deploy
   variables:
-    GIT_STRATEGY: none #Required to enable the autobranch run from a specific branch:$CI_DEFAULT_BRANCH
+    # Do not clone or fetch anything, as we will do it manually so that the job
+    # runs with the code from the default branch (main) rather than the merge
+    # request branch for safety reasons.
+    GIT_STRATEGY: none
   rules:
       - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $ENABLE_AUTOBRANCH == "True"
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /^autobranch$/ #regex to pickup 'autobranch' label alone
+      - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /(^|,)autobranch($|,)/ 
   resource_group: autobranch
   before_script:
-    - sudo apt update -y
-    - sudo apt install tzdata -y
-    - sudo apt install software-properties-common -y
+    - export DEBIAN_FRONTEND=noninteractive
     - sudo apt-get update -y
-    - sudo apt-get install python3.10 git python3.10-venv -y
-    - sudo apt-get install gcc python3-dev -y
-    - |
-      git clone -b $CI_DEFAULT_BRANCH $CI_REPOSITORY_URL origin-repo
+    - sudo apt-get upgrade -y
+    - sudo apt-get install -y tzdata git python3.10-full
 
-      cd origin-repo &&
+    - |
+      origin_repo=$(mktemp -d)
+      git clone -b "$CI_DEFAULT_BRANCH" "$CI_REPOSITORY_URL" "$origin_repo"
+
+      # This is critical for safety: We want to be executing the code from the
+      # main branch to avoid any manipulation from the MR branch
+      cd "$origin_repo" || exit 1
+
+    - |
+      git remote set-url origin "https://gitlab-ci:${GITLAB_REPO_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+      git remote -v
+      git branch --list --remotes
 
       git config --global user.name 'Gitlab CI'
       git config --global user.email 'gitlab-ci@arm.com'
 
-      git remote -v
-      git branch --list --remotes
   script: 
     - |
       set -e
-
       export LC_ALL=C
+      source init_env
 
-      source init_env &&
-      pip install requests  # Required for calling Gitlab API
-      source ci/autobranch-job-script.sh
+      function update_branch() {
+          local label=$1
+          local branch=$2
+          local force_branch=$3
+
+          local worktree=$(mktemp -d --suffix "${branch}-repo")
+          local patch=$(mktemp --suffix "$branch.patch")
+
+          lisa-combine-gitlab-mr --repo "$CI_PROJECT_PATH" --mr-label "$label" --branch "$force_branch" &&
+
+          git fetch origin "$branch" &&
+
+          # Work in a separate worktree so that there is no risk of folders
+          # added to PATH by init_env being manipulated
+          git worktree add "$worktree" --checkout "$branch" &&
+
+          git -C "$worktree" diff --binary "HEAD..$force_branch" > "$patch" &&
+
+          if [[ -s "$patch" ]]; then
+              # Apply the patch to the index as well, so that any file created
+              # is automatically added to the commit we are about to create.
+              git -C "$worktree" apply --index "$patch" &&
+              git -C "$worktree" commit --all -m "Autocommit to $branch branch on $(date) tracking $force_branch"
+
+              git push --force origin "$force_branch"
+              git push origin "$branch"
+          else
+              echo "Empty patch, $branch and $force_branch branches are up to date."
+          fi
+      }
 
       ret=0
       function keepgoing {
@@ -110,3 +146,9 @@ Autobranch:
       keepgoing update_branch for-preview-autobranch preview preview-force
 
       exit $ret
+
+Autobranch-manual:
+  needs: ['Autobranch']
+  when: manual
+  allow_failure: false  # Set to false to return to the previous behavior.
+  script: exit 0
