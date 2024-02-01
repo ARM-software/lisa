@@ -11,14 +11,14 @@ LISA Documentation
 LISA - "Linux Integrated System Analysis" is a toolkit for interactive analysis
 and automated regression testing of Linux kernel behaviour.
 
-- See the README on the project's `Github home page`__ for an overview.
+- See the README on the project's `GitLab home page`__ for an overview.
 - Once you have LISA running, take a look at the tutorial and example notebooks
   included with the installation.
 
-__ https://github.com/ARM-software/lisa
+__ https://gitlab.arm.com/tooling/lisa
 
 Contributions to LISA and its documentation are very welcome, and handled
-via Github pull requests.
+via GitLab merge requests.
 
 .. _Readme:
 

@@ -1,8 +1,11 @@
+⚠️ LISA has moved from GitHub to GitLab and is now available at:
+https://gitlab.arm.com/tooling/lisa. Please update your clone URLs and note
+that the GitHub repository will not be used for any pull requests or issue
+management. ⚠️
 
 ⚠️ ``lisa_tests`` package will be moved to another repository in
 January 2024. When more details are available, this pull request will be
-updated: https://github.com/ARM-software/lisa/pull/2140 ⚠️
-
+updated: https://gitlab.arm.com/tooling/lisa/-/merge_requests/2140/ ⚠️
 
 Introduction |CI status| |Documentation Status|
 ===================================================
@@ -76,7 +79,7 @@ Here are some noteworthy sections:
 How to reach us
 ===============
 
-Bug reports should be raised against the `GitHub issue tracker <https://github.com/ARM-software/lisa/issues>`__.
+Bug reports should be raised against the `GitLab issue tracker <https://gitlab.arm.com/tooling/lisa/-/issues>`__.
 
 External Links
 ==============
@@ -113,7 +116,7 @@ where you have authored all of the code. If you do this on work time
 make sure your employer is cool with this. We also have a `Contributor Guide
 <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/contributors_guide.html>`__
 
-.. |CI status| image:: https://github.com/ARM-software/lisa/workflows/test/badge.svg?branch=main
-   :target: https://github.com/ARM-software/lisa/actions
+.. |CI status| image:: https://gitlab.arm.com/tooling/lisa/badges/main/pipeline.svg
+   :target: https://gitlab.arm.com/tooling/lisa/-/commits/main
 .. |Documentation Status| image:: https://readthedocs.org/projects/lisa-linux-integrated-system-analysis/badge/?version=main
    :target: https://lisa-linux-integrated-system-analysis.readthedocs.io/en/main/
