@@ -72,7 +72,7 @@ Autobranch:
   rules:
       - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $ENABLE_AUTOBRANCH == "True"
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      - if: $CI_PIPELINE_SOURCE == "merge_request_event" && '$CI_MERGE_REQUEST_LABELS =~ /^autobranch$/' #regex to pickup 'autobranch' label alone
+      - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /^autobranch$/ #regex to pickup 'autobranch' label alone
   resource_group: autobranch
   before_script:
     - sudo apt update -y
