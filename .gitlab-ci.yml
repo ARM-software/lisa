@@ -114,7 +114,7 @@ Autobranch:
           local worktree=$(mktemp -d --suffix "${branch}-repo")
           local patch=$(mktemp --suffix "$branch.patch")
 
-          lisa-combine-gitlab-mr --repo "$CI_PROJECT_PATH" --mr-label "$label" --branch "$force_branch" &&
+          lisa-combine-gitlab-mr --server "$CI_SERVER_HOST" --repo "$CI_PROJECT_PATH" --project-id "$CI_PROJECT_ID" --api-url "$CI_API_V4_URL" --mr-label "$label" --branch "$force_branch" &&
 
           git fetch origin "$branch" &&
 
