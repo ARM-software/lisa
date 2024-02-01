@@ -98,9 +98,9 @@ Autobranch:
 
   script: 
     - |
-      set -e
       export LC_ALL=C
-      source init_env
+      source init_env || exit 1
+      set -e
 
       function update_branch() {
           local label=$1
