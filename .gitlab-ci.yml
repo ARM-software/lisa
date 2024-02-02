@@ -63,6 +63,9 @@ Test:
 
 Autobranch:
   needs: ['Test']
+  environment:
+    # This grants the GITLAB_REPO_TOKEN variable allowing to push to the repo
+    name: repo_write_access
 
   variables:
     # Do not clone or fetch anything, as we will do it manually so that the job
