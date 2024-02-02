@@ -33,8 +33,7 @@ import textwrap
 import logging
 import contextlib
 import typing
-
-from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc
+import json
 
 def info(msg):
     logging.info(msg)
@@ -42,36 +41,55 @@ def info(msg):
 def warn(msg):
     logging.warning(msg)
 
-class BatchRebaseManifest(SimpleMultiSrcConf):
-    """
-    Configuration of batch-rebase
+def get_nested_key(conf, key):
+    for k in key:
+        conf = conf[k]
+    return conf
 
-    {generated_help}
-    """
-    STRUCTURE = TopLevelKeyDesc('rebase-conf', 'Batch rebase configuration', (
-        KeyDesc('topics', 'List of topics. Each topic is described by a mapping with "name", "remote", "base" (or "nr-commits) and "tip" git references keys. Also, a tag can be added between topics with "action: tag" key and "name: tag-name".', [list]),
-        KeyDesc('remotes', 'Git remotes. Keys are remote name, values are a mapping with an "url" key', [Mapping]),
-        KeyDesc('rr-cache', 'Path to git rr-cache. Relative paths are relative to that manifest file', [str, None]),
-        LevelKeyDesc('base', 'Base branche spec', [
-            KeyDesc('remote', 'remote where the base branch is located', [str]),
-            KeyDesc('ref', 'Name of the base branch', [str]),
-        ]),
-        LevelKeyDesc('tip', 'New branche spec', [
-            KeyDesc('ref', 'Name of the base branch. --refs-suffix can be used to tweak the name', [str]),
-            KeyDesc('tags', 'Default of --tags', [bool]),
-        ]),
-        LevelKeyDesc('resume', 'Internal state used for resuming after a conflict', [
-            KeyDesc('conflict-topic', 'Topic where the conflict happened', [str]),
-            KeyDesc('persistent-refs', 'List of references that needs to be pushed back to the main repo', [typing.Sequence[str]]),
-            LevelKeyDesc('tags', 'Topic branch tags', [
-                KeyDesc('persistent', 'whether tags should be pushed back or not', [bool]),
-                KeyDesc('suffix', 'suffix to use for tags, or None', [str]),
-            ]),
-            KeyDesc('repo', 'Path to the main repo', [str]),
-            KeyDesc('branch', 'Branch that is being created', [str]),
-            KeyDesc('rr-cache', 'Source of the rr-cache', [str, None]),
-        ])
-    ))
+def load_conf(path):
+
+    def postprocess(conf):
+        return conf['rebase-conf']
+
+    try:
+        from ruamel.yaml import YAML
+    except ImportError:
+        try_yaml = False
+    else:
+        try_yaml = True
+
+    def load_yaml(path):
+        yaml = YAML(typ='safe')
+        with open(path) as f:
+            return yaml.load(f)
+
+    def load_json(path):
+        with open(path) as f:
+            return json.load(f)
+
+    loaders = [
+        load_json,
+        *([load_yaml] if try_yaml else [])
+    ]
+
+    last_excep = ValueError('No loader selected')
+    for loader in loaders:
+        try:
+            conf = loader(path)
+        except Exception as e:
+            last_excep = e
+            error(e)
+        else:
+            return postprocess(conf)
+
+    raise last_excep
+
+
+def dump_conf(conf, path):
+    conf = {'rebase-conf': conf}
+    with open(path, 'w') as f:
+        json.dump(conf, f)
+
 
 RESUME_MANIFEST_NAME = '.batch-rebase-state'
 
@@ -216,13 +234,13 @@ def do_cherry_pick(repo, temp_repo, conf, persistent_tags, tags_suffix, branch, 
     has_conflict, persistent_refs = _do_cherry_pick(temp_repo, conf, persistent_tags, tags_suffix)
 
     if has_conflict:
-        conf['resume'].add_src('conflict', {
+        conf['resume'] = {
             'repo': str(repo),
             'rr-cache': str(rr_cache) if rr_cache else rr_cache,
             'branch': branch,
-        })
+        }
         # Save the augmented manifest for later resumption
-        conf.to_yaml_map(temp_repo/RESUME_MANIFEST_NAME)
+        dump_conf(conf, temp_repo/RESUME_MANIFEST_NAME)
     else:
         # Copy back the rr-cache
         if rr_cache:
@@ -282,7 +300,7 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
             )
 
     # If we are resuming after a conflict
-    if 'conflict-topic' in conf['resume']:
+    if 'conflict-topic' in conf.get('resume', {}):
         resume_topic = conf['resume']['conflict-topic']
         persistent_refs.update(conf['resume']['persistent-refs'])
 
@@ -365,17 +383,14 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
 
             if not cherry_pick_ref(repo, range_ref):
                 # Save the current state for later resumption
-                conf['resume'].add_src(
-                    'conflict',
-                    {
-                        'conflict-topic': name,
-                        'persistent-refs': sorted(persistent_refs),
-                        'tags': {
-                            'persistent': persistent_tags,
-                            'suffix': tags_suffix,
-                        }
-                    },
-                )
+                conf['resume'] = {
+                    'conflict-topic': name,
+                    'persistent-refs': sorted(persistent_refs),
+                    'tags': {
+                        'persistent': persistent_tags,
+                        'suffix': tags_suffix,
+                    }
+                }
                 info(textwrap.dedent("""
                     A conflict occured while cherry-picking topic "{topic}" ({range_ref})
                     In order to fix it, please:
@@ -518,7 +533,37 @@ def main():
 
         The manifest is a YAML file following that structure:
 
-        {manifest_doc}
+        ├ rebase-conf: Batch rebase configuration
+            ├ topics (list):
+              List of topics. Each topic is described by a mapping with
+              "name", "remote", "base" (or "nr-commits) and "tip" git
+              references keys. Also, a tag can be added between topics
+              with "action: tag" key and "name: tag-name"..
+            ├ remotes (Mapping):
+              Git remotes. Keys are remote name, values are a mapping with
+              an "url" key.
+            ├ rr-cache (str or None):
+              Path to git rr-cache. Relative paths are relative to that
+              manifest file.
+            ├ base: Base branche spec
+                ├ remote (str): remote where the base branch is located.
+                └ ref (str): Name of the base branch.
+            ├ tip: New branche spec
+                ├ ref (str):
+                  Name of the base branch. --refs-suffix can be used to tweak
+                  the name.
+                └ tags (bool): Default of --tags.
+            └ resume: Internal state used for resuming after a conflict
+                ├ conflict-topic (str): Topic where the conflict happened.
+                ├ persistent-refs (typing.Sequence[str]):
+                  List of references that needs to be pushed back to the main
+                  repo.
+                ├ tags: Topic branch tags
+                    ├ persistent (bool): whether tags should be pushed back or not.
+                    └ suffix (str): suffix to use for tags, or None.
+                ├ repo (str): Path to the main repo.
+                ├ branch (str): Branch that is being created.
+                └ rr-cache (str or None): Source of the rr-cache.
 
     EXAMPLE
 
@@ -555,7 +600,7 @@ def main():
                     url: git://linux-arm.org/linux-power.git
 
 
-        ''').format(manifest_doc=BatchRebaseManifest.get_help()),
+        '''),
         formatter_class=argparse.RawDescriptionHelpFormatter,
 
     )
@@ -635,10 +680,10 @@ def main():
         temp_repo = None
         try:
             if args.subcommand == 'create':
-                conf = BatchRebaseManifest.from_yaml_map(args.manifest)
+                conf = load_conf(args.manifest)
                 def default_from_conf(x, key):
                     try:
-                        default = conf.get_nested_key(key)
+                        default = get_nested_key(conf, key)
                     except KeyError:
                         return x
                     else:
@@ -686,7 +731,7 @@ def main():
 
             elif args.subcommand == 'resume':
                 temp_repo = repo
-                conf = BatchRebaseManifest.from_yaml_map(temp_repo/RESUME_MANIFEST_NAME)
+                conf = load_conf(temp_repo/RESUME_MANIFEST_NAME)
                 delete_temp_repo, ret = do_resume(temp_repo, conf)
 
         finally:
