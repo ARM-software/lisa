@@ -605,7 +605,7 @@ def main():
 
     )
 
-    subparsers = parser.add_subparsers(title='subcommands', dest='subcommand')
+    subparsers = parser.add_subparsers(title='subcommands', dest='subcommand', required=True)
     create_parser = subparsers.add_parser('create',
         help='Create a branch'
     )
