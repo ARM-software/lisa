@@ -148,9 +148,3 @@ Autobranch:
       keepgoing update_branch for-preview-autobranch preview preview-force
 
       exit $ret
-
-Autobranch-manual:
-  needs: ['Autobranch']
-  when: manual
-  allow_failure: false  # Set to false to return to the previous behavior.
-  script: exit 0
