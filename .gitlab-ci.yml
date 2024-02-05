@@ -84,6 +84,10 @@ Autobranch:
     - sudo apt-get install -y tzdata git python3.10-full
 
     - |
+      # Avoid using /tmp since it's probably in tmpfs and would consume RAM
+      export TMPDIR=$(readlink -f .)/tmp
+      mkdir -p "$TMPDIR"
+
       origin_repo=$(mktemp -d)
       git clone -b "$CI_DEFAULT_BRANCH" "$CI_REPOSITORY_URL" "$origin_repo"
 
