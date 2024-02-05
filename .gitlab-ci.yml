@@ -24,6 +24,10 @@ default:
 
 # Required for Manual runs through UI
 variables:
+  PYVERSION:
+    value: 11
+    description: Default version of Python to use for non-test jobs
+
   WEB_ENABLE_TEST:
     value: "True"
     options:
@@ -53,8 +57,7 @@ Test:
     - sudo apt-get install software-properties-common -y
     - sudo add-apt-repository ppa:deadsnakes/ppa -y
     - sudo apt-get update -y
-    - sudo apt-get -y install python3.${PYVERSION}-venv python3.${PYVERSION}-tk python3.${PYVERSION}-full
-    - echo "$(python3 --version)"
+    - sudo apt-get -y install python3.${PYVERSION}-full
     - sudo chmod o+rx /sys/kernel/debug
   script:
     - export LISA_PYTHON=python3.${PYVERSION}
@@ -78,10 +81,15 @@ Autobranch:
       - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /(^|,)autobranch($|,)/ 
   resource_group: autobranch
   before_script:
+    - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
     - export DEBIAN_FRONTEND=noninteractive
     - sudo apt-get update -y
     - sudo apt-get upgrade -y
-    - sudo apt-get install -y git python3-full
+    - sudo apt-get install software-properties-common -y
+    - sudo add-apt-repository ppa:deadsnakes/ppa -y
+    - sudo apt-get update -y
+    - sudo apt-get -y install python3.${PYVERSION}-full
+    - export LISA_PYTHON=python3.${PYVERSION}
 
     - |
       # Avoid using /tmp since it's probably in tmpfs and would consume RAM
@@ -167,16 +175,17 @@ pages:
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
   before_script:
-    - PYVERSION=10
     - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
     - export DEBIAN_FRONTEND=noninteractive
     - sudo apt-get update -y
     - sudo apt-get upgrade -y
+    - sudo apt-get install software-properties-common -y
+    - sudo add-apt-repository ppa:deadsnakes/ppa -y
+    - sudo apt-get update -y
     - sudo apt-get -y install python3.${PYVERSION}-full
-    - echo "$(python3 --version)"
+    - export LISA_PYTHON=python3.${PYVERSION}
 
   script:
-    - export LISA_PYTHON=python3.${PYVERSION}
     - sudo ./install_base.sh --install-doc-extras
     - source init_env
     - |
