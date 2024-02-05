@@ -25,7 +25,7 @@ import shutil
 
 import exekall.utils as utils
 import exekall.engine as engine
-from exekall.tests.utils import indent
+from exekall._tests.utils import indent
 
 
 class TestResultStatus(enum.Enum):
@@ -478,11 +478,11 @@ class SingleExprTestCase(NoExcepTestCase):
     # key: get_id() kwargs dict as a tuple to be passed to dict()
     # val: ID
     EXPR_VAL_ID = {
-        (('qual', True),): 'exekall.tests.suite.init:exekall.tests.suite.middle[tag1=val1][tag2=val2]:exekall.tests.suite.final(b2=exekall.tests.suite.init:exekall.tests.suite.middle2,b3=exekall.tests.suite.init:exekall.tests.suite.middle2:exekall.tests.suite.middle3)',
+        (('qual', True),): 'exekall._tests.suite.init:exekall._tests.suite.middle[tag1=val1][tag2=val2]:exekall._tests.suite.final(b2=exekall._tests.suite.init:exekall._tests.suite.middle2,b3=exekall._tests.suite.init:exekall._tests.suite.middle2:exekall._tests.suite.middle3)',
         (('qual', False),): 'init:middle[tag1=val1][tag2=val2]:final(b2=init:middle2,b3=init:middle2:middle3)',
     }
     EXPR_ID = {
-        (('qual', True),): 'exekall.tests.suite.init:exekall.tests.suite.middle:exekall.tests.suite.final(b2=exekall.tests.suite.init:exekall.tests.suite.middle2,b3=exekall.tests.suite.init:exekall.tests.suite.middle2:exekall.tests.suite.middle3)',
+        (('qual', True),): 'exekall._tests.suite.init:exekall._tests.suite.middle:exekall._tests.suite.final(b2=exekall._tests.suite.init:exekall._tests.suite.middle2,b3=exekall._tests.suite.init:exekall._tests.suite.middle2:exekall._tests.suite.middle3)',
         (('qual', False),): 'init:middle:final(b2=init:middle2,b3=init:middle2:middle3)',
     }
 
@@ -530,7 +530,7 @@ def final_derived(b: B) -> Final:
 class InheritanceTestCase(NoExcepTestCase):
     CALLABLES = {init, middle_derived, final_derived}
     EXPR_ID = {
-        (('qual', True),): 'exekall.tests.suite.init:exekall.tests.suite.middle_derived:exekall.tests.suite.final_derived',
+        (('qual', True),): 'exekall._tests.suite.init:exekall._tests.suite.middle_derived:exekall._tests.suite.final_derived',
         (('qual', False),): 'init:middle_derived:final_derived',
     }
     # no tags used
@@ -552,7 +552,7 @@ class ConsumerTestCase(NoExcepTestCase):
     ]
 
     EXPR_ID = {
-        (('qual', True),): 'exekall.tests.suite.init_consumer:exekall.tests.suite.middle:exekall.tests.suite.final(b2=exekall.tests.suite.init_consumer:exekall.tests.suite.middle2,b3=exekall.tests.suite.init_consumer:exekall.tests.suite.middle2:exekall.tests.suite.middle3)',
+        (('qual', True),): 'exekall._tests.suite.init_consumer:exekall._tests.suite.middle:exekall._tests.suite.final(b2=exekall._tests.suite.init_consumer:exekall._tests.suite.middle2,b3=exekall._tests.suite.init_consumer:exekall._tests.suite.middle2:exekall._tests.suite.middle3)',
         (('qual', False),): 'init_consumer:middle:final(b2=init_consumer:middle2,b3=init_consumer:middle2:middle3)',
     }
     # no tags used
@@ -571,7 +571,7 @@ class ExceptionTestCase(TestCaseBase):
     CALLABLES = {init, middle_excep, middle2, final_excep}
 
     EXPR_ID = {
-        (('qual', True),): 'exekall.tests.suite.init:exekall.tests.suite.middle_excep:exekall.tests.suite.final_excep(b2=exekall.tests.suite.init:exekall.tests.suite.middle2)',
+        (('qual', True),): 'exekall._tests.suite.init:exekall._tests.suite.middle_excep:exekall._tests.suite.final_excep(b2=exekall._tests.suite.init:exekall._tests.suite.middle2)',
         (('qual', False),): 'init:middle_excep:final_excep(b2=init:middle2)',
     }
     # no tags used
@@ -610,7 +610,7 @@ class CloneTestCase(NoExcepTestCase):
     ]
 
     EXPR_ID = {
-        (('qual', True),): 'exekall.tests.suite.init:exekall.tests.suite.middle:exekall.tests.suite.final(b2=exekall.tests.suite.init:exekall.tests.suite.middle2,b3=exekall.tests.suite.init:exekall.tests.suite.middle2:exekall.tests.suite.middle3)',
+        (('qual', True),): 'exekall._tests.suite.init:exekall._tests.suite.middle:exekall._tests.suite.final(b2=exekall._tests.suite.init:exekall._tests.suite.middle2,b3=exekall._tests.suite.init:exekall._tests.suite.middle2:exekall._tests.suite.middle3)',
         (('qual', False),): 'init:middle:final(b2=init:middle2,b3=init:middle2:middle3)',
     }
     # no tags used
@@ -653,7 +653,7 @@ class AssociatedTypesTestCase(NoExcepTestCase):
         AssociatedDerived1_CLS.final,
     }
     EXPR_ID = {
-        (('qual', True),): 'exekall.tests.suite.AssociatedDerived1.make:exekall.tests.suite.AssociatedBase.make_associated:exekall.tests.suite.AssociatedDerived1_CLS.final',
+        (('qual', True),): 'exekall._tests.suite.AssociatedDerived1.make:exekall._tests.suite.AssociatedBase.make_associated:exekall._tests.suite.AssociatedDerived1_CLS.final',
         (('qual', False),): 'AssociatedDerived1.make:AssociatedBase.make_associated:AssociatedDerived1_CLS.final',
     }
     # no tags used
@@ -686,7 +686,7 @@ def consume_HavingFactoryMethodDerived(x: HavingFactoryMethodDerived) -> Final:
 class BasicFactoryTestCase(NoExcepTestCase):
     CALLABLES = {HavingFactoryMethodDerived.factory_basic, consume_HavingFactoryMethodDerived}
     EXPR_ID = {
-        (('qual', True),): 'exekall.tests.suite.HavingFactoryMethodDerived.factory_basic:exekall.tests.suite.consume_HavingFactoryMethodDerived',
+        (('qual', True),): 'exekall._tests.suite.HavingFactoryMethodDerived.factory_basic:exekall._tests.suite.consume_HavingFactoryMethodDerived',
         (('qual', False),): 'HavingFactoryMethodDerived.factory_basic:consume_HavingFactoryMethodDerived',
     }
     # no tags used
@@ -697,7 +697,7 @@ if test_typing_self:
     class SelfFactoryTestCase(NoExcepTestCase):
         CALLABLES = {HavingFactoryMethodDerived.factory_self, consume_HavingFactoryMethodDerived}
         EXPR_ID = {
-            (('qual', True),): 'exekall.tests.suite.HavingFactoryMethodDerived.factory_self:exekall.tests.suite.consume_HavingFactoryMethodDerived',
+            (('qual', True),): 'exekall._tests.suite.HavingFactoryMethodDerived.factory_self:exekall._tests.suite.consume_HavingFactoryMethodDerived',
             (('qual', False),): 'HavingFactoryMethodDerived.factory_self:consume_HavingFactoryMethodDerived',
         }
         # no tags used
