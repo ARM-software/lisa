@@ -182,4 +182,4 @@ pages:
     - |
       set -e
       cd doc/
-      sphinx-build -b html . "public/$CI_COMMIT_BRANCH"
+      sphinx-build -b html . "public/$CI_COMMIT_REF_NAME"
