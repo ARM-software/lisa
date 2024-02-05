@@ -81,7 +81,7 @@ Autobranch:
     - export DEBIAN_FRONTEND=noninteractive
     - sudo apt-get update -y
     - sudo apt-get upgrade -y
-    - sudo apt-get install -y tzdata git python3.10-full
+    - sudo apt-get install -y git python3-full
 
     - |
       # Avoid using /tmp since it's probably in tmpfs and would consume RAM
