@@ -1,4 +1,4 @@
 ./tools/exekall
 ./[all]
 ./tools/bisector
-./tools/batch-rebase
+./tools/lisa-combine-gitlab-mr

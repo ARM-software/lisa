@@ -3,4 +3,4 @@
 ./external/workload-automation/
 -e ./[all]
 -e ./tools/bisector
--e ./tools/batch-rebase
+-e ./tools/lisa-combine-gitlab-mr
