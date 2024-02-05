@@ -152,3 +152,34 @@ Autobranch:
       keepgoing update_branch for-preview-autobranch preview preview-force
 
       exit $ret
+
+
+pages:
+  needs: ['Autobranch', 'Test']
+  resource_group: pages
+
+  artifacts:
+    paths:
+        - doc/public
+  publish: doc/public
+
+  rules:
+      - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+  before_script:
+    - PYVERSION=10
+    - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
+    - export DEBIAN_FRONTEND=noninteractive
+    - sudo apt-get update -y
+    - sudo apt-get upgrade -y
+    - sudo apt-get -y install python3.${PYVERSION}-full
+    - echo "$(python3 --version)"
+
+  script:
+    - export LISA_PYTHON=python3.${PYVERSION}
+    - sudo ./install_base.sh --install-doc-extras
+    - source init_env
+    - |
+      set -e
+      cd doc/
+      sphinx-build -b html . "public/$CI_COMMIT_BRANCH"
