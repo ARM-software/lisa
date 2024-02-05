@@ -24,22 +24,22 @@ default:
 
 # Required for Manual runs through UI
 variables:
-  ENABLE_TEST:
-    value: "False"
+  WEB_ENABLE_TEST:
+    value: "True"
     options:
       - "True"
       - "False"
-    description: True to run test job. Defaults to false.
-  ENABLE_AUTOBRANCH:
-    value: "False"
+    description: True to run test job when triggered via Web UI.
+  WEB_ENABLE_AUTOBRANCH:
+    value: "True"
     options:
       - "True"
       - "False"
-    description: True to run Autobranch job. Defaults to false. Autobranch is allowed only on main.
+    description: True to run test job when triggered via Web UI.
 
 Test:
   rules:
-      - if: $CI_PIPELINE_SOURCE == "web" && $ENABLE_TEST == "True"
+      - if: $CI_PIPELINE_SOURCE == "web" && $WEB_ENABLE_TEST == "True"
       - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   parallel:
@@ -73,7 +73,7 @@ Autobranch:
     # request branch for safety reasons.
     GIT_STRATEGY: none
   rules:
-      - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $ENABLE_AUTOBRANCH == "True"
+      - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $WEB_ENABLE_AUTOBRANCH == "True"
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /(^|,)autobranch($|,)/ 
   resource_group: autobranch
