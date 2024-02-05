@@ -117,8 +117,8 @@ Autobranch:
       export LC_ALL=C
       venv=$(mktemp -d)
       python3 -m venv "$venv" && source "$venv/bin/activate"
-      pip install --upgrade pip
-      pip install ./tools/lisa-combine-gitlab-mr
+      $LISA_PYTHON -m pip install --upgrade pip
+      $LISA_PYTHON -m pip install ./tools/lisa-combine-gitlab-mr
 
       function update_branch() {
           local label=$1
