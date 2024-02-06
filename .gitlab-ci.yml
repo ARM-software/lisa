@@ -28,8 +28,8 @@ variables:
     value: 11
     description: Default version of Python to use for non-test jobs
 
-  WEB_ENABLE_TEST:
-    value: "True"
+  WEB_SKIP_TEST:
+    value: "False"
     options:
       - "True"
       - "False"
@@ -43,13 +43,16 @@ variables:
 
 Test:
   rules:
-      - if: $CI_PIPELINE_SOURCE == "web" && $WEB_ENABLE_TEST == "True"
+      - if: $CI_PIPELINE_SOURCE == "web"
       - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   parallel:
     matrix:
       - PYVERSION: [8, 11]
   before_script:
+    # Make the test a no-op so we can run any step depending on successful tests
+    - if [[ "$CI_PIPELINE_SOURCE" == "web" && "$WEB_SKIP_TEST" == "True" ]]; then exit 0; fi
+
     - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
     - export DEBIAN_FRONTEND=noninteractive
     - sudo apt-get update -y
