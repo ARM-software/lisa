@@ -33,13 +33,13 @@ variables:
     options:
       - "True"
       - "False"
-    description: True to run test job when triggered via Web UI.
-  WEB_ENABLE_AUTOBRANCH:
-    value: "True"
+    description: True to skip test job when triggered via Web UI.
+  WEB_SKIP_AUTOBRANCH:
+    value: "False"
     options:
       - "True"
       - "False"
-    description: True to run test job when triggered via Web UI.
+    description: True to skip autobranch job when triggered via Web UI.
 
 Test:
   rules:
@@ -79,11 +79,14 @@ Autobranch:
     # request branch for safety reasons.
     GIT_STRATEGY: none
   rules:
-      - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $WEB_ENABLE_AUTOBRANCH == "True"
+      - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /(^|,)autobranch($|,)/ 
   resource_group: autobranch
   before_script:
+    # Make the test a no-op so we can run any step depending on successful tests
+    - if [[ "$CI_PIPELINE_SOURCE" == "web" && "$WEB_SKIP_AUTOBRANCH" == "True" ]]; then exit 0; fi
+
     - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
     - export DEBIAN_FRONTEND=noninteractive
     - sudo apt-get update -y
