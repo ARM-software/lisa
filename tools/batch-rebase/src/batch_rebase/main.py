@@ -22,7 +22,7 @@ import shlex
 import argparse
 import subprocess
 import sys
-from collections.abc import Mapping
+from collections.abc import Mapping, Iterable
 from collections import Counter
 import tempfile
 from pathlib import Path
@@ -86,7 +86,21 @@ def load_conf(path):
 
 
 def dump_conf(conf, path):
+    def convert(value):
+        if isinstance(value, Mapping):
+            return {
+                convert(k): convert(v)
+                for k, v in value.items()
+            }
+        elif isinstance(value, (str, Path)):
+            return str(value)
+        elif isinstance(value, Iterable):
+            return [convert(x) for x in value]
+        else:
+            return value
+
     conf = {'rebase-conf': conf}
+    conf = convert(conf)
     with open(path, 'w') as f:
         json.dump(conf, f)
 
@@ -365,7 +379,7 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
             range_base = f'refs/remotes/{remote}/{base}'
             range_tip = f'refs/remotes/{remote}/{tip}'
             range_ref = f'{range_base}..{range_tip}'
-            range_sha1s = git(['rev-list', range_ref], capture=True).splitlines()
+            range_sha1s = list(reversed(git(['rev-list', range_ref], capture=True).splitlines()))
 
             nr_commits = len(range_sha1s)
             info('Cherry-picking topic "{name}" from {remote} ({nr_commits} commits)\nremote: {remote}\nbase: {base}\ntip: {tip}\n'.format(
