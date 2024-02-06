@@ -129,7 +129,7 @@ Autobranch:
       lisa_python -m venv "$venv" && source "$venv/bin/activate"
 
       # Ensure we have up to date versions of every pre-installed packages
-      lisa_python -m pip freeze --all | cut -f1 -d '=' > "$packages"
+      lisa_python -m pip freeze --exclude-editable --all | cut -f1 -d '=' > "$packages"
       lisa_python -m pip install --upgrade -r "$packages"
 
       lisa_python -m pip install pip-audit ./tools/lisa-combine-gitlab-mr
