@@ -114,8 +114,8 @@ Autobranch:
       git remote -v
       git branch --list --remotes
 
-      git config --global user.name 'Gitlab CI'
-      git config --global user.email 'gitlab-ci@arm.com'
+      git config --global user.name 'project_444_bot_b970213545be4e6c0185c64ae9fc5226'
+      git config --global user.email 'project_444_bot_b970213545be4e6c0185c64ae9fc5226@noreply.gitlab.arm.com'
 
   script: 
     - |
