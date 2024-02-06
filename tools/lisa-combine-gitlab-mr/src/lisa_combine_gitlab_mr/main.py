@@ -100,7 +100,7 @@ def main():
     parser.add_argument('--server', required=True, help='Gitlab server URL')
     parser.add_argument('--api-url', required=True, help='Gitlab API URL')
     parser.add_argument('--api-token', help='Gitlab API token. If omitted, anonymous requests will be used which may fail')
-    parser.add_argument('--project-id', required=True, help='Gitlab Project ID')
+    parser.add_argument('--project-id', type=int, required=True, help='Gitlab Project ID')
     parser.add_argument('--repo', required=True, help='Gitlab repository as owner/name')
     parser.add_argument('--mr-label', action='append', required=True, help='Merge request labels to look for')
     parser.add_argument('--branch', required=True, help='Name of the branch to be created. If the branch exists, it will be forcefully updated')
