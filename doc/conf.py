@@ -55,18 +55,25 @@ for name, obj in vars(unittest).items():
 
 RTD = (os.getenv('READTHEDOCS') == 'True')
 
-# For ReadTheDocs only: source init_env and get all env var defined by it.
-if RTD:
-    # RTD makes a shallow clone by default, so make sure to have the whole
+def prepare():
+
+    def run(cmd, **kwargs):
+        return subprocess.run(
+            cmd,
+            cwd=LISA_HOME,
+            **kwargs,
+        )
+
+    # In case we have a shallow clone, make sure to have the whole
     # history to be able to generate breaking change list and any other
     # git-based documentation
-    subprocess.run(['git', 'fetch', '--unshallow'], check=False)
-    subprocess.run(['git', 'fetch', '--tags'], check=False)
+    run(['git', 'fetch', '--unshallow'], check=False)
+    run(['git', 'fetch', '--tags'], check=False)
 
     # Ensure we have the changelog notes that supplement commit messages, as
     # sometimes the markers such as FEATURE were forgotten and later added
     # using git notes.
-    subprocess.run(['git', 'fetch', 'origin', 'refs/notes/changelog'])
+    run(['git', 'fetch', 'origin', 'refs/notes/changelog'])
 
     source_env = {
         **os.environ,
@@ -91,6 +98,8 @@ if RTD:
         env=source_env,
     )
     os.environ.update(json.loads(out))
+
+prepare()
 
 # -- General configuration ------------------------------------------------
 
