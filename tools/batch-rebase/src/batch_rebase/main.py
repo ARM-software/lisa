@@ -22,7 +22,7 @@ import shlex
 import argparse
 import subprocess
 import sys
-from collections.abc import Mapping
+from collections.abc import Mapping, Iterable
 from collections import Counter
 import tempfile
 from pathlib import Path
@@ -86,7 +86,21 @@ def load_conf(path):
 
 
 def dump_conf(conf, path):
+    def convert(value):
+        if isinstance(value, Mapping):
+            return {
+                convert(k): convert(v)
+                for k, v in value.items()
+            }
+        elif isinstance(value, (str, Path)):
+            return str(value)
+        elif isinstance(value, Iterable):
+            return [convert(x) for x in value]
+        else:
+            return value
+
     conf = {'rebase-conf': conf}
+    conf = convert(conf)
     with open(path, 'w') as f:
         json.dump(conf, f)
 
