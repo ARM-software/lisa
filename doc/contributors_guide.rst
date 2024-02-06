@@ -6,6 +6,31 @@ First of all, if you’re reading this, thanks for thinking about
 contributing! This project is maintained by us Arm folks, but we welcome
 contributions from anyone.
 
+.. _submit-merge-request:
+
+How to submit a merge request
+=============================
+
+Submitting a merge request requires forking the LISA repository in a similar
+fashion to the typical GitHub workflow:
+
+  1. Create a GitLab account on https://gitlab.arm.com/tooling/lisa/. You can
+     use an existing GitHub login if you want.
+
+  2. Fork the repository. This requires the fork permission on the account,
+     which can be obtained by following:
+     https://gitlab.arm.com/documentation/contributions
+
+  3. Push your branch to your fork (this might require setting up your SSH
+     public key in your profile just like on GitHub).
+
+  4. Open the merge request. ⚠️ If your fork is a private fork, GitLab will
+     default to opening a merge request against your own fork, and no-one
+     will ever know of your contribution. When opening the MR, there is a
+     "Change branches" link next to "From XXX into main". Click this link and
+     select "tooling/lisa" in the "Target branch" project drop down. ⚠️
+
+
 How to reach us
 ===============
 

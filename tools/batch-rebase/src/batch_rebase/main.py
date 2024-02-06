@@ -512,7 +512,7 @@ def do_stat(repo, tip, base):
     print('\nTotal commits: {}'.format(total))
     return 0
 
-def main():
+def _main():
     logging.basicConfig(
         level=logging.INFO,
         format='[%(levelname)s]  %(message)s'
@@ -751,7 +751,8 @@ def main():
 
     return ret
 
-if __name__ == '__main__':
-    sys.exit(main())
+
+def main():
+    sys.exit(_main())
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

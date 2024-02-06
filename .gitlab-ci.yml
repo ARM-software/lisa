@@ -114,8 +114,8 @@ Autobranch:
       git remote -v
       git branch --list --remotes
 
-      git config --global user.name 'Gitlab CI'
-      git config --global user.email 'gitlab-ci@arm.com'
+      git config --global user.name 'project_444_bot_b970213545be4e6c0185c64ae9fc5226'
+      git config --global user.email 'project_444_bot_b970213545be4e6c0185c64ae9fc5226@noreply.gitlab.arm.com'
 
   script: 
     - |
@@ -125,9 +125,15 @@ Autobranch:
       set -e
       export LC_ALL=C
       venv=$(mktemp -d)
+      packages=$(mktemp)
       lisa_python -m venv "$venv" && source "$venv/bin/activate"
-      lisa_python -m pip install --upgrade pip
-      lisa_python -m pip install ./tools/lisa-combine-gitlab-mr
+
+      # Ensure we have up to date versions of every pre-installed packages
+      lisa_python -m pip freeze --exclude-editable --all | cut -f1 -d '=' > "$packages"
+      lisa_python -m pip install --upgrade -r "$packages"
+
+      lisa_python -m pip install pip-audit ./tools/lisa-combine-gitlab-mr
+      pip-audit || exit 1
 
       function update_branch() {
           local label=$1

@@ -1356,7 +1356,3 @@ def main(argv=sys.argv[1:]):
         return_code = GENERIC_ERROR_CODE
 
     sys.exit(return_code)
-
-
-if __name__ == '__main__':
-    main()
