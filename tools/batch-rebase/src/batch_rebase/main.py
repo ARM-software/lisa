@@ -22,7 +22,7 @@ import shlex
 import argparse
 import subprocess
 import sys
-from collections.abc import Mapping
+from collections.abc import Mapping, Iterable
 from collections import Counter
 import tempfile
 from pathlib import Path
@@ -86,7 +86,21 @@ def load_conf(path):
 
 
 def dump_conf(conf, path):
+    def convert(value):
+        if isinstance(value, Mapping):
+            return {
+                convert(k): convert(v)
+                for k, v in value.items()
+            }
+        elif isinstance(value, (str, Path)):
+            return str(value)
+        elif isinstance(value, Iterable):
+            return [convert(x) for x in value]
+        else:
+            return value
+
     conf = {'rebase-conf': conf}
+    conf = convert(conf)
     with open(path, 'w') as f:
         json.dump(conf, f)
 
@@ -362,16 +376,12 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
             else:
                 raise ValueError(f'base or nr-commits need to be set on topic "{name}"')
 
-            range_ref = 'refs/remotes/{remote}/{base}..refs/remotes/{remote}/{tip}'.format(
-                remote=remote,
-                base=base,
-                tip=tip
-            )
+            range_base = f'refs/remotes/{remote}/{base}'
+            range_tip = f'refs/remotes/{remote}/{tip}'
+            range_ref = f'{range_base}..{range_tip}'
+            range_sha1s = list(reversed(git(['rev-list', range_ref], capture=True).splitlines()))
 
-            nr_commits = int(
-                git(['rev-list', '--count', range_ref], capture=True)
-            )
-
+            nr_commits = len(range_sha1s)
             info('Cherry-picking topic "{name}" from {remote} ({nr_commits} commits)\nremote: {remote}\nbase: {base}\ntip: {tip}\n'.format(
                 name=name,
                 remote=remote,
@@ -381,7 +391,7 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
             ))
 
 
-            if not cherry_pick_ref(repo, range_ref):
+            if not cherry_pick_ref(repo, range_sha1s):
                 # Save the current state for later resumption
                 conf['resume'] = {
                     'conflict-topic': name,
@@ -398,8 +408,7 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
                         {repo}
 
                         2. Finish cherry picking the topic and fix any
-                           remaining conflicts using:
-                        git -C {repo} cherry-pick --continue
+                           remaining conflicts.
 
                         3. Run:
                         batch-rebase resume {repo}
@@ -420,14 +429,16 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
     return (False, persistent_refs)
 
 
-def cherry_pick_ref(repo, ref):
+def cherry_pick_ref(repo, refs):
     git = make_git_func(repo)
-    try:
-        git(['cherry-pick', '--', ref])
-    # There is a conflict
-    except subprocess.CalledProcessError:
-        # Let Git rerere do its job
-        return rerere_autocommit(repo)
+    for ref in refs:
+        try:
+            git(['cherry-pick', '--', ref])
+        # There is a conflict
+        except subprocess.CalledProcessError:
+            # Let Git rerere do its job
+            if not rerere_autocommit(repo):
+                return False
 
     return True
 
