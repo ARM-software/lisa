@@ -24,82 +24,141 @@ default:
 
 # Required for Manual runs through UI
 variables:
-  ENABLE_TEST:
-    value: "False"
-    options:
-      - "True"
-      - "False"
-    description: True to run test job. Defaults to false.
-  ENABLE_AUTOBRANCH:
-    value: "False"
-    options:
-      - "True"
-      - "False"
-    description: True to run Autobranch job. Defaults to false. Autobranch is allowed only on main.
+  PYVERSION:
+    value: 11
+    description: Default version of Python to use for non-test jobs
 
-stages:
-  - Test
-  - Deploy
+  WEB_SKIP_TEST:
+    value: "False"
+    options:
+      - "True"
+      - "False"
+    description: True to skip test job when triggered via Web UI.
+  WEB_SKIP_AUTOBRANCH:
+    value: "False"
+    options:
+      - "True"
+      - "False"
+    description: True to skip autobranch job when triggered via Web UI.
 
 Test:
-  stage: Test
   rules:
-      - if: $CI_PIPELINE_SOURCE == "web" && $ENABLE_TEST == "True"
+      - if: $CI_PIPELINE_SOURCE == "web"
       - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   parallel:
     matrix:
       - PYVERSION: [8, 11]
   before_script:
+    # Make the test a no-op so we can run any step depending on successful tests
+    - if [[ "$CI_PIPELINE_SOURCE" == "web" && "$WEB_SKIP_TEST" == "True" ]]; then exit 0; fi
+
+    - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
     - export DEBIAN_FRONTEND=noninteractive
-    - sudo apt update -y
-    - sudo apt install software-properties-common -y
+    - sudo apt-get update -y
+    - sudo apt-get upgrade -y
+    - sudo apt-get install software-properties-common -y
     - sudo add-apt-repository ppa:deadsnakes/ppa -y
     - sudo apt-get update -y
-    - sudo apt-get -y install python3.${PYVERSION}-venv python3.${PYVERSION}-tk python3.${PYVERSION}-full
+    - sudo apt-get -y install python3.${PYVERSION}-full
+    - sudo chmod o+rx /sys/kernel/debug
   script:
     - export LISA_PYTHON=python3.${PYVERSION}
-    - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
     - sudo ./install_base.sh --install-all
-    - echo "$(python3 --version)"
-    - sudo chmod o+rx /sys/kernel/debug
     - bash ./tools/tests.sh
 
 Autobranch:
-  stage: Deploy
+  needs: ['Test']
+  environment:
+    # This grants the GITLAB_REPO_TOKEN variable allowing to push to the repo
+    name: repo_write_access
+
   variables:
-    GIT_STRATEGY: none #Required to enable the autobranch run from a specific branch:$CI_DEFAULT_BRANCH
+    # Do not clone or fetch anything, as we will do it manually so that the job
+    # runs with the code from the default branch (main) rather than the merge
+    # request branch for safety reasons.
+    GIT_STRATEGY: none
   rules:
-      - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $ENABLE_AUTOBRANCH == "True"
+      - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      - if: $CI_PIPELINE_SOURCE == "merge_request_event" && '$CI_MERGE_REQUEST_LABELS =~ /^autobranch$/' #regex to pickup 'autobranch' label alone
+      - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /(^|,)autobranch($|,)/ 
   resource_group: autobranch
   before_script:
-    - sudo apt update -y
-    - sudo apt install tzdata -y
-    - sudo apt install software-properties-common -y
-    - sudo apt-get update -y
-    - sudo apt-get install python3.10 git python3.10-venv -y
-    - sudo apt-get install gcc python3-dev -y
-    - |
-      git clone -b $CI_DEFAULT_BRANCH $CI_REPOSITORY_URL origin-repo
+    # Make the test a no-op so we can run any step depending on successful tests
+    - if [[ "$CI_PIPELINE_SOURCE" == "web" && "$WEB_SKIP_AUTOBRANCH" == "True" ]]; then exit 0; fi
 
-      cd origin-repo &&
+    - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
+    - export DEBIAN_FRONTEND=noninteractive
+    - sudo apt-get update -y
+    - sudo apt-get upgrade -y
+    - sudo apt-get install software-properties-common -y
+    - sudo add-apt-repository ppa:deadsnakes/ppa -y
+    - sudo apt-get update -y
+    - sudo apt-get -y install python3.${PYVERSION}-full
+    - export LISA_PYTHON=python3.${PYVERSION}
+
+    - |
+      # Avoid using /tmp since it's probably in tmpfs and would consume RAM
+      export TMPDIR=$(readlink -f .)/tmp
+      mkdir -p "$TMPDIR"
+
+      origin_repo=$(mktemp -d)
+      git clone -b "$CI_DEFAULT_BRANCH" "$CI_REPOSITORY_URL" "$origin_repo"
+
+      # This is critical for safety: We want to be executing the code from the
+      # main branch to avoid any manipulation from the MR branch
+      cd "$origin_repo" || exit 1
+
+    - |
+      git remote set-url origin "https://gitlab-ci:${GITLAB_REPO_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+      git remote -v
+      git branch --list --remotes
 
       git config --global user.name 'Gitlab CI'
       git config --global user.email 'gitlab-ci@arm.com'
 
-      git remote -v
-      git branch --list --remotes
   script: 
     - |
+      function lisa_python() {
+        "$LISA_PYTHON" "$@"
+      }
       set -e
-
       export LC_ALL=C
+      venv=$(mktemp -d)
+      lisa_python -m venv "$venv" && source "$venv/bin/activate"
+      lisa_python -m pip install --upgrade pip
+      lisa_python -m pip install ./tools/lisa-combine-gitlab-mr
 
-      source init_env &&
-      pip install requests  # Required for calling Gitlab API
-      source ci/autobranch-job-script.sh
+      function update_branch() {
+          local label=$1
+          local branch=$2
+          local force_branch=$3
+
+          local worktree=$(mktemp -d --suffix "${branch}-repo")
+          local patch=$(mktemp --suffix "$branch.patch")
+
+          lisa-combine-gitlab-mr --server "$CI_SERVER_HOST" --repo "$CI_PROJECT_PATH" --project-id "$CI_PROJECT_ID" --api-url "$CI_API_V4_URL" --api-token "$GITLAB_REPO_TOKEN" --mr-label "$label" --branch "$force_branch" &&
+
+          git fetch origin "$branch" &&
+
+          # Work in a separate worktree so that there is no risk of folders
+          # added to PATH by init_env being manipulated
+          git worktree add "$worktree" --checkout "$branch" &&
+
+          git -C "$worktree" diff --binary "HEAD..$force_branch" > "$patch" &&
+
+          if [[ -s "$patch" ]]; then
+              # Apply the patch to the index as well, so that any file created
+              # is automatically added to the commit we are about to create.
+              git -C "$worktree" apply --index "$patch" &&
+              git -C "$worktree" commit --all -m "Autocommit to $branch branch on $(date) tracking $force_branch"
+
+              git push --force origin "$force_branch"
+              git push origin "$branch"
+          else
+              echo "Empty patch, $branch and $force_branch branches are up to date."
+          fi
+      }
 
       ret=0
       function keepgoing {
@@ -110,3 +169,35 @@ Autobranch:
       keepgoing update_branch for-preview-autobranch preview preview-force
 
       exit $ret
+
+
+pages:
+  needs: ['Autobranch', 'Test']
+  resource_group: pages
+
+  artifacts:
+    paths:
+        - doc/public
+  publish: doc/public
+
+  rules:
+      - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+  before_script:
+    - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
+    - export DEBIAN_FRONTEND=noninteractive
+    - sudo apt-get update -y
+    - sudo apt-get upgrade -y
+    - sudo apt-get install software-properties-common -y
+    - sudo add-apt-repository ppa:deadsnakes/ppa -y
+    - sudo apt-get update -y
+    - sudo apt-get -y install python3.${PYVERSION}-full
+    - export LISA_PYTHON=python3.${PYVERSION}
+
+  script:
+    - sudo ./install_base.sh --install-doc-extras
+    - source init_env
+    - |
+      set -e
+      cd doc/
+      sphinx-build -b html . "public/$CI_COMMIT_REF_NAME"

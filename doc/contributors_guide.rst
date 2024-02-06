@@ -10,7 +10,7 @@ How to reach us
 ===============
 
 If you’re hitting an error/bug and need help, it’s best to raise an
-issue on `GitHub <https://github.com/ARM-software/lisa/issues>`__.
+issue on `GitLab <https://gitlab.arm.com/tooling/lisa/-/issues>`__.
 
 Coding style
 ============

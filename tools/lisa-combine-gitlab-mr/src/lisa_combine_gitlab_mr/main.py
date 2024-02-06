@@ -20,50 +20,67 @@
 import subprocess
 from itertools import chain
 from tempfile import NamedTemporaryFile
-import json, os
+import json
 from collections import ChainMap
 from operator import itemgetter
 import argparse
 import logging
+
 import requests
 
 # Use HTTP APIs of GitLab to retrieve associated mrs
 # of this project.
-def get_gitlab_mrs(state="opened", scope="all", labels=""):
-    def _call_gitlab_api(endpoint):
-        api_token = os.environ.get("GITLAB_REPO_TOKEN")
-        api_url = os.environ.get("CI_API_V4_URL")
-        headers = {"PRIVATE-TOKEN": api_token}
-        r = requests.get("/".join([api_url,endpoint]), headers=headers)
-        if r.status_code != 200:
-            raise Exception(r.text)
+def get_gitlab_mrs(api_url, project_id, api_token=None, state="opened", scope="all", labels=None):
+    if labels:
+        labels = ','.join(labels)
+        labels = f'&labels={labels}'
+    else:
+        labels = ''
+
+    def call_gitlab_api(endpoint):
+        headers = {
+            k: v
+            for k, v in [('PRIVATE-TOKEN', api_token)]
+            if v
+        }
+        r = requests.get(f'{api_url}/{endpoint}', headers=headers)
+        r.raise_for_status()
         return r
 
-    this_project_id = int(os.environ.get("CI_PROJECT_ID"))
-    page_number = 1  # obvioulsy at start 1
+    def get_mr(mr):
+        # populate commits count - use another api
+        mr_commit_response = call_gitlab_api(
+            f"projects/{project_id}/merge_requests/{mr['iid']}/commits"
+        )
+        mr_commit_response = mr_commit_response.json()
+        assert isinstance(mr_commit_response, list)
+        commits_count = len(mr_commit_response)
+
+        # mr could be from a fork - use another api
+        project_response = call_gitlab_api(
+            f"projects/{mr['source_project_id']}"
+        )
+        clone_url = project_response.json()['http_url_to_repo']
+
+        return dict(
+            sha=mr['sha'],
+            source_branch=mr['source_branch'],
+            commits_count=commits_count,
+            clone_url=clone_url,
+        )
 
     results = []
+    # obvioulsy at start 1
+    page_number = 1
     while True:
-        mr_response = _call_gitlab_api(
-            f"merge_requests?state={state}&scope={scope}&labels={labels}&page={page_number}"
+        mr_response = call_gitlab_api(
+            f"merge_requests?state={state}&scope={scope}{labels}&page={page_number}"
         )
-        for this_mr in mr_response.json():
-            if this_mr.get("project_id") == this_project_id:
-                # populate commits count - use another api
-                mr_commit_response = _call_gitlab_api(
-                    f"projects/{this_project_id}/merge_requests/{this_mr['iid']}/commits"
-                )
-                this_mr["commits_count"] = len(mr_commit_response.json())
-
-                # this_mr could be from a fork - use another api
-                project_response = _call_gitlab_api(
-                    f"projects/{this_mr['source_project_id']}"
-                )
-                this_mr["http_url_to_repo"] = project_response.json()[
-                    "http_url_to_repo"
-                ]
-
-                results.append(this_mr)
+        results.extend(
+            get_mr(mr)
+            for mr in mr_response.json()
+            if mr.get("project_id") == project_id
+        )
 
         # handle paging - only required for mr
         if not mr_response.headers["X-Next-Page"]:
@@ -80,29 +97,32 @@ def main():
         """,
     )
 
+    parser.add_argument('--server', required=True, help='Gitlab server URL')
+    parser.add_argument('--api-url', required=True, help='Gitlab API URL')
+    parser.add_argument('--api-token', help='Gitlab API token. If omitted, anonymous requests will be used which may fail')
+    parser.add_argument('--project-id', type=int, required=True, help='Gitlab Project ID')
     parser.add_argument('--repo', required=True, help='Gitlab repository as owner/name')
     parser.add_argument('--mr-label', action='append', required=True, help='Merge request labels to look for')
     parser.add_argument('--branch', required=True, help='Name of the branch to be created. If the branch exists, it will be forcefully updated')
 
     args = parser.parse_args()
 
-    project = args.repo
     owner, repo = args.repo.split('/', 1)
-    labels = ','.join(args.mr_label)
+    labels = args.mr_label
     branch = args.branch
+    server = args.server
+    api_url = args.api_url
+    api_token = args.api_token
+    project_id = args.project_id
 
     logging.basicConfig(level=logging.INFO)
-
-    server_host_ssh = os.environ.get('CI_SERVER_SHELL_SSH_HOST')
-
-    gl_mrs = get_gitlab_mrs(labels=labels)
 
     def make_topic(mr):
         remote = f'remote_{mr["sha"]}'
         return (
             {
                 remote: {
-                    'url': mr["http_url_to_repo"]
+                    'url': mr["clone_url"]
                 }
             },
             {
@@ -112,17 +132,22 @@ def main():
                 'tip': mr["source_branch"],
             }
         )
-    
-    topics = []
-    
-    for mr in gl_mrs:
-        topics += [ make_topic(mr) ]
+
+    topics = [
+        make_topic(mr)
+        for mr in get_gitlab_mrs(
+            api_url=api_url,
+            api_token=api_token,
+            project_id=project_id,
+            labels=labels
+        )
+    ]
 
     remotes, topics = zip(*topics) if topics else ([], [])
     remotes = dict(ChainMap(*chain(
         [{
             'gitlab': {
-            'url': f'https://{server_host_ssh}/{owner}/{repo}.git'
+            'url': f'https://{server}/{owner}/{repo}.git'
             }
         }],
         remotes

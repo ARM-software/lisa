@@ -12,3 +12,4 @@
 -e ./[all]
 
 -e ./tools/bisector
+-e ./tools/lisa-combine-gitlab-mr

@@ -81,7 +81,6 @@ extras_require={
         "pytest",
         "build",
         "twine",
-        "github3.py",
     ],
 
     "wa": [
@@ -117,11 +116,11 @@ if __name__ == "__main__":
         version=lisa_version,
         maintainer='Arm Ltd.',
         packages=packages,
-        url='https://github.com/ARM-software/lisa',
+        url='https://gitlab.arm.com/tooling/lisa',
         project_urls={
-            "Bug Tracker": "https://github.com/ARM-software/lisa/issues",
             "Documentation": "https://lisa-linux-integrated-system-analysis.readthedocs.io/",
-            "Source Code": "https://github.com/ARM-software/lisa",
+            "Bug Tracker": "https://gitlab.arm.com/tooling/lisa/-/issues",
+            "Source Code": "https://gitlab.arm.com/tooling/lisa",
         },
         description='A stick to probe the kernel with',
         long_description=long_description,

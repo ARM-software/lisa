@@ -26,10 +26,10 @@ LISA is available on `PyPI <https://pypi.org/project/lisa-linux/>`_:
     them. Alternatively, the installation from the git repository allows setting
     up a full environment.
 
-From GitHub
+From GitLab
 -----------
 
-LISA is hosted at `github <https://github.com/ARM-software/lisa>`_.
+LISA is hosted on `GitLab <https://gitlab.arm.com/tooling/lisa>`_.
 The following references are available:
 
     * ``main`` branch: Main development branch where pull requests are merged as they
@@ -76,7 +76,7 @@ need.
 
 .. code:: shell
 
-    git clone https://github.com/ARM-software/lisa.git
+    git clone https://gitlab.arm.com/tooling/lisa
     # Jump into the cloned repo directory
     cd lisa
     # This will provide a more accurate changelog when building the doc
@@ -142,7 +142,7 @@ Once these two components are available on your machine, issue these commands:
 
 .. code:: shell
 
-  git clone https://github.com/ARM-software/lisa.git
+  git clone https://gitlab.arm.com/tooling/lisa
   cd lisa
   vagrant up
 
