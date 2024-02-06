@@ -61,6 +61,7 @@ if RTD:
     # history to be able to generate breaking change list and any other
     # git-based documentation
     subprocess.run(['git', 'fetch', '--unshallow'], check=False)
+    subprocess.run(['git', 'fetch', '--tags'], check=False)
 
     # Ensure we have the changelog notes that supplement commit messages, as
     # sometimes the markers such as FEATURE were forgotten and later added

@@ -74,7 +74,7 @@ def main():
 
     parser.add_argument('--filename-pattern',
         nargs='*',
-        default=['*setup.py', *cli_path, os.path.join(LISA_HOME, 'tools', 'git-hooks')],
+        default=['*setup.py', '*pyproject.toml', *cli_path, os.path.join(LISA_HOME, 'tools', 'git-hooks')],
         help='git rev-list filename pattern to check'
     )
 

@@ -389,18 +389,6 @@ class Monsoon(_DevlibContinuousEnergyMeter):
         self._instrument.reset()
 
 
-_acme_install_instructions = '''
-
-  If you need to measure energy using an ACME EnergyProbe,
-  please do follow installation instructions available here:
-     https://github.com/ARM-software/lisa/wiki/Energy-Meters-Requirements#iiocapture---baylibre-acme-cape
-
-  Othwerwise, please select a different energy meter in your
-  configuration file.
-
-'''
-
-
 class ACMEConf(SimpleMultiSrcConf, HideExekallID):
     """
     Configuration class for :class:`ACME`.
@@ -461,7 +449,6 @@ class ACME(EnergyMeter):
             subprocess.call([self._iiocapturebin, '-h'], stdout=PIPE, stderr=STDOUT)
         except FileNotFoundError as e:
             logger.error(f'iio-capture binary {self._iiocapturebin} not available')
-            logger.warning(_acme_install_instructions)
             raise FileNotFoundError('Missing iio-capture binary') from e
 
     def sample(self):

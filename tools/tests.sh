@@ -33,7 +33,7 @@ echo "Starting self tests ..."
 timeout -s INT 1h python3 -m pytest -vv
 
 echo "Starting exekall self tests"
-exekall run "$LISA_HOME/tools/exekall/exekall/tests"
+exekall run "$LISA_HOME/tools/exekall/src/exekall/_tests"
 
 echo "Available LISA tests:"
 lisa-test --list

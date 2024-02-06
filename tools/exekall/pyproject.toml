@@ -1,0 +1,53 @@
+[project]
+name = "exekall"  # Required
+version = "1.0.0"  # Required
+description = "Python expression execution engine"
+requires-python = ">=3.8"
+license = {file = "LICENSE.txt"}
+keywords = ["development"]  
+
+readme = "README.rst"
+authors = [
+	{name = "Douglas RAILLARD"}
+]
+maintainers = [
+	{name = "Arm Ltd." }
+]
+
+# Classifiers help users find your project by categorizing it.
+#
+# For a list of valid classifiers, see https://pypi.org/classifiers/
+classifiers = [  # Optional
+	# How mature is this project? Common values are
+	#   3 - Alpha
+	#   4 - Beta
+	#   5 - Production/Stable
+	"Development Status :: 4 - Beta",
+
+	"Programming Language :: Python :: 3 :: Only",
+	# This is not a standard classifier, as there is nothing defined for
+	# Apache 2.0 yet:
+	# https://pypi.org/classifiers/
+	# It has not been tested under any other OS
+	"Operating System :: POSIX :: Linux",
+
+	"Intended Audience :: Developers",
+]
+
+dependencies = []
+
+[project.urls]
+"Homepage" = "https://gitlab.arm.com/tooling/lisa"
+"Source" = "https://gitlab.arm.com/tooling/lisa"
+"Documentation" = "https://lisa-linux-integrated-system-analysis.readthedocs.io/"
+"Bug Tracker" = "https://gitlab.arm.com/tooling/lisa/-/issues"
+
+# The following would provide a command line executable called `sample`
+# which executes the function `main` from this package when invoked.
+[project.scripts]  # Optional
+exekall = "exekall.main:main"
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+

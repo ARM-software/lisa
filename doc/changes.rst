@@ -24,7 +24,7 @@ Everything else is private.
     important API laws. This is unfortunately not future-proof, as new versions
     can add new methods that would also require being overridden and kept in
     sync. If for some reason subclassing is required, please get in touch in the
-    `github issue tracker <https://github.com/ARM-software/lisa/issues>`_
+    `GitLab issue tracker <https://gitlab.arm.com/tooling/lisa/-/issues>`_
     before relying on that for production.
 
 .. note:: Instance attributes are considered public following the same

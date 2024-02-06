@@ -13,7 +13,7 @@ Overview
 ========
 
 Bisector is a ``git bisect run`` compatible tool used in LISA. Check out the
-project's `Github`__ for some guides to installation and setup.
+project's `GitLab`__ for some guides to installation and setup.
 
 ``bisector`` allows setting up the steps of a test iteration, repeating
 them an infinite number of times (by default). These steps can involve flashing
@@ -32,7 +32,7 @@ that happen on long running sessions. ``bisector`` will never leave you with an
 inconsistent report, or worse, no report at all. A new report is saved after
 each iteration and can be inspected as the execution goes on.
 
-__ https://github.com/ARM-software/lisa
+__ https://gitlab.arm.com/tooling/lisa
 .. [#] https://git-scm.com/docs/git-bisect
 
 Contents
