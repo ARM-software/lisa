@@ -132,7 +132,7 @@ Autobranch:
       lisa_python -m pip freeze --exclude-editable --all | cut -f1 -d '=' > "$packages"
       lisa_python -m pip install --upgrade -r "$packages"
 
-      lisa_python -m pip install pip-audit ./tools/lisa-combine-gitlab-mr
+      lisa_python -m pip install --upgrade pip-audit ./tools/lisa-combine-gitlab-mr
       pip-audit || exit 1
 
       function update_branch() {
@@ -204,6 +204,36 @@ pages:
     - sudo ./install_base.sh --install-doc-extras
     - source init_env
     - |
+      function lisa_python() {
+        "$LISA_PYTHON" "$@"
+      }
+
       set -e
-      cd doc/
-      sphinx-build -b html . "public/$CI_COMMIT_REF_NAME"
+
+      # Ensure we have up to date versions of every pre-installed packages
+      lisa_python -m pip freeze --exclude-editable --all | cut -f1 -d '=' > "$packages"
+      lisa_python -m pip install --upgrade -r "$packages"
+
+      lisa_python -m pip install --upgrade pip-audit
+      pip-audit || exit 1
+
+    - |
+      # Avoid using /tmp since it's probably in tmpfs and would consume RAM
+      export TMPDIR=$(readlink -f .)/tmp
+      mkdir -p "$TMPDIR"
+      out="$(readlink -f .)/doc/public"
+
+
+      fn build_branch() {
+          local branch=$1
+          local worktree=$(mktemp -d)
+          git worktree add "$worktree" --checkout "$branch"
+
+          sphinx-build -b html -n --no-color -W --keep-going -T -j auto "$worktree" "$out/$branch"
+      }
+
+      git fetch --tags
+
+      build_branch main
+      build_branch preview
+
