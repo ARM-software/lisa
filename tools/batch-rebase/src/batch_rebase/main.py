@@ -379,7 +379,7 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
             range_base = f'refs/remotes/{remote}/{base}'
             range_tip = f'refs/remotes/{remote}/{tip}'
             range_ref = f'{range_base}..{range_tip}'
-            range_sha1s = git(['rev-list', range_ref], capture=True).splitlines()
+            range_sha1s = list(reversed(git(['rev-list', range_ref], capture=True).splitlines()))
 
             nr_commits = len(range_sha1s)
             info('Cherry-picking topic "{name}" from {remote} ({nr_commits} commits)\nremote: {remote}\nbase: {base}\ntip: {tip}\n'.format(
