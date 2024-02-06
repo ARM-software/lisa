@@ -99,7 +99,11 @@ def prepare():
     )
     os.environ.update(json.loads(out))
 
-prepare()
+# Only the top-level import has the "builtins" __name__. This prevents
+# re-running prepare() when conf.py is imported by the processes spawned by
+# sphinx
+if __name__ == 'builtins':
+    prepare()
 
 # -- General configuration ------------------------------------------------
 
