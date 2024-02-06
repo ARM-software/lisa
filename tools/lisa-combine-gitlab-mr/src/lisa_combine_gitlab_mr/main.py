@@ -176,5 +176,3 @@ def main():
         cmd = ['batch-rebase', 'create', '.', '--manifest', manifest, '--create-branch', branch]
         logging.info(f'Running {" ".join(map(str, cmd))}')
         subprocess.check_call(cmd)
-
-main()
