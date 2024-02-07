@@ -227,19 +227,10 @@ pages:
           lisa_python -m pip install --upgrade -r "$packages"
       }
 
-      function make_venv() {
-          local venv=$(mktemp -d --suffix '-venv')
-          lisa_python -m venv "$venv" && source "$venv/bin/activate"
-          upgrade_packages
-      }
-
       set -ex
       # Avoid using /tmp since it's probably in tmpfs and would consume RAM
       export TMPDIR=$(readlink -f .)/tmp
       mkdir -p "$TMPDIR"
-
-      make_venv
-      audit
 
     - |
       out="$(readlink -f .)/doc/public"
@@ -256,6 +247,7 @@ pages:
             set +e
             source ./init_env || return 1
             set -e
+            upgrade_packages
             audit
 
             export LC_ALL=C
