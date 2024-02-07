@@ -223,7 +223,7 @@ def autodoc_process_analysis_events(app, what, name, obj, options, lines):
         lines.extend(events_doc.splitlines())
 
 
-def autodoc_skip_member_handler(app, what, name, obj, skip, options):
+def autodoc_skip_member_handler(default_exclude_members, app, what, name, obj, skip, options):
     """
     Enforce the "exclude-members" option, even in cases where it seems to be
     ignored by Sphinx.
@@ -239,12 +239,7 @@ def autodoc_skip_member_handler(app, what, name, obj, skip, options):
         else:
             excluded = exclude_members_option(excluded)
 
-    # Import conf.py Sphinx configuration, since the "excluded-members" option
-    # can be overriden by the user in ReST directives.
-    import conf
-    default_excluded = exclude_members_option(
-        conf.autodoc_default_options.get('exclude-members', '')
-    )
+    default_excluded = exclude_members_option(default_exclude_members)
     excluded = excluded | default_excluded
 
     name = name.split('.')[-1]

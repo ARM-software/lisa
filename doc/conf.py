@@ -493,16 +493,20 @@ def setup(app):
 
     plot_conf_path = os.path.join(HOME, 'doc', 'plot_conf.yml')
     plot_conf = DocPlotConf.from_yaml_map(plot_conf_path)
-    autodoc_process_analysis_plots_handler = functools.partial(
+    _autodoc_process_analysis_plots_handler = functools.partial(
         autodoc_process_analysis_plots,
         plot_conf=plot_conf,
+    )
+    _autodoc_skip_member_handler = functools.partial(
+        autodoc_skip_member_handler,
+        default_exclude_members=autodoc_default_options.get('exclude-members')
     )
 
     app.connect('autodoc-process-docstring', autodoc_process_test_method)
     app.connect('autodoc-process-docstring', autodoc_process_analysis_events)
     app.connect('autodoc-process-docstring', autodoc_process_analysis_methods)
-    app.connect('autodoc-skip-member',       autodoc_skip_member_handler)
+    app.connect('autodoc-skip-member',       _autodoc_skip_member_handler)
     if int(os.environ.get('LISA_DOC_BUILD_PLOT', '1')):
-        app.connect('autodoc-process-docstring', autodoc_process_analysis_plots_handler)
+        app.connect('autodoc-process-docstring', _autodoc_process_analysis_plots_handler)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab:
