@@ -146,8 +146,8 @@ Autobranch:
           local branch=$2
           local force_branch=$3
 
-          local worktree=$(mktemp -d --suffix "${branch}-repo")
-          local patch=$(mktemp --suffix "$branch.patch")
+          local worktree=$(mktemp -d --suffix "-${branch}-repo")
+          local patch=$(mktemp --suffix "-$branch.patch")
 
           lisa-combine-gitlab-mr --server "$CI_SERVER_HOST" --repo "$CI_PROJECT_PATH" --project-id "$CI_PROJECT_ID" --api-url "$CI_API_V4_URL" --api-token "$GITLAB_REPO_TOKEN" --mr-label "$label" --branch "$force_branch" &&
 
@@ -193,7 +193,7 @@ pages:
   publish: doc/public
 
   rules:
-      - if: $CI_PIPELINE_SOURCE == "web" && $WEB_SKIP_AUTOBRANCH == "False"
+      - if: $CI_PIPELINE_SOURCE == "web" && $WEB_SKIP_PAGES == "False"
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
   before_script:
@@ -210,45 +210,69 @@ pages:
   script:
     - |
       function lisa_python() {
-        "$LISA_PYTHON" "$@"
+          "$LISA_PYTHON" "$@"
       }
 
-      set -e
+      function audit() {
+          lisa_python -m pip install --upgrade pip-audit
+          pip-audit || exit 1
+      }
 
-      # Ensure we have up to date versions of every pre-installed packages
-      lisa_python -m pip freeze --exclude-editable --all | cut -f1 -d '=' > "$packages"
-      lisa_python -m pip install --upgrade -r "$packages"
+      function upgrade_packages() {
+          packages=$(mktemp)
+          # Ensure we have up to date versions of every pre-installed packages
+          lisa_python -m pip freeze --local --exclude-editable --all | cut -f1 -d '=' > "$packages"
+          lisa_python -m pip install --upgrade -r "$packages"
+      }
 
-      lisa_python -m pip install --upgrade pip-audit
-      pip-audit || exit 1
+      function make_venv() {
+          local venv=$(mktemp -d --suffix '-venv')
+          lisa_python -m venv "$venv" && source "$venv/bin/activate"
+          upgrade_packages
+      }
 
-    - |
+      set -ex
       # Avoid using /tmp since it's probably in tmpfs and would consume RAM
       export TMPDIR=$(readlink -f .)/tmp
       mkdir -p "$TMPDIR"
+
+      make_venv
+      audit
+
+    - |
       out="$(readlink -f .)/doc/public"
 
-      fn build_branch() {
+      function build_branch() {
           local branch=$1
-          local worktree=$(mktemp -d)
-          git fetch "$branch"
+          local worktree=$(mktemp -d --suffix "-worktree-$branch")
+          git fetch origin "$branch"
           git worktree add "$worktree" --checkout "$branch"
           (
             set -e
             cd "$worktree"
             sudo ./install_base.sh --install-doc-extras
-            source init_env
+
+            make_venv
+            lisa_python -m pip install -r ./devmode_requirements.txt
+            audit
+
             export LC_ALL=C
-            sphinx-build -b html -n --no-color -W --keep-going -T -j auto . "$out/$branch"
+            sphinx-build -b html -n --no-color -W --keep-going -T -j auto ./doc "$out/$branch"
           )
       }
 
       build_branch main &> main_stdout &
       build_branch preview &> preview_stdout &
       build_branch release &> release_stdout &
-      wait
 
+      echo '================================================================================'
+      echo 'MAIN:'
       cat main_stdout
+      echo '================================================================================'
+      echo 'PREVIEW:'
       cat preview_stdout
+      echo '================================================================================'
+      echo 'RELEASE:'
       cat release_stdout
+
 
