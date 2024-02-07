@@ -181,10 +181,6 @@ pages:
   needs: ['Autobranch', 'Test']
   resource_group: pages
 
-  tags:
-    # For recent-enough pandoc
-    - ubuntu_23_04_amd64
-
   artifacts:
     paths:
         - doc/public
@@ -198,12 +194,16 @@ pages:
     - export DEBIAN_FRONTEND=noninteractive
     - sudo apt-get update -y
     - sudo apt-get upgrade -y
-    - sudo apt-get -y install python3-full
+    - sudo apt-get install software-properties-common -y
+    - sudo add-apt-repository ppa:deadsnakes/ppa -y
+    - sudo apt-get update -y
+    - sudo apt-get -y install python3-pip python3.${PYVERSION}-full
+    - export LISA_PYTHON=python3.${PYVERSION}
 
   script:
     - |
       function lisa_python() {
-        python3 "$@"
+        "$LISA_PYTHON" "$@"
       }
 
       set -e
