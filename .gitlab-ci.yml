@@ -194,7 +194,9 @@ pages:
 
   rules:
       - if: $CI_PIPELINE_SOURCE == "web" && $WEB_SKIP_PAGES == "False"
-      - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"
+      - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "preview"
+      - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "release"
 
   before_script:
     - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
@@ -261,21 +263,5 @@ pages:
           )
       }
       build_branch main
-      exit 0
-
-      # build_branch main &> main_stdout &
-      # build_branch preview &> preview_stdout &
-      # build_branch release &> release_stdout &
-      # wait
-
-      # echo '================================================================================'
-      # echo 'MAIN:'
-      # cat main_stdout
-      # echo '================================================================================'
-      # echo 'PREVIEW:'
-      # cat preview_stdout
-      # echo '================================================================================'
-      # echo 'RELEASE:'
-      # cat release_stdout
-
-
+      build_branch preview
+      build_branch release
