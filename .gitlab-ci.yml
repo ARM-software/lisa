@@ -189,8 +189,7 @@ pages:
 
   artifacts:
     paths:
-        - doc/public
-  publish: doc/public
+        - public
 
   rules:
       - if: $CI_PIPELINE_SOURCE == "web" && $WEB_SKIP_PAGES == "False"
@@ -240,7 +239,7 @@ pages:
       mkdir -p "$TMPDIR"
 
     - |
-      out="$(readlink -f .)/doc/public"
+      out="$(readlink -f .)/public"
 
       function build_branch() {
           local branch=$1
