@@ -254,11 +254,9 @@ pages:
             cd "$worktree"
             sudo ./install_base.sh --install-doc-extras
 
-            make_venv
-            lisa_python -m pip install -r ./devmode_requirements.txt
+            source ./init_env
             audit
 
-            export LISA_HOME=$worktree
             export LC_ALL=C
             cd ./doc && sphinx-build -b html -n --no-color -W --keep-going -T -j auto . "$out/$branch"
           )
