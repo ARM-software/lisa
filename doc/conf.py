@@ -24,6 +24,7 @@ import inspect
 import importlib
 import types
 import contextlib
+from pathlib import Path
 
 from sphinx.domains.python import PythonDomain
 
@@ -34,7 +35,7 @@ sys.path.insert(0, os.path.abspath('../'))
 
 # Import our packages after modifying sys.path
 import lisa
-from lisa.utils import LISA_HOME, import_all_submodules, sphinx_nitpick_ignore
+from lisa.utils import import_all_submodules, sphinx_nitpick_ignore
 from lisa._doc.helpers import (
     autodoc_process_test_method, autodoc_process_analysis_events,
     autodoc_process_analysis_plots, autodoc_process_analysis_methods,
@@ -42,6 +43,9 @@ from lisa._doc.helpers import (
     DocPlotConf, get_xref_type,
 )
 
+# Do not rely on LISA_HOME as it may not be set and will default to current
+# folder, which is not what we want here.
+HOME = Path(__file__).parent.parent.resolve()
 
 # This ugly hack is required because by default TestCase.__module__ is
 # equal to 'case', so sphinx replaces all of our TestCase uses to
@@ -60,7 +64,7 @@ def prepare():
     def run(cmd, **kwargs):
         return subprocess.run(
             cmd,
-            cwd=LISA_HOME,
+            cwd=HOME,
             **kwargs,
         )
 
@@ -84,15 +88,16 @@ def prepare():
     # If LISA_HOME is set, sourcing the script won't work
     source_env.pop('LISA_HOME', None)
 
+    init_env = HOME / 'init_env'
     script = textwrap.dedent(
-        """
-        source init_env >&2 &&
+        f"""
+        source {init_env} >&2 &&
         python -c 'import os, json; print(json.dumps(dict(os.environ)))'
         """
     )
     out = subprocess.check_output(
         ['bash', '-c', script],
-        cwd=LISA_HOME,
+        cwd=HOME,
         # Reset the environment, including LISA_HOME to allow sourcing without
         # any issue
         env=source_env,
@@ -503,18 +508,22 @@ class CustomPythonDomain(PythonDomain):
 def setup(app):
     app.add_domain(CustomPythonDomain, override=True)
 
-    plot_conf_path = os.path.join(LISA_HOME, 'doc', 'plot_conf.yml')
+    plot_conf_path = os.path.join(HOME, 'doc', 'plot_conf.yml')
     plot_conf = DocPlotConf.from_yaml_map(plot_conf_path)
-    autodoc_process_analysis_plots_handler = functools.partial(
+    _autodoc_process_analysis_plots_handler = functools.partial(
         autodoc_process_analysis_plots,
         plot_conf=plot_conf,
+    )
+    _autodoc_skip_member_handler = functools.partial(
+        autodoc_skip_member_handler,
+        default_exclude_members=autodoc_default_options.get('exclude-members')
     )
 
     app.connect('autodoc-process-docstring', autodoc_process_test_method)
     app.connect('autodoc-process-docstring', autodoc_process_analysis_events)
     app.connect('autodoc-process-docstring', autodoc_process_analysis_methods)
-    app.connect('autodoc-skip-member',       autodoc_skip_member_handler)
+    app.connect('autodoc-skip-member',       _autodoc_skip_member_handler)
     if int(os.environ.get('LISA_DOC_BUILD_PLOT', '1')):
-        app.connect('autodoc-process-docstring', autodoc_process_analysis_plots_handler)
+        app.connect('autodoc-process-docstring', _autodoc_process_analysis_plots_handler)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab:

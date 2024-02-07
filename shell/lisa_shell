@@ -215,6 +215,7 @@ function _lisa-copy-git-hook {
 
     # Avoid overriding existing hooks unless they are provided by LISA
     if [[ ! -e "$dst" ]] || grep -q 'LISA-HOOK' "$dst"; then
+        mkdir -p "$(dirname "$dst")" &&
         cp -v "$src" "$dst"
     else
         echo "WARNING: Could not install git hook, as it is user-provided: $src => $dst"

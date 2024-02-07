@@ -40,6 +40,12 @@ variables:
       - "True"
       - "False"
     description: True to skip autobranch job when triggered via Web UI.
+  WEB_SKIP_PAGES:
+    value: "False"
+    options:
+      - "True"
+      - "False"
+    description: True to skip pages job when triggered via Web UI.
 
 Test:
   rules:
@@ -140,8 +146,8 @@ Autobranch:
           local branch=$2
           local force_branch=$3
 
-          local worktree=$(mktemp -d --suffix "${branch}-repo")
-          local patch=$(mktemp --suffix "$branch.patch")
+          local worktree=$(mktemp -d --suffix "-${branch}-repo")
+          local patch=$(mktemp --suffix "-$branch.patch")
 
           lisa-combine-gitlab-mr --server "$CI_SERVER_HOST" --repo "$CI_PROJECT_PATH" --project-id "$CI_PROJECT_ID" --api-url "$CI_API_V4_URL" --api-token "$GITLAB_REPO_TOKEN" --mr-label "$label" --branch "$force_branch" &&
 
@@ -187,7 +193,10 @@ pages:
   publish: doc/public
 
   rules:
-      - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      - if: $CI_PIPELINE_SOURCE == "web" && $WEB_SKIP_PAGES == "False"
+      - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"
+      - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "preview"
+      - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "release"
 
   before_script:
     - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
@@ -203,45 +212,49 @@ pages:
   script:
     - |
       function lisa_python() {
-        "$LISA_PYTHON" "$@"
+          "$LISA_PYTHON" "$@"
       }
 
-      set -e
+      function audit() {
+          lisa_python -m pip install --upgrade pip-audit
+          pip-audit || exit 1
+      }
 
-      # Ensure we have up to date versions of every pre-installed packages
-      lisa_python -m pip freeze --exclude-editable --all | cut -f1 -d '=' > "$packages"
-      lisa_python -m pip install --upgrade -r "$packages"
+      function upgrade_packages() {
+          packages=$(mktemp)
+          # Ensure we have up to date versions of every pre-installed packages
+          lisa_python -m pip freeze --local --exclude-editable --all | cut -f1 -d '=' > "$packages"
+          lisa_python -m pip install --upgrade -r "$packages"
+      }
 
-      lisa_python -m pip install --upgrade pip-audit
-      pip-audit || exit 1
-
-    - |
+      set -ex
       # Avoid using /tmp since it's probably in tmpfs and would consume RAM
       export TMPDIR=$(readlink -f .)/tmp
       mkdir -p "$TMPDIR"
+
+    - |
       out="$(readlink -f .)/doc/public"
 
-      fn build_branch() {
+      function build_branch() {
           local branch=$1
-          local worktree=$(mktemp -d)
-          git fetch "$branch"
+          local worktree=$(mktemp -d --suffix "-worktree-$branch")
+          git fetch origin "$branch"
           git worktree add "$worktree" --checkout "$branch"
           (
-            set -e
             cd "$worktree"
             sudo ./install_base.sh --install-doc-extras
-            source init_env
+
+            set +e
+            source ./init_env || return 1
+            set -e
+            upgrade_packages
+            audit
+
             export LC_ALL=C
-            sphinx-build -b html -n --no-color -W --keep-going -T -j auto . "$out/$branch"
+            cd ./doc && sphinx-build -b html -n --no-color -W --keep-going -T -j auto . "$out/$branch"
           )
       }
-
-      build_branch main &> main_stdout &
-      build_branch preview &> preview_stdout &
-      build_branch release &> release_stdout &
-      wait
-
-      cat main_stdout
-      cat preview_stdout
-      cat release_stdout
-
+      build_branch main
+      build_branch preview
+      # TODO: For now the release branch doc won't build as it lacks some necessary fixes
+      # build_branch release
