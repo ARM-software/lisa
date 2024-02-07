@@ -209,13 +209,12 @@ function _lisa-install-system-check {
 function _lisa-copy-git-hook {
     local hook="$1"
 
-    local hooks_dir="$(git -C "$LISA_HOME" rev-parse --git-common-dir)/hooks"
+    local hooks_dir=$(git -C "$LISA_HOME" rev-parse --git-path hooks)
     local src="$LISA_HOME/tools/git-hooks/$hook"
-    local dst="$LISA_HOME/$hooks_dir/$hook"
+    local dst="$hooks_dir/$hook"
 
     # Avoid overriding existing hooks unless they are provided by LISA
     if [[ ! -e "$dst" ]] || grep -q 'LISA-HOOK' "$dst"; then
-        mkdir -p "$(basename "$dst")" &&
         cp -v "$src" "$dst"
     else
         echo "WARNING: Could not install git hook, as it is user-provided: $src => $dst"
