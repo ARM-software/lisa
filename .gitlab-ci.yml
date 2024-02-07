@@ -201,8 +201,6 @@ pages:
     - export LISA_PYTHON=python3.${PYVERSION}
 
   script:
-    - sudo ./install_base.sh --install-doc-extras
-    - source init_env
     - |
       function lisa_python() {
         "$LISA_PYTHON" "$@"
@@ -223,17 +221,21 @@ pages:
       mkdir -p "$TMPDIR"
       out="$(readlink -f .)/doc/public"
 
-
       fn build_branch() {
           local branch=$1
           local worktree=$(mktemp -d)
+          git fetch "$branch"
           git worktree add "$worktree" --checkout "$branch"
-
-          sphinx-build -b html -n --no-color -W --keep-going -T -j auto "$worktree" "$out/$branch"
+          (
+            set -e
+            cd "$worktree"
+            sudo ./install_base.sh --install-doc-extras
+            source init_env
+            sphinx-build -b html -n --no-color -W --keep-going -T -j auto . "$out/$branch"
+          )
       }
-
-      git fetch --tags
 
       build_branch main
       build_branch preview
+      build_branch release
 
