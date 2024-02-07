@@ -196,7 +196,9 @@ pages:
       - if: $CI_PIPELINE_SOURCE == "web" && $WEB_SKIP_PAGES == "False"
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "preview"
+        needs: []
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "release"
+        needs: []
 
   before_script:
     - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
