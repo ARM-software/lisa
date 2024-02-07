@@ -86,9 +86,10 @@ def prepare():
     # If LISA_HOME is set, sourcing the script won't work
     source_env.pop('LISA_HOME', None)
 
+    init_env = HOME / 'init_env'
     script = textwrap.dedent(
-        """
-        source ./init_env >&2 &&
+        f"""
+        source {init_env} >&2 &&
         python -c 'import os, json; print(json.dumps(dict(os.environ)))'
         """
     )

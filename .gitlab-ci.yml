@@ -260,19 +260,22 @@ pages:
             sphinx-build -b html -n --no-color -W --keep-going -T -j auto ./doc "$out/$branch"
           )
       }
+      build_branch main
+      exit 0
 
-      build_branch main &> main_stdout &
-      build_branch preview &> preview_stdout &
-      build_branch release &> release_stdout &
+      # build_branch main &> main_stdout &
+      # build_branch preview &> preview_stdout &
+      # build_branch release &> release_stdout &
+      # wait
 
-      echo '================================================================================'
-      echo 'MAIN:'
-      cat main_stdout
-      echo '================================================================================'
-      echo 'PREVIEW:'
-      cat preview_stdout
-      echo '================================================================================'
-      echo 'RELEASE:'
-      cat release_stdout
+      # echo '================================================================================'
+      # echo 'MAIN:'
+      # cat main_stdout
+      # echo '================================================================================'
+      # echo 'PREVIEW:'
+      # cat preview_stdout
+      # echo '================================================================================'
+      # echo 'RELEASE:'
+      # cat release_stdout
 
 
