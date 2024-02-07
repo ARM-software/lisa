@@ -197,7 +197,7 @@ pages:
     - sudo apt-get install software-properties-common -y
     - sudo add-apt-repository ppa:deadsnakes/ppa -y
     - sudo apt-get update -y
-    - sudo apt-get -y install python3.${PYVERSION}-full
+    - sudo apt-get -y install python3-pip python3.${PYVERSION}-full
     - export LISA_PYTHON=python3.${PYVERSION}
 
   script:
@@ -231,11 +231,17 @@ pages:
             cd "$worktree"
             sudo ./install_base.sh --install-doc-extras
             source init_env
+            export LC_ALL=C
             sphinx-build -b html -n --no-color -W --keep-going -T -j auto . "$out/$branch"
           )
       }
 
-      build_branch main
-      build_branch preview
-      build_branch release
+      build_branch main &> main_stdout &
+      build_branch preview &> preview_stdout &
+      build_branch release &> release_stdout &
+      wait
+
+      cat main_stdout
+      cat preview_stdout
+      cat release_stdout
 
