@@ -235,7 +235,12 @@ pages:
           )
       }
 
-      build_branch main
-      build_branch preview
-      build_branch release
+      build_branch main &> main_stdout &
+      build_branch preview &> preview_stdout &
+      build_branch release &> release_stdout &
+      wait
+
+      cat main_stdout
+      cat preview_stdout
+      cat release_stdout
 
