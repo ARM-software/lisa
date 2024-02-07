@@ -35,7 +35,7 @@ sys.path.insert(0, os.path.abspath('../'))
 
 # Import our packages after modifying sys.path
 import lisa
-from lisa.utils import LISA_HOME, import_all_submodules, sphinx_nitpick_ignore
+from lisa.utils import import_all_submodules, sphinx_nitpick_ignore
 from lisa._doc.helpers import (
     autodoc_process_test_method, autodoc_process_analysis_events,
     autodoc_process_analysis_plots, autodoc_process_analysis_methods,
@@ -43,7 +43,9 @@ from lisa._doc.helpers import (
     DocPlotConf, get_xref_type,
 )
 
-HOME = Path(LISA_HOME).resolve()
+# Do not rely on LISA_HOME as it may not be set and will default to current
+# folder, which is not what we want here.
+HOME = Path(__file__).parent.parent.resolve()
 
 # This ugly hack is required because by default TestCase.__module__ is
 # equal to 'case', so sphinx replaces all of our TestCase uses to
