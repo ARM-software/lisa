@@ -257,7 +257,7 @@ pages:
             audit
 
             export LC_ALL=C
-            sphinx-build -b html -n --no-color -W --keep-going -T -j auto ./doc "$out/$branch"
+            cd ./doc && sphinx-build -b html -n --no-color -W --keep-going -T -j auto . "$out/$branch"
           )
       }
       build_branch main
