@@ -40,6 +40,12 @@ variables:
       - "True"
       - "False"
     description: True to skip autobranch job when triggered via Web UI.
+  WEB_SKIP_PAGES:
+    value: "False"
+    options:
+      - "True"
+      - "False"
+    description: True to skip pages job when triggered via Web UI.
 
 Test:
   rules:
@@ -187,6 +193,7 @@ pages:
   publish: doc/public
 
   rules:
+      - if: $CI_PIPELINE_SOURCE == "web" && $WEB_SKIP_AUTOBRANCH == "False"
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
   before_script:
