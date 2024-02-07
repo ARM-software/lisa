@@ -24,6 +24,7 @@ import inspect
 import importlib
 import types
 import contextlib
+from pathlib import Path
 
 from sphinx.domains.python import PythonDomain
 
@@ -42,6 +43,7 @@ from lisa._doc.helpers import (
     DocPlotConf, get_xref_type,
 )
 
+HOME = Path(LISA_HOME).resolve()
 
 # This ugly hack is required because by default TestCase.__module__ is
 # equal to 'case', so sphinx replaces all of our TestCase uses to
@@ -60,7 +62,7 @@ def prepare():
     def run(cmd, **kwargs):
         return subprocess.run(
             cmd,
-            cwd=LISA_HOME,
+            cwd=HOME,
             **kwargs,
         )
 
@@ -86,13 +88,13 @@ def prepare():
 
     script = textwrap.dedent(
         """
-        source init_env >&2 &&
+        source ./init_env >&2 &&
         python -c 'import os, json; print(json.dumps(dict(os.environ)))'
         """
     )
     out = subprocess.check_output(
         ['bash', '-c', script],
-        cwd=LISA_HOME,
+        cwd=HOME,
         # Reset the environment, including LISA_HOME to allow sourcing without
         # any issue
         env=source_env,
@@ -486,7 +488,7 @@ class CustomPythonDomain(PythonDomain):
 def setup(app):
     app.add_domain(CustomPythonDomain, override=True)
 
-    plot_conf_path = os.path.join(LISA_HOME, 'doc', 'plot_conf.yml')
+    plot_conf_path = os.path.join(HOME, 'doc', 'plot_conf.yml')
     plot_conf = DocPlotConf.from_yaml_map(plot_conf_path)
     autodoc_process_analysis_plots_handler = functools.partial(
         autodoc_process_analysis_plots,
