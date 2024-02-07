@@ -94,7 +94,7 @@ Autobranch:
     - sudo apt-get install software-properties-common -y
     - sudo add-apt-repository ppa:deadsnakes/ppa -y
     - sudo apt-get update -y
-    - sudo apt-get -y install python3.${PYVERSION}-full
+    - sudo apt-get -y install python3.${PYVERSION}-pip python3.${PYVERSION}-full
     - export LISA_PYTHON=python3.${PYVERSION}
 
     - |
@@ -197,7 +197,7 @@ pages:
     - sudo apt-get install software-properties-common -y
     - sudo add-apt-repository ppa:deadsnakes/ppa -y
     - sudo apt-get update -y
-    - sudo apt-get -y install python3.${PYVERSION}-full
+    - sudo apt-get -y install python3.${PYVERSION}-pip python3.${PYVERSION}-full
     - export LISA_PYTHON=python3.${PYVERSION}
 
   script:
