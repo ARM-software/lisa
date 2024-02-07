@@ -256,4 +256,5 @@ pages:
       }
       build_branch main
       build_branch preview
-      build_branch release
+      # TODO: For now the release branch doc won't build as it lacks some necessary fixes
+      # build_branch release
