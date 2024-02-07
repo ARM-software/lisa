@@ -231,6 +231,7 @@ pages:
             cd "$worktree"
             sudo ./install_base.sh --install-doc-extras
             source init_env
+            export LC_ALL=C
             sphinx-build -b html -n --no-color -W --keep-going -T -j auto . "$out/$branch"
           )
       }
