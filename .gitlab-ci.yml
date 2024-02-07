@@ -250,11 +250,12 @@ pages:
           git fetch origin "$branch"
           git worktree add "$worktree" --checkout "$branch"
           (
-            set -e
             cd "$worktree"
             sudo ./install_base.sh --install-doc-extras
 
-            source ./init_env
+            set +e
+            source ./init_env || return 1
+            set -e
             audit
 
             export LC_ALL=C
