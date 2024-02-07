@@ -204,7 +204,7 @@ pages:
     - export DEBIAN_FRONTEND=noninteractive
     - sudo apt-get update -y
     - sudo apt-get upgrade -y
-    - sudo apt-get install software-properties-common -y
+    - sudo apt-get install software-properties-common symlinks rdfind -y
     - sudo add-apt-repository ppa:deadsnakes/ppa -y
     - sudo apt-get update -y
     - sudo apt-get -y install python3-pip python3.${PYVERSION}-full
@@ -257,10 +257,23 @@ pages:
             audit
 
             export LC_ALL=C
-            cd ./doc && sphinx-build -b html -n --no-color -W --keep-going -T -j auto . "$out/$branch"
+            local doctree=$(mktemp -d --suffix "-doctree-$branch")
+            cd ./doc && sphinx-build -b html -n --no-color -W --keep-going -T -j auto -d "$doctree" . "$out/$branch"
           )
       }
       build_branch main
       build_branch preview
+
+      # Make the doc a lot more compact by trimming useless files
+      find "$out" '-(' -name '*.ipynb' -or -name '*.ipynb.txt' '-)' -delete
+
+      # Replace duplicates with symlinks to compact the archive
+      rdfind -makeresultsfile false -makesymlinks true "$out"
+      # Rewrite absolute symlinks into relative ones
+      symlinks -cr "$out"
+
       # TODO: For now the release branch doc won't build as it lacks some necessary fixes
       # build_branch release
+
+    # Debug excessive sizes
+    - du -hc "$out" | sort -h
