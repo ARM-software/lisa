@@ -184,7 +184,6 @@ Autobranch:
 
 
 pages:
-  needs: ['Autobranch', 'Test']
   resource_group: pages
 
   artifacts:
@@ -193,7 +192,9 @@ pages:
 
   rules:
       - if: $CI_PIPELINE_SOURCE == "web" && $WEB_SKIP_PAGES == "False"
+        needs: ['Autobranch']
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"
+        needs: ['Autobranch']
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "preview"
         needs: []
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "release"
