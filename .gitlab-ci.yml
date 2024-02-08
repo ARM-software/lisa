@@ -267,7 +267,7 @@ pages:
       build_branch preview preview
 
       # TODO: For now the release branch doc won't build as it lacks some necessary fixes
-      # build_branch release
+      # build_branch release release
       # build_branch v4.0.0 v4
 
       # Expose "main" as the "latest" branch
@@ -280,6 +280,21 @@ pages:
       rdfind -makeresultsfile false -makesymlinks true "$out"
       # Rewrite absolute symlinks into relative ones
       symlinks -cr "$out"
+
+      default=latest
+
+      cat > "$out/index.html" <<- EOF
+      <!DOCTYPE html>
+      <html>
+        <head>
+            <meta charset="UTF-8" />
+            <meta http-equiv="refresh" content="0; URL=https://tooling.sites.arm.com/lisa/$default" />
+        </head>
+        <body>
+            <p><a href="https://tooling.sites.arm.com/lisa/$defaul"></a>https://tooling.sites.arm.com/lisa/$default</p>
+        </body>
+      </html>
+      EOF
 
 
     # Debug excessive sizes
