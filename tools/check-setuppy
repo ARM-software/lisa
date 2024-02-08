@@ -25,7 +25,7 @@ import sys
 LISA_HOME = os.getenv('LISA_HOME', '.')
 
 def call_git(*args):
-    return subprocess.check_output(('git', *args)).decode('utf-8')
+    return subprocess.check_output(('git', '-C', LISA_HOME, *args)).decode('utf-8')
 
 def get_git_sha1(ref):
     return call_git('rev-parse', ref).strip()
