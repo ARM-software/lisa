@@ -242,10 +242,11 @@ pages:
       out="$(readlink -f .)/public"
 
       function build_branch() {
-          local branch=$1
-          local worktree=$(mktemp -d --suffix "-worktree-$branch")
-          git fetch origin "$branch"
-          git worktree add "$worktree" --checkout "$branch"
+          local ref=$1
+          local publish_as=$2
+          local worktree=$(mktemp -d --suffix "-worktree")
+          git fetch origin "$ref"
+          git worktree add "$worktree" --checkout "$ref"
           (
             cd "$worktree"
             sudo ./install_base.sh --install-doc-extras
@@ -257,12 +258,19 @@ pages:
             audit
 
             export LC_ALL=C
-            local doctree=$(mktemp -d --suffix "-doctree-$branch")
-            cd ./doc && sphinx-build -b html -n --no-color -W --keep-going -T -j auto -d "$doctree" . "$out/$branch"
+            local doctree=$(mktemp -d --suffix "-doctree")
+            cd ./doc && sphinx-build -b html -n --no-color -W --keep-going -T -j auto -d "$doctree" . "$out/$publish_as"
           )
       }
-      build_branch main
-      build_branch preview
+      build_branch main main
+      build_branch preview preview
+
+      # TODO: For now the release branch doc won't build as it lacks some necessary fixes
+      # build_branch release
+      # build_branch v4.0.0 v4
+
+      # Expose "main" as the "latest" branch
+      (cd "$out" && ln -s ./main ./latest)
 
       # Make the doc a lot more compact by trimming useless files
       find "$out" '-(' -name '*.ipynb' -or -name '*.ipynb.txt' '-)' -delete
@@ -272,8 +280,6 @@ pages:
       # Rewrite absolute symlinks into relative ones
       symlinks -cr "$out"
 
-      # TODO: For now the release branch doc won't build as it lacks some necessary fixes
-      # build_branch release
 
     # Debug excessive sizes
     - du -hc "$out" | sort -h
