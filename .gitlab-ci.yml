@@ -197,6 +197,8 @@ pages:
         needs: ['Autobranch']
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "preview"
         needs: []
+      - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
+        needs: []
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "release"
         needs: []
 
@@ -265,6 +267,7 @@ pages:
       }
       build_branch main main
       build_branch preview preview
+      build_branch master master
 
       # TODO: For now the release branch doc won't build as it lacks some necessary fixes
       # build_branch release release
