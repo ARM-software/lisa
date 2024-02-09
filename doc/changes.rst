@@ -60,7 +60,7 @@ Changelog
 *********
 
 The changelog cannot be generated on the master branch anymore.
-Please see the `latest documentation <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/changes.html#changelog>`_
+Please see the `latest documentation <https://tooling.sites.arm.com/lisa/latest/changes.html>`__
 
 ****************
 Breaking changes

@@ -300,7 +300,7 @@ rst_prolog = """
 
     This documentation was obtained by building the "master" git branch.
     LISA project has moved to the "main" branch.
-    The "master" branch is now a mirror of "main" but will eventually be abandonned, please see the `latest documentation <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/>`_.
+    The "master" branch is now a mirror of "main" but will eventually be abandonned, please see the `latest documentation <https://tooling.sites.arm.com/lisa/latest>`__.
 
     .. raw:: html
 
