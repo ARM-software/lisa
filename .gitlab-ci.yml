@@ -281,21 +281,12 @@ pages:
       # Rewrite absolute symlinks into relative ones
       symlinks -cr "$out"
 
+      # Redirect bare address such as https://tooling.sites.arm.com/lisa to a
+      # given version
       default=latest
-
-      cat > "$out/index.html" <<- EOF
-      <!DOCTYPE html>
-      <html>
-        <head>
-            <meta charset="UTF-8" />
-            <meta http-equiv="refresh" content="0; URL=https://tooling.sites.arm.com/lisa/$default" />
-        </head>
-        <body>
-            <p><a href="https://tooling.sites.arm.com/lisa/$defaul"></a>https://tooling.sites.arm.com/lisa/$default</p>
-        </body>
-      </html>
+      cat > "$out/_redirects" <<- EOF
+      /lisa/ /lisa/$default/ 301
       EOF
-
 
     # Debug excessive sizes
     - du -hc "$out" | sort -h
