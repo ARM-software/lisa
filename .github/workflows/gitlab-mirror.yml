@@ -1,12 +1,12 @@
 name: gitlab-mirror
 
 on:
+  schedule:
+    # Runs every hour, on the hour
+    - cron:  '0 * * * *'
+
   # To be able to manually trigger the job from GitHub UI
   workflow_dispatch:
-
-  # Allows external webhook trigger so GitLab can ping GitHub when anything is
-  # pushed.
-  repository_dispatch:
 
 permissions:
   # Necessary to be able to push to the repo
