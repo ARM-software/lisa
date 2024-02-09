@@ -10,7 +10,7 @@ shell, which provides a convenient set of commands for easy access to many LISA
 related functions, scripts and environment variables.
 
 For more details, see
-`<https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/>`_
+`<https://tooling.sites.arm.com/lisa/latest/>`_
 
 Activation
 ++++++++++

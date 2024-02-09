@@ -1,1 +1,1 @@
-See https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/changes.html#changelog
+See https://tooling.sites.arm.com/lisa/latest/changes.html#changelog

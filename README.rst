@@ -7,7 +7,7 @@ management. ⚠️
 January 2024. When more details are available, this pull request will be
 updated: https://gitlab.arm.com/tooling/lisa/-/merge_requests/2140/ ⚠️
 
-Introduction |CI status| |Documentation Status|
+Introduction |CI status|
 ===================================================
 
 The LISA project provides a toolkit that supports regression testing and
@@ -69,12 +69,11 @@ The main goals of LISA are:
 Documentation
 =============
 
-You should find everything on
-`ReadTheDocs <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/>`__.
+You should find everything on https://tooling.sites.arm.com/lisa/latest/
 Here are some noteworthy sections:
 
-   * `Installation <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/setup.html>`__
-   * `Kernel tests <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/kernel_tests.html>`__
+   * `Installation <https://tooling.sites.arm.com/lisa/latest/setup.html>`__
+   * `Kernel tests <https://tooling.sites.arm.com/lisa/latest/kernel_tests.html>`__
 
 How to reach us
 ===============
@@ -114,9 +113,7 @@ Contributions / Pull Requests
 Contributions are accepted under Apache-2.0. Only submit contributions
 where you have authored all of the code. If you do this on work time
 make sure your employer is cool with this. We also have a `Contributor Guide
-<https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/contributors_guide.html>`__
+<https://tooling.sites.arm.com/lisa/latest/contributors_guide.html>`__
 
 .. |CI status| image:: https://gitlab.arm.com/tooling/lisa/badges/main/pipeline.svg
    :target: https://gitlab.arm.com/tooling/lisa/-/commits/main
-.. |Documentation Status| image:: https://readthedocs.org/projects/lisa-linux-integrated-system-analysis/badge/?version=main
-   :target: https://lisa-linux-integrated-system-analysis.readthedocs.io/en/main/

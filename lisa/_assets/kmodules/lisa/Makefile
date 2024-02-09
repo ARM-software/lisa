@@ -27,7 +27,7 @@ else
 endif
 
 # This did not lie:
-# https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/setup.html#manual-module-setup-warning2
+# https://tooling.sites.arm.com/lisa/latest/setup.html#manual-module-setup-warning2
 # Maintaining a patch to get in-tree build will be the least of your worries
 # before long.
 # If you remove this check, you won't be able to claim you have not been warned,

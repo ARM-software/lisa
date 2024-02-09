@@ -1,1 +1,1 @@
-See https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/contributors_guide.html
+See https://tooling.sites.arm.com/lisa/latest/contributors_guide.html
