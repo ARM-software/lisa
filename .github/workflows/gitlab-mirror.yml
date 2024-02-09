@@ -1,0 +1,54 @@
+name: gitlab-mirror
+
+on:
+  schedule:
+    # Runs every hour, on the hour
+    - cron:  '0 * * * *'
+
+
+permissions:
+  # Necessary to be able to push to the repo
+  contents: write
+
+jobs:
+  mirror:
+    name: gitlab-mirror
+    concurrency: mirror # Only 1 mirror job needs to run at once
+    runs-on: ubuntu-latest
+    if: contains(vars.MIRROR_FROM_GITLAB, 'true') # only runs if this variable is set to true
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          # Checks out the github repo, but crucially also sets up git auth.
+          repository: ${{ github.repository }}
+          path: target-repo
+          ref: main
+
+      - name: Push Mirror git
+        # This force pushes to main! Be sure you want to run this!
+        run: |
+          set -x
+
+          cd target-repo || exit 1
+          git remote add gitlab https://git.gitlab.arm.com/tooling/lisa.git
+
+          function mirror() {
+              local ref=$1
+              git fetch gitlab "$ref" &&
+              git push -f origin "FETCH_HEAD:$ref" 
+          }
+
+          mirror refs/heads/main 
+          mirror refs/heads/release 
+          mirror refs/heads/next 
+          mirror refs/heads/legacy 
+
+          # This is used as the source of commits to add on top of main to
+          # build the master branch content
+          mirror refs/heads/for-master
+
+          mirror refs/heads/master-force
+          mirror refs/heads/master 
+
+          mirror refs/heads/preview-force
+          mirror refs/heads/preview 
