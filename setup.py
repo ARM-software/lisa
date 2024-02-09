@@ -118,7 +118,7 @@ if __name__ == "__main__":
         packages=packages,
         url='https://gitlab.arm.com/tooling/lisa',
         project_urls={
-            "Documentation": "https://lisa-linux-integrated-system-analysis.readthedocs.io/",
+            "Documentation": "https://tooling.sites.arm.com/lisa/",
             "Bug Tracker": "https://gitlab.arm.com/tooling/lisa/-/issues",
             "Source Code": "https://gitlab.arm.com/tooling/lisa",
         },
