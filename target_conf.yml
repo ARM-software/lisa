@@ -2,7 +2,7 @@
 # LISA Target configuration required by devlib to connect to a target.
 #
 # See the doc for available keys:
-# https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/target.html#lisa.target.TargetConf
+# https://tooling.sites.arm.com/lisa/latest/target.html#lisa.target.TargetConf
 #
 
 target-conf:

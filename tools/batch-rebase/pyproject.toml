@@ -40,7 +40,7 @@ dependencies = [
 [project.urls]
 "Homepage" = "https://gitlab.arm.com/tooling/lisa"
 "Source" = "https://gitlab.arm.com/tooling/lisa"
-"Documentation" = "https://lisa-linux-integrated-system-analysis.readthedocs.io/"
+"Documentation" = "https://tooling.sites.arm.com/lisa/"
 "Bug Tracker" = "https://gitlab.arm.com/tooling/lisa/-/issues"
 
 # The following would provide a command line executable called `sample`

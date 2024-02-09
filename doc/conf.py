@@ -57,8 +57,6 @@ for name, obj in vars(unittest).items():
     except Exception:
         pass
 
-RTD = (os.getenv('READTHEDOCS') == 'True')
-
 def prepare():
 
     def run(cmd, **kwargs):
@@ -136,6 +134,7 @@ extensions = [
 # https://github.com/readthedocs/readthedocs.org/issues/10242
 # https://github.com/readthedocs/sphinx_rtd_theme/issues/1452
 # https://github.com/readthedocs/sphinx_rtd_theme/pull/1448
+RTD = (os.getenv('READTHEDOCS') == 'True')
 if RTD:
     extensions.append(
         "sphinxcontrib.jquery"
@@ -428,7 +427,7 @@ autodoc_default_options = {
 autodoc_inherit_docstrings = True
 
 ignored_refs = {
-    # They don't have a doc on RTD yet
+    # They don't have a separate doc yet
     r'lisa_tests.*',
 
     # gi.repository is strangely laid out, and the module in which Variant
