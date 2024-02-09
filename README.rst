@@ -35,17 +35,9 @@ Some LISA features may require modifying the target OS. For example, in
 order to collect ftrace files the target kernel must have
 CONFIG_DYNAMIC_FTRACE enabled.
 
-There are two "entry points" for running LISA:
-
--  Via the `Jupyter/IPython notebook framework <http://jupyter.org/>`__.
-   This allows LISA to be used interactively and supports visualisation
-   of trace data. Some notebooks are provided with example and
-   ready-made LISA use-cases.
-
--  Via the automated test framework. This framework allows the
-   development of automated pass/fail regression tests for kernel behaviour.
-   LISA provides some ready-made automated tests under the ``lisa/tests/``
-   directory.
+Once the `setup <https://tooling.sites.arm.com/lisa/latest/setup.html>`__ has
+been done, LISA caters to different
+`workflows <https://tooling.sites.arm.com/lisa/latest/workflows/>`__.
 
 Motivations
 ===========
@@ -62,7 +54,6 @@ The main goals of LISA are:
    -  is **flexible enough** to reproduce the same experiment on
       different targets
    -  **simplifies** generation and execution of well defined workloads
-   -  **defines** a set of metrics to evaluate kernel behaviours
    -  **enables** kernel developers to easily post process data to
       produce statistics and plots
 
@@ -70,10 +61,6 @@ Documentation
 =============
 
 You should find everything on https://tooling.sites.arm.com/lisa/latest/
-Here are some noteworthy sections:
-
-   * `Installation <https://tooling.sites.arm.com/lisa/latest/setup.html>`__
-   * `Kernel tests <https://tooling.sites.arm.com/lisa/latest/kernel_tests.html>`__
 
 How to reach us
 ===============
@@ -105,15 +92,17 @@ License
 This project is licensed under Apache-2.0.
 
 This project includes some third-party code under other open source
-licenses. For more information, see ``lisa/_assets/binaries/*/README.*``.
+licenses. For more information, see ``lisa/_assets/binaries/**/README.*``.
 
-Contributions / Pull Requests
-=============================
+Contributions / Pull Requests / Merge Requests
+==============================================
 
-Contributions are accepted under Apache-2.0. Only submit contributions
-where you have authored all of the code. If you do this on work time
-make sure your employer is cool with this. We also have a `Contributor Guide
-<https://tooling.sites.arm.com/lisa/latest/contributors_guide.html>`__
+Contributions are accepted under Apache-2.0. Only submit contributions where
+you have authored all of the code. If you do this on work time make sure your
+employer is ok with this. Please ensure you read our `Contributor Guide
+<https://tooling.sites.arm.com/lisa/latest/contributors_guide.html>`__,
+especially the section on opening a merge requests, as you might accidentally
+open a merge request against your own fork.
 
 .. |CI status| image:: https://gitlab.arm.com/tooling/lisa/badges/main/pipeline.svg
    :target: https://gitlab.arm.com/tooling/lisa/-/commits/main
