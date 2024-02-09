@@ -5,6 +5,8 @@ on:
     # Runs every hour, on the hour
     - cron:  '0 * * * *'
 
+  # To be able to manually trigger the job from GitHub UI
+  workflow_dispatch:
 
 permissions:
   # Necessary to be able to push to the repo
@@ -15,7 +17,6 @@ jobs:
     name: gitlab-mirror
     concurrency: mirror # Only 1 mirror job needs to run at once
     runs-on: ubuntu-latest
-    if: contains(vars.MIRROR_FROM_GITLAB, 'true') # only runs if this variable is set to true
     steps:
       - uses: actions/checkout@v3
         with:
@@ -40,8 +41,6 @@ jobs:
 
           mirror refs/heads/main 
           mirror refs/heads/release 
-          mirror refs/heads/next 
-          mirror refs/heads/legacy 
 
           # This is used as the source of commits to add on top of main to
           # build the master branch content
