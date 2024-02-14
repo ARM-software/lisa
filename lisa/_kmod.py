@@ -333,8 +333,8 @@ def _resolve_alpine_version(version):
     version = version or _ALPINE_DEFAULT_VERSION
 
     # Ensure we have a full version number with 3 components
-    version = version.split('.')
-    version = list(map(int, version + ['0' for _ in range(3 - len(version))]))
+    version = version.lstrip('v').split('.')
+    version = tuple(map(int, version + ['0' for _ in range(3 - len(version))]))
     return version
 
 
@@ -393,7 +393,7 @@ def _make_build_chroot(cc, cross_compile, abi, bind_paths=None, version=None, ov
 
             try:
                 _packages = _find_alpine_cc_packages(
-                    version=tuple(version),
+                    version=version,
                     abi=abi,
                     cc=cc,
                     cross_compile=cross_compile,
@@ -449,9 +449,9 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
             # This will be unmounted by the destroy script
             if mount:
                 dst.mkdir(parents=True, exist_ok=True)
-                cmd = ['mount', '--bind', '--', src, dst]
+                cmd = ['mount', '--rbind', '--', src, dst]
             else:
-                cmd = ['umount', '-n', '--', dst]
+                cmd = ['umount', '-nl', '--', dst]
             _subprocess_log(cmd, logger=logger, level=logging.DEBUG)
 
     def populate(key, path, init_cache=True):
@@ -514,6 +514,13 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
         populate=populate,
     )
 
+    bind_paths = {
+        '/proc': '/proc',
+        '/sys': '/sys',
+        '/dev': '/dev',
+        **(bind_paths or {}),
+    }
+
     key = (
         version,
         alpine_arch,
@@ -524,11 +531,17 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
         # We need to "repopulate" the overlay in order to get a working
         # system with /etc/resolv.conf etc
         try:
-            populate(key, path, init_cache=False)
             mount_binds(path, bind_paths)
+
+            populate(key, path, init_cache=False)
             yield path
         except ContextManagerExit:
             mount_binds(path, bind_paths, mount=False)
+
+
+def make_alpine_chroot(version, **kwargs):
+    version = _resolve_alpine_version(version)
+    return _make_alpine_chroot(version=version, **kwargs)
 
 
 def _make_build_chroot_cmd(chroot, cmd):

@@ -114,12 +114,6 @@ install_android_tools() {
     yes | call_android_sdkmanager --verbose --channel=0 --install "platform-tools"
 }
 
-# Clone alpine-chroot-install repo
-clone_alpine_chroot_install() {
-    rm -rf "$LISA_HOME/tools/alpine-chroot-install"
-    git -C $LISA_HOME/tools clone https://github.com/alpinelinux/alpine-chroot-install.git --depth=1
-}
-
 install_apt() {
     echo "Installing apt packages ..."
     local apt_cmd=(DEBIAN_FRONTEND=noninteractive apt-get)
@@ -328,8 +322,6 @@ for arg in "${args[@]}"; do
         # gettext for autopoint
         pacman_packages+=(gettext autoconf libtool bison cmake)
 
-        install_functions+=(clone_alpine_chroot_install)
-
         handled=1;
         ;;&
 
@@ -400,7 +392,6 @@ ordered_functions=(
     install_android_platform_tools
 
     register_pip_extra_requirements
-    clone_alpine_chroot_install
 )
 
 # Remove duplicates in the list
