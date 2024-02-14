@@ -9,10 +9,12 @@ import sys
 from contextlib import nullcontext, contextmanager
 from shlex import quote
 from pathlib import Path
+import copy
 
-import psutil
+from lisa._kmod import make_alpine_chroot
+from lisa._unshare import ensure_root
+from lisa.utils import setup_logging, LISA_HOME, LISA_HOST_ABI
 
-LISA_HOME = os.environ['LISA_HOME']
 ARCHITECTURES = ['arm64', 'armeabi', 'x86_64', 'x86', 'ppc64le']
 
 # Arch names usued by qemu.
@@ -21,9 +23,13 @@ QEMU_ARCH_NAMES = {
     'armeabi': 'armv7'
 }
 
-def get_alpine_dir():
-    # Locate where 'alpine-chroot-install' was installed.
-    return os.path.join(os.environ['LISA_HOME'], 'tools', 'alpine-chroot-install')
+TRIPLETS = {
+    'armeabi': 'arm-linux-gnueabi-',
+    'arm64': 'aarch64-linux-gnu-',
+    'x86_64': 'x86_64-linux-gnu-',
+    'x86': 'x86-linux-gnu-',
+    'ppc64le': 'ppc64le-linux-gnu-',
+}
 
 def get_used_env_var(recipe, env):
     # Parse the recipe, searching for env variables actually used.
@@ -36,7 +42,7 @@ def get_used_env_var(recipe, env):
         if var in recipe_content
     }
 
-def get_env(asset=None, arch=None, build_dir=None, toolchain=None, recipe=None, use_musl=False):
+def get_env(asset=None, arch=None, host_arch=None, build_dir=None, cross_compile=None, recipe=None, use_musl=False, build_env=None):
     # Set of env var "leaking" into the build environment. Controlling this set
     # ensures reproducible builds that do not depend on user setup.
     leaked = {'PATH'}
@@ -51,10 +57,12 @@ def get_env(asset=None, arch=None, build_dir=None, toolchain=None, recipe=None, 
         'LISA_ASSET': asset,
         'LISA_ASSET_RECIPE': recipe,
         'LISA_ARCH_ASSETS': os.path.join(LISA_HOME, 'lisa', '_assets', 'binaries', arch),
-        'BUILD_DIR': os.path.abspath(build_dir) if build_dir is not None else None,
-        'CROSS_COMPILE': toolchain + '-' if toolchain else None,
-        'CONFIGURE_HOST': os.path.basename(toolchain) if toolchain else None,
+        'BUILD_DIR': build_dir.resolve() if build_dir is not None else None,
+        'CROSS_COMPILE': cross_compile or None,
+        'CONFIGURE_HOST': os.path.basename(cross_compile.rstrip('-')) if cross_compile else None,
+        'CONFIGURE_BUILD': TRIPLETS[host_arch],
         'USE_MUSL_LIB': '1' if use_musl else None,
+        'LISA_BUILD_ENV': build_env,
     })
 
     env = {
@@ -79,14 +87,14 @@ def get_recipe_name(asset):
     return f'{asset}.recipe'
 
 def get_asset_recipe(asset, recipe_dir):
-    return os.path.join(recipe_dir, get_recipe_name(asset))
+    return recipe_dir / get_recipe_name(asset)
 
 def get_asset_property(asset, arch, property, is_array=False, **kwargs):
     # Read asset's recipe to get a property value.
     # Raise a ValueError if property is not set.
     action = f"if [ -z ${{{property}+x}} ]; then exit 1; else printf '%s\\n' ${{{property}[@]}}; fi"
     try:
-        val = make(asset, arch, [action], **kwargs, get_output=True)
+        val = make(asset=asset, arch=arch, actions=[action], **kwargs, get_output=True)
     except subprocess.CalledProcessError:
         raise ValueError(f'The property "{property}" is not set.')
     val = val[action]
@@ -103,125 +111,56 @@ def is_property_set(asset, arch, property, **kwargs):
     else:
         return True
 
-def is_alpine_build(asset, arch, native_build, **kwargs):
-    has_native_build = is_property_set(asset, arch, "ALPINE_VERSION", **kwargs)
-    has_broken_cross_build = is_property_set(asset, arch, "BROKEN_CROSS_COMPILATION", **kwargs)
-
-    if not has_native_build and has_broken_cross_build:
-        raise ValueError(f'\n Asset {asset} cannot be built on Alpine Linux or cross compiled')
-
-    if native_build:
-        if has_native_build:
-            return True
-        print(f'\n Asset {asset} cannot be built on Alpine Linux, falling back to cross compilation')
-        return False
-    else:
-        if has_broken_cross_build:
-            print(f'\n Asset {asset} cannot be cross-compiled, falling back to Alpine Linux')
-            return True
-        return False
-
-
-def recursive_umount(path):
-    def is_relative(parent, child):
-        try:
-            Path(child).relative_to(parent)
-        except ValueError:
-            return False
-        else:
-            return True
-
-    mount_points = list(reversed(sorted(
-        {
-            point.mountpoint
-            for point in psutil.disk_partitions(all=True)
-            if is_relative(parent=path, child=point.mountpoint)
-        },
-        key=lambda path: len(Path(path).parents)
-    )))
-
-    for mount_point in mount_points:
-        print(f'Unmounting {mount_point} ...')
-        subprocess.check_call(['sudo', 'umount', '-fnl', '--', mount_point])
-
 
 @contextmanager
-def make_chroot(asset, arch, build_dir, recipe_dir, arch_chroot_dir):
-    # Create a chroot at arch_chroot_dir as a contextmanager.
-    recipe = get_asset_recipe(asset, recipe_dir)
-    env = get_env(
-        asset=asset,
-        arch=arch,
-        recipe=recipe,
-        build_dir=build_dir,
-        use_musl=bool(arch_chroot_dir),
-    )
-    # Remove PATH as it can break build, and is not needed inside the chroot
-    # anyway
-    env.pop('PATH', None)
-
+def make_chroot(asset, arch, host_arch, build_dir, recipe_dir, arch_chroot_dir, build_env):
     def get_prop(prop, is_array=False):
         return get_asset_property(
-            asset, arch, prop,
+            asset=asset,
+            arch=arch,
+            host_arch=host_arch,
+            property=prop,
             build_dir=build_dir,
             recipe_dir=recipe_dir,
             arch_chroot_dir=arch_chroot_dir,
             is_array=is_array,
+            build_env=build_env,
         )
 
-    # List the required Alpine packages.
     try:
         alpine_dependencies = get_prop('ALPINE_BUILD_DEPENDENCIES', is_array=True)
     except ValueError:
         alpine_dependencies = []
-    else:
-        alpine_dependencies = ('-p', ' '.join(map(quote, alpine_dependencies)))
 
     alpine_version = get_prop('ALPINE_VERSION')
 
-    # List the required env variables.
-    env_args = ('-k', ' '.join(env.keys())) if env else []
+    with make_alpine_chroot(
+        version=alpine_version,
+        abi=arch,
+        packages=alpine_dependencies,
+        bind_paths={
+            LISA_HOME: LISA_HOME,
+            build_dir: build_dir,
+        },
+        overlay_backend='overlayfs',
+    ) as chroot:
+        try:
+            yield chroot
+        finally:
+            pass
 
-    def setup():
-        # Install the chroot.
-        subprocess.check_call(
-            [
-                'sudo', os.path.join(get_alpine_dir(), 'alpine-chroot-install'),
-                '-b', alpine_version,
-                '-d', arch_chroot_dir,
-                '-i', LISA_HOME,
-                '-a', QEMU_ARCH_NAMES.get(arch, arch),
-                *alpine_dependencies,
-                *env_args,
-            ],
-            cwd=build_dir,
-        )
+def chroot_cmd(cmd, env, chroot):
+    _env = ' '.join(
+        quote(f'{name}={val}')
+        for name, val in env.items()
+    )
+    _cmd = ' '.join(map(quote, cmd))
+    _cmd = f'source /etc/profile && {_cmd}'
+    _cmd = f'/usr/bin/env {_env} sh -c {quote(_cmd)}'
+    cmd = ['chroot', chroot, 'sh', '-c', _cmd]
+    return cmd
 
-        def bind_mount(path):
-            # join() will ignore everything before an absolute path so make it
-            # relative first
-            rel = os.path.relpath(path, start='/')
-            path_ = os.path.join(arch_chroot_dir, rel)
-            subprocess.check_call(['sudo', 'mkdir', '-p', path_])
-            subprocess.check_call(['sudo', 'mount', '--bind', path, path_])
-
-        bind_mount(build_dir)
-
-    try:
-        # If setup fails, we still destroy the chroot so we give a chance to
-        # cleanup bind mounts.
-        setup()
-        yield arch_chroot_dir
-    finally:
-        # Clean-up the chroot
-        recursive_umount(arch_chroot_dir)
-        subprocess.check_call(['sudo', 'rm', '-r', '--preserve-root', '--', arch_chroot_dir])
-
-def make(asset, arch, actions, build_dir, recipe_dir, toolchain=None, arch_chroot_dir=None, get_output=False):
-    if arch_chroot_dir:
-        # Since the build is native, no need for a toolchain.
-        toolchain = None
-
+def make(asset, arch, host_arch, actions, build_dir, recipe_dir, build_env, cross_compile=None, arch_chroot_dir=None, get_output=False):
     if get_output:
         # make() is sometimes expected to return the output of the 'actions'.
         # If so, use check_output() to exectute the 'actions'.
@@ -237,26 +176,27 @@ def make(asset, arch, actions, build_dir, recipe_dir, toolchain=None, arch_chroo
     env = get_env(
         asset=asset,
         arch=arch,
+        host_arch=host_arch,
         build_dir=build_dir,
         recipe=recipe,
-        toolchain=toolchain,
+        cross_compile=cross_compile,
         use_musl=bool(arch_chroot_dir),
+        build_env=build_env,
     )
 
     for action in actions:
         print(f'\nMaking {arch} {asset} {action} in: {build_dir}\n')
 
-        cmd = ['bash', '-c', f'source {recipe} && {action}']
+        cmd = ['bash', '-c', f'cd {build_dir} && source {recipe} && {action}']
 
         if arch_chroot_dir and action in ('build', 'install'):
-            cmd = ' '.join(map(quote, cmd))
-            cmd = [os.path.join(arch_chroot_dir, 'enter-chroot'), '-u', os.environ['USER'], 'eval', cmd]
+            cmd = chroot_cmd(cmd=cmd, env=env, chroot=arch_chroot_dir)
 
         run_cmd(action, cmd, env=env, cwd=build_dir)
 
     return output
 
-def make_asset(asset, arch_list, build_dir, recipe_dir, toolchains=None, native_build=False):
+def make_asset(asset, host_arch, archs_to_make, build_dir, recipe_dir, cross_compiles=None, native_build=False, build_env='alpine'):
     if build_dir:
         # We do not want to empty an existing directory, as it might contain
         # bind mounts and deleting that recursively may end up deleting e.g.
@@ -267,80 +207,104 @@ def make_asset(asset, arch_list, build_dir, recipe_dir, toolchains=None, native_
         cm = tempfile.TemporaryDirectory()
 
     with cm as build_dir:
+        build_dir = Path(build_dir).resolve()
         # Download sources once for all architectures
-        download_dir = os.path.join(build_dir, 'download')
+        download_dir = build_dir / 'download'
         os.makedirs(download_dir)
         make(
-            asset, 'any', ['download'],
+            asset=asset,
+            arch='any',
+            host_arch=host_arch,
+            actions=['download'],
             build_dir=download_dir,
             recipe_dir=recipe_dir,
-            toolchain=None
+            cross_compile=None,
+            build_env=build_env,
         )
 
         # Build and install for each
-        for arch in arch_list:
-            arch_build_dir = os.path.join(build_dir, arch)
-            arch_source_dir = os.path.join(arch_build_dir, 'source')
+        for arch in archs_to_make:
+            arch_dir = build_dir / arch
+            arch_build_dir = arch_dir / 'source'
             shutil.copytree(
                 download_dir,
-                arch_source_dir,
+                arch_build_dir,
                 symlinks=True,
                 ignore_dangling_symlinks=True,
             )
 
-            builds_on_alpine = is_alpine_build(
-                asset, arch, native_build,
-                build_dir=build_dir,
-                recipe_dir=recipe_dir
-            )
+            def is_prop_set(prop):
+                return is_property_set(
+                    asset=asset,
+                    arch=arch,
+                    host_arch=host_arch,
+                    property=prop,
+                    recipe_dir=recipe_dir,
+                    build_dir=arch_build_dir,
+                    build_env=build_env,
+                )
+
+            builds_on_alpine = (build_env == 'alpine') and is_prop_set('ALPINE_VERSION')
+            _native_build = native_build or is_prop_set('BROKEN_CROSS_COMPILATION')
+
+            if (not builds_on_alpine) and _native_build and host_arch != arch:
+                raise ValueError(f'Cannot achieve a native build with build env {build_env} on host architecture {host_arch} for target architecture {arch}')
 
             if builds_on_alpine:
-                arch_chroot_dir = os.path.join(arch_build_dir, 'chroot')
+                arch_chroot_dir = arch_dir / 'chroot'
                 chroot_cm = make_chroot(
-                    asset, arch,
-                    build_dir=build_dir,
+                    asset=asset,
+                    arch=arch if _native_build else host_arch,
+                    host_arch=host_arch,
+                    build_dir=arch_build_dir,
                     recipe_dir=recipe_dir,
-                    arch_chroot_dir=arch_chroot_dir
+                    arch_chroot_dir=arch_chroot_dir,
+                    build_env=build_env,
                 )
             else:
                  chroot_cm = nullcontext()
 
+            # Native build removes the need for CROSS_COMPILE and specifying
+            # the cross_compile
+            cross_compile = None if _native_build else (cross_compiles or {}).get(arch)
+
             with chroot_cm as arch_chroot_dir:
-                toolchain = toolchains[arch]
                 make(
-                    asset, arch, ['build', 'install'],
-                    build_dir=arch_source_dir,
+                    asset=asset,
+                    arch=arch,
+                    host_arch=host_arch,
+                    actions=['build', 'install'],
+                    build_dir=arch_build_dir,
                     recipe_dir=recipe_dir,
-                    toolchain=toolchain,
-                    arch_chroot_dir=arch_chroot_dir
+                    cross_compile=cross_compile,
+                    arch_chroot_dir=arch_chroot_dir,
+                    build_env=build_env,
                 )
 
-def error_missing_toolchains(parser, missing):
-    parser.error(f'Missing toolchains, please specify: {", ".join(f"--{arch}-toolchain" for arch in missing)}')
+def error_missing_cross_compiles(parser, missing):
+    parser.error(f'Missing CROSS_COMPILE, please specify: {", ".join(f"--{arch}-cross-compile" for arch in missing)}')
 
+@ensure_root
 def main():
-    recipe_dir = os.path.join(LISA_HOME, 'tools', 'recipes')
+    recipe_dir = Path(LISA_HOME, 'tools', 'recipes')
     asset_list = list_assets(recipe_dir)
 
     try:
         cross_compile = os.environ['CROSS_COMPILE']
     except KeyError:
-        default_toolchains = {
-            'armeabi': 'arm-linux-gnueabi',
-            'arm64': 'aarch64-linux-gnu',
-        }
+        default_cross_compiles = copy.copy(TRIPLETS)
     else:
-        default_toolchains = {
+        default_cross_compiles = {
             arch: cross_compile
             for arch in ARCHITECTURES
         }
 
     try:
-        host_arch = os.environ['LISA_HOST_ABI']
+        host_arch = LISA_HOST_ABI
     except KeyError:
         pass
     else:
-        default_toolchains[host_arch] = ''
+        default_cross_compiles[host_arch] = ''
 
     parser = argparse.ArgumentParser(
         description="""
@@ -354,7 +318,8 @@ def main():
         choices=['all'] + asset_list,
     )
     parser.add_argument('--arch', help='Architecture to build for',
-        default='all',
+        default=None,
+        action='append',
         choices=ARCHITECTURES + ['all'],
     )
     # Only available for a few assets
@@ -363,46 +328,54 @@ def main():
         action='store_true'
     )
 
+    parser.add_argument('--build-env',
+        help=f'Choose build environment to use',
+        choices=['host', 'alpine'],
+        default='alpine',
+    )
+
     for arch in ARCHITECTURES:
-        parser.add_argument(f'--{arch}-toolchain',
-            default=default_toolchains.get(arch),
-            help=f'Name of the toolchain for {arch} (CROSS_COMPILE without trailing dash)',
+        parser.add_argument(f'--{arch}-cross-compile',
+            default=default_cross_compiles.get(arch),
+            help=f'CROSS_COMPILE value for {arch}',
         )
+
+    parser.add_argument("--log-level",
+        default='info',
+        choices=('warning', 'info', 'debug'),
+        help="Verbosity level of the logs."
+    )
 
     parser.add_argument('--build-dir', help='Build director. Defaults to temp folder. WARNING: Do not simply delete the build directory, as it contains bind mounts for the parent git repository.')
     args = parser.parse_args()
 
-    native_build = args.native_build
-    build_dir = os.path.abspath(args.build_dir) if args.build_dir else None
+    setup_logging(level=args.log_level.upper())
 
-    toolchains = {
-        arch: vars(args).get(f'{arch}_toolchain')
+    native_build = args.native_build
+    build_env = args.build_env
+    build_dir = Path(args.build_dir).resolve() if args.build_dir else None
+    archs = ['all'] if args.arch is None else args.arch
+    archs_to_make = tuple(ARCHITECTURES if 'all' in archs else archs)
+
+    cross_compiles = {
+        arch: vars(args).get(f'{arch}_cross_compile')
         for arch in ARCHITECTURES
     }
 
     if not native_build:
-        if args.arch == 'all':
-            missing = sorted(
-                arch
-                for arch, toolchain in toolchains.items()
-                if toolchain is None
-            )
+        missing = sorted(
+            arch
+            for arch in archs_to_make
+            if cross_compiles.get(arch) is None
+        )
 
-            if missing:
-                error_missing_toolchains(parser, missing)
-
-        elif toolchains[args.arch] is None:
-            error_missing_toolchains(parser, [args.arch])
+        if missing:
+            error_missing_cross_compiles(parser, missing)
 
     if args.asset == 'all':
         assets_to_make = asset_list
     else:
         assets_to_make = [args.asset]
-
-    if args.arch == 'all':
-        archs_to_make = ARCHITECTURES
-    else:
-        archs_to_make = [args.arch]
 
     print(f'Will make {", ".join(assets_to_make)} for {", ".join(archs_to_make)}')
 
@@ -410,17 +383,21 @@ def main():
     for asset in assets_to_make:
         try:
             make_asset(
-                asset, archs_to_make,
+                asset=asset,
+                host_arch=host_arch,
+                archs_to_make=tuple(archs_to_make),
                 build_dir=build_dir,
                 recipe_dir=recipe_dir,
-                toolchains=toolchains,
-                native_build=native_build
+                cross_compiles=cross_compiles,
+                native_build=native_build,
+                build_env=build_env,
             )
         except Exception as e:
             print(f'\nError while making {asset}: {e}\n')
             ret = 1
 
     return ret
+
 
 if __name__ == '__main__':
    sys.exit(main())
