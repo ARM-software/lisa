@@ -47,24 +47,26 @@ def get_gitlab_mrs(api_url, project_id, api_token=None, state="opened", scope="a
         r.raise_for_status()
         return r
 
+    # Get the clone URL of the original repo
+    clone_url = call_gitlab_api(
+        f"projects/{project_id}"
+    ).json()['http_url_to_repo']
+
     def get_mr(mr):
-        # populate commits count - use another api
+        iid = mr['iid']
         mr_commit_response = call_gitlab_api(
-            f"projects/{project_id}/merge_requests/{mr['iid']}/commits"
+            f"projects/{project_id}/merge_requests/{iid}/commits"
         )
         mr_commit_response = mr_commit_response.json()
         assert isinstance(mr_commit_response, list)
         commits_count = len(mr_commit_response)
 
-        # mr could be from a fork - use another api
-        project_response = call_gitlab_api(
-            f"projects/{mr['source_project_id']}"
-        )
-        clone_url = project_response.json()['http_url_to_repo']
-
         return dict(
             sha=mr['sha'],
-            source_branch=mr['source_branch'],
+            # We use the magic branch associated with the merge-request instead
+            # of the "real" source branch and its associated repo, as the
+            # latter could be a private fork we don't have direct access to.
+            source_branch=f'refs/merge-requests/{iid}/head',
             commits_count=commits_count,
             clone_url=clone_url,
         )
