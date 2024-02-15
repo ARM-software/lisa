@@ -155,9 +155,6 @@ if __name__ == "__main__":
             # For pandas.to_parquet() dataframe storage
             "pyarrow",
 
-            # For lisa.trace.PerfettoTraceParser
-            "perfetto",
-
             "ipython",
             "ipywidgets",
 
@@ -171,6 +168,9 @@ if __name__ == "__main__":
             "cffi", # unshare syscall
 
             "typeguard",
+
+            # For lisa.trace.PerfettoTraceParser
+            "perfetto",
         ],
 
         extras_require=extras_require,

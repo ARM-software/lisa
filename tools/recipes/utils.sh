@@ -49,3 +49,25 @@ install_readme() {
         rm "$musl_license"
     fi
 }
+
+# Copy files tracked by git only
+# $1: source folder with files to copy.
+# $2: destination folders to copy the content of $1 into.
+copy_from_git() {
+    local src=$1
+    local dst=$(readlink -f "$2")
+    local src_base=$(basename "$src")
+
+    (
+        cd "$src"
+        set -o noglob
+        IFS=$'\n' local files=($(git ls-files "$src"))
+        set +o noglob
+
+        for f in "${files[@]}"; do
+            local _dst="$dst/$src_base/$f"
+            mkdir -p "$(dirname $_dst)" &&
+            cp -v "$f" "$_dst"
+        done
+    )
+}

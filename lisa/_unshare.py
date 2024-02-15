@@ -35,14 +35,17 @@ import threading
 import logging
 import logging.handlers
 import queue
+import inspect
 from importlib.util import module_from_spec
 from importlib.machinery import ModuleSpec
+from concurrent.futures import ProcessPoolExecutor
 
 from cffi import FFI
 
 def _do_unshare():
     CLONE_NEWUSER = 0x10000000
     CLONE_NEWNS = 0x00020000
+    CLONE_NEWPID = 0x20000000
 
     ffi = FFI()
 
@@ -91,12 +94,24 @@ def _do_unshare():
     libc.mount(b"none", b"/", ffi.NULL, mount_flags, ffi.NULL);
 
 
-def _unshare_wrapper(configure, f):
+def _unshare_wrapper(main_path, configure, f):
     # If we are already root, we don't need to do anything. This will increase
     # the odds of all that working in a CI environment inside an existing
     # container.
     if os.geteuid() != 0:
         _do_unshare()
+
+    # Reload the __main__ module in a similar way as multiprocessing, but after
+    # we called the unshare() syscall, since importing __main__ can lead to
+    # threads being created, which would make the syscall fail.
+    if main_path is not None:
+        import runpy
+        mod = sys.modules['__main__']
+        attrs = runpy.run_path(
+            main_path,
+            run_name="__lisa_unshare_main__"
+        )
+        mod.__dict__.update(attrs)
 
     # We get all the parameters pickled manually, so that they are not
     # unpickled before we had a chance to _do_unshare(). If we did not do that,
@@ -123,12 +138,14 @@ def _empty_main():
     then putting it back.
     """
     mod = sys.modules['__main__']
-    sys.modules['__main__'] = module_from_spec(
+    empty_main = module_from_spec(
         ModuleSpec(
             name=mod.__name__,
             loader=None,
         )
     )
+
+    sys.modules['__main__'] = empty_main
     try:
         yield
     finally:
@@ -183,9 +200,16 @@ def _with_mp_logging():
                 consumer_thread.join()
 
 
-def _with_unshare(f, args=tuple(), kwargs={}):
+def _with_unshare(f):
+    _f = f.func if isinstance(f, functools.partial) else f
+    mod = inspect.getmodule(_f)
+    main_path = mod.__file__ if mod.__name__ == '__main__' else None
+
     # Setup a thread in the parent process to relay logging output
     with _with_mp_logging() as configure:
+        configure = pickle.dumps(configure)
+        f = pickle.dumps(f)
+
         # Terrible terrible hack:
         # New Python processes re-import __main__, and unpickling args will also
         # trigger modules import. The problem is, some modules such as pyarrow will
@@ -195,13 +219,17 @@ def _with_unshare(f, args=tuple(), kwargs={}):
         # We work around that problem by delaying the point at which the objects
         # are unpickled (triggering imports) by pickling them ourselves.
         ctx = multiprocessing.get_context('spawn')
-        with _empty_main(), ctx.Pool(processes=1) as pool:
-            configure = pickle.dumps(configure)
-            f = pickle.dumps(functools.partial(f, *args, **kwargs))
-            return pool.apply(
+        # Don't use multiprocessing.Pool directly as its sys.exit() handling is
+        # broken, so follow the advice at:
+        # https://bugs.python.org/issue22393
+        with _empty_main(), ProcessPoolExecutor(max_workers=1, mp_context=ctx) as executor:
+            future = executor.submit(
                 _unshare_wrapper,
-                args=(configure, f),
+                main_path,
+                configure,
+                f
             )
+            return future.result()
 
 
 def ensure_root(f, inline=False):
@@ -225,14 +253,25 @@ def ensure_root(f, inline=False):
         function that has only one applied and put the other ones on a manually
         written wrapper.
     """
+
+    if inline:
+        inner = f
+    else:
+        # This wrapper is necessary so we have a pickleable function with a name
+        # that we can manipulate to point at an attribute of the wrapper.
+        # Otherwise, pickle would refuse to dump f as the wrapper function would
+        # have taken its place in the parent module.
+        @functools.wraps(f)
+        def inner(*args, **kwargs):
+            return f(*args, **kwargs)
+        inner.__qualname__ = f'{f.__qualname__}.__inner_f__'
+
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
-        return _with_unshare(f, args=args, kwargs=kwargs)
+        return _with_unshare(functools.partial(inner, *args, **kwargs))
 
-    if not inline:
-        # Set the function name to be looked up as the wrapper.__wrapped__ by
-        # pickle, since it's the only way it will find the correct function
-        f.__qualname__ += '.__wrapped__'
+    wrapper.__inner_f__ = inner
+
     return wrapper
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

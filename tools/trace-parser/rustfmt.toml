@@ -1,0 +1,3 @@
+imports_granularity="Crate"
+group_imports="StdExternalCrate"
+skip_macro_invocations=["make_closure_coerce", "make_closure_coerce_type", "closure"]

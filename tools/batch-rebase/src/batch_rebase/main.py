@@ -41,6 +41,10 @@ def info(msg):
 def warn(msg):
     logging.warning(msg)
 
+def error(msg):
+    logging.error(msg)
+
+
 def get_nested_key(conf, key):
     for k in key:
         conf = conf[k]
@@ -225,7 +229,10 @@ def do_create(conf_folder, repo, temp_repo, new_branch, conf, persistent_tags, t
 
     # Create the new branch at the beginning of the cherry picking session
     base = conf['base']
-    git(['fetch', '--', base['remote'], base['ref']])
+    base_ref = base['ref']
+    remote = base['remote']
+    remote_base = remote_tracking(remote, base_ref)
+    git(['fetch', '--', remote, f'{base_ref}:{remote_base}'])
     git(['checkout', '-b', new_branch, 'FETCH_HEAD'])
 
     # Start cherry picking topics
@@ -271,6 +278,10 @@ def do_cherry_pick(repo, temp_repo, conf, persistent_tags, tags_suffix, branch, 
             call_git(['-C', temp_repo, 'push', '-f', repo, ref])
 
     return (not has_conflict, 1 if has_conflict else 0)
+
+
+def remote_tracking(remote, tip):
+    return f'refs/remotes/{remote}/batch-rebase-tips/{tip}'
 
 
 def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
@@ -367,18 +378,20 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
             nr_commits = topic.get('nr-commits')
 
             # Fetch the topic base and tip
-            git(['fetch', '--', remote, tip])
+            remote_tip = remote_tracking(remote, tip)
+            git(['fetch', '--', remote, f'{tip}:{remote_tip}'])
+            tip = remote_tip
 
             if base is not None:
-                git(['fetch', '--', remote, base])
+                remote_base = remote_tracking(remote, base)
+                git(['fetch', '--', remote, f'{base}:{remote_base}'])
+                base = remote_base
             elif nr_commits is not None:
                 base = f'{tip}~{nr_commits}'
             else:
                 raise ValueError(f'base or nr-commits need to be set on topic "{name}"')
 
-            range_base = f'refs/remotes/{remote}/{base}'
-            range_tip = f'refs/remotes/{remote}/{tip}'
-            range_ref = f'{range_base}..{range_tip}'
+            range_ref = f'{base}..{tip}'
             range_sha1s = list(reversed(git(['rev-list', range_ref], capture=True).splitlines()))
 
             nr_commits = len(range_sha1s)
