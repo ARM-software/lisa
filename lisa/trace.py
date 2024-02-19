@@ -825,6 +825,7 @@ class TraceDumpTraceParser(TraceParserBase):
         df['__comm'] = df['__pid'].map(pid_comms)
 
         df.set_index('Time', inplace=True)
+        df.drop(['common_type', 'common_flags', 'common_preempt_count'], errors='ignore', inplace=True)
         return df
 
     def parse_event(self, event):
