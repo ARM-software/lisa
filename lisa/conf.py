@@ -1050,7 +1050,8 @@ class MultiSrcConfABC(Serializable, abc.ABC):
                     # right object, otherwise it will be referred by name only
                     # and will always have the value during the last iteration
                     # of the loop
-                    # FIXME: pylint complains about make_metacls being unused,
+                    #
+                    # pylint complains about make_metacls being unused,
                     # which is a bug:
                     # https://github.com/PyCQA/pylint/issues/4020
                     def make_metacls(key_desc): # pylint: disable=unused-variable

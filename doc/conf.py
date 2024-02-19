@@ -376,6 +376,7 @@ intersphinx_mapping = {
     'matplotlib': ('https://matplotlib.org/stable/', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
     'holoviews': ('https://holoviews.org/', None),
+    'polars': ('https://docs.pola.rs/py-polars/html/', None),
     # XXX: Doesn't seem to work, might be due to how devlib doc is generated
     'devlib': ('https://devlib.readthedocs.io/en/latest/', None),
     'wa': ('https://workload-automation.readthedocs.io/en/latest/', None),
@@ -463,6 +464,12 @@ ignored_refs = {
     # :class:`typing.List[str]` since it does not seem to have specific support
     # for the bracketed syntax in that role.
     r'typing.*',
+
+
+    # Polars intersphinx inventory is incomplete:
+    # https://github.com/pola-rs/polars/issues/7027
+    # https://docs.pola.rs/py-polars/html/objects.inv
+    r'polars.*',
 }
 ignored_refs.update(
     re.escape(f'{x.__module__}.{x.__qualname__}')

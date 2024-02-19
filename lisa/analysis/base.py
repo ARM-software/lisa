@@ -1193,11 +1193,18 @@ class TraceAnalysisBase(AnalysisHelpers):
 
             if memory_cache:
                 try:
+                    # FIXME: should this return polars objects ?
                     data = cache.fetch(cache_desc)
                 except KeyError:
                     data = call_f()
             else:
                 data = call_f()
+
+            # FIXME: remove that
+            import polars as pl
+            from lisa.trace import _df_to_pandas
+            if isinstance(data, pl.LazyFrame):
+                data = _df_to_pandas(data)
 
             return data
 

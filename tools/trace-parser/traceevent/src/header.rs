@@ -1620,8 +1620,8 @@ fn shared_decode_option(
             // https://bugzilla.kernel.org/show_bug.cgi?id=218430
             // For now, this will show up as an empty string on v6, and with the
             // correct value on v7
-            let (_, date) = option_read_null_terminated(option_type, option_data)?;
-            Options::TraceClock(date.into())
+            let (_, clock) = option_read_null_terminated(option_type, option_data)?;
+            Options::TraceClock(clock.into())
         }
         // UNAME: id 5, size vary
         5 => {

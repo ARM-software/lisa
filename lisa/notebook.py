@@ -587,7 +587,7 @@ def _hv_link_dataframes(fig, dfs):
 
         df_widget = pn.widgets.Tabulator(
             df,
-            name=df.attrs.get('name', f'dataframe #{i}'),
+            name=f'dataframe #{i}',
             formatters={
                 'bool': {'type': 'tickCross'}
             },

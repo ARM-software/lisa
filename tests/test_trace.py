@@ -18,11 +18,12 @@
 import json
 import os
 from unittest import TestCase
-import numpy as np
-import pandas as pd
 import copy
+import math
 
 import pytest
+import numpy as np
+import pandas as pd
 
 from devlib.target import KernelVersion
 
@@ -369,7 +370,7 @@ class TestTrace(TraceTestCase):
     def test_df_tasks_states(self):
         df = self.trace.ana.tasks.df_tasks_states()
 
-        assert len(df) == 4779
+        assert len(df) == 4780
         # Proxy check for detecting delta computation changes
         assert df.delta.sum() == pytest.approx(134.568219)
 
@@ -402,7 +403,7 @@ class TestTraceView(TraceTestCase):
         assert len(view.ana.status.df_overutilized()) == 2
 
     def test_time_range(self):
-        expected_duration = 4.0
+        expected_duration = np.nextafter(4.0, math.inf)
 
         trace = Trace(
             self.trace_path,
@@ -492,6 +493,6 @@ class TestMockTraceParser(TestCase):
 
     def test_time_range(self):
         assert self.trace.start == 0
-        assert self.trace.end == 42
+        assert self.trace.end == np.nextafter(42, math.inf)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
