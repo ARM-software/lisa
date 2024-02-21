@@ -2438,6 +2438,25 @@ class TraceBase(abc.ABC):
     def _clear_cache(self):
         pass
 
+    def with_time_offset(self, offset):
+        """
+        Get a view on the trace with time shifted by ``offset``.
+
+        This can be convenient when trying to align mutliple traces coming from
+        repetition of the same experiment.
+
+        .. note:: Some analysis functions may not handle well negative
+            timestamps, so it might be a good idea to slice the trace to only
+            contain positive timestamps after this operation.
+        """
+
+        def time_offset(event, df):
+            df = df.copy(deep=False)
+            df.index = df.index + offset
+            return df
+
+        return self.get_view(process_df=time_offset)
+
     def __getitem__(self, window):
         if not isinstance(window, slice):
             raise TypeError("Cropping window must be an instance of slice")
