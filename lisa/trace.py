@@ -2941,7 +2941,7 @@ class _CacheDataSwapEntry:
         Create an instance with a mapping created using :meth:`to_json_map`.
         """
         if mapping['version-token'] != VERSION_TOKEN:
-            raise TraceCacheSwapVersionError('Version token differ')
+            raise _TraceCacheSwapVersionError('Version token differ')
 
         desc = json.loads(mapping['encoded_desc'])
         cache_desc_nf = _CacheDataDescNF.from_json_map(desc)
@@ -2968,14 +2968,14 @@ class _CacheDataSwapEntry:
         return cls.from_json_map(mapping, written=True)
 
 
-class TraceCacheSwapVersionError(ValueError):
+class _TraceCacheSwapVersionError(ValueError):
     """
     Exception raised when the swap entry was created by another version of LISA
     than the one loading it.
     """
 
 
-class TraceCache(Loggable):
+class _TraceCache(Loggable):
     """
     Cache of a :class:`Trace`.
 
@@ -3101,7 +3101,7 @@ class TraceCache(Loggable):
             mapping = json.load(f)
 
         if mapping['version-token'] != VERSION_TOKEN:
-            raise TraceCacheSwapVersionError('Version token differ')
+            raise _TraceCacheSwapVersionError('Version token differ')
 
         swap_trace_path = mapping['trace-path']
         swap_trace_path = os.path.join(swap_dir, swap_trace_path) if swap_trace_path else None
@@ -3158,12 +3158,12 @@ class TraceCache(Loggable):
         """
         Reload the persistent state from the given ``swap_dir``.
 
-        :Variable keyword arguments: Forwarded to :class:`TraceCache`.
+        :Variable keyword arguments: Forwarded to :class:`_TraceCache`.
         """
         if swap_dir:
             try:
                 return cls._from_swap_dir(swap_dir=swap_dir, **kwargs)
-            except (FileNotFoundError, TraceCacheSwapVersionError, json.decoder.JSONDecodeError):
+            except (FileNotFoundError, _TraceCacheSwapVersionError, json.decoder.JSONDecodeError):
                 pass
 
         return cls(swap_dir=swap_dir, **kwargs)
@@ -3962,9 +3962,9 @@ class Trace(Loggable, TraceBase):
 
         # No-op cache so that the cacheable metadata machinery does not fall
         # over when querying the trace-id.
-        self._cache = TraceCache()
+        self._cache = _TraceCache()
         trace_id = self._get_trace_id()
-        self._cache = TraceCache.from_swap_dir(
+        self._cache = _TraceCache.from_swap_dir(
             trace_path=trace_path,
             swap_dir=swap_dir,
             max_swap_size=max_swap_size,
@@ -4500,7 +4500,7 @@ class Trace(Loggable, TraceBase):
                 sanitization=sanitization_f.__qualname__ if sanitization_f else None,
             )
 
-        cache_desc = _CacheDataDesc(spec=spec, fmt=TraceCache.DATAFRAME_SWAP_FORMAT)
+        cache_desc = _CacheDataDesc(spec=spec, fmt=_TraceCache.DATAFRAME_SWAP_FORMAT)
 
         try:
             try:
@@ -4519,7 +4519,7 @@ class Trace(Loggable, TraceBase):
 
     def _make_raw_cache_desc(self, event):
         spec = self._make_raw_cache_desc_spec(event)
-        return _CacheDataDesc(spec=spec, fmt=TraceCache.DATAFRAME_SWAP_FORMAT)
+        return _CacheDataDesc(spec=spec, fmt=_TraceCache.DATAFRAME_SWAP_FORMAT)
 
     def _make_raw_cache_desc_spec(self, event):
         return dict(
