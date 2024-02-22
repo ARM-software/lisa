@@ -3047,54 +3047,6 @@ class TraceCache(Loggable):
         self.trace_path = os.path.abspath(trace_path) if trace_path else trace_path
         self._trace_id = trace_id
 
-    @property
-    @memoized
-    def _swap_size_overhead(self):
-        def make_df(nr_col):
-            return pd.DataFrame({
-                str(x): []
-                for x in range(nr_col)
-            })
-
-        def get_size(nr_col):
-            df = make_df(nr_col)
-            buffer = io.BytesIO()
-            self._write_data('parquet', df, buffer)
-            return buffer.getbuffer().nbytes
-
-        size1 = get_size(1)
-        size2 = get_size(2)
-
-        col_overhead = size2 - size1
-        # Since parquet seems to fail serializing of a dataframe with 0 columns
-        # in some cases, we use the dataframe with one column and remove the
-        # overhead of the column. It gives almost the same result.
-        file_overhead = size1 - col_overhead
-        assert col_overhead > 0
-
-        return (file_overhead, col_overhead)
-
-    def _unbias_swap_size(self, data, size):
-        """
-        Remove the fixed size overhead of the file format being used, assuming
-        a non-compressible overhead per file and per column.
-
-        .. note:: This model seems to work pretty well for parquet format.
-        """
-        if isinstance(data, (pd.DataFrame, pd.Series)):
-            file_overhead, col_overhead = self._swap_size_overhead
-            # DataFrame
-            try:
-                nr_columns = data.shape[1]
-            # Series
-            except IndexError:
-                nr_columns = 1
-
-            size = size - file_overhead - nr_columns * col_overhead
-            return size
-        else:
-            return self._data_mem_usage(data)
-
     def update_metadata(self, metadata):
         """
         Update the metadata mapping with the given ``metadata`` mapping and
@@ -3232,13 +3184,9 @@ class TraceCache(Loggable):
         setattr(self, attr, updated)
 
     def _update_data_swap_size_estimation(self, data, size):
-        size = self._unbias_swap_size(data, size)
-
-        # If size < 0, the dataframe is so small that it's basically just noise
-        if size > 0:
-            mem_usage = self._data_mem_usage(data)
-            if mem_usage:
-                self._update_ewma('_data_mem_swap_ratio', size / mem_usage)
+        mem_usage = self._data_mem_usage(data)
+        if mem_usage:
+            self._update_ewma('_data_mem_swap_ratio', size / mem_usage)
 
     @staticmethod
     def _data_mem_usage(data):
@@ -3288,13 +3236,10 @@ class TraceCache(Loggable):
             raise ValueError('Swap dir is not setup')
 
     def _update_swap_cost(self, data, swap_cost, mem_usage, swap_size):
-        unbiased_swap_size = self._unbias_swap_size(data, swap_size)
         # Take out from the swap cost the time it took to write the overhead
         # that comes with the file format, assuming the cost is
         # proportional to amount of data written in the swap.
-        if swap_size:
-            swap_cost *= unbiased_swap_size / swap_size
-        else:
+        if not swap_size:
             swap_cost = 0
 
         new_cost = swap_cost / mem_usage
