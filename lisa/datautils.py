@@ -126,7 +126,7 @@ def series_refit_index(series, start=None, end=None, window=None, method='inclus
     :param clip_window: Passed down to :func:`series_refit_index`.
     """
     window = _make_window(start, end, window)
-    return _data_refit_index(series, window, method=method, clip_window=clip_window)
+    return _pandas_refit_index(series, window, method=method, clip_window=clip_window)
 
 
 @DataFrameAccessor.register_accessor
@@ -135,7 +135,7 @@ def df_refit_index(df, start=None, end=None, window=None, method='inclusive', cl
     Same as :func:`series_refit_index` but acting on :class:`pandas.DataFrame`
     """
     window = _make_window(start, end, window)
-    return _data_refit_index(df, window, method=method, clip_window=clip_window)
+    return _pandas_refit_index(df, window, method=method, clip_window=clip_window)
 
 def _make_window(start, end, window):
     uses_separated = (start, end) != (None, None)
@@ -208,7 +208,7 @@ def df_split_signals(df, signal_cols, align_start=False, window=None):
             yield (cols_val, signal)
 
 
-def _data_refit_index(data, window, method, clip_window):
+def _pandas_refit_index(data, window, method, clip_window):
     if data.empty:
         raise ValueError('Cannot refit the index of an empty dataframe or series')
 
@@ -217,7 +217,7 @@ def _data_refit_index(data, window, method, clip_window):
         duplicate_last = False
     else:
         duplicate_last = end > data.index[-1]
-    data = _data_window(data, window, method=method, clip_window=clip_window)
+    data = _pandas_window(data, window, method=method, clip_window=clip_window)
 
     if data.empty:
         return data
@@ -746,10 +746,10 @@ def series_window(series, window, method='pre', clip_window=True):
 
     .. note:: The index of `series` must be monotonic and without duplicates.
     """
-    return _data_window(series, window, method, clip_window)
+    return _pandas_window(series, window, method, clip_window)
 
 
-def _data_window(data, window, method, clip_window):
+def _pandas_window(data, window, method, clip_window):
     """
     ``data`` can either be a :class:`pandas.DataFrame` or :class:`pandas.Series`
 
@@ -868,7 +868,7 @@ def df_window(df, window, method='pre', clip_window=True):
     """
     Same as :func:`series_window` but acting on a :class:`pandas.DataFrame`
     """
-    return _data_window(df, window, method, clip_window)
+    return _pandas_window(df, window, method, clip_window)
 
 
 @DataFrameAccessor.register_accessor
@@ -1215,7 +1215,7 @@ def series_rolling_apply(series, func, window, window_float_index=True, center=F
     return pd.Series(values, index=new_index)
 
 
-def _data_find_unique_bool_vector(data, cols, all_col, keep):
+def _pandas_find_unique_bool_vector(data, cols, all_col, keep):
     if keep == 'first':
         shift = 1
     elif keep == 'last':
@@ -1251,9 +1251,9 @@ def _data_find_unique_bool_vector(data, cols, all_col, keep):
     return cond
 
 
-def _data_deduplicate(data, keep, consecutives, cols, all_col):
+def _pandas_deduplicate(data, keep, consecutives, cols, all_col):
     if consecutives:
-        return data.loc[_data_find_unique_bool_vector(data, cols, all_col, keep)]
+        return data.loc[_pandas_find_unique_bool_vector(data, cols, all_col, keep)]
     else:
         if not all_col:
             raise ValueError("all_col=False is not supported with consecutives=False")
@@ -1283,7 +1283,7 @@ def series_deduplicate(series, keep, consecutives):
 
     :type consecutives: bool
     """
-    return _data_deduplicate(series, keep=keep, consecutives=consecutives, cols=None, all_col=True)
+    return _pandas_deduplicate(series, keep=keep, consecutives=consecutives, cols=None, all_col=True)
 
 
 @DataFrameAccessor.register_accessor
@@ -1299,7 +1299,7 @@ def df_deduplicate(df, keep, consecutives, cols=None, all_col=True):
         Otherwise, remove the row if any column is duplicated.
     :type all_col: bool
     """
-    return _data_deduplicate(df, keep=keep, consecutives=consecutives, cols=cols, all_col=all_col)
+    return _pandas_deduplicate(df, keep=keep, consecutives=consecutives, cols=cols, all_col=all_col)
 
 
 @DataFrameAccessor.register_accessor
@@ -1410,7 +1410,7 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, prune=T
     df = df.copy(deep=False)
 
     # Find all rows where the active status is the same as the previous one
-    duplicates_to_remove = ~_data_find_unique_bool_vector(df, cols, all_col, keep='first')
+    duplicates_to_remove = ~_pandas_find_unique_bool_vector(df, cols, all_col, keep='first')
     # Then get only the first row in a run of duplicates
     first_duplicates = (~duplicates_to_remove) & duplicates_to_remove.shift(-1, fill_value=False)
     # We only kept them separate with keep='first' to be able to detect
@@ -1520,7 +1520,7 @@ def series_combine(series_list, func, fill_value=None):
     Same as :meth:`pandas.Series.combine` on a list of series rather than just
     two.
     """
-    return _data_combine(series_list, func, fill_value)
+    return _pandas_combine(series_list, func, fill_value)
 
 
 def df_combine(series_list, func, fill_value=None):
@@ -1528,10 +1528,10 @@ def df_combine(series_list, func, fill_value=None):
     Same as :meth:`pandas.DataFrame.combine` on a list of series rather than just
     two.
     """
-    return _data_combine(series_list, func, fill_value)
+    return _pandas_combine(series_list, func, fill_value)
 
 
-def _data_combine(datas, func, fill_value=None):
+def _pandas_combine(datas, func, fill_value=None):
     state = datas[0]
     for data in datas[1:]:
         state = state.combine(data, func=func, fill_value=fill_value)
