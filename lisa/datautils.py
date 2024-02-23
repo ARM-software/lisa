@@ -25,13 +25,162 @@ import contextlib
 import uuid
 from operator import attrgetter
 
+import polars as pl
 import numpy as np
 import pandas as pd
 import pandas.api.extensions
 import scipy.integrate
 import scipy.signal
+import pyarrow
 
 from lisa.utils import TASK_COMM_MAX_LEN, groupby, deprecate
+
+
+def _dispatch(polars_f, pandas_f, data, *args, **kwargs):
+    if isinstance(data, (pl.LazyFrame, pl.DataFrame, pl.Series)):
+        return polars_f(data, *args, **kwargs)
+    elif isinstance(data, (pd.DataFrame, pd.Series)):
+        return pandas_f(data, *args, **kwargs)
+    else:
+        raise TypeError(f'Cannot find implementation for {data.__class__}')
+
+
+def _polars_duration_expr(duration, unit='s', rounding='down'):
+    if duration is None:
+        return duration
+    elif isinstance(duration, pl.Expr):
+        return duration
+    else:
+        if rounding == 'down':
+            round_ = math.floor
+        elif rounding == 'up':
+            round_ = math.ceil
+        else:
+            raise ValueError(f'Non recognized rounding={rounding}')
+
+        if unit == 's':
+            ns = duration * 1_000_000_000
+        elif unit == 'us':
+            ns = duration * 1_000_000
+        elif unit == 'ms':
+            ns = duration * 1_000
+        elif unit == 'ns':
+            ns = duration
+        else:
+            raise ValueError(f'Non recognized unit={unit}')
+
+        ns = round_(ns)
+
+        return pl.duration(
+            # https://github.com/pola-rs/polars/issues/11625
+            nanoseconds=ns,
+            # https://github.com/pola-rs/polars/issues/14751
+            time_unit='ns'
+        )
+
+
+class _MemLazyFrame(pl.LazyFrame):
+    try:
+        pl.LazyFrame.__slots__
+    except AttributeError:
+        pass
+    else:
+        __slots__ = tuple()
+
+
+def _df_to_polars(df):
+    if isinstance(df, pl.LazyFrame):
+        index = 'Time'
+        dtype = df.schema[index]
+        index = pl.col('Time')
+        if dtype.is_float():
+            # Convert to nanoseconds
+            df = df.with_columns(index * 1_000_000_000)
+        elif dtype.is_integer() or dtype.is_temporal():
+            pass
+        else:
+            raise TypeError(f'Time dtype not handled: {dtype}')
+
+        df = df.with_columns(
+            index.cast(pl.Duration('ns'))
+        )
+        return df
+    # TODO: once this is solved, we can just inspect the plan and see if the
+    # data is backed by a "DataFrameScan" instead of a "Scan" of a file rather
+    # than using the _MemLazyFrame class as a way to tag the object:
+    # https://github.com/pola-rs/polars/issues/9771
+    elif isinstance(df, pl.DataFrame):
+        df = df.lazy()
+        df.__class__ = _MemLazyFrame
+        return _df_to_polars(df)
+    elif isinstance(df, pd.DataFrame):
+        df = pl.from_pandas(df, include_index=True)
+        return _df_to_polars(df)
+    else:
+        raise ValueError(f'{df.__class__} not supported')
+
+
+def _df_to_pandas(df):
+    if isinstance(df, pd.DataFrame):
+        return df
+    else:
+        assert isinstance(df, pl.LazyFrame)
+
+        if df.schema['Time'].is_temporal():
+            df = df.with_columns(
+                pl.col('Time').dt.total_nanoseconds() * 1e-9
+            )
+        df = df.collect()
+
+        # Make sure we get nullable dtypes:
+        # https://arrow.apache.org/docs/python/pandas.html
+        dtype_mapping = {
+            pyarrow.int8(): pd.Int8Dtype(),
+            pyarrow.int16(): pd.Int16Dtype(),
+            pyarrow.int32(): pd.Int32Dtype(),
+            pyarrow.int64(): pd.Int64Dtype(),
+            pyarrow.uint8(): pd.UInt8Dtype(),
+            pyarrow.uint16(): pd.UInt16Dtype(),
+            pyarrow.uint32(): pd.UInt32Dtype(),
+            pyarrow.uint64(): pd.UInt64Dtype(),
+            pyarrow.bool_(): pd.BooleanDtype(),
+            pyarrow.string(): pd.StringDtype(),
+        }
+        df = df.to_pandas(types_mapper=dtype_mapping.get)
+        df.set_index('Time', inplace=True)
+
+        # Nullable dtypes are still not supported everywhere, so cast back to a
+        # non-nullable dtype in cases where there is no null value:
+        # https://github.com/holoviz/holoviews/issues/6142
+        dtypes = {
+            col: dtype.type
+            for col in df.columns
+            if getattr(
+                (dtype := df[col].dtype),
+                'na_value',
+                None
+            ) is pd.NA and not df[col].isna().any()
+        }
+        df = df.astype(dtypes, copy=False)
+
+        # Round trip polars -> pandas -> polars can be destructive as polars will
+        # store timestamps at nanosecond precision in an integer. This will wipe
+        # any sub-nanosecond difference in values, possibly leading to duplicate
+        # timestamps.
+        assert df.index.is_unique
+
+        return df
+
+
+def _df_to(df, fmt):
+    if fmt == 'pandas':
+        return _df_to_pandas(df)
+    elif fmt == 'polars-lazyframe':
+        # Note that this is not always a no-op even if the input is already a
+        # LazyFrame, so it's important this does not get "optimized away".
+        return _df_to_polars(df)
+    else:
+        raise ValueError(f'Unknown format {fmt}')
 
 
 class DataAccessor:
@@ -749,6 +898,83 @@ def series_window(series, window, method='pre', clip_window=True):
     return _pandas_window(series, window, method, clip_window)
 
 
+def _polars_window(data, window, method, clip_window):
+    # TODO: relax that
+    assert isinstance(data, pl.LazyFrame)
+
+    # TODO: handle this
+    assert clip_window
+
+    # TODO: maybe expose that as a param
+    col = 'Time'
+
+    col = pl.col(col)
+    start, stop = window
+
+    def pre():
+        if start is None:
+            filter_ = col <= stop
+        else:
+            if stop is None:
+                filter_ = col > start
+            else:
+                filter_ = col.is_between(
+                    lower_bound=start,
+                    upper_bound=stop,
+                    closed='right',
+                )
+
+            filter_ = filter_ | filter_.shift(-1)
+
+        return filter_
+
+    def post():
+        if stop is None:
+            filter_ = col >= start
+        else:
+            if start is None:
+                filter_ = col < stop
+            else:
+                filter_ = col.is_between(
+                    lower_bound=start,
+                    upper_bound=stop,
+                    closed='left',
+                )
+
+            filter_ = filter_ | filter_.shift(+1)
+        return filter_
+
+    if start is None and stop is None:
+        filter_ = True
+    else:
+        start = _polars_duration_expr(start, rounding='down')
+        stop = _polars_duration_expr(stop, rounding='up')
+
+        if method == 'exclusive':
+            if start is None:
+                filter_ = col <= stop
+            elif stop is None:
+                filter_ = col >= start
+            else:
+                filter_ = col.is_between(
+                    lower_bound=start,
+                    upper_bound=stop,
+                    closed='both',
+                )
+
+        elif method == 'inclusive':
+            filter_ = pre() | post()
+        elif method == 'pre':
+            filter_ = pre()
+        elif method == 'post':
+            filter_ = post()
+        #FIXME: support method == 'nearest'
+        else:
+            raise ValueError(f'Slicing method not supported: {method}')
+
+    return data.filter(filter_)
+
+
 def _pandas_window(data, window, method, clip_window):
     """
     ``data`` can either be a :class:`pandas.DataFrame` or :class:`pandas.Series`
@@ -789,7 +1015,7 @@ def _pandas_window(data, window, method, clip_window):
 
         window = (start, end)
 
-    if window[0] > window[1]:
+    if None not in window and window[0] > window[1]:
         raise KeyError(f'The window starts after its end: {window}')
 
     if method == 'inclusive':
@@ -815,16 +1041,18 @@ def _pandas_window(data, window, method, clip_window):
     else:
         raise ValueError(f'Slicing method not supported: {method}')
 
+    sides = ('left', 'right')
+
     window = [
-        _get_loc(index, x, method=method) if x is not None else None
-        for x, method in zip(window, method)
+        _get_loc(index, x, method=method, side=side) if x is not None else None
+        for x, method, side in zip(window, method, sides)
     ]
     window = window[0], (window[1] + 1)
 
     return data.iloc[slice(*window)]
 
 
-def _get_loc(index, x, method):
+def _get_loc(index, x, method, side):
     """
     Emulate :func:`pandas.Index.get_loc` behavior with the much faster
     :func:`pandas.Index.searchsorted`.
@@ -847,7 +1075,7 @@ def _get_loc(index, x, method):
         elif method == 'bfill' and x > index[-1]:
             raise KeyError(x)
 
-        loc = index.searchsorted(x)
+        loc = index.searchsorted(x, side=side)
         try:
             val_at_loc = index[loc]
         # We are getting an index past the end. This is fine since we already
@@ -868,7 +1096,11 @@ def df_window(df, window, method='pre', clip_window=True):
     """
     Same as :func:`series_window` but acting on a :class:`pandas.DataFrame`
     """
-    return _pandas_window(df, window, method, clip_window)
+    return _dispatch(
+        _polars_window,
+        _pandas_window,
+        df, window, method, clip_window
+    )
 
 
 @DataFrameAccessor.register_accessor
@@ -911,8 +1143,80 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
     .. seealso:: :func:`df_split_signals`
     """
 
+    return _dispatch(
+        _polars_window_signals,
+        _pandas_window_signals,
+        df, window, signals, compress_init, clip_window
+    )
+
+def _polars_window_signals(df, window, signals, compress_init, clip_window=True):
+    start, stop = window
+    start = _polars_duration_expr(start, rounding='down')
+    stop = _polars_duration_expr(stop, rounding='up')
+
+    if start is not None:
+        if stop is None:
+            post_filter = pl.col('Time') >= start
+            pre_filter = pl.lit(True)
+        else:
+            post_filter = pl.col('Time').is_between(
+                lower_bound=start,
+                upper_bound=stop,
+                closed='both'
+            )
+            pre_filter = (pl.col('Time') < stop)
+
+        pre_filter &= ~post_filter
+
+        post_df = df.filter(post_filter)
+        pre_df = df.filter(pre_filter)
+
+        signals_init = [
+            pre_df.group_by(fields).last()
+            for signal in signals
+            if (fields := signal.fields)
+        ]
+
+        if signals_init:
+            pre_df = pl.concat(
+                signals_init,
+                how='diagonal',
+            )
+
+            if compress_init:
+                first_row = post_df.select('Time').head(1).collect()
+                try:
+                    first_time = first_row[0]
+                except IndexError:
+                    pass
+                else:
+                    pre_df.with_columns(Time=pl.lit(first_time))
+
+            # We could have multiple signals for the same event, so we want to
+            # avoid duplicate events occurrences.
+            pre_df = pre_df.unique()
+            pre_df = pre_df.sort('Time')
+
+            return pl.concat(
+                [
+                    pre_df,
+                    post_df,
+                ],
+                how='diagonal',
+            )
+
+    df = _polars_window(
+        df,
+        window=window,
+        clip_window=clip_window,
+        method='pre',
+    )
+    return df
+
+def _pandas_window_signals(df, window, signals, compress_init=False, clip_window=True):
+
     def before(x):
-        return np.nextafter(x, -math.inf)
+        return x - 1e-9
 
     windowed_df = df_window(df, window, method='pre', clip_window=clip_window)
 
@@ -944,7 +1248,7 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
 
     def window_signal(signal_df):
         # Get the row immediately preceding the window start
-        loc = _get_loc(signal_df.index, window[0], method='ffill')
+        loc = _get_loc(signal_df.index, window[0], method='ffill', side='left')
         return signal_df.iloc[loc:loc + 1]
 
     # Get the value of each signal at the beginning of the window
@@ -966,7 +1270,9 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
             def smallest_increment(start, length):
                 curr = start
                 for _ in range(length):
-                    curr = before(curr)
+                    prev = curr
+                    while int(prev * 1e9) == int(curr * 1e9):
+                        curr = before(curr)
                     yield curr
 
 
@@ -1314,19 +1620,25 @@ def series_update_duplicates(series, func=None):
         :class:`pandas.Series` of duplicated entries to update as parameters,
         and return a new :class:`pandas.Series`. The function will be called as
         long as there are remaining duplicates. If ``None``, the column is
-        assumed to be floating point and duplicated values will be incremented
-        by the smallest amount possible.
+        assumed to be floating point number of seconds and will be updated so
+        that the no duplicated timestamps exist once translated to an integer
+        number of nanoseconds.
     :type func: collections.abc.Callable or None
     """
-    def increment(series):
-        return np.nextafter(series, math.inf)
+    if func:
+        def preprocess(series):
+            return series
+    else:
+        def func(series):
+            return series + 1e-9
+
+        def preprocess(series):
+            return (series * 1e9).astype('int64')
 
     def get_duplicated(series):
         # Keep the first, so we update the second duplicates
-        locs = series.duplicated(keep='first')
+        locs = preprocess(series).duplicated(keep='first')
         return locs, series.loc[locs]
-
-    func = func if func else increment
 
     # Update the values until there is no more duplication
     duplicated_locs, duplicated = get_duplicated(series)
