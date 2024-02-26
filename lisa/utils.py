@@ -4098,5 +4098,35 @@ def is_link_dead(url):
         return None
 
 
+class _DetailedCalledProcessError(subprocess.CalledProcessError):
+    @classmethod
+    def _from_excep(cls, excep):
+        return cls(*excep.args)
+
+    def __str__(self):
+        logs = [
+            x for x in (self.stdout, self.stderr)
+            if x is not None
+        ]
+        base = super().__str__()
+        if logs:
+            logs = '\n'.join(logs)
+            return f'{base}:\n{logs}'
+        else:
+            return base
+
+
+@contextlib.contextmanager
+def subprocess_detailed_excep():
+    """
+    Context manager that will replace :class:`subprocess.CalledProcessError` by
+    a subclass that shows more details.
+    """
+
+    try:
+        yield
+    except subprocess.CalledProcessError as e:
+        raise _DetailedCalledProcessError._from_excep(e)
+
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
