@@ -1228,6 +1228,7 @@ def _data_find_unique_bool_vector(data, cols, all_col, keep):
     dedup_data = data[cols] if cols else data
     # Unique values will be True, duplicate False
     cond = dedup_data != dedup_data.shift(shift)
+    cond = cond.fillna(True)
     if isinstance(data, pd.DataFrame):
         # (not (duplicate and duplicate))
         # (not ((not unique) and (not unique)))
