@@ -141,7 +141,7 @@ from devlib.target import AndroidTarget, KernelVersion, TypedKernelConfig, Kerne
 from devlib.host import LocalConnection
 from devlib.exception import TargetStableError, TargetStableCalledProcessError
 
-from lisa.utils import nullcontext, Loggable, LISA_CACHE_HOME, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor, destroyablecontextmanager, ContextManagerExit, ignore_exceps, get_nested_key, is_link_dead, deduplicate
+from lisa.utils import nullcontext, Loggable, LISA_CACHE_HOME, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor, destroyablecontextmanager, ContextManagerExit, ignore_exceps, get_nested_key, is_link_dead, deduplicate, subprocess_detailed_excep
 from lisa._assets import ASSETS_PATH, HOST_PATH, ABI_BINARIES_FOLDER
 from lisa._unshare import ensure_root
 import lisa._git as git
@@ -263,7 +263,8 @@ def _subprocess_log(*args, env=None, extra_env=None, **kwargs):
         }
 
     env.update(extra_env or {})
-    return subprocess_log(*args, **kwargs, env=env)
+    with subprocess_detailed_excep():
+        return subprocess_log(*args, **kwargs, env=env)
 
 
 def _kbuild_make_cmd(path, targets, cc, make_vars):
@@ -1939,15 +1940,8 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                         cm.__exit__(None, None, None)
                         return
 
-            def format_excep(e):
-                # We expect stderr to be merged in stdout
-                if isinstance(e, subprocess.CalledProcessError) and e.stdout:
-                    return f'{e}:\n{e.stdout}'
-                else:
-                    return str(e)
-
             excep_str = "\n".join(
-                f"{loader.__name__}: {e.__class__.__name__}: {format_excep(e)}"
+                f"{loader.__name__}: {e.__class__.__name__}: {e}"
                 for loader, e in exceps
             )
             raise ValueError(f'Could not load kernel trees:\n{excep_str}')
