@@ -56,6 +56,7 @@ def get_callable_set(module_set, verbose=False):
                 module=module,
                 visited_obj_set=visited_obj_set,
                 verbose=verbose,
+                package_set=package_set,
             )
 
             def is_class_attr(obj):
@@ -100,7 +101,7 @@ def _get_members(*args, **kwargs):
         warnings.simplefilter(action='ignore')
         return inspect.getmembers(*args, **kwargs)
 
-def _get_callable_set(namespace, module, visited_obj_set, verbose):
+def _get_callable_set(namespace, module, package_set, visited_obj_set, verbose):
     """
     :param namespace: Module or class
     :param module: Module the namespace was defined in, or ``None`` to be ignored.
@@ -131,7 +132,8 @@ def _get_callable_set(namespace, module, visited_obj_set, verbose):
             _module is None or
             # skip internal classes that may end up being exposed as a global
             _module is not engine and
-            (True if module is None else _module is module)
+            (True if module is None else _module is module) and
+            get_package(_module) in package_set
         )
 
     visited_obj_set.update(attributes)
@@ -168,6 +170,7 @@ def _get_callable_set(namespace, module, visited_obj_set, verbose):
                     # a method inherited from a base class even if that base
                     # class and the method definition lives somewhere else.
                     module=None,
+                    package_set=package_set,
                 )
             )
 
