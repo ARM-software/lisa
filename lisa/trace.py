@@ -4162,17 +4162,9 @@ class Trace(Loggable, TraceBase):
     :param plots_dir: directory where to save plots
     :type plots_dir: str
 
-    :param sanitization_functions: Mapping of event name to sanitization
-        function. Each function takes:
-
-            * the trace instance
-            * the name of the event
-            * a dataframe of the raw event
-            * a dictionary of aspects to sanitize
-
-        These functions *must not* modify their input dataframe under any
-        circumstances. They are required to make copies where appropriate.
-    :type sanitization_functions: dict(str, collections.abc.Callable) or None
+    :param sanitization_functions: This parameter not supported anymore, use
+        :class:`lisa.trace.Trace.get_view` with ``process_df`` parameter instead.
+    :type sanitization_functions: object
 
     :param max_mem_size: Maximum memory usage to be used for dataframe cache.
         Note that the peak memory usage can exceed that, as the cache can not
@@ -4298,6 +4290,30 @@ class Trace(Loggable, TraceBase):
           parse.
     """
 
+    def __new__(cls,
+        *args,
+        sanitization_functions=None,
+        **kwargs,
+    ):
+        self = super().__new__(cls, *args, **kwargs)
+        if sanitization_functions is not None:
+            msg = 'Custom sanitization functions are not supported anymore, use trace.get_view(process_df=...) instead.'
+            warnings.warn(msg, DeprecationWarning)
+            self.__init__(*args, **kwargs)
+
+            def process_df(event, df):
+                try:
+                    f = sanitization_functions[event]
+                except KeyError:
+                    return df
+                else:
+                    return f(view, event, df, dict())
+            view = self.get_view(process_df)
+            return view
+        else:
+            return self
+
+
     def __init__(self,
         trace_path=None,
         plat_info=None,
@@ -4317,12 +4333,6 @@ class Trace(Loggable, TraceBase):
     ):
         super().__init__()
         trace_path = str(trace_path) if trace_path else None
-
-        sanitization_functions = sanitization_functions or {}
-        self._sanitization_functions = {
-            **self._SANITIZATION_FUNCTIONS,
-            **sanitization_functions,
-        }
 
         if enable_swap:
             if trace_path:
@@ -4906,7 +4916,7 @@ class Trace(Loggable, TraceBase):
 
 
     def _df_event_no_namespace(self, event, raw, window, signals, signals_init, compress_signals_init, write_swap, fmt):
-        sanitization_f = self._sanitization_functions.get(event)
+        sanitization_f = self._SANITIZATION_FUNCTIONS.get(event)
 
         # Make sure no `None` value flies around in the cache, since it's
         # not uniquely identifying a dataframe
@@ -4962,7 +4972,6 @@ class Trace(Loggable, TraceBase):
 
         if not raw:
             spec.update(
-                rename_cols=True,
                 sanitization=sanitization_f.__qualname__ if sanitization_f else None,
             )
 
@@ -5026,15 +5035,8 @@ class Trace(Loggable, TraceBase):
             # we are unlikely to reuse it again
             self._cache.evict(self._make_raw_cache_desc(event))
 
-            # We can ask to sanitize various aspects of the dataframe.
-            # Adding a new aspect can be done without modifying existing
-            # sanitization functions, as long as the default is the
-            # previous behavior
-            aspects = dict(
-                rename_cols=cache_desc['rename_cols'],
-            )
             with measure_time() as measure:
-                df = sanitization_f(self, event, df, aspects=aspects)
+                df = sanitization_f(self, event, df)
             sanitization_time = measure.exclusive_delta
         else:
             sanitization_time = 0
@@ -5627,7 +5629,7 @@ class Trace(Loggable, TraceBase):
         return decorator
 
     @_sanitize_event('sched_switch')
-    def _sanitize_sched_switch(self, event, df, aspects):
+    def _sanitize_sched_switch(self, event, df):
         """
         If ``prev_state`` is a string, turn it back into an integer state by
         parsing it.
@@ -5648,7 +5650,7 @@ class Trace(Loggable, TraceBase):
         return df
 
     @_sanitize_event('lisa__sched_overutilized')
-    def _sanitize_sched_overutilized(self, event, df, aspects):
+    def _sanitize_sched_overutilized(self, event, df):
         # pylint: disable=unused-argument,no-self-use
 
         df = df.with_columns(
@@ -5659,7 +5661,7 @@ class Trace(Loggable, TraceBase):
 
     @_sanitize_event('thermal_power_cpu_limit')
     @_sanitize_event('thermal_power_cpu_get_power')
-    def _sanitize_thermal_power_cpu(self, event, df, aspects):
+    def _sanitize_thermal_power_cpu(self, event, df):
         # pylint: disable=unused-argument,no-self-use
 
         # In-kernel name is "cpumask", "cpus" is just an artifact of the pretty
@@ -5685,7 +5687,7 @@ class Trace(Loggable, TraceBase):
     @_sanitize_event('print')
     @_sanitize_event('bprint')
     @_sanitize_event('bputs')
-    def _sanitize_print(self, event, df, aspects):
+    def _sanitize_print(self, event, df):
         # pylint: disable=unused-argument,no-self-use
 
         # Only process string "ip" (function name), not if it is a numeric
@@ -5720,7 +5722,7 @@ class Trace(Loggable, TraceBase):
 
     @_sanitize_event('ipi_entry')
     @_sanitize_event('ipi_exit')
-    def _sanitize_ipi_enty_exit(self, event, df, aspects):
+    def _sanitize_ipi_enty_exit(self, event, df):
         # pylint: disable=unused-argument,no-self-use
 
         df = df.with_columns(
