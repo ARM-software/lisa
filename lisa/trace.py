@@ -50,6 +50,7 @@ from difflib import get_close_matches
 import weakref
 import atexit
 import threading
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -2621,7 +2622,19 @@ class TrappyTraceParser(TraceParserBase):
 
 class TraceBase(abc.ABC):
     """
-    Base class for common functionalities between :class:`Trace` and :class:`TraceView`
+    Base class for common functionalities between :class:`Trace` and
+    :class:`TraceView`.
+
+    :Attributes:
+
+        * ``start``: The timestamp of the first trace event.
+        * ``end``: The timestamp of the last trace event.
+        * ``basetime``: Absolute timestamp when the tracing started. This might
+          differ from ``start`` as the latter can be affected by various
+          normalization or windowing features.
+        * ``endtime``: Absolute timestamp when the tracing stopped. It has
+          similar characteristics as ``basetime``.
+
     """
 
     def __init__(self):
@@ -2682,7 +2695,7 @@ class TraceBase(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_view(self, *args, **kwargs):
+    def get_view(self, **kwargs):
         """
         Get a view on a trace cropped time-wise to fit in ``window`` and with
         event dataframes post processed with ``process_df``.
@@ -2694,25 +2707,6 @@ class TraceBase(abc.ABC):
     def _clear_cache(self):
         pass
 
-    def with_time_offset(self, offset):
-        """
-        Get a view on the trace with time shifted by ``offset``.
-
-        This can be convenient when trying to align mutliple traces coming from
-        repetition of the same experiment.
-
-        .. note:: Some analysis functions may not handle well negative
-            timestamps, so it might be a good idea to slice the trace to only
-            contain positive timestamps after this operation.
-        """
-
-        def time_offset(event, df):
-            df = df.copy(deep=False)
-            df.index = df.index + offset
-            return df
-
-        return self.get_view(process_df=time_offset)
-
     def __getitem__(self, window):
         if not isinstance(window, slice):
             raise TypeError("Cropping window must be an instance of slice")
@@ -2720,7 +2714,7 @@ class TraceBase(abc.ABC):
         if window.step is not None:
             raise ValueError("Slice step is not supported")
 
-        return self.get_view((window.start, window.stop))
+        return self.get_view(window=(window.start, window.stop))
 
     @deprecate('Prefer adding delta once signals have been extracted from the event dataframe for correctness',
         deprecated_in='2.0',
@@ -2780,9 +2774,9 @@ class TraceBase(abc.ABC):
 
 class TraceView(Loggable, TraceBase):
     """
-    A view on a :class:`Trace`
+    A view on a :class:`Trace`.
 
-    :param trace: The trace to trim
+    :param trace: The base trace.
     :type trace: Trace
 
     :param clear_base_cache: Clear the cache of the base ``trace`` for non-raw
@@ -2818,45 +2812,100 @@ class TraceView(Loggable, TraceBase):
 
       # This will only use events in the (2, 4) time window
       df = view.ana.tasks.df_tasks_runtime()
-
-    **Design notes:**
-
-      * :meth:`df_event` uses the underlying :meth:`lisa.trace.Trace.df_event`
-        and trims the dataframe according to the given ``window`` before
-        returning it.
-      * ``self.start`` and ``self.end`` mimic the :class:`Trace` attributes but
-        they are adjusted to match the given window. On top of this, this class
-        mimics a regular :class:`Trace` using :func:`getattr`.
     """
 
-    def __init__(self, trace, window=None, process_df=None, df_fmt='pandas', clear_base_cache=False):
+    def __init__(
+        self,
+        trace,
+        window=None,
+        process_df=None,
+        df_fmt='pandas',
+        clear_base_cache=True,
+    ):
         super().__init__()
         self.base_trace = trace
         self._df_fmt = df_fmt
+        self._window = window
 
         # evict all the non-raw dataframes from the base cache, as they are
         # unlikely to be used anymore.
         if clear_base_cache:
             self._clear_cache()
 
-        t_min, t_max = window or (None, None)
-        self.start = t_min if t_min is not None else self.base_trace.start
-        self.end = t_max if t_max is not None else self.base_trace.end
-        self._process_df = process_df or self._default_process_df
+        self._process_df = process_df
 
-    @staticmethod
-    def _default_process_df(event, df):
-        return df
+    @classmethod
+    def _make(cls, trace, *, normalize_time=False, window=None, **kwargs):
+        if normalize_time:
+            try:
+                start, end = window
+            except ValueError:
+                raise ValueError('A window with non-None left bound must be provided with normalize_time=True')
+            else:
+                if start is None:
+                    raise ValueError('A window with non-None left bound must be provided with normalize_time=True')
+                else:
+                    view = _NormalizedTimeTraceView(
+                        trace,
+                        start=start,
+                    )
+                    end = end if end is None else (end - start)
+
+                    view = view.get_view(
+                        window=(None, end),
+                        **kwargs,
+                    )
+                    return view
+        else:
+            return cls(
+                trace,
+                window=window,
+                **kwargs,
+            )
+
+    @property
+    def start(self):
+        t_min, _ = self._window or (None, None)
+        if t_min is None:
+            return self.base_trace.start
+        else:
+            return t_min
+
+    @property
+    def end(self):
+        _, t_max = self._window or (None, None)
+        if t_max is None:
+            return self.base_trace.end
+        else:
+            end = t_max
+
+        # Ensure we never end up with end < start
+        end = max(end, self.start)
+        return end
+
+    def _fixup_window(self, window):
+        # Add missing window and fill-in None values
+        if window is None:
+            start = self.start
+            end = self.end
+        else:
+            start, end = window
+
+        # Clip the window to our own window
+        start = self.start if start is None else max(start, self.start)
+        end = self.end if end is None else min(end, self.end)
+
+        return (start, end)
 
     @property
     def trace_state(self):
         f = self._process_df
         return (
-            self.start,
-            self.end,
+            self.__class__.__qualname__,
+            self.window,
             # This likely will be a value that cannot be serialized to JSON if
             # it was user-provided. This will prevent caching as it should.
-            None if f == self._default_process_df else f,
+            None if f is None else f,
             self.base_trace.trace_state,
             self._df_fmt,
         )
@@ -2864,7 +2913,7 @@ class TraceView(Loggable, TraceBase):
     def __getattr__(self, name):
         return getattr(self.base_trace, name)
 
-    def df_event(self, event, **kwargs):
+    def df_event(self, event, *, fmt='pandas', window=None, **kwargs):
         """
         Get a dataframe containing all occurrences of the specified trace event
         in the sliced trace.
@@ -2875,43 +2924,110 @@ class TraceView(Loggable, TraceBase):
         :Variable keyword arguments: Forwarded to
             :meth:`lisa.trace.Trace.df_event`.
         """
-        def default_param(name, value):
-            try:
-                x = kwargs[name]
-            except KeyError:
-                x = value
-            kwargs[name] = x
 
-        default_param('window', self.window)
-        default_param('fmt', self._df_fmt)
+        window = self._fixup_window(window)
 
-        df = self.base_trace.df_event(event, **kwargs)
-        return self._process_df(event, df)
+        if (process := self._process_df) is None:
+            internal_fmt = fmt
+            process = lambda event, df: df
+        else:
+            internal_fmt = 'polars-lazyframe'
 
-    def get_view(self, window=None, process_df=None, **kwargs):
-        window = window or (None, None)
-        start = self.start
-        end = self.end
+        df = self.base_trace.df_event(
+            event,
+            fmt=internal_fmt,
+            window=window,
+            **kwargs
+        )
 
-        if window[0]:
-            start = max(start, window[0])
+        df = process(event, df)
+        df = _df_to(df, fmt=fmt)
+        return df
 
-        if window[1]:
-            end = min(end, window[1])
+    def get_view(self, *, window=None, **kwargs):
+        if self._window is not None and window is not None:
+            (start, end) = window
 
-        process_df = process_df or self._default_process_df
-        def _process_df(event, df):
-            return process_df(event, self._process_df(event, df))
+            if start is None:
+                start = self.start
+            else:
+                start = max(self.start, start)
 
-        return TraceView(
+            if end is None:
+                end = self.end
+            else:
+                end = min(self.end, end)
+            window = (start, end)
+
+        return TraceView._make(
             self,
-            window=(start, end),
-            process_df=_process_df,
+            window=window,
             **kwargs
         )
 
     def _clear_cache(self):
         self.base_trace._clear_cache()
+
+
+class _NormalizedTimeTraceView(TraceView):
+    def __init__(self, trace, start):
+        assert start is not None
+
+        self.__start = start
+
+        view = self._with_time_offset(trace, start)
+        super().__init__(view)
+
+    @classmethod
+    def _with_time_offset(cls, trace, start):
+        offset = _polars_duration_expr(start, rounding='up')
+        def time_offset(event, df):
+            return df.with_columns(
+                pl.col('Time') - offset
+            )
+
+        return trace.get_view(
+            process_df=time_offset
+        )
+
+
+    @property
+    def start(self):
+        return 0
+
+    @property
+    def end(self):
+        return self.base_trace.end - self.__start
+
+    @property
+    def trace_state(self):
+        return (
+            self.__class__.__qualname__,
+            self.__start,
+            self.base_trace.trace_state,
+        )
+
+    @property
+    def normalize_time(self):
+        return True
+
+    def _denormalize_window(self, window):
+        offset = self.__start
+
+        window = window or (None, None)
+        start, end = window
+
+        # Denormalize the window to absolute values
+        start = None if start is None else (start + offset)
+        end = None if end is None else (end + offset)
+
+        window = (start, end)
+        return window
+
+    def df_event(self, event, *, window=None, **kwargs):
+        window = self._denormalize_window(window)
+        return self.base_trace.df_event(event, window=window, **kwargs)
+
 
 # One might be tempted to make that a subclass of collections.abc.Set: don't.
 # The problem is that Set expects new instances to be created by passing an
@@ -4111,7 +4227,47 @@ class _TraceCache(Loggable):
         }
 
 
-class Trace(Loggable, TraceBase):
+class _TraceMeta(type(TraceBase), type(Loggable)):
+    def __call__(cls,
+        *args,
+        sanitization_functions=None,
+        normalize_time=False,
+        **kwargs,
+    ):
+        _super = super()
+        _self = None
+        def with_self(f):
+            nonlocal _self
+            if _self is None:
+                _self = _super.__call__(*args, **kwargs)
+
+            _self = f(_self)
+
+        if sanitization_functions is not None:
+            msg = 'Custom sanitization functions are not supported anymore, use trace.get_view(process_df=...) instead.'
+            warnings.warn(msg, DeprecationWarning)
+
+            def process_df(event, df):
+                try:
+                    f = sanitization_functions[event]
+                except KeyError:
+                    return df
+                else:
+                    return f(view, event, df, dict())
+            with_self(lambda self: self.get_view(process_df=process_df))
+
+        if normalize_time:
+            with_self(lambda self: self.get_view(
+                window=(self.basetime, None),
+                normalize_time=True,
+            ))
+
+        with_self(lambda x: x)
+        return _self
+
+
+
+class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
     """
     The Trace object is the LISA trace events parser.
 
@@ -4162,8 +4318,10 @@ class Trace(Loggable, TraceBase):
     :param plots_dir: directory where to save plots
     :type plots_dir: str
 
-    :param sanitization_functions: This parameter not supported anymore, use
-        :class:`lisa.trace.Trace.get_view` with ``process_df`` parameter instead.
+    :param sanitization_functions: This parameter is only for backward
+        compatibility with existing code, use
+        :class:`lisa.trace.Trace.get_view` with ``process_df`` parameter
+        instead.
     :type sanitization_functions: object
 
     :param max_mem_size: Maximum memory usage to be used for dataframe cache.
@@ -4289,37 +4447,11 @@ class Trace(Loggable, TraceBase):
         * ``line_column`` is the name of the column containing the lines to
           parse.
     """
-
-    def __new__(cls,
-        *args,
-        sanitization_functions=None,
-        **kwargs,
-    ):
-        self = super().__new__(cls, *args, **kwargs)
-        if sanitization_functions is not None:
-            msg = 'Custom sanitization functions are not supported anymore, use trace.get_view(process_df=...) instead.'
-            warnings.warn(msg, DeprecationWarning)
-            self.__init__(*args, **kwargs)
-
-            def process_df(event, df):
-                try:
-                    f = sanitization_functions[event]
-                except KeyError:
-                    return df
-                else:
-                    return f(view, event, df, dict())
-            view = self.get_view(process_df)
-            return view
-        else:
-            return self
-
-
     def __init__(self,
         trace_path=None,
         plat_info=None,
         events=None,
         strict_events=False,
-        normalize_time=False,
         parser=None,
         plots_dir=None,
         sanitization_functions=None,
@@ -4357,8 +4489,8 @@ class Trace(Loggable, TraceBase):
             swap_dir = None
             max_swap_size = None
 
+        self.normalize_time = False
         self._write_swap = write_swap
-        self.normalize_time = normalize_time
         self.trace_path = trace_path
         self._parseable_events = {}
 
@@ -4613,7 +4745,10 @@ class Trace(Loggable, TraceBase):
         except AttributeError:
             parser_name = f'{get_name(parser.__class__)}-instance:{uuid.uuid4().hex}'
 
-        return (self.normalize_time, parser_name)
+        return (
+            self.__class__.__qualname__,
+            parser_name,
+        )
 
     @property
     @memoized
@@ -4688,8 +4823,8 @@ class Trace(Loggable, TraceBase):
         plat_info = target.plat_info
 
         class TraceProxy(TraceBase):
-            def get_view(self, *args, **kwargs):
-                return self.base_trace.get_view(*args, **kwargs)
+            def get_view(self, **kwargs):
+                return self.base_trace.get_view(**kwargs)
 
             def _clear_cache(self):
                 self.base_trace._clear_cache()
@@ -4808,7 +4943,7 @@ class Trace(Loggable, TraceBase):
         else:
             return f'parser-trace-id-{trace_id}'
 
-    def df_event(self, *args, **kwargs):
+    def df_event(self, event, *, raw=None, window=None, signals=None, signals_init=True, compress_signals_init=False, write_swap=None, namespaces=None, fmt='pandas'):
         """
         Get a dataframe containing all occurrences of the specified trace event
         in the parsed trace.
@@ -4883,18 +5018,10 @@ class Trace(Loggable, TraceBase):
             ``signals_init``. This allows keeping a very close time span
             without introducing duplicate indices.
         :type compress_signals_init: bool
-
-        :param write_swap: If ``True``, the dataframe will be written to the
-            swap area when meeting the following conditions:
-
-                * This trace has a swap directory
-                * Computing the dataframe takes more time than the estimated
-                  time it takes to write it to the cache.
-        :type write_swap: bool
         """
-        return self._df_event(*args, **kwargs)
+        if write_swap is not None:
+            warnings.warn('write_swap parameter has no effect anymore', DeprecationWarning, stacklevel=2)
 
-    def _df_event(self, event, raw=None, window=None, signals=None, signals_init=True, compress_signals_init=False, write_swap=None, namespaces=None, fmt='pandas'):
         call = functools.partial(
             self._df_event_no_namespace,
             raw=raw,
@@ -4902,7 +5029,6 @@ class Trace(Loggable, TraceBase):
             signals=signals,
             signals_init=signals_init,
             compress_signals_init=compress_signals_init,
-            write_swap=write_swap,
             fmt=fmt,
         )
 
@@ -4915,7 +5041,7 @@ class Trace(Loggable, TraceBase):
         raise last_excep
 
 
-    def _df_event_no_namespace(self, event, raw, window, signals, signals_init, compress_signals_init, write_swap, fmt):
+    def _df_event_no_namespace(self, event, raw, window, signals, signals_init, compress_signals_init, fmt):
         sanitization_f = self._SANITIZATION_FUNCTIONS.get(event)
 
         # Make sure no `None` value flies around in the cache, since it's
@@ -4984,23 +5110,13 @@ class Trace(Loggable, TraceBase):
                 df = self._load_df(
                     cache_desc,
                     sanitization_f=sanitization_f,
-                    write_swap=write_swap,
                 )
         except MissingTraceEventError as e:
             e.available_events = self.available_events
             raise e
 
         assert isinstance(df, pl.LazyFrame)
-        if fmt == 'polars-lazyframe':
-            pass
-        elif fmt == 'polars-dataframe':
-            df = df.collect()
-        elif fmt == 'pandas':
-            df = _df_to_pandas(df)
-        else:
-            raise ValueError(f'Unknown format {fmt}')
-
-        return df
+        return _df_to(df, fmt=fmt)
 
     def _make_raw_cache_desc(self, event):
         spec = self._make_raw_cache_desc_spec(event)
@@ -5013,7 +5129,7 @@ class Trace(Loggable, TraceBase):
             trace_state=self.trace_state,
         )
 
-    def _load_df(self, cache_desc, sanitization_f=None, write_swap=None):
+    def _load_df(self, cache_desc, sanitization_f=None):
         event = cache_desc['event']
 
         # Do not even bother loading the event if we know it cannot be
@@ -5021,9 +5137,6 @@ class Trace(Loggable, TraceBase):
         # disappeared
         if not self._parseable_events.get(event, True):
             raise MissingTraceEventError([event], available_events=self.available_events)
-
-        if write_swap is None:
-            write_swap = self._write_swap
 
         df = self._load_cache_raw_df(
             TraceEventChecker(event),
@@ -5059,7 +5172,7 @@ class Trace(Loggable, TraceBase):
             windowing_time = 0
 
         compute_cost = sanitization_time + windowing_time
-        self._cache.insert(cache_desc, df, compute_cost=compute_cost, write_swap=write_swap)
+        self._cache.insert(cache_desc, df, compute_cost=compute_cost, write_swap=True)
         return df
 
     def _load_cache_raw_df(self, event_checker, write_swap, allow_missing_events=False):
@@ -5115,12 +5228,6 @@ class Trace(Loggable, TraceBase):
                 ) from e
         return df_map
 
-    def _apply_normalize_time(self, df):
-        if self.normalize_time:
-            return df.with_columns(pl.col('Time') - pl.duration(seconds=self.basetime))
-        else:
-            return df
-
     def _parse_raw_events(self, events):
         if not events:
             return {}
@@ -5146,11 +5253,6 @@ class Trace(Loggable, TraceBase):
                 )
                 for event in events
                 if (df := parse(parser, event)) is not None
-            }
-
-            df_map = {
-                event: self._apply_normalize_time(df)
-                for event, df in df_map.items()
             }
 
             # Gather the metadata that might have been made available when
@@ -5383,17 +5485,17 @@ class Trace(Loggable, TraceBase):
         else:
             return True
 
-    def get_view(self, *args, **kwargs):
-        return TraceView(self, *args, **kwargs)
+    # Allow positional parameter for "window" for backward compat
+    def get_view(self, window=None, **kwargs):
+        return TraceView._make(self, window=window, **kwargs)
 
     @property
     def start(self):
-        return 0 if self.normalize_time else self.basetime
+        return self.basetime
 
     @property
     def end(self):
-        time_range = self.endtime - self.basetime
-        return self.start + time_range
+        return self.endtime
 
     def get_task_name_pids(self, name, ignore_fork=True):
         """
@@ -5616,6 +5718,7 @@ class Trace(Loggable, TraceBase):
 # Trace Events Sanitize Methods
 ###############################################################################
 
+    #FIXME: Move these sanitization functions to the parsers they are needed for. Then remove the df_event(raw=...) parameter (make any other value than True raise)
     _SANITIZATION_FUNCTIONS = {}
     def _sanitize_event(event, mapping=_SANITIZATION_FUNCTIONS):
         """
