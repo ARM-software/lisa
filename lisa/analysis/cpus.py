@@ -57,7 +57,6 @@ class CpusAnalysis(TraceAnalysisBase):
             sched_df,
             method='exclusive',
             window=self.trace.window,
-            clip_window=False,
         )
         cpus = list(range(self.trace.cpus_count))
         ctx_sw_df = pd.DataFrame(

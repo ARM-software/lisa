@@ -865,7 +865,7 @@ class TasksAnalysis(TraceAnalysisBase):
         Plot some data in a heatmap-style 2d histogram
         """
         df = self.trace.df_event(event)
-        df = df_window(df, window=self.trace.window, method='exclusive', clip_window=False)
+        df = df_window(df, window=self.trace.window, method='exclusive')
         x = df.index
         y = df['target_cpu']
 

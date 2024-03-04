@@ -275,16 +275,16 @@ def series_refit_index(series, start=None, end=None, window=None, method='inclus
     :param clip_window: Passed down to :func:`series_refit_index`.
     """
     window = _make_window(start, end, window)
-    return _pandas_refit_index(series, window, method=method, clip_window=clip_window)
+    return _pandas_refit_index(series, window, method=method)
 
 
 @DataFrameAccessor.register_accessor
-def df_refit_index(df, start=None, end=None, window=None, method='inclusive', clip_window=True):
+def df_refit_index(df, start=None, end=None, window=None, method='inclusive'):
     """
     Same as :func:`series_refit_index` but acting on :class:`pandas.DataFrame`
     """
     window = _make_window(start, end, window)
-    return _pandas_refit_index(df, window, method=method, clip_window=clip_window)
+    return _pandas_refit_index(df, window, method=method)
 
 def _make_window(start, end, window):
     uses_separated = (start, end) != (None, None)
@@ -357,7 +357,7 @@ def df_split_signals(df, signal_cols, align_start=False, window=None):
             yield (cols_val, signal)
 
 
-def _pandas_refit_index(data, window, method, clip_window):
+def _pandas_refit_index(data, window, method):
     if data.empty:
         raise ValueError('Cannot refit the index of an empty dataframe or series')
 
@@ -366,7 +366,7 @@ def _pandas_refit_index(data, window, method, clip_window):
         duplicate_last = False
     else:
         duplicate_last = end > data.index[-1]
-    data = _pandas_window(data, window, method=method, clip_window=clip_window)
+    data = _pandas_window(data, window, method=method)
 
     if data.empty:
         return data
@@ -878,8 +878,9 @@ def series_window(series, window, method='pre', clip_window=True):
         region to select.
     :type window: tuple(object)
 
-    :param clip_window: Clip the requested window to the bounds of the index,
-        otherwise raise exceptions if the window is too large.
+    :param clip_window: Only ``True`` value is now allwed: clip the requested
+        window to the bounds of the index, otherwise raise exceptions if the
+        window is too large.
     :type clip_window: bool
 
     :param method: Choose how edges are handled:
@@ -897,15 +898,15 @@ def series_window(series, window, method='pre', clip_window=True):
 
     .. note:: The index of `series` must be monotonic and without duplicates.
     """
-    return _pandas_window(series, window, method, clip_window)
+    if not clip_window:
+        raise ValueError(f'Only clip_window=True is supported')
+
+    return _pandas_window(series, window, method)
 
 
-def _polars_window(data, window, method, clip_window):
+def _polars_window(data, window, method):
     # TODO: relax that
     assert isinstance(data, pl.LazyFrame)
-
-    # TODO: handle this
-    assert clip_window
 
     # TODO: maybe expose that as a param
     col = 'Time'
@@ -976,7 +977,7 @@ def _polars_window(data, window, method, clip_window):
     return data.filter(filter_)
 
 
-def _pandas_window(data, window, method, clip_window):
+def _pandas_window(data, window, method):
     """
     ``data`` can either be a :class:`pandas.DataFrame` or :class:`pandas.Series`
 
@@ -984,37 +985,36 @@ def _pandas_window(data, window, method, clip_window):
     """
 
     index = data.index
-    if clip_window:
-        if data.empty:
-            return data
+    if data.empty:
+        return data
 
-        start, end = window
-        first = index[0]
-        last = index[-1]
+    start, end = window
+    first = index[0]
+    last = index[-1]
 
-        # Fill placeholders
-        if start is None:
+    # Fill placeholders
+    if start is None:
+        start = first
+    if end is None:
+        end = last
+
+    # Window is on the left
+    if start <= first and end <= first:
+        start = first
+        end = first
+    # Window is on the right
+    elif start >= last and end >= last:
+        start = last
+        end = last
+    # Overlapping window
+    else:
+        if start <= first:
             start = first
-        if end is None:
+
+        if end >= last:
             end = last
 
-        # Window is on the left
-        if start <= first and end <= first:
-            start = first
-            end = first
-        # Window is on the rigth
-        elif start >= last and end >= last:
-            start = last
-            end = last
-        # Overlapping window
-        else:
-            if start <= first:
-                start = first
-
-            if end >= last:
-                end = last
-
-        window = (start, end)
+    window = (start, end)
 
     if None not in window and window[0] > window[1]:
         raise KeyError(f'The window starts after its end: {window}')
@@ -1097,10 +1097,13 @@ def df_window(df, window, method='pre', clip_window=True):
     """
     Same as :func:`series_window` but acting on a :class:`pandas.DataFrame`
     """
+    if not clip_window:
+        raise ValueError(f'Only clip_window=True is supported')
+
     return _dispatch(
         _polars_window,
         _pandas_window,
-        df, window, method, clip_window
+        df, window, method
     )
 
 
@@ -1143,14 +1146,16 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
 
     .. seealso:: :func:`df_split_signals`
     """
+    if not clip_window:
+        raise ValueError(f'Only clip_window=True is supported')
 
     return _dispatch(
         _polars_window_signals,
         _pandas_window_signals,
-        df, window, signals, compress_init, clip_window
+        df, window, signals, compress_init
     )
 
-def _polars_window_signals(df, window, signals, compress_init, clip_window=True):
+def _polars_window_signals(df, window, signals, compress_init):
     start, stop = window
     start = _polars_duration_expr(start, rounding='down')
     stop = _polars_duration_expr(stop, rounding='up')
@@ -1209,17 +1214,16 @@ def _polars_window_signals(df, window, signals, compress_init, clip_window=True)
     df = _polars_window(
         df,
         window=window,
-        clip_window=clip_window,
         method='pre',
     )
     return df
 
-def _pandas_window_signals(df, window, signals, compress_init=False, clip_window=True):
+def _pandas_window_signals(df, window, signals, compress_init=False):
 
     def before(x):
         return x - 1e-9
 
-    windowed_df = df_window(df, window, method='pre', clip_window=clip_window)
+    windowed_df = df_window(df, window, method='pre')
 
     # Split the extra rows that the method='pre' gave in a separate dataframe,
     # so we make sure we don't end up with duplication in init_df
@@ -1235,9 +1239,10 @@ def _pandas_window_signals(df, window, signals, compress_init=False, clip_window
     # This time around, exclude anything before extra_window[1] since it will be provided by extra_df
     try:
         # Right boundary is exact, so failure can only happen if left boundary
-        # is after the start of the dataframe, or if the window starts after its end.
+        # is after the end of the dataframe, or if the window starts after its
+        # end.
         _window = (extra_window[1], windowed_df.index[-1])
-        windowed_df = df_window(windowed_df, _window, method='post', clip_window=False)
+        windowed_df = df_window(windowed_df, _window, method='post')
     # The windowed_df did not contain any row in the given window, all the
     # actual data are in extra_df
     except KeyError:

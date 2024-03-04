@@ -300,7 +300,6 @@ class FrequencyAnalysis(TraceAnalysisBase):
             freq_df,
             window=self.trace.window,
             method='exclusive',
-            clip_window=False,
         )
         cpu_freqs = freq_df['frequency']
 
