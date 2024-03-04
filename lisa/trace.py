@@ -3149,7 +3149,7 @@ class _AvailableTraceEventsSet:
         if event not in trace._parseable_events:
             # If the trace file is not accessible anymore, we will get an OSError
             with contextlib.suppress(MissingTraceEventError, OSError):
-                trace.df_event(event=event, raw=True, namespaces=[])
+                trace.df_event(event=event, namespaces=[])
 
         return trace._parseable_events.setdefault(event, False)
 
@@ -4409,7 +4409,7 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
 
     :param sanitization_functions: This parameter is only for backward
         compatibility with existing code, use
-        :class:`lisa.trace.Trace.get_view` with ``process_df`` parameter
+        :meth:`lisa.trace.Trace.get_view` with ``process_df`` parameter
         instead.
     :type sanitization_functions: object
 
@@ -5110,10 +5110,12 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
         """
         if write_swap is not None:
             warnings.warn('write_swap parameter has no effect anymore', DeprecationWarning, stacklevel=2)
+        if raw:
+            raise ValueError('raw=True is not supported anymore, dataframes are always post processed by parsers to be as close as possible to the ftrace event format')
+
 
         call = functools.partial(
             self._df_event_no_namespace,
-            raw=raw,
             window=window,
             signals=signals,
             signals_init=signals_init,
@@ -5130,33 +5132,10 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
         raise last_excep
 
 
-    def _df_event_no_namespace(self, event, raw, window, signals, signals_init, compress_signals_init, fmt):
-        sanitization_f = self._SANITIZATION_FUNCTIONS.get(event)
-
-        # Make sure no `None` value flies around in the cache, since it's
-        # not uniquely identifying a dataframe
-        orig_raw = raw
-        if raw is None:
-            if sanitization_f:
-                raw = False
-            else:
-                raw = True
-
-        if raw:
-            sanitization_f = None
-        elif not orig_raw and orig_raw is not None and not sanitization_f:
-            raise ValueError(f'Sanitized dataframe for {event} does not exist, please pass raw=True or raw=None')
-
-        if raw:
-            # Make sure all raw descriptors are made the same way, to avoid
-            # missed sharing opportunities
-            spec = self._make_raw_cache_desc_spec(event)
-        else:
-            spec = dict(
-                event=event,
-                raw=raw,
-                trace_state=self.trace_state,
-            )
+    def _df_event_no_namespace(self, event, window, signals, signals_init, compress_signals_init, fmt):
+        # Make sure all raw descriptors are made the same way, to avoid
+        # missed sharing opportunities
+        spec = self._make_raw_cache_desc_spec(event)
 
         # Simplify window into None wherever possible to avoid any unnecessary
         # calls to windowing paths
@@ -5185,11 +5164,6 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
                 compress_signals_init=compress_signals_init,
             )
 
-        if not raw:
-            spec.update(
-                sanitization=sanitization_f.__qualname__ if sanitization_f else None,
-            )
-
         cache_desc = _CacheDataDesc(spec=spec, fmt=_TraceCache.DATAFRAME_SWAP_FORMAT)
 
         try:
@@ -5198,7 +5172,6 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
             except KeyError:
                 df = self._load_df(
                     cache_desc,
-                    sanitization_f=sanitization_f,
                 )
         except MissingTraceEventError as e:
             e.available_events = self.available_events
@@ -5213,12 +5186,14 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
 
     def _make_raw_cache_desc_spec(self, event):
         return dict(
-            event=event,
+            # This is used when clearing the cache to know if a given entry is
+            # related to a raw event or e.g. an analysis.
             raw=True,
+            event=event,
             trace_state=self.trace_state,
         )
 
-    def _load_df(self, cache_desc, sanitization_f=None):
+    def _load_df(self, cache_desc):
         event = cache_desc['event']
 
         # Do not even bother loading the event if we know it cannot be
@@ -5231,17 +5206,6 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
             TraceEventChecker(event),
             write_swap=True,
         )[event]
-
-        if sanitization_f:
-            # Evict the raw dataframe once we got the sanitized version, since
-            # we are unlikely to reuse it again
-            self._cache.evict(self._make_raw_cache_desc(event))
-
-            with measure_time() as measure:
-                df = sanitization_f(self, event, df)
-            sanitization_time = measure.exclusive_delta
-        else:
-            sanitization_time = 0
 
         window = cache_desc.get('window')
         if window is not None:
@@ -5260,7 +5224,7 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
         else:
             windowing_time = 0
 
-        compute_cost = sanitization_time + windowing_time
+        compute_cost = windowing_time
         self._cache.insert(cache_desc, df, compute_cost=compute_cost, write_swap=True)
         return df
 
@@ -5454,7 +5418,7 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
         # to load them from there as well
         for event in get_missing(df_map):
             with contextlib.suppress(MissingTraceEventError):
-                df_map[event] = self.df_event(event, raw=True, namespaces=[])
+                df_map[event] = self.df_event(event, namespaces=[])
 
         return {
             events_map[event]: df
