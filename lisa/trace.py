@@ -905,12 +905,13 @@ class TraceDumpTraceParser(TraceParserBase):
                 else:
                     df = pl.scan_parquet(temp_dir / path)
                     df = self._fixup_df(
+                        event=event,
                         df=df,
                         pid_comms=pid_comms,
                     )
                     return df
 
-    def _fixup_df(self, df, pid_comms):
+    def _fixup_df(self, event, df, pid_comms):
         df = df.rename({
             'common_ts': 'Time',
             'common_pid': '__pid',
@@ -935,6 +936,13 @@ class TraceDumpTraceParser(TraceParserBase):
             df = df.set_sorted('Time')
         else:
             df = df.sort('Time')
+
+
+        if event == 'sched_switch':
+            df = df.with_columns([
+                pl.col('prev_comm').cast(pl.Categorical),
+                pl.col('next_comm').cast(pl.Categorical)
+            ])
 
         return df
 
@@ -1818,6 +1826,87 @@ class TxtTraceParserBase(TraceParserBase):
         # fails, so use an explicit loop instead
         for col in set(df.columns) & converters.keys():
             df[col] = converters[col](df[col])
+
+
+
+        if event == 'sched_switch':
+            copied = False
+            def copy_once(x):
+                nonlocal copied
+                if copied:
+                    return x
+                else:
+                    copied = True
+                    return x.copy(deep=False)
+
+            if df['prev_state'].dtype.name == 'string':
+                # Avoid circular dependency issue by importing at the last moment
+                # pylint: disable=import-outside-toplevel
+                from lisa.analysis.tasks import TaskState
+                df = copy_once(df)
+                df['prev_state'] = df['prev_state'].apply(TaskState.from_sched_switch_str).astype('uint16', copy=False)
+
+            # Save a lot of memory by using category for strings
+            df = copy_once(df)
+            for col in ('next_comm', 'prev_comm'):
+                df[col] = df[col].astype('category', copy=False)
+
+        elif event == 'lisa__sched_overutilized':
+            copied = False
+            def copy_once(x):
+                nonlocal copied
+                if copied:
+                    return x
+                else:
+                    copied = True
+                    return x.copy(deep=False)
+
+            if not df['overutilized'].dtype.name == 'bool':
+                df = copy_once(df)
+                df['overutilized'] = df['overutilized'].astype(bool, copy=False)
+
+            if 'span' in df.columns and df['span'].dtype.name == 'string':
+                df = copy_once(df)
+                df['span'] = df['span'].apply(lambda x: x if pd.isna(x) else int(x, base=16))
+
+        elif event in ('thermal_power_cpu_limit', 'thermal_power_cpu_get_power'):
+            def parse_load(array):
+                # Parse b'{2 3 2 8}'
+                return tuple(map(int, array[1:-1].split()))
+
+            # In-kernel name is "cpumask", "cpus" is just an artifact of the pretty
+            # printing format string of ftrace, that happens to be used by a
+            # specific parser.
+            df = df.rename(columns={'cpus': 'cpumask'}, copy=False)
+            df = df.copy(deep=False)
+
+            if event == 'thermal_power_cpu_get_power':
+                if df['load'].dtype.name == 'object':
+                    df['load'] = df['load'].apply(parse_load)
+
+        elif event in ('ipi_entry', 'ipi_exit'):
+            df = df.copy(deep=False)
+            df['reason'] = df['reason'].str.strip('()')
+
+        elif event in ('print', 'bprint', 'bputs'):
+            df = df.copy(deep=False)
+
+            # Only process string "ip" (function name), not if it is a numeric
+            # address
+            if not is_numeric_dtype(df['ip'].dtype):
+                # Reduce memory usage and speedup selection based on function
+                with contextlib.suppress(KeyError):
+                    df['ip'] = df['ip'].astype('category', copy=False)
+
+            content_col = 'str' if event == 'bputs' else 'buf'
+
+            # Ensure we have "bytes" values, since some parsers might give
+            # str type.
+            try:
+                df[content_col] = df[content_col].str.encode('utf-8')
+            except TypeError:
+                pass
+
         return df
 
     def get_metadata(self, key):
@@ -5713,125 +5802,6 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
             cmd = 'xdg-open'
 
         return os.popen(f"{cmd} {shlex.quote(path)}")
-
-###############################################################################
-# Trace Events Sanitize Methods
-###############################################################################
-
-    #FIXME: Move these sanitization functions to the parsers they are needed for. Then remove the df_event(raw=...) parameter (make any other value than True raise)
-    _SANITIZATION_FUNCTIONS = {}
-    def _sanitize_event(event, mapping=_SANITIZATION_FUNCTIONS):
-        """
-        Sanitization functions must not modify their input.
-        """
-        # pylint: disable=dangerous-default-value,no-self-argument
-
-        def decorator(f):
-            mapping[event] = f
-            return f
-        return decorator
-
-    @_sanitize_event('sched_switch')
-    def _sanitize_sched_switch(self, event, df):
-        """
-        If ``prev_state`` is a string, turn it back into an integer state by
-        parsing it.
-        """
-        if isinstance(df.schema.get('prev_state'), pl.String):
-            # Avoid circular dependency issue by importing at the last moment
-            # pylint: disable=import-outside-toplevel
-            from lisa.analysis.tasks import TaskState
-            df = df.with_columns(
-                pl.col('prev_state').map_elements(TaskState.from_sched_switch_str)
-            )
-
-        df = df.with_columns([
-            pl.col('prev_comm').cast(pl.Categorical),
-            pl.col('next_comm').cast(pl.Categorical)
-        ])
-
-        return df
-
-    @_sanitize_event('lisa__sched_overutilized')
-    def _sanitize_sched_overutilized(self, event, df):
-        # pylint: disable=unused-argument,no-self-use
-
-        df = df.with_columns(
-            pl.col('overutilized').cast(pl.Boolean)
-        )
-
-        return df
-
-    @_sanitize_event('thermal_power_cpu_limit')
-    @_sanitize_event('thermal_power_cpu_get_power')
-    def _sanitize_thermal_power_cpu(self, event, df):
-        # pylint: disable=unused-argument,no-self-use
-
-        # In-kernel name is "cpumask", "cpus" is just an artifact of the pretty
-        # printing format string of ftrace, that happens to be used by a
-        # specific parser.
-        if 'cpus' in df.columns:
-            df = df.rename({'cpus': 'cpumask'})
-
-        if event == 'thermal_power_cpu_get_power':
-            if isinstance(df.schema['load'], (pl.String, pl.Binary)):
-                # Convert values like b'{1,2}'
-                df = with_columns(
-                    pl.col('load').cast(pl.String)
-                        .str.strip('{}')
-                        .str.split(',')
-                        .list.eval(
-                            pl.element().str.to_integer()
-                        )
-                )
-
-        return df
-
-    @_sanitize_event('print')
-    @_sanitize_event('bprint')
-    @_sanitize_event('bputs')
-    def _sanitize_print(self, event, df):
-        # pylint: disable=unused-argument,no-self-use
-
-        # Only process string "ip" (function name), not if it is a numeric
-        # address
-        if df.schema['ip'] == pl.String:
-            # Reduce memory usage and speedup selection based on function
-            df = df.with_columns(
-                pl.col('ip').cast(pl.Categorical)
-            )
-
-        content_col = 'str' if event == 'bputs' else 'buf'
-        dtype = lambda df: df.schema[content_col]
-
-        if dtype(df) == pl.Binary:
-            df = df.with_columns(pl.col(content_col).cast(pl.String()))
-
-        if dtype(df) == pl.String:
-            if event == 'print':
-                # Print event is mainly used through the trace_marker sysfs file.
-                # Since userspace application typically end the write with a
-                # newline char, strip it from the values, as some parsers will not
-                # include that in the output.
-                df = df.with_columns(
-                    pl.col(content_col).str.strip_suffix('\n')
-                )
-
-            df = df.with_columns(
-                pl.col(content_col).cast(pl.Binary())
-            )
-
-        return df
-
-    @_sanitize_event('ipi_entry')
-    @_sanitize_event('ipi_exit')
-    def _sanitize_ipi_enty_exit(self, event, df):
-        # pylint: disable=unused-argument,no-self-use
-
-        df = df.with_columns(
-            pl.col('reason').cast(pl.String).str.strip('()').cast(pl.Binary)
-        )
-        return df
 
 
 class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
