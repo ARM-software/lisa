@@ -1833,7 +1833,6 @@ class TxtTraceParserBase(TraceParserBase):
             df[col] = converters[col](df[col])
 
 
-
         if event == 'sched_switch':
             copied = False
             def copy_once(x):
@@ -1902,15 +1901,6 @@ class TxtTraceParserBase(TraceParserBase):
                 # Reduce memory usage and speedup selection based on function
                 with contextlib.suppress(KeyError):
                     df['ip'] = df['ip'].astype('category', copy=False)
-
-            content_col = 'str' if event == 'bputs' else 'buf'
-
-            # Ensure we have "bytes" values, since some parsers might give
-            # str type.
-            try:
-                df[content_col] = df[content_col].str.encode('utf-8')
-            except TypeError:
-                pass
 
         return df
 
@@ -2503,10 +2493,6 @@ class MetaTxtTraceParser(SimpleTxtTraceParser):
     :param time: Iterable of timestamps matching ``lines``.
     :type time: collections.abc.Iterable(float)
 
-    :param merged_df: Dataframe to merge into the parsed ones, to add
-        pre-computed fields.
-    :type merged_df: pandas.DataFrame
-
     Meta events are events "embedded" as a string inside the field of another
     event. They are expected to comply with the raw format as output by
     ``trace-cmd report -R``.
@@ -2567,9 +2553,8 @@ class MetaTxtTraceParser(SimpleTxtTraceParser):
     }
 
     @kwargs_forwarded_to(SimpleTxtTraceParser.__init__)
-    def __init__(self, *args, time, merged_df=None, **kwargs):
+    def __init__(self, *args, time, **kwargs):
         self._time = time
-        self._merged_df = merged_df
         super().__init__(*args, **kwargs)
 
     def _eagerly_parse_lines(self, *args, **kwargs):
@@ -2577,13 +2562,6 @@ class MetaTxtTraceParser(SimpleTxtTraceParser):
         return super()._eagerly_parse_lines(
             *args, **kwargs, time=self._time,
         )
-
-    def _postprocess_df(self, event, parser, df):
-        df = super()._postprocess_df(event, parser, df)
-        merged_df = self._merged_df
-        if merged_df is not None:
-            df = df.merge(merged_df, left_index=True, right_index=True, copy=False)
-        return df
 
 
 class HRTxtTraceParser(SimpleTxtTraceParser):
@@ -4685,8 +4663,8 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
         # writing to: /sys/kernel/debug/tracing/trace_marker
         # That said, it's not the end of the world if we don't filter on that
         # as the meta event name is supposed to be unique anyway
-        if not is_numeric_dtype(df['ip'].dtype):
-            df = df[df['ip'].str.startswith('tracing_mark_write')]
+        if isinstance(df.schema['ip'], pl.String):
+            df = df.filter(pl.col('ip').str.starts_with('tracing_mark_write'))
         return (df, 'buf')
 
     def _select_trace_printk(self, source_event, meta_event, df):
@@ -5468,22 +5446,40 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
         # dataframes one by one
         for source_event, specs in groupby(meta_specs, key=itemgetter(2)):
             try:
-                df = self.df_event(source_event, namespaces=[])
+                df = self.df_event(
+                    source_event,
+                    namespaces=[],
+                    fmt='polars-lazyframe'
+                )
             except MissingTraceEventError:
                 pass
             else:
                 # Add all the header fields from the source dataframes
                 extra_fields = [x for x in df.columns if x.startswith('__')]
-                merged_df = df[extra_fields]
+                extra_df = df.select(('Time', *extra_fields))
 
                 with tempfile.TemporaryDirectory() as temp_dir:
                     for (meta_event, event, _source_event, source_getter) in specs:  # pylint: disable=unused-variable
                         source_df, line_field = source_getter(self, _source_event, event, df)
+
+                        # If the lines are in a dtype we won't be able to
+                        # handle, we won't add an entry to df_map, leading to a
+                        # missing event
+                        if source_df.schema[line_field] not in (pl.String, pl.Binary):
+                            continue
+
+                        # Ensure we have bytes and not str
+                        source_df = source_df.with_columns(
+                            pl.col(line_field).cast(pl.Binary)
+                        )
+                        source_df = source_df.select(('Time', line_field))
+                        pandas_df = _df_to_pandas(source_df)
+                        source_series = pandas_df[line_field]
+
                         try:
                             parser = MetaTxtTraceParser(
-                                lines=source_df[line_field],
-                                time=source_df.index,
-                                merged_df=merged_df,
+                                lines=source_series,
+                                time=source_series.index,
                                 events=[event],
                                 temp_dir=temp_dir,
                             )
@@ -5499,18 +5495,23 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
                         else:
                             try:
                                 with parser as parser:
-                                    df = parser.parse_event(event)
-                                    meta_event_df = _convert_df_from_parser(
-                                        df=df,
-                                        cache=self._cache if parser._STEAL_FILES else None,
-                                    )
+                                    _df = parser.parse_event(event)
                             except MissingTraceEventError:
                                 continue
                                 # In case a meta-event is spread among multiple
                                 # events, we get all the dataframes and concatenate
                                 # them together
                             else:
-                                df_map.setdefault(event, []).append(meta_event_df)
+                                _df = _convert_df_from_parser(
+                                    _df,
+                                    cache=self._cache if parser._STEAL_FILES else None,
+                                )
+                                _df = _df.join(
+                                    extra_df,
+                                    on='Time',
+                                    how='left',
+                                )
+                                df_map.setdefault(event, []).append(_df)
 
                         if not get_missing(df_map):
                             break

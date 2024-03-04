@@ -890,9 +890,8 @@ def series_window(series, window, method='pre', clip_window=True):
         * `exclusive`: When no exact match is found, only index values within
             the range are selected. This is the default pandas float slicing
             behavior.
-        * `nearest`: Not supported with :class:`polars.LazyFrame` and
-            :class:`polars.DataFrame` or :class:`polars.Series` objects: when no
-            exact match is found, take the nearest index value.
+        * `nearest`: Not supported with :mod:`polars` objects: when no exact
+          match is found, take the nearest index value.
         * `pre`: When no exact match is found, take the previous index value.
         * `post`: When no exact match is found, take the next index value.
 
