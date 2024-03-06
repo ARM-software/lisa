@@ -58,7 +58,7 @@ class TraceTestCase(StorageTestCase):
             parser=TxtTraceParser.from_txt_file,
         )
 
-    def make_trace(self, in_data):
+    def make_trace(self, in_data, plat_info=None):
         """
         Get a trace from an embedded string of textual trace data
         """
@@ -68,7 +68,7 @@ class TraceTestCase(StorageTestCase):
 
         return Trace(
             trace_path,
-            plat_info=self.plat_info,
+            plat_info=self.plat_info if plat_info is None else plat_info,
             events=self.events,
             normalize_time=False,
             plots_dir=self.res_dir,
@@ -276,11 +276,11 @@ class TestTrace(TraceTestCase):
              child-5678  [002] 18765.018235: sched_switch: prev_comm=child prev_pid=5678 prev_prio=120 prev_state=1 next_comm=father next_pid=5678 next_prio=120
         """
 
-        trace = self.make_trace(in_data)
-
-        plat_info = copy.copy(trace.plat_info)
+        plat_info = copy.copy(
+            self.make_trace(in_data).plat_info
+        )
         plat_info.force_src('cpus-count', ['SOURCE THAT DOES NOT EXISTS'])
-        trace.plat_info = plat_info
+        trace = self.make_trace(in_data, plat_info=plat_info)
 
         assert trace.cpus_count == 3
 
@@ -411,7 +411,7 @@ class TestTraceView(TraceTestCase):
             events=self.events,
             normalize_time=False,
             parser=TxtTraceParser.from_txt_file,
-        ).get_view((76.402065, 80.402065))
+        ).get_view(window=(76.402065, 80.402065))
 
         assert trace.time_range == pytest.approx(expected_duration)
 

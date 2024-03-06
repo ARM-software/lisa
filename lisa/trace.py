@@ -61,13 +61,18 @@ import polars as pl
 
 import devlib
 
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, bothmethod
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to_polars, _df_to_pandas, _df_to, _MemLazyFrame
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString
 from lisa._kmod import LISADynamicKmod
 from lisa._assets import get_bin
+
+
+def _deprecated_warn(msg, **kwargs):
+    warnings.warn(msg, DeprecationWarning, **kwargs)
+
 
 _DEALLOCATORS = weakref.WeakSet()
 _DEALLOCATORS_LOCK = threading.Lock()
@@ -2712,7 +2717,7 @@ class TrappyTraceParser(TraceParserBase):
 class TraceBase(abc.ABC):
     """
     Base class for common functionalities between :class:`Trace` and
-    :class:`TraceView`.
+    :class:`_TraceView`.
 
     :Attributes:
 
@@ -2748,6 +2753,8 @@ class TraceBase(abc.ABC):
         )
         self.analysis = _DeprecatedAnalysisProxy(self, params=params)
         self.ana = AnalysisProxy(self, params=params)
+
+        self.available_events = _AvailableTraceEventsSet(self)
 
     @property
     def trace_state(self):
@@ -2793,7 +2800,11 @@ class TraceBase(abc.ABC):
         """
 
     @abc.abstractmethod
-    def _clear_cache(self):
+    def _expand_namespaces(self, event, namespaces=None):
+        pass
+
+    @abc.abstractmethod
+    def _preload_events(self, events):
         pass
 
     def __getitem__(self, window):
@@ -2861,17 +2872,12 @@ class TraceBase(abc.ABC):
         return self.ana.notebook.df_all_events(*args, **kwargs)
 
 
-class TraceView(Loggable, TraceBase):
+class _TraceView(Loggable, TraceBase):
     """
     A view on a :class:`Trace`.
 
     :param trace: The base trace.
     :type trace: Trace
-
-    :param clear_base_cache: Clear the cache of the base ``trace`` for non-raw
-        data. This can release memory if the base trace is not going to be used
-        anymore, apart as a data server for the view.
-    :type clear_base_cache: bool
 
     :param window: The time window to base this view on. If ``None``, the whole
         base trace will be selected.
@@ -2890,7 +2896,7 @@ class TraceView(Loggable, TraceBase):
           ``window[1]``)
 
     You can substitute an instance of :class:`Trace` with an instance of
-    :class:`TraceView`. This means you can create a view of a trimmed down trace
+    :class:`_TraceView`. This means you can create a view of a trimmed down trace
     and run analysis code/plots that will only use data within that window, e.g.::
 
       trace = Trace(...)
@@ -2906,26 +2912,36 @@ class TraceView(Loggable, TraceBase):
     def __init__(
         self,
         trace,
+        *,
         window=None,
         process_df=None,
         df_fmt='pandas',
-        clear_base_cache=True,
+        signals=None,
+        events_namespaces=None,
+        strict_events=False,
     ):
         super().__init__()
         self.base_trace = trace
         self._df_fmt = df_fmt
         self._window = window
-
-        # evict all the non-raw dataframes from the base cache, as they are
-        # unlikely to be used anymore.
-        if clear_base_cache:
-            self._clear_cache()
+        self._signals = signals
+        self._events_namespaces = events_namespaces or []
 
         self._process_df = process_df
 
+        # Preload events and take namespaces into account
+        events = self.events
+        preloaded = self._preload_events(events)
+        if strict_events:
+            events.check_events(preloaded)
+
     @classmethod
-    def _make(cls, trace, *, normalize_time=False, window=None, **kwargs):
+    def _make(cls, trace, *, normalize_time=False, window=None, clear_base_cache=None, **kwargs):
+        if clear_base_cache is not None:
+            _deprecated_warn(f'"clear_base_cache" parameter has no effect anymore')
+
         if normalize_time:
+            window = window or (trace.basetime, None)
             try:
                 start, end = window
             except ValueError:
@@ -2934,7 +2950,7 @@ class TraceView(Loggable, TraceBase):
                 if start is None:
                     raise ValueError('A window with non-None left bound must be provided with normalize_time=True')
                 else:
-                    view = _NormalizedTimeTraceView(
+                    view = _NormalizedTime_TraceView(
                         trace,
                         start=start,
                     )
@@ -2951,6 +2967,22 @@ class TraceView(Loggable, TraceBase):
                 window=window,
                 **kwargs,
             )
+
+    @property
+    def events(self):
+        # FIXME: this will lead to multiple levels of expansion
+        # => Maybe it's not such a problem since namespaces expansion is idempotent but this would break if it was not anymore
+        return self.base_trace.events.expand_namespaces(self._events_namespaces)
+
+    @property
+    def events_namespaces(self):
+        return deduplicate(
+            [
+                *self._events_namespaces,
+                *self.base_trace.events_namespaces,
+            ],
+            keep_last=False,
+        )
 
     @property
     def start(self):
@@ -2984,6 +3016,14 @@ class TraceView(Loggable, TraceBase):
         start = self.start if start is None else max(start, self.start)
         end = self.end if end is None else min(end, self.end)
 
+        # If we are not restricting more than the base trace, we don't want to
+        # apply any windowing
+        if start == self.base_trace.start:
+            start = None
+
+        if end == self.base_trace.end:
+            end = None
+
         return (start, end)
 
     @property
@@ -3002,7 +3042,54 @@ class TraceView(Loggable, TraceBase):
     def __getattr__(self, name):
         return getattr(self.base_trace, name)
 
-    def df_event(self, event, *, fmt='pandas', window=None, **kwargs):
+    def _preload_events(self, events):
+        return self.base_trace._preload_events(events)
+
+    @classmethod
+    def _resolve_namespaces(cls, namespaces):
+        return namespaces or (None,)
+
+    def _expand_namespaces(self, event, namespaces):
+        return deduplicate(
+            [
+                *self._do_expand_namespaces(
+                    event,
+                    self._resolve_namespaces(
+                        namespaces or self._events_namespaces
+                    )
+                ),
+                *self.base_trace._expand_namespaces(event, namespaces),
+            ],
+            keep_last=False,
+        )
+
+    @classmethod
+    def _do_expand_namespaces(cls, event, namespaces):
+        namespaces = cls._resolve_namespaces(namespaces)
+
+        def expand_namespace(event, namespace):
+            if namespace:
+                ns_prefix = f'{namespace}__'
+                if event.startswith(ns_prefix):
+                    return [event]
+                else:
+                    return [f'{ns_prefix}{event}']
+            else:
+                return [event]
+
+        def expand(event, namespaces):
+            if Trace._is_meta_event(event):
+                return [event]
+            else:
+                return [
+                    _event
+                    for namespace in namespaces
+                    for _event in expand_namespace(event, namespace)
+                ]
+
+        return expand(event, namespaces)
+
+    def df_event(self, event, *, namespaces=None, **kwargs):
         """
         Get a dataframe containing all occurrences of the specified trace event
         in the sliced trace.
@@ -3013,25 +3100,113 @@ class TraceView(Loggable, TraceBase):
         :Variable keyword arguments: Forwarded to
             :meth:`lisa.trace.Trace.df_event`.
         """
+        for _event in self._expand_namespaces(event, namespaces):
+            try:
+                return self._df_event(
+                    event=_event,
+                    **kwargs,
+                )
+            except MissingTraceEventError as e:
+                last_excep = e
 
-        window = self._fixup_window(window)
+        raise last_excep
 
-        if (process := self._process_df) is None:
-            internal_fmt = fmt
-            process = lambda event, df: df
-        else:
-            internal_fmt = 'polars-lazyframe'
+    # FIXME: what do we do with compress_signals_init ? Should we make it a _TraceView.__init__() parameter ?
+    # => It should probably stay as a df_event parameter
+    def _df_event(self, event, *, fmt='pandas', window=None, compress_signals_init=False, signals_init=None, signals=None, **kwargs):
+        signals = self._fixup_signals(
+            event=event,
+            signals=signals,
+            signals_init=signals_init,
+            user_fmt=fmt
+        )
 
         df = self.base_trace.df_event(
             event,
-            fmt=internal_fmt,
-            window=window,
+            fmt='polars-lazyframe',
+            # We propagate the list signals to base traces. This will let some
+            # events "leak into the window" if a window was set, but that is
+            # necessary to reliably implement self-contained analysis.
+            # Otherwise, an analysis function would have no way of asking for
+            # some specific signals it needs to work. Even if the user manually
+            # specified signals to be friendly to that function, it could still
+            # break the day the function makes use of a new signal (e.g. using
+            # a new equivalent signal the legacy user code could not know about
+            # at the time of writing).
+            signals=signals,
+            # This needs to be passed to the base trace, in case we are not the
+            # view applying a windowing. This can happen if there is e.g. a
+            # no-op _TraceView() layer.
+            compress_signals_init=compress_signals_init,
             **kwargs
         )
 
-        df = process(event, df)
+        window = self._fixup_window(window)
+        df = self._apply_window(
+            df=df,
+            window=window,
+            signals=signals,
+            compress_signals_init=compress_signals_init,
+        )
+
+        if (process := self._process_df):
+            df = process(event, df)
+
         df = _df_to(df, fmt=fmt)
         return df
+
+    def _fixup_signals(self, event, signals, signals_init, user_fmt):
+        if user_fmt == 'pandas':
+            # Warning-less backward compat for the default parameter value, so
+            # that existing code will keep running without extra output
+            if signals_init is None:
+                signals_init = True
+            # If the user specified manually, they will get the warning and be
+            # asked to make a change that will ease transition to polars.
+            else:
+                _deprecated_warn('signals_init should not be used anymore. Instead, use trace.get_view(signals=[...]) with the list of signals you need', stacklevel=2)
+
+            # Legacy behavior where signals are inferred from the event. We
+            # only keep this in pandas for backward commpat. New code based
+            # on polars has to define its own signals, so we don't have to
+            # maintain an ever-growing list of signals in LISA itself, and
+            # possibly breaking user code when we add a new one.
+            signals = list(SignalDesc._from_event(event) if signals is None else signals)
+            signals = signals if signals_init else []
+        else:
+            signals = list(signals or [])
+            if signals_init is not None:
+                raise ValueError(f'"signals_init" parameter is not supported with fmt={user_fmt}. Use the TraceBase.get_view(signals=...) parameter.')
+
+        # FIXME: If we are an inner window layer, it is pointless to add
+        # self._signals in cases where some signals are requested, since the
+        # outer window layer will only care about the signals it asked for and
+        # discard the rest anyway.
+        signals = {*signals, *(self._signals or [])}
+
+        signals = {
+            signal_desc
+            for signal_desc in signals
+            if signal_desc.event == event
+        }
+        return signals
+
+
+    def _apply_window(self, df, window, signals, compress_signals_init):
+        if window is None or window == (None, None):
+            return df
+        else:
+            if signals:
+                df = df_window_signals(
+                    df,
+                    window=window,
+                    signals=signals,
+                    compress_init=compress_signals_init,
+                )
+            else:
+                df = df_window(df, window, method='pre')
+
+            return df
 
     def get_view(self, *, window=None, **kwargs):
         if self._window is not None and window is not None:
@@ -3048,17 +3223,14 @@ class TraceView(Loggable, TraceBase):
                 end = min(self.end, end)
             window = (start, end)
 
-        return TraceView._make(
+        return _TraceView._make(
             self,
             window=window,
             **kwargs
         )
 
-    def _clear_cache(self):
-        self.base_trace._clear_cache()
 
-
-class _NormalizedTimeTraceView(TraceView):
+class _NormalizedTime_TraceView(_TraceView):
     def __init__(self, trace, start):
         assert start is not None
 
@@ -3142,34 +3314,38 @@ class _AvailableTraceEventsSet:
     def _contains(self, event):
         trace = self._trace
 
-        if trace._strict_events and not trace._is_meta_event(event):
-            return trace._parseable_events.setdefault(event, False)
-
-        # Try to parse the event in case it was not parsed already
-        if event not in trace._parseable_events:
-            # If the trace file is not accessible anymore, we will get an OSError
-            with contextlib.suppress(MissingTraceEventError, OSError):
-                trace.df_event(event=event, namespaces=[])
-
-        return trace._parseable_events.setdefault(event, False)
+        try:
+            #FIXME: passing namespaces here will trigger a warning on the base trace
+            trace.df_event(event=event, namespaces=[], fmt='polars-lazyframe')
+        except MissingTraceEventError:
+            return False
+        else:
+            return True
 
     @property
     def _available_events(self):
-        parseable = lambda: self._trace._parseable_events
-
-        # Get the available events, which will populate the parseable events if
-        # they were empty, which happens when a trace has just been created
-        if not parseable():
+        trace = self._trace
+        # Ideally the parser can report the available events, so the set is
+        # stable.
+        try:
+            available = trace.get_metadata('available-events')
+        except MissingMetadataError:
+            # In case the parser does not implement this metadata, we fall back
+            # on listing all the events we have succesfully parsed in the past.
+            # This will be updated in various places, so the result will not be
+            # stable.
             try:
-                self._trace.get_metadata('available-events')
+                parseable = trace._cache.get_metadata('parseable-events')
             except MissingMetadataError:
-                pass
-
-        return {
-            event
-            for event, available in parseable().items()
-            if available
-        }
+                return set()
+            else:
+                return {
+                    _event
+                    for _event, _parseable in parseable.items()
+                    if _parseable
+                }
+        else:
+            return set(available)
 
     def __iter__(self):
         return iter(self._available_events)
@@ -4321,6 +4497,8 @@ class _TraceMeta(type(TraceBase), type(Loggable)):
         *args,
         sanitization_functions=None,
         normalize_time=False,
+        events_namespaces=('lisa', None),
+        strict_events=False,
         **kwargs,
     ):
         _super = super()
@@ -4333,8 +4511,7 @@ class _TraceMeta(type(TraceBase), type(Loggable)):
             _self = f(_self)
 
         if sanitization_functions is not None:
-            msg = 'Custom sanitization functions are not supported anymore, use trace.get_view(process_df=...) instead.'
-            warnings.warn(msg, DeprecationWarning)
+            _deprecated_warn('Custom sanitization functions are not supported anymore, use trace.get_view(process_df=...) instead.')
 
             def process_df(event, df):
                 try:
@@ -4349,6 +4526,16 @@ class _TraceMeta(type(TraceBase), type(Loggable)):
             with_self(lambda self: self.get_view(
                 window=(self.basetime, None),
                 normalize_time=True,
+            ))
+
+        if events_namespaces is not None:
+            with_self(lambda self: self.get_view(
+                events_namespaces=events_namespaces
+            ))
+
+        if strict_events:
+            with_self(lambda self: self.get_view(
+                strict_events=strict_events,
             ))
 
         with_self(lambda x: x)
@@ -4370,10 +4557,10 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
     :type events: TraceEventCheckerBase or list(str) or None
 
     :param events_namespaces: List of namespaces of the requested events. Each
-        namespace will be tried in order until the event is found. The
-        ``None`` namespace can be used to specify no namespace. An empty
-        list is treated as ``[None]`` The full event name is formed with
-        ``<namespace>__<event>``.
+        namespace will be tried in order until the event is found. The ``None``
+        namespace can be used to specify no namespace. An implicit ``None``
+        value will always be added at the end of the list. The full event name
+        is formed with ``<namespace>__<event>``.
     :type events_namespaces: list(str or None)
 
 
@@ -4540,7 +4727,6 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
         trace_path=None,
         plat_info=None,
         events=None,
-        strict_events=False,
         parser=None,
         plots_dir=None,
         sanitization_functions=None,
@@ -4550,7 +4736,6 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
         enable_swap=True,
         max_swap_size=None,
         write_swap=True,
-        events_namespaces=('lisa', None),
     ):
         super().__init__()
         trace_path = str(trace_path) if trace_path else None
@@ -4582,6 +4767,7 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
         self._write_swap = write_swap
         self.trace_path = trace_path
         self._parseable_events = {}
+        self._unavailable_metadata = set()
 
         if parser is None:
             if not trace_path:
@@ -4606,8 +4792,7 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
             # Make a shallow copy so we can update it
             plat_info = copy.copy(plat_info)
 
-        self._strict_events = strict_events
-        self.available_events = _AvailableTraceEventsSet(self)
+        self._strict_events = False
         if not plots_dir and trace_path:
             plots_dir = os.path.dirname(trace_path)
         self.plots_dir = plots_dir
@@ -4643,73 +4828,32 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
         else:
             events = AndTraceEventChecker.from_events(events)
 
-        self.events_namespaces = events_namespaces
         self.events = events
-        # Pre-load the selected events
-        if events:
-            preload_events = OptionalTraceEventChecker.from_events(
-                event_
-                for event in events
-                for event_ in self._expand_namespaces(event, events_namespaces)
-            )
-            df_map = self._load_cache_raw_df(
-                preload_events,
-                write_swap=True,
-                allow_missing_events=True,
-            )
-
-            missing_events = {
-                event
-                for event in events
-                if not (df_map.keys() & set(self._expand_namespaces(event, events_namespaces)))
-            }
-
-            if strict_events and missing_events:
-                raise MissingTraceEventError(
-                    missing_events,
-                    available_events=self.available_events,
-                )
-
+        self._preload_events(events)
         # Register what we currently have
         self.plat_info = plat_info
         # Update the platform info with the data available from the trace once
         # the Trace is almost fully initialized
         self.plat_info = plat_info.add_trace_src(self)
 
-    def _clear_cache(self):
-        self._cache.clear_all_events(raw=False)
+    @property
+    def events_namespaces(self):
+        return []
 
-    @bothmethod
-    def _resolve_namespaces(self_or_cls, namespaces=None):
-        if not isinstance(self_or_cls, type):
-            namespaces = self_or_cls.events_namespaces if namespaces is None else namespaces
-        return namespaces or (None,)
+    def _expand_namespaces(self, event, namespaces=None):
+        return [event]
 
-    @bothmethod
-    def _expand_namespaces(self_or_cls, event, namespaces=None):
-        namespaces = self_or_cls._resolve_namespaces(namespaces)
+    def _preload_events(self, events):
+        events = OptionalTraceEventChecker.from_events(events)
 
-        def expand_namespace(event, namespace):
-            if namespace:
-                ns_prefix = f'{namespace}__'
-                if event.startswith(ns_prefix):
-                    return [event]
-                else:
-                    return [f'{ns_prefix}{event}']
-            else:
-                return [event]
+        # This creates a polars LazyFrame from the cache if available, so it's
+        # cheap since we always cache the data coming from the parser.
+        df_map = self._load_cache_raw_df(
+            events,
+            allow_missing_events=True,
+        )
+        return set(df_map.keys())
 
-        def expand(event, namespaces):
-            if self_or_cls._is_meta_event(event):
-                return [event]
-            else:
-                return [
-                    _event
-                    for namespace in namespaces
-                    for _event in expand_namespace(event, namespace)
-                ]
-
-        return expand(event, namespaces)
 
     _CACHEABLE_METADATA = {
         'time-range',
@@ -4733,6 +4877,9 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
         return self._get_metadata(key=key)
 
     def _get_metadata(self, key, parser=None, cache=True, try_hard=False):
+        if key in self._unavailable_metadata:
+            raise MissingMetadataError(key)
+
         def process(key, value):
             if key == 'available-events':
                 # Ensure we have a list so that it can be dumped to JSON
@@ -4764,7 +4911,19 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
 
         def get(key, parser):
             if parser is None:
-                cm = self._get_parser(needed_metadata={key})
+                @contextlib.contextmanager
+                def _cm():
+                    with self._get_parser(needed_metadata={key}) as parser:
+                        try:
+                            yield parser
+                        # We explicitly asked for a bit of metadata and could
+                        # not obtain it, so we remember that to avoid wasting
+                        # time spinning up a parser again in the future
+                        except MissingMetadataError:
+                            self._unavailable_metadata.add(key)
+                            raise
+
+                cm = _cm()
             else:
                 # If we got passed a parser, we leave the decision to use it as a
                 # context manager or not to the caller.
@@ -4915,8 +5074,11 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
             def get_view(self, **kwargs):
                 return self.base_trace.get_view(**kwargs)
 
-            def _clear_cache(self):
-                self.base_trace._clear_cache()
+            def _expand_namespaces(*args, **kwargs):
+                return self.base_trace._expand_namespaces(*args, **kwargs)
+
+            def _preload_events(self, *args, **kwargs):
+                return self.base_trace._preload_events(*args, **kwargs)
 
             def __getattr__(self, attr):
                 try:
@@ -5032,7 +5194,9 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
         else:
             return f'parser-trace-id-{trace_id}'
 
-    def df_event(self, event, *, raw=None, window=None, signals=None, signals_init=True, compress_signals_init=False, write_swap=None, namespaces=None, fmt='pandas'):
+    # FIXME: move the parameter docstrings to _TraceView() as appropriate and test each
+    # FIXME: Maybe move fmt to _TraceView()
+    def df_event(self, event, *, raw=None, window=None, signals=None, signals_init=None, compress_signals_init=False, write_swap=None, namespaces=None, fmt='pandas'):
         """
         Get a dataframe containing all occurrences of the specified trace event
         in the parsed trace.
@@ -5108,81 +5272,42 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
             without introducing duplicate indices.
         :type compress_signals_init: bool
         """
+        def warn(msg, **kwargs):
+            _deprecated_warn(msg, stacklevel=2)
+
         if write_swap is not None:
-            warnings.warn('write_swap parameter has no effect anymore', DeprecationWarning, stacklevel=2)
+            warn('write_swap parameter has no effect anymore')
+
         if raw:
             raise ValueError('raw=True is not supported anymore, dataframes are always post processed by parsers to be as close as possible to the ftrace event format')
 
+        # FIXME: we will end up passing down the whole set of signals, and it
+        # will land here. Do we want to remove the "signals" parameter or just
+        # swallow it silently as long as we are not provided a window ?
+        if window and (signals is not None):
+            warn('"signals" is a deprecated parameter. Instead, use trace.get_view(signals=...).df_event(...)')
 
-        call = functools.partial(
-            self._df_event_no_namespace,
-            window=window,
-            signals=signals,
-            signals_init=signals_init,
-            compress_signals_init=compress_signals_init,
-            fmt=fmt,
-        )
-
-        for event_ in self._expand_namespaces(event, namespaces):
-            try:
-                return call(event=event_)
-            except MissingTraceEventError as e:
-                last_excep = e
-
-        raise last_excep
-
-
-    def _df_event_no_namespace(self, event, window, signals, signals_init, compress_signals_init, fmt):
-        # Make sure all raw descriptors are made the same way, to avoid
-        # missed sharing opportunities
-        spec = self._make_raw_cache_desc_spec(event)
-
-        # Simplify window into None wherever possible to avoid any unnecessary
-        # calls to windowing paths
+        # FIXME: do we really want to deprecate passing a window ? In the new
+        # system, we will handle windowing at the view level, but we might
+        # still want to keep the door open to providing a window to the parser,
+        # especially since the default will be no signals.
         if window is not None:
-            start, stop = window
-            if start == self.start:
-                start = None
+            warn('"window" is a deprecated parameter. Instead, use trace.get_view(window=...).df_event(...)')
 
-            if stop == self.end:
-                stop = None
-            window = (start, stop)
-
-            if window == (None, None):
-                window = None
-
-        if window is not None:
-            signals = signals if signals else SignalDesc.from_event(event)
-            cols_list = [
-                signal_desc.fields
-                for signal_desc in signals
-            ]
-            spec.update(
+        if window or namespaces:
+            trace = self.get_view(
                 window=window,
-                signals=cols_list,
-                signals_init=signals_init,
-                compress_signals_init=compress_signals_init,
+                signals=signals,
+                namespaces=namespaces,
             )
-
-        cache_desc = _CacheDataDesc(spec=spec, fmt=_TraceCache.DATAFRAME_SWAP_FORMAT)
-
-        try:
-            try:
-                df = self._cache.fetch(cache_desc, insert=True)
-            except KeyError:
-                df = self._load_df(
-                    cache_desc,
-                )
-        except MissingTraceEventError as e:
-            e.available_events = self.available_events
-            raise e
-
-        assert isinstance(df, pl.LazyFrame)
-        return _df_to(df, fmt=fmt)
-
-    def _make_raw_cache_desc(self, event):
-        spec = self._make_raw_cache_desc_spec(event)
-        return _CacheDataDesc(spec=spec, fmt=_TraceCache.DATAFRAME_SWAP_FORMAT)
+            return trace.df_event(
+                event=event,
+                fmt=fmt,
+                compress_signals_init=compress_signals_init,
+                signals_init=signals_init,
+            )
+        else:
+            return self._df_event(event, fmt=fmt)
 
     def _make_raw_cache_desc_spec(self, event):
         return dict(
@@ -5193,45 +5318,32 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
             trace_state=self.trace_state,
         )
 
-    def _load_df(self, cache_desc):
-        event = cache_desc['event']
+    def _make_raw_cache_desc(self, event):
+        spec = self._make_raw_cache_desc_spec(event)
+        return _CacheDataDesc(spec=spec, fmt=_TraceCache.DATAFRAME_SWAP_FORMAT)
 
-        # Do not even bother loading the event if we know it cannot be
-        # there. This avoids some OSError in case the trace file has
-        # disappeared
-        if not self._parseable_events.get(event, True):
-            raise MissingTraceEventError([event], available_events=self.available_events)
+    def _df_event(self, event, fmt):
+        # Make sure all raw descriptors are made the same way, to avoid
+        # missed sharing opportunities
+        spec = self._make_raw_cache_desc_spec(event)
+        cache_desc = _CacheDataDesc(spec=spec, fmt=_TraceCache.DATAFRAME_SWAP_FORMAT)
 
-        df = self._load_cache_raw_df(
-            TraceEventChecker(event),
-            write_swap=True,
-        )[event]
-
-        window = cache_desc.get('window')
-        if window is not None:
-            signals_init = cache_desc['signals_init']
-            compress_signals_init = cache_desc['compress_signals_init']
-            cols_list = cache_desc['signals']
-            signals = [SignalDesc(event, cols) for cols in cols_list]
-
-            with measure_time() as measure:
-                if signals_init and signals:
-                    df = df_window_signals(df, window, signals, compress_init=compress_signals_init)
-                else:
-                    df = df_window(df, window, method='pre')
-
-            windowing_time = measure.exclusive_delta
+        try:
+            try:
+                df = self._cache.fetch(cache_desc, insert=True)
+            except KeyError:
+                df = self._load_cache_raw_df(TraceEventChecker(event))[event]
+        except MissingTraceEventError as e:
+            e.available_events = self.available_events
+            raise e
         else:
-            windowing_time = 0
+            assert isinstance(df, pl.LazyFrame)
+            return _df_to(df, fmt=fmt)
 
-        compute_cost = windowing_time
-        self._cache.insert(cache_desc, df, compute_cost=compute_cost, write_swap=True)
-        return df
-
-    def _load_cache_raw_df(self, event_checker, write_swap, allow_missing_events=False):
+    def _load_cache_raw_df(self, event_checker, allow_missing_events=False):
         events = event_checker.get_all_events()
         insert_kwargs = dict(
-            write_swap=write_swap,
+            write_swap=True,
             # For raw dataframe, always write in the swap area if asked for
             # since parsing cost is known to be high
             force_write_swap=True,
@@ -5262,6 +5374,15 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
 
         # Load the remaining events from the trace directly
         events_to_load = sorted(events - from_cache.keys())
+
+        # Cheap check to avoid spinning up the parser for nothing
+        for event in list(events_to_load):
+            if not self._parseable_events.get(event, True):
+                if allow_missing_events:
+                    events_to_load.remove(event)
+                else:
+                    raise MissingTraceEventError([event])
+
         df_from_trace = self._load_raw_df(events_to_load)
 
         for event, df in df_from_trace.items():
@@ -5540,7 +5661,7 @@ class Trace(Loggable, TraceBase, metaclass=_TraceMeta):
 
     # Allow positional parameter for "window" for backward compat
     def get_view(self, window=None, **kwargs):
-        return TraceView._make(self, window=window, **kwargs)
+        return _TraceView._make(self, window=window, **kwargs)
 
     @property
     def start(self):
@@ -5812,16 +5933,21 @@ class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
             checker = self
 
         if isinstance(event_set, _AvailableTraceEventsSet):
-            namespaces = event_set._trace._resolve_namespaces(namespaces)
+            checker = checker._expand_namespaces(
+                expand=lambda event: event_set._trace._expand_namespaces(
+                    event,
+                    namespaces=namespaces
+                )
+            )
             def check(event):
                 # We already expanded namespaces, so we don't want the
                 # inclusion check to apply the default trace's namespace.
                 return event_set.contains(event, namespaces=[])
         else:
+            checker = checker.expand_namespaces(namespaces)
             def check(event):
                 return event in event_set
 
-        checker = checker.expand_namespaces(namespaces=namespaces)
 
         return checker._select_events(check=check, event_set=event_set)
 
@@ -5846,10 +5972,14 @@ class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
         Build a :class:`TraceEventCheckerBase` that will fixup the event names
         to take into account the given namespaces.
         """
+        expand = lambda event: _TraceView._do_expand_namespaces(event, namespaces=namespaces)
+        return self._expand_namespaces(expand)
+
+    def _expand_namespaces(self, expand):
         def fixup(checker):
             if isinstance(checker, TraceEventChecker):
                 event = checker.event
-                namespaced = Trace._expand_namespaces(event, namespaces=namespaces)
+                namespaced = expand(event)
 
                 # fnmatch patterns need to be AND-ed so that we can collect all
                 # the events matching that pattern, in all namespaces.

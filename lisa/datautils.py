@@ -1173,7 +1173,7 @@ def _polars_window_signals(df, window, signals, compress_init, clip_window=True)
 
         signals_init = [
             pre_df.group_by(fields).last()
-            for signal in signals
+            for signal in set(signals)
             if (fields := signal.fields)
         ]
 
@@ -1971,7 +1971,14 @@ class SignalDesc:
         return hash(self.event) ^ hash(tuple(self.fields))
 
     @classmethod
-    def from_event(cls, event, fields=None):
+    @deprecate(msg='No new signals will be added to this list, use explicit signal description where appropriate in the Trace API', deprecated_in='3.0', removed_in='4.0')
+    def from_event(cls, *args, **kwargs):
+        return cls._from_event(*args, **kwargs)
+
+    # Keep a warning-free private method for backward compat pandas code that
+    # will one day be removed.
+    @classmethod
+    def _from_event(cls, event, fields=None):
         """
         Return list of :class:`SignalDesc` for the given event.
 
@@ -1982,8 +1989,8 @@ class SignalDesc:
         # For backward compatibility, so that we still get signal descriptors
         # for traces before the events from the lisa module got renamed to
         # lisa__<event>
-        from lisa.trace import Trace
-        events = Trace._expand_namespaces(event, namespaces=('lisa', None))
+        from lisa.trace import _TraceView
+        events = _TraceView._do_expand_namespaces(event, namespaces=('lisa', None))
 
         for event in events:
             try:

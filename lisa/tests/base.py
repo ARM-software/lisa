@@ -1347,7 +1347,7 @@ class FtraceTestBundleBase(TestBundleBase):
     @lru_memoized(first_param_maxsize=5)
     def trace(self):
         """
-        :returns: a :class:`lisa.trace.TraceView`
+        :returns: a :class:`lisa.trace._TraceView`
 
         All events specified in ``FTRACE_CONF`` are parsed from the trace,
         so it is suitable for direct use in methods.
@@ -1761,7 +1761,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
     @lru_memoized(first_param_maxsize=5)
     def trace(self):
         """
-        :returns: a :class:`lisa.trace.TraceView` cropped to the window given
+        :returns: a :class:`lisa.trace._TraceView` cropped to the window given
             by :meth:`trace_window`.
 
         .. seealso:: :attr:`FtraceTestBundleBase.trace`
