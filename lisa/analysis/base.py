@@ -42,11 +42,14 @@ import bokeh.layouts
 import bokeh.models.widgets
 import panel as pn
 import panel.widgets
+import polars as pl
+import pandas as pd
 
 
 from lisa.utils import Loggable, deprecate, get_doc_url, get_short_doc, get_subclasses, guess_format, is_running_ipython, measure_time, memoized, update_wrapper_doc, _import_all_submodules, optional_kwargs
 from lisa.trace import _CacheDataDesc
 from lisa.notebook import _hv_fig_to_pane, _hv_link_dataframes, axis_cursor_delta, axis_link_dataframes, make_figure
+from lisa.datautils import _df_to
 
 # Ensure hv.extension() is called
 import lisa.notebook
@@ -55,15 +58,11 @@ import lisa.notebook
 class AnalysisHelpers(Loggable, abc.ABC):
     """
     Helper methods class for Analysis modules.
-
-    :Design notes:
-
-    Plotting methods *must* return the :class:`matplotlib.axes.Axes` instance
-    used by the plotting method. This lets users further modify them.
     """
 
+    @property
     @abc.abstractmethod
-    def name():
+    def name(self):
         """
         Name of the analysis class.
         """
@@ -381,7 +380,8 @@ class AnalysisHelpers(Loggable, abc.ABC):
         return b64_image.decode('utf-8')
 
     @classmethod
-    def get_plot_methods(cls, instance=None):
+    def _get_doc_methods(cls, prefix, instance=None, ignored=None):
+        ignored = set(ignored) or set()
         obj = instance if instance is not None else cls
 
         def predicate(f):
@@ -393,14 +393,26 @@ class AnalysisHelpers(Loggable, abc.ABC):
                 f = f.__func__
 
             return (
-                f.__name__.startswith('plot_')
-                and f is not cls.plot_method.__func__
+                f.__name__.startswith(prefix)
+                and f not in ignored
             )
 
         return [
             f
             for name, f in inspect.getmembers(obj, predicate=predicate)
+            if f not in ignored
         ]
+
+    @classmethod
+    def get_plot_methods(cls, *args, **kwargs):
+        return cls._get_doc_methods(
+            *args,
+            prefix='plot_',
+            **kwargs,
+            ignored={
+                cls.plot_method.__func__,
+            }
+        )
 
     def _make_fig_ui(self, fig, *, link_dataframes):
         open_button = pn.widgets.Button(
@@ -443,9 +455,11 @@ class AnalysisHelpers(Loggable, abc.ABC):
             * workarounds some holoviews issues
             * integration in other tools
         """
+
+        _decorator = cls.plot_method.__func__
         @update_wrapper_doc(
             f,
-            added_by=f':meth:`{AnalysisHelpers.__module__}.{AnalysisHelpers.__qualname__}.plot_method`',
+            added_by=f':meth:`{_decorator.__module__}.{_decorator.__qualname__}`',
             description=textwrap.dedent("""
             :returns: The return type is determined by the ``output`` parameter.
 
@@ -1104,6 +1118,70 @@ class TraceAnalysisBase(AnalysisHelpers):
         self.trace = trace
         self.ana = proxy or trace.ana
 
+    @classmethod
+    def get_df_methods(cls, *args, **kwargs):
+        return cls._get_doc_methods(
+            *args,
+            prefix='df_',
+            **kwargs,
+            ignored={
+                cls.df_method.__func__,
+            }
+        )
+
+    @classmethod
+    def df_method(cls, f):
+        """
+        Dataframe function decorator.
+
+        It provides among other things:
+
+            * Dataframe format conversion
+        """
+
+        # Apply caching to all df-returning functions. This way we also
+        # guarantee that the df_fmt is properly applied even when data are
+        # coming from the cache.
+        cached_f = cls.cache(fmt='parquet')(f)
+
+        _decorator = cls.df_method.__func__
+        @update_wrapper_doc(
+            f,
+            added_by=f':meth:`{_decorator.__module__}.{_decorator.__qualname__}`',
+            description=textwrap.dedent("""
+            :param df_fmt: Format of dataframe to return. One of:
+
+                * ``"pandas"``: :class:`pandas.DataFrame`
+                * ``"polars-lazyframe"``: :class:`polars.LazyFrame`
+
+            :type df_fmt: str or None
+
+            :returns: The return type is determined by the dataframe format
+                chosen for the trace object.
+            """),
+            include_kwargs=False,
+        )
+        # Note about default values: the defaults must be chosen so that df
+        # methods can directly call other plot methods internally without
+        # unexpected behaviors.
+        #
+        # If for some reason the "user visible" default must be different, it
+        # can be changed using the AnalysisProxy(params=dict(...)) when the
+        # AnalysisProxy is instanciated in lisa.trace
+        def wrapper(self, *args, df_fmt=None, **kwargs):
+            # Ease working with LazyFrames coming from various sources. When
+            # they are collect()'ed in f(), they will be created using a common
+            # StringCache so Categorical columns can be concatenated and such.
+            with pl.StringCache():
+                data = cached_f(self, *args, **kwargs)
+                assert isinstance(data, (pd.DataFrame, pl.DataFrame, pl.LazyFrame))
+
+                df_fmt = df_fmt or 'pandas'
+                data = _df_to(data, fmt=df_fmt)
+                return data
+
+        return wrapper
+
     @optional_kwargs
     @classmethod
     def cache(cls, f, fmt='parquet', ignored_params=None):
@@ -1127,13 +1205,13 @@ class TraceAnalysisBase(AnalysisHelpers):
             cache.
         :type ignored_params: list(str)
         """
+        ignored_kwargs = set(ignored_params or [])
+
         sig = inspect.signature(f)
         parameter_names = list(sig.parameters.keys())
-        ignored_kwargs = {
-            # self
-            parameter_names[0],
-            *(ignored_params or []),
-        }
+
+        # Ignore "self"
+        ignored_kwargs.add(parameter_names[0])
 
         memory_cache = fmt != 'disk-only'
 
@@ -1182,29 +1260,25 @@ class TraceAnalysisBase(AnalysisHelpers):
                     data = f(**kwargs)
 
                 if memory_cache:
-                    write_swap = trace._write_swap
                     compute_cost = measure.exclusive_delta
                 else:
-                    write_swap = True
                     compute_cost = None
 
-                cache.insert(cache_desc, data, compute_cost=compute_cost, write_swap=write_swap)
+                cache.insert(cache_desc, data, compute_cost=compute_cost, write_swap=True)
                 return data
 
             if memory_cache:
                 try:
-                    # FIXME: should this return polars objects ?
+                    # Be warned that the type of the data returned by the cache
+                    # may not match what was inserted. This can happen notably
+                    # when a dataframe (from either pandas or polars) is
+                    # cached, as it will be stored in a parquet file and
+                    # reloaded most likely as a polars LazyFrame.
                     data = cache.fetch(cache_desc)
                 except KeyError:
                     data = call_f()
             else:
                 data = call_f()
-
-            # FIXME: remove that
-            import polars as pl
-            from lisa.trace import _df_to_pandas
-            if isinstance(data, pl.LazyFrame):
-                data = _df_to_pandas(data)
 
             return data
 

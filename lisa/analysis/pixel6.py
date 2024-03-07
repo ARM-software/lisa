@@ -45,7 +45,7 @@ class Pixel6Analysis(TraceAnalysisBase):
 ###############################################################################
 # DataFrame Getter Methods
 ###############################################################################
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @requires_events('pixel6_emeter')
     def df_power_meter(self):
         """

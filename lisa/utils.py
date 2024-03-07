@@ -2682,6 +2682,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
                 fget=wrap_func(obj.fget, stacklevel=2),
                 fset=wrap_func(obj.fset, stacklevel=2),
                 fdel=wrap_func(obj.fdel, stacklevel=2),
+                doc=obj.__doc__,
             )
             return_obj = obj
             update_doc_of = obj
@@ -2692,6 +2693,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
             func = wrap_func(func, stacklevel=stacklevel)
             # Build a new staticmethod/classmethod with the updated function
             return_obj = obj.__class__(func)
+            return_obj.__dict__.update(obj.__dict__)
             # Updating the __doc__ of the staticmethod/classmethod itself will
             # have no effect, so update the doc of the underlying function
             update_doc_of = func

@@ -375,16 +375,17 @@ def get_analysis_list(meth_type):
     # Ensure all the submodules have been imported
     TraceAnalysisBase.get_analysis_classes()
 
+    assert issubclass(TraceAnalysisBase, AnalysisHelpers)
     for subclass in get_subclasses(AnalysisHelpers):
         class_path = f"{subclass.__module__}.{subclass.__qualname__}"
         if meth_type == 'plot':
             meth_list = subclass.get_plot_methods()
         elif meth_type == 'df':
-            meth_list = [
-                member
-                for name, member in inspect.getmembers(subclass, callable)
-                if name.startswith('df_')
-            ]
+            meth_list = (
+                subclass.get_df_methods()
+                if isinstance(subclass, TraceAnalysisBase) else
+                []
+            )
         else:
             raise ValueError()
 

@@ -20,9 +20,9 @@ import holoviews as hv
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.notebook import COLOR_CYCLE, _hv_neutral
-from lisa.analysis.tasks import TaskState, TasksAnalysis
+from lisa.analysis.tasks import TaskState, TasksAnalysis, TaskID
 from lisa.datautils import df_refit_index
-from lisa.trace import TaskID, MissingTraceEventError
+from lisa.trace import MissingTraceEventError
 
 
 class LatencyAnalysis(TraceAnalysisBase):
@@ -42,7 +42,7 @@ class LatencyAnalysis(TraceAnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @TasksAnalysis.df_task_states.used_events
     def _df_latency(self, task, name, curr_state, next_state):
         df = self.ana.tasks.df_task_states(task)
@@ -95,7 +95,7 @@ class LatencyAnalysis(TraceAnalysisBase):
             TaskState.TASK_ACTIVE
         )[['preempt_latency', 'cpu']]
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @TasksAnalysis.df_task_states.used_events
     def df_activations(self, task):
         """
@@ -115,7 +115,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         activation_interval = (index.shift(-1) - index).shift(1)
         return pd.DataFrame({'activation_interval': activation_interval})
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @TasksAnalysis.df_task_states.used_events
     def df_runtimes(self, task):
         """

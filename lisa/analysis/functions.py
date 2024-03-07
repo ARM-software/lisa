@@ -126,7 +126,7 @@ class FunctionsAnalysis(TraceAnalysisBase):
             return df
 
     @requires_one_event_of('funcgraph_entry', 'funcgraph_exit')
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     def df_funcgraph(self, event):
         """
         Return augmented dataframe of the event with the following column:

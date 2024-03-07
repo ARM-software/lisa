@@ -24,6 +24,8 @@ import warnings
 import contextlib
 import uuid
 from operator import attrgetter
+import decimal
+from numbers import Number
 
 import polars as pl
 import numpy as np
@@ -34,6 +36,152 @@ import scipy.signal
 import pyarrow
 
 from lisa.utils import TASK_COMM_MAX_LEN, groupby, deprecate
+
+
+class Timestamp(float):
+    """
+    Nanosecond-precision timestamp. It inherits from ``float`` and as such can
+    be manipulating as a floating point number of seconds. The ``nanoseconds``
+    attribute allows getting the exact timestamp regardless of the magnitude of
+    the float, allowing for more precise computation.
+
+    :param unit: Unit of the ``ts`` value being passed. One of ``"s"``,
+        ``"ms"``, ``"us"`` and ``"ns"``.
+    :type unit: str
+
+    :param rounding: How to round the value when converting to float.
+        Timestamps of large magnitude will suffer from the loss of least
+        significant digits in their float value which will not have nanosecond
+        precision. The rounding determines if a value below or above the actual
+        nanosecond-precision timestamp should be used. One of ``"up"`` or
+        ``"down"``.
+    :type rounding: str
+
+    """
+    __slots__ = ('as_nanoseconds', '_Timestamp__rounding')
+
+    _MUL = dict(
+        ns=decimal.Decimal('1'),
+        us=decimal.Decimal('1e3'),
+        ms=decimal.Decimal('1e6'),
+        s=decimal.Decimal('1e9'),
+    )
+
+    _1NS = decimal.Decimal('1e-9')
+
+    def __new__(cls, ts, unit='s', rounding='down'):
+        if isinstance(ts, cls):
+            return cls(ts.as_nanoseconds, unit='ns', rounding=rounding)
+        else:
+            ts = decimal.Decimal(ts)
+            try:
+                mul = cls._MUL[unit]
+            except KeyError:
+                raise ValueError(f'Unknown unit={unit}')
+
+            ns = mul * ts
+
+            if rounding == 'up':
+                ns = math.ceil(ns)
+            elif rounding == 'down':
+                ns = math.floor(ns)
+            else:
+                raise ValueError(f'Unknown rounding={rounding}')
+
+            s = ns * cls._1NS
+            float_s = float(s)
+
+            if float_s > s and rounding == 'down':
+                float_s = float(np.nextafter(float_s, -math.inf))
+            elif float_s < s and rounding == 'up':
+                float_s = float(np.nextafter(float_s, math.inf))
+
+            self = super().__new__(cls, float_s)
+            self.as_nanoseconds = ns
+            self.__rounding = rounding
+            return self
+
+    def _with_ns(self, ns):
+        return self.__class__(
+            ns,
+            unit='ns',
+            rounding=self.__rounding
+        )
+
+    def __hash__(self):
+        return hash(self.as_nanoseconds)
+
+    def __cmp(self, other, op):
+        try:
+            other = Timestamp(other)
+        except OverflowError:
+            # +inf/-inf
+            return op(float(self), other)
+        else:
+            return op(self.as_nanoseconds, other.as_nanoseconds)
+
+    def __le__(self, other):
+        return self.__cmp(other, operator.le)
+
+    def __ge__(self, other):
+        return self.__cmp(other, operator.ge)
+
+    def __lt__(self, other):
+        return self.__cmp(other, operator.lt)
+
+    def __gt__(self, other):
+        return self.__cmp(other, operator.gt)
+
+    def __eq__(self, other):
+        try:
+            return self.__cmp(other, operator.eq)
+        except TypeError:
+            return NotImplemented
+        except Exception:
+            return False
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __add__(self, other):
+        ns = Timestamp(other).as_nanoseconds
+        return self._with_ns(self.as_nanoseconds + ns)
+
+    def __sub__(self, other):
+        ns = Timestamp(other).as_nanoseconds
+        return self._with_ns(self.as_nanoseconds - ns)
+
+    def __mul__(self, other):
+        return self._with_ns(self.as_nanoseconds * other)
+
+    def __mod__(self, other):
+        return self._with_ns(self.as_nanoseconds % other)
+
+    def __truediv__(self, other):
+        return self._with_ns(self.as_nanoseconds / other)
+
+    def __floordiv__(self, other):
+        return self._with_ns(self.as_nanoseconds // other)
+
+    def __abs__(self):
+        return self._with_ns(abs(self.as_nanoseconds))
+
+    def __neg__(self):
+        return self._with_ns(abs(-self.as_nanoseconds))
+
+    def __pos__(self):
+        return self
+
+    def __invert__(self):
+        return -self
+
+    def to_polars_expr(self):
+        return pl.duration(
+            # https://github.com/pola-rs/polars/issues/11625
+            nanoseconds=self.as_nanoseconds,
+            # https://github.com/pola-rs/polars/issues/14751
+            time_unit='ns'
+        )
 
 
 def _dispatch(polars_f, pandas_f, data, *args, **kwargs):
@@ -51,32 +199,12 @@ def _polars_duration_expr(duration, unit='s', rounding='down'):
     elif isinstance(duration, pl.Expr):
         return duration
     else:
-        if rounding == 'down':
-            round_ = math.floor
-        elif rounding == 'up':
-            round_ = math.ceil
-        else:
-            raise ValueError(f'Non recognized rounding={rounding}')
-
-        if unit == 's':
-            ns = duration * 1_000_000_000
-        elif unit == 'us':
-            ns = duration * 1_000_000
-        elif unit == 'ms':
-            ns = duration * 1_000
-        elif unit == 'ns':
-            ns = duration
-        else:
-            raise ValueError(f'Non recognized unit={unit}')
-
-        ns = round_(ns)
-
-        return pl.duration(
-            # https://github.com/pola-rs/polars/issues/11625
-            nanoseconds=ns,
-            # https://github.com/pola-rs/polars/issues/14751
-            time_unit='ns'
+        duration = Timestamp(
+            duration,
+            unit=unit,
+            rounding=rounding
         )
+        return duration.to_polars_expr()
 
 
 class _MemLazyFrame(pl.LazyFrame):
@@ -92,18 +220,22 @@ def _df_to_polars(df):
     if isinstance(df, pl.LazyFrame):
         index = 'Time'
         dtype = df.schema[index]
-        index = pl.col('Time')
-        if dtype.is_float():
-            # Convert to nanoseconds
-            df = df.with_columns(index * 1_000_000_000)
-        elif dtype.is_integer() or dtype.is_temporal():
+        # This skips a useless cast, saving some time on the common path
+        if dtype == pl.Duration('ns'):
             pass
         else:
-            raise TypeError(f'Time dtype not handled: {dtype}')
+            index = pl.col('Time')
+            if dtype.is_float():
+                # Convert to nanoseconds
+                df = df.with_columns(index * 1_000_000_000)
+            elif dtype.is_integer() or dtype.is_temporal():
+                pass
+            else:
+                raise TypeError(f'Time dtype not handled: {dtype}')
 
-        df = df.with_columns(
-            index.cast(pl.Duration('ns'))
-        )
+            df = df.with_columns(
+                index.cast(pl.Duration('ns'))
+            )
         return df
     # TODO: once this is solved, we can just inspect the plan and see if the
     # data is backed by a "DataFrameScan" instead of a "Scan" of a file rather
@@ -167,7 +299,7 @@ def _df_to_pandas(df):
         # store timestamps at nanosecond precision in an integer. This will wipe
         # any sub-nanosecond difference in values, possibly leading to duplicate
         # timestamps.
-        assert df.index.is_unique
+        df.index = series_update_duplicates(df.index.to_series())
 
         return df
 
@@ -1372,10 +1504,10 @@ def series_align_signal(ref, to_align, max_shift=None):
 @DataFrameAccessor.register_accessor
 def df_filter_task_ids(df, task_ids, pid_col='pid', comm_col='comm', invert=False, comm_max_len=TASK_COMM_MAX_LEN):
     """
-    Filter a dataframe using a list of :class:`lisa.trace.TaskID`
+    Filter a dataframe using a list of :class:`lisa.analysis.tasks.TaskID`
 
     :param task_ids: List of task IDs to filter
-    :type task_ids: list(lisa.trace.TaskID)
+    :type task_ids: list(lisa.analysis.tasks.TaskID)
 
     :param df: Dataframe to act on.
     :type df: pandas.DataFrame
@@ -1994,8 +2126,8 @@ class SignalDesc:
         # For backward compatibility, so that we still get signal descriptors
         # for traces before the events from the lisa module got renamed to
         # lisa__<event>
-        from lisa.trace import _TraceView
-        events = _TraceView._do_expand_namespaces(event, namespaces=('lisa', None))
+        from lisa.trace import _NamespaceTraceView
+        events = _NamespaceTraceView._do_expand_namespaces(event, namespaces=('lisa', None))
 
         for event in events:
             try:

@@ -19,17 +19,112 @@ from enum import Enum
 import itertools
 import warnings
 import typing
+from numbers import Number
+from operator import itemgetter
+from collections import namedtuple
+import re
 
 import numpy as np
 import pandas as pd
 import holoviews as hv
 import bokeh.models
+import polars as pl
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized, kwargs_forwarded_to, deprecate
 from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates
-from lisa.trace import requires_events, will_use_events_from, may_use_events, TaskID, CPU, MissingTraceEventError
+from lisa.trace import requires_events, will_use_events_from, may_use_events, CPU, MissingTraceEventError
 from lisa.notebook import _hv_neutral, plot_signal, _hv_twinx
+from lisa._typeclass import FromString
+
+
+class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
+    """
+    Unique identifier of a logical task in a :class:`lisa.trace.Trace`.
+
+    :param pid: PID of the task. ``None`` indicates the PID is not important.
+    :type pid: int
+
+    :param comm: Name of the task. ``None`` indicates the name is not important.
+        This is useful to describe tasks like PID0, which can have multiple
+        names associated.
+    :type comm: str
+    """
+
+    # Prevent creation of a __dict__. This allows a more compact representation
+    __slots__ = []
+
+    def __init__(self, *args, **kwargs):
+        # pylint: disable=unused-argument
+        super().__init__()
+        # This happens when the number of saved PID/comms entries in the trace
+        # is too low
+        if self.comm == '<...>':
+            raise ValueError('Invalid comm name "<...>", please increase saved_cmdlines_nr value on FtraceCollector')
+
+    def __str__(self):
+        if self.pid is not None and self.comm is not None:
+            out = f'{self.pid}:{self.comm}'
+        else:
+            out = str(self.comm if self.comm is not None else self.pid)
+
+        return f'[{out}]'
+
+    _STR_PARSE_REGEX = re.compile(r'\[?([0-9]+):([a-zA-Z0-9_-]+)\]?')
+
+
+class _TaskIDFromStringInstance(FromString, types=TaskID):
+    """
+    Instance of :class:`lisa._typeclass.FromString` for :class:`TaskID` type.
+    """
+    @classmethod
+    def from_str(cls, string):
+        # pylint: disable=unexpected-keyword-arg, no-value-for-parameter
+        try:
+            pid = int(string)
+            comm = None
+        except ValueError:
+            match = cls._STR_PARSE_REGEX.match(string)
+            if match:
+                pid = int(match.group(1))
+                comm = match.group(2)
+            else:
+                pid = None
+                comm = string
+
+        return cls(pid=pid, comm=comm)
+
+    @classmethod
+    def get_format_description(cls, short):
+        if short:
+            return 'task ID'
+        else:
+            return textwrap.dedent("""
+            Can be any of:
+               * a PID
+               * a task name
+               * a PID (first) and a name (second): pid:name
+            """).strip()
+
+
+class _TaskIDSeqFromStringInstance(FromString, types=(typing.List[TaskID], typing.Sequence[TaskID])):
+    """
+    Instance of :class:`lisa._typeclass.FromString` for lists :class:`TaskID` type.
+    """
+    @classmethod
+    def from_str(cls, string):
+        """
+        The format is a comma-separated list of :class:`TaskID`.
+        """
+        from_str = FromString(TaskID).from_str
+        return [
+            from_str(string.strip())
+            for string in string.split(',')
+        ]
+
+    @classmethod
+    def get_format_description(cls, short):
+        return 'comma-separated TaskIDs'
 
 
 class StateInt(int):
@@ -164,6 +259,264 @@ class TasksAnalysis(TraceAnalysisBase):
 
     name = 'tasks'
 
+
+    @memoized
+    def _get_task_maps(self):
+        """
+        Give the mapping from PID to task names, and the opposite.
+
+        The names or PIDs are listed in appearance order.
+        """
+        trace = self.trace.get_view(df_fmt='polars-lazyframe')
+
+        mapping_df_list = []
+        def _load(event, name_col, pid_col):
+            df = trace.df_event(event)
+            grouped = df.group_by(name_col, pid_col)
+
+            # Get timestamp of first occurrences of each key/value combinations
+            mapping_df = grouped.first().select(
+                'Time',
+                pid=pl.col(pid_col),
+                # Ensure we have a Categorical dtype, otherwise we might not be
+                # able to successfully concatenate a String and Categorical
+                # column
+                name=pl.col(name_col).cast(pl.Categorical),
+            )
+            mapping_df_list.append(mapping_df)
+
+        missing = []
+        def load(event, *args, **kwargs):
+            try:
+                _load(event, *args, **kwargs)
+            except MissingTraceEventError as e:
+                missing.append(e.missing_events)
+
+        load('task_rename', 'oldcomm', 'pid')
+        load('task_rename', 'newcomm', 'pid')
+
+        load('sched_switch', 'prev_comm', 'prev_pid')
+        load('sched_switch', 'next_comm', 'next_pid')
+
+        if not mapping_df_list:
+            missing = OrTraceEventChecker.from_events(events=missing)
+            raise MissingTraceEventError(missing, available_events=trace.available_events)
+
+        df = pl.concat(mapping_df_list).sort('Time')
+        df = df.unique(
+            subset=['name', 'pid'],
+            keep='first',
+            maintain_order=True,
+        )
+        df = df.select('name', 'pid')
+
+        with pl.StringCache():
+            df = df.collect()
+
+        def finalize(df, key_col):
+            # Aggregate the values for each key and convert to python types
+            return dict(df.rows_by_key(key_col))
+
+        name_to_pid = finalize(df, 'name')
+        pid_to_name = finalize(df, 'pid')
+
+        return (name_to_pid, pid_to_name)
+
+    @property
+    def _task_name_map(self):
+        return self._get_task_maps()[0]
+
+    @property
+    def _task_pid_map(self):
+        return self._get_task_maps()[1]
+
+    def get_task_name_pids(self, name, ignore_fork=True):
+        """
+        Get the PIDs of all tasks with the specified name.
+
+        The same PID can have different task names, mainly because once a task
+        is generated it inherits the parent name and then its name is updated
+        to represent what the task really is.
+
+        :param name: task name
+        :type name: str
+
+        :param ignore_fork: Hide the PIDs of tasks that initially had ``name``
+            but were later renamed. This is common for shell processes for
+            example, which fork a new task, inheriting the shell name, and then
+            being renamed with the final "real" task name
+        :type ignore_fork: bool
+
+        :return: a list of PID for tasks which name matches the required one.
+        """
+        pids = self._task_name_map[name]
+
+        if ignore_fork:
+            pids = [
+                pid
+                for pid in pids
+                # Only keep the PID if its last name was the name we are
+                # looking for.
+                if self._task_pid_map[pid][-1] == name
+            ]
+
+        return pids
+
+    def get_task_pid_names(self, pid):
+        """
+        Get the all the names of the task(s) with the specified PID, in
+        appearance order.
+
+        The same PID can have different task names, mainly because once a task
+        is generated it inherits the parent name and then its name is
+        updated to represent what the task really is.
+
+        :param name: task PID
+        :type name: int
+
+        :return: the name of the task which PID matches the required one,
+                 the last time they ran in the current trace
+        """
+        return self._task_pid_map[pid]
+
+    @deprecate('This function raises exceptions when faced with ambiguity instead of giving the choice to the user',
+        deprecated_in='2.0',
+        removed_in='4.0',
+        replaced_by=get_task_pid_names,
+    )
+    def get_task_by_pid(self, pid):
+        """
+        Get the name of the task with the specified PID.
+
+        The same PID can have different task names, mainly because once a task
+        is generated it inherits the parent name and then its name is
+        updated to represent what the task really is.
+
+        This API works under the assumption that a task name is updated at
+        most one time and it always report the name the task had the last time
+        it has been scheduled for execution in the current trace.
+
+        :param name: task PID
+        :type name: int
+
+        :return: the name of the task which PID matches the required one,
+                 the last time they ran in the current trace
+        """
+        name_list = self.get_task_pid_names(pid)
+
+        if len(name_list) > 2:
+            raise RuntimeError(f'The PID {pid} had more than two names in its life: {name_list}')
+
+        return name_list[-1]
+
+    def get_task_ids(self, task, update=True):
+        """
+        Similar to :meth:`get_task_id` but returns a list with all the
+        combinations, instead of raising an exception.
+
+        :param task: Either the task name, the task PID, or a tuple ``(pid, comm)``
+        :type task: int or str or tuple(int, str)
+
+        :param update: If a partially-filled :class:`TaskID` is passed (one of
+            the fields set to ``None``), returns a complete :class:`TaskID`
+            instead of leaving the ``None`` fields.
+        :type update: bool
+        """
+
+        def comm_to_pid(comm):
+            try:
+                pid_list = self._task_name_map[comm]
+            except IndexError:
+                # pylint: disable=raise-missing-from
+                raise ValueError(f'trace does not have any task named "{comm}"')
+
+            return pid_list
+
+        def pid_to_comm(pid):
+            try:
+                comm_list = self._task_pid_map[pid]
+            except IndexError:
+                # pylint: disable=raise-missing-from
+                raise ValueError(f'trace does not have any task PID {pid}')
+
+            return comm_list
+
+        if isinstance(task, str):
+            task_ids = [
+                TaskID(pid=pid, comm=task)
+                for pid in comm_to_pid(task)
+            ]
+        elif isinstance(task, Number):
+            task_ids = [
+                TaskID(pid=task, comm=comm)
+                for comm in pid_to_comm(task)
+            ]
+        else:
+            pid, comm = task
+            if pid is None and comm is None:
+                raise ValueError('TaskID needs to have at least one of PID or comm specified')
+
+            if update and (pid is None or comm is None):
+                non_none = pid if comm is None else comm
+                task_ids = self.get_task_ids(non_none)
+            else:
+                task_ids = [TaskID(pid=pid, comm=comm)]
+
+        return task_ids
+
+    def get_task_id(self, task, update=True):
+        """
+        Helper that resolves a task PID or name to a :class:`TaskID`.
+
+        :param task: Either the task name, the task PID, or a tuple ``(pid, comm)``
+        :type task: int or str or tuple(int, str)
+
+        :param update: If a partially-filled :class:`TaskID` is passed (one of
+            the fields set to ``None``), returns a complete :class:`TaskID`
+            instead of leaving the ``None`` fields.
+        :type update: bool
+
+        :raises ValueError: If there the input matches multiple tasks in the trace.
+            See :meth:`get_task_ids` to get all the ambiguous alternatives
+            instead of an exception.
+        """
+        task_ids = self.get_task_ids(task, update=update)
+        if len(task_ids) > 1:
+            raise ValueError(f'More than one TaskID matching: {task_ids}')
+
+        return task_ids[0]
+
+    @deprecate(deprecated_in='2.0', removed_in='4.0', replaced_by=get_task_id)
+    def get_task_pid(self, task):
+        """
+        Helper that takes either a name or a PID and always returns a PID
+
+        :param task: Either the task name or the task PID
+        :type task: int or str or tuple(int, str)
+        """
+        return self.get_task_id(task).pid
+
+    def get_tasks(self):
+        """
+        Get a dictionary of all the tasks in the Trace.
+
+        :return: a dictionary which maps each PID to the corresponding list of
+                 task name
+        """
+        return self._task_pid_map
+
+    @property
+    @memoized
+    def task_ids(self):
+        """
+        List of all the :class:`TaskID` in the trace, sorted by PID.
+        """
+        return [
+            TaskID(pid=pid, comm=comm)
+            for pid, comms in sorted(self._task_pid_map.items(), key=itemgetter(0))
+            for comm in comms
+        ]
+
     @requires_events('sched_switch')
     def cpus_of_tasks(self, tasks):
         """
@@ -175,7 +528,7 @@ class TasksAnalysis(TraceAnalysisBase):
         trace = self.trace
         df = trace.df_event('sched_switch')[['next_pid', 'next_comm', '__cpu']]
 
-        task_ids = [trace.get_task_id(task, update=False) for task in tasks]
+        task_ids = [self.get_task_id(task, update=False) for task in tasks]
         df = df_filter_task_ids(df, task_ids, pid_col='next_pid', comm_col='next_comm')
         cpus = df['__cpu'].unique()
 
@@ -185,13 +538,13 @@ class TasksAnalysis(TraceAnalysisBase):
         """
         Get the last name the given PID had.
         """
-        return self.trace.get_task_pid_names(pid)[-1]
+        return self.get_task_pid_names(pid)[-1]
 
 ###############################################################################
 # DataFrame Getter Methods
 ###############################################################################
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @requires_events('sched_wakeup')
     def df_tasks_wakeups(self):
         """
@@ -210,7 +563,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return df
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @df_tasks_wakeups.used_events
     def df_top_wakeup(self, min_wakeups=100):
         """
@@ -227,7 +580,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return df
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @requires_events('sched_switch')
     def df_rt_tasks(self, min_prio=100):
         """
@@ -275,9 +628,9 @@ class TasksAnalysis(TraceAnalysisBase):
         Compute tasks states for all tasks.
 
         :param tasks: If specified, states of these tasks only will be yielded.
-            The :class:`lisa.trace.TaskID` must have a ``pid`` field specified,
+            The :class:`lisa.analysis.tasks.TaskID` must have a ``pid`` field specified,
             since the task state is per-PID.
-        :type tasks: list(lisa.trace.TaskID) or list(int)
+        :type tasks: list(lisa.analysis.tasks.TaskID) or list(int)
 
         :param return_one_df: If ``True``, a single dataframe is returned with
             new extra columns. If ``False``, a generator is returned that
@@ -290,9 +643,7 @@ class TasksAnalysis(TraceAnalysisBase):
         ######################################################
 
         def get_df(event):
-            # Ignore the end of the window so we can properly compute the
-            # durations
-            return self.trace.df_event(event, window=(self.trace.start, None))
+            return self.trace.df_event(event)
 
         def filters_comm(task):
             try:
@@ -363,7 +714,7 @@ class TasksAnalysis(TraceAnalysisBase):
                 except AttributeError:
                     do_update = False
 
-                return self.trace.get_task_id(task, update=do_update)
+                return self.get_task_id(task, update=do_update)
 
             tasks = list(map(resolve_task, tasks))
             df = df_filter_task_ids(df, tasks)
@@ -438,8 +789,8 @@ class TasksAnalysis(TraceAnalysisBase):
         col_list = displayed_cols + extra_cols
         return df[col_list]
 
-    @TraceAnalysisBase.cache
     @_df_tasks_states.used_events
+    @TraceAnalysisBase.df_method
     def df_tasks_states(self):
         """
         DataFrame of all tasks state updates events
@@ -465,7 +816,7 @@ class TasksAnalysis(TraceAnalysisBase):
         df = self._df_tasks_states(return_one_df=True)
         return self._reorder_tasks_states_columns(df)
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @_df_tasks_states.used_events
     def df_task_states(self, task, stringify=False):
         """
@@ -545,7 +896,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return df
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @_df_tasks_states.used_events
     def df_tasks_runtime(self):
         """
@@ -582,7 +933,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return df
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @df_task_states.used_events
     def df_task_total_residency(self, task):
         """
@@ -627,10 +978,10 @@ class TasksAnalysis(TraceAnalysisBase):
         :type count: int
         """
         if tasks is None:
-            task_ids = self.trace.task_ids
+            task_ids = self.task_ids
         else:
             task_ids = itertools.chain.from_iterable(
-                self.trace.get_task_ids(task)
+                self.get_task_ids(task)
                 for task in tasks
             )
 
@@ -659,7 +1010,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return res_df
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @df_task_states.used_events
     def df_task_activation(self, task, cpu=None, active_value=1, sleep_value=0, preempted_value=np.NaN):
         """
@@ -779,7 +1130,7 @@ class TasksAnalysis(TraceAnalysisBase):
         :param task: Task to track
         :type task: int or str or tuple(int, str)
         """
-        task_id = self.trace.get_task_id(task, update=False)
+        task_id = self.get_task_id(task, update=False)
 
         sw_df = self.trace.df_event("sched_switch")
         sw_df = df_filter_task_ids(sw_df, [task_id], pid_col='next_pid', comm_col='next_comm')
@@ -1160,7 +1511,7 @@ class TasksAnalysis(TraceAnalysisBase):
                 # originate from another field or another event.
                 #
                 # Note: This prevent an <NA> value, which makes bokeh choke.
-                last_comm = self.trace.get_task_pid_names(task.pid)[-1]
+                last_comm = self.get_task_pid_names(task.pid)[-1]
 
                 if last_comm not in names.cat.categories:
                     names = names.cat.add_categories([last_comm])
@@ -1251,7 +1602,7 @@ class TasksAnalysis(TraceAnalysisBase):
                         f'Activations of {task.pid} (' +
                         ', '.join(
                             task_id.comm
-                            for task_id in self.trace.get_task_ids(task)
+                            for task_id in self.get_task_ids(task)
                         ) +
                         ')',
                     )
@@ -1357,17 +1708,17 @@ class TasksAnalysis(TraceAnalysisBase):
         """
         trace = self.trace
         hidden = set(itertools.chain.from_iterable(
-            trace.get_task_ids(task)
+            self.get_task_ids(task)
             for task in (hide_tasks or [])
         ))
         if tasks:
             best_effort = False
             task_ids = list(itertools.chain.from_iterable(
-                map(trace.get_task_ids, tasks)
+                map(self.get_task_ids, tasks)
             ))
         else:
             best_effort = True
-            task_ids = trace.task_ids
+            task_ids = self.task_ids
 
         full_task_ids = sorted(
             task

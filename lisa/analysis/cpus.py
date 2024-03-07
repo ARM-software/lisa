@@ -36,7 +36,7 @@ class CpusAnalysis(TraceAnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @requires_events('sched_switch')
     def df_context_switches(self):
         """
