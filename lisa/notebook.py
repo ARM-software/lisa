@@ -45,25 +45,6 @@ from lisa.utils import is_running_ipython, order_as, destroyablecontextmanager, 
 
 pn.extension('tabulator')
 
-# Enable all backends, finishing with matplotlib so it becomes the default (for
-# backward compat). Since this also corresponds to holoviews default, we are
-# not loosing anything, as the user will need hv.extension('bokeh') anyway.
-_backends = ['plotly', 'bokeh', 'matplotlib']
-
-# If the user selected a backend already, use it as defaults by activating it
-# last
-_curr_backend = hv.Store.current_backend
-if _curr_backend:
-    _backends.remove(_curr_backend)
-    _backends.append(_curr_backend)
-
-for backend in _backends:
-    try:
-        importlib.import_module(backend)
-    except Exception:
-        pass
-    else:
-        hv.extension(backend)
 
 COLOR_CYCLE = [
     '#377eb8', '#ff7f00', '#4daf4a',
