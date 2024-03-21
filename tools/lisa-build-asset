@@ -103,15 +103,6 @@ def get_asset_property(asset, arch, property, is_array=False, **kwargs):
     else:
         return val.strip()
 
-def is_property_set(asset, arch, property, **kwargs):
-    try:
-        get_asset_property(asset, arch, property, **kwargs)
-    except ValueError:
-        return False
-    else:
-        return True
-
-
 @contextmanager
 def make_chroot(asset, arch, host_arch, build_dir, recipe_dir, arch_chroot_dir, build_env):
     def get_prop(prop, is_array=False):
@@ -233,19 +224,32 @@ def make_asset(asset, host_arch, archs_to_make, build_dir, recipe_dir, cross_com
                 ignore_dangling_symlinks=True,
             )
 
-            def is_prop_set(prop):
-                return is_property_set(
-                    asset=asset,
-                    arch=arch,
-                    host_arch=host_arch,
-                    property=prop,
-                    recipe_dir=recipe_dir,
-                    build_dir=arch_build_dir,
-                    build_env=build_env,
-                )
+            def get_prop(prop, default):
+                try:
+                    return get_asset_property(
+                        asset=asset,
+                        arch=arch,
+                        host_arch=host_arch,
+                        property=prop,
+                        recipe_dir=recipe_dir,
+                        build_dir=arch_build_dir,
+                        build_env=build_env,
+                   )
+                except ValueError:
+                    return default
 
-            builds_on_alpine = (build_env == 'alpine') and is_prop_set('ALPINE_VERSION')
-            _native_build = native_build or is_prop_set('BROKEN_CROSS_COMPILATION')
+            alpine_version = get_prop('ALPINE_VERSION', default=None)
+            broken_cross_compilation = bool(int(get_prop(
+                'BROKEN_CROSS_COMPILATION',
+                # Assume broken cross compilation by default, as it is the vast
+                # majority of cases especially if the only cross compiler
+                # available is clang and there is no access to cross version of
+                # GNU binutils
+                default='1'
+            )))
+
+            builds_on_alpine = (build_env == 'alpine') and alpine_version
+            _native_build = native_build or broken_cross_compilation
 
             if (not builds_on_alpine) and _native_build and host_arch != arch:
                 raise ValueError(f'Cannot achieve a native build with build env {build_env} on host architecture {host_arch} for target architecture {arch}')
