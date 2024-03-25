@@ -1395,20 +1395,11 @@ class TasksAnalysis(TraceAnalysisBase):
             if df.empty:
                 return df
             else:
-                start = self.trace.start
-                last_duration = df['duration'].iat[-1]
-                if pd.isna(last_duration):
-                    end = self.trace.end
-                else:
-                    end = df.index[-1] + last_duration
-                # If the rectangle finishes before the beginning of the trace
-                # window, we ignore it
-                if start <= end:
-                    # Clip the beginning so that plots don't extend to the
-                    # left of the trace window.
-                    return df_refit_index(df, window=(start, end))
-                else:
-                    return df.iloc[0:0]
+                window = self.trace.window
+                # Regenerate the duration so they match the boundaries of the
+                # window
+                df = df_add_delta(df, window=window, col='duration')
+                return df
 
         def make_twinx(fig, **kwargs):
             return _hv_twinx(fig, **kwargs)
