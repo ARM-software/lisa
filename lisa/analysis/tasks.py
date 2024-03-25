@@ -23,6 +23,7 @@ from numbers import Number
 from operator import itemgetter
 from collections import namedtuple
 import re
+import functools
 
 import numpy as np
 import pandas as pd
@@ -31,8 +32,8 @@ import bokeh.models
 import polars as pl
 
 from lisa.analysis.base import TraceAnalysisBase
-from lisa.utils import memoized, kwargs_forwarded_to, deprecate
-from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates
+from lisa.utils import memoized, kwargs_forwarded_to, deprecate, order_as
+from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates, SignalDesc
 from lisa.trace import requires_events, will_use_events_from, may_use_events, CPU, MissingTraceEventError
 from lisa.notebook import _hv_neutral, plot_signal, _hv_twinx
 from lisa._typeclass import FromString
@@ -623,7 +624,8 @@ class TasksAnalysis(TraceAnalysisBase):
     @requires_events('sched_switch', 'sched_wakeup')
     @will_use_events_from('task_rename')
     @may_use_events('sched_wakeup_new')
-    def _df_tasks_states(self, tasks=None, return_one_df=False):
+    @TraceAnalysisBase.df_method
+    def _df_tasks_states(self, tasks=None):
         """
         Compute tasks states for all tasks.
 
@@ -631,19 +633,14 @@ class TasksAnalysis(TraceAnalysisBase):
             The :class:`lisa.analysis.tasks.TaskID` must have a ``pid`` field specified,
             since the task state is per-PID.
         :type tasks: list(lisa.analysis.tasks.TaskID) or list(int)
-
-        :param return_one_df: If ``True``, a single dataframe is returned with
-            new extra columns. If ``False``, a generator is returned that
-            yields tuples of ``(TaskID, task_df)``. Each ``task_df`` contains
-            the new columns.
-        :type return_one_df: bool
         """
         ######################################################
         # A) Assemble the sched_switch and sched_wakeup events
         ######################################################
-
-        def get_df(event):
-            return self.trace.df_event(event)
+        dtypes = dict(
+            state=pl.Int64,
+            comm=pl.Categorical,
+        )
 
         def filters_comm(task):
             try:
@@ -651,8 +648,44 @@ class TasksAnalysis(TraceAnalysisBase):
             except AttributeError:
                 return isinstance(task, str)
 
+        def state(value):
+            return pl.lit(value, dtypes['state'])
+
         # Add the rename events if we are interested in the comm of tasks
         add_rename = any(map(filters_comm, tasks or []))
+
+        trace = self.trace.get_view(
+            df_fmt='polars-lazyframe',
+            signals=[
+                SignalDesc('sched_switch', ['prev_pid', 'prev_comm']),
+                SignalDesc('sched_switch', ['next_pid', 'next_comm']),
+                SignalDesc('sched_wakeup', ['pid', 'comm']),
+                SignalDesc('sched_wakeup_new', ['pid', 'comm']),
+                SignalDesc('task_rename', ['pid']),
+            ],
+            compress_signals_init=True,
+            events=[
+                'sched_switch',
+                'sched_wakeup',
+                'sched_wakeup_new',
+                *(['task_rename'] if add_rename else [])
+            ]
+        )
+
+        def get_df(event):
+            df = trace.df_event(event)
+            if event == 'sched_switch':
+                df = df.with_columns(
+                    pl.col('prev_state').cast(dtypes['state']),
+                    pl.col('prev_comm').cast(dtypes['comm']),
+                    pl.col('next_comm').cast(dtypes['comm']),
+                )
+            elif event in ('sched_wakeup', 'sched_wakeup_new'):
+                df = df.with_columns(
+                    pl.col('comm').cast(dtypes['comm']),
+                )
+
+            return df
 
         wk_df = get_df('sched_wakeup')
         sw_df = get_df('sched_switch')
@@ -662,44 +695,49 @@ class TasksAnalysis(TraceAnalysisBase):
         except MissingTraceEventError:
             pass
         else:
-            wk_df = pd.concat([wk_df, wkn_df])
+            wk_df = pl.concat([wk_df, wkn_df], how='diagonal_relaxed')
 
-        wk_df = wk_df[["pid", "comm", "target_cpu", "__cpu"]].copy(deep=False)
-        wk_df["curr_state"] = TaskState.TASK_WAKING
-
-        prev_sw_df = sw_df[["__cpu", "prev_pid", "prev_state", "prev_comm"]].copy()
-        next_sw_df = sw_df[["__cpu", "next_pid", "next_comm"]].copy()
-
-        prev_sw_df.rename(
-            columns={
-                "prev_pid": "pid",
-                "prev_state": "curr_state",
-                "prev_comm": "comm",
-            },
-            inplace=True
+        wk_df = wk_df.select(["Time", "pid", "comm", "target_cpu", "__cpu"])
+        wk_df = wk_df.with_columns(
+            curr_state=state(TaskState.TASK_WAKING)
         )
 
-        next_sw_df["curr_state"] = TaskState.TASK_ACTIVE
-        next_sw_df.rename(columns={'next_pid': 'pid', 'next_comm': 'comm'}, inplace=True)
+        prev_sw_df = sw_df.select(["Time", "__cpu", "prev_pid", "prev_state", "prev_comm"])
+        next_sw_df = sw_df.select(["Time", "__cpu", "next_pid", "next_comm"])
 
-        all_sw_df = pd.concat([prev_sw_df, next_sw_df], sort=False)
+        prev_sw_df = prev_sw_df.rename({
+            "prev_pid": "pid",
+            "prev_state": "curr_state",
+            "prev_comm": "comm",
+        })
+
+        next_sw_df = next_sw_df.with_columns(
+            curr_state=state(TaskState.TASK_ACTIVE)
+        )
+        next_sw_df = next_sw_df.rename({
+            'next_pid': 'pid',
+            'next_comm': 'comm'
+        })
+        all_sw_df = pl.concat([prev_sw_df, next_sw_df], how='diagonal_relaxed')
 
         if add_rename:
-            rename_df = get_df('task_rename').rename(
-                columns={
-                    'oldcomm': 'comm',
-                },
-            )[['pid', 'comm']]
-            rename_df['curr_state'] = TaskState.TASK_RENAMED
-            all_sw_df = pd.concat([all_sw_df, rename_df], sort=False)
+            rename_df = get_df('task_rename').rename({
+                'oldcomm': 'comm',
+            })
+            rename_df = rename_df.select(['Time', 'pid', 'comm'])
+            rename_df = rename_df.with_columns(
+                curr_state=state(TaskState.TASK_RENAMED),
+            )
+            all_sw_df = pl.concat([all_sw_df, rename_df], how='diagonal_relaxed')
 
         # Integer values are prefered here, otherwise the whole column
         # is converted to float64
-        all_sw_df['target_cpu'] = -1
+        # FIXME: should we just use null here ?
+        all_sw_df = all_sw_df.with_columns(target_cpu=pl.lit(-1, pl.Int32))
 
-        df = pd.concat([all_sw_df, wk_df], sort=False)
-        df.sort_index(inplace=True)
-        df.rename(columns={'__cpu': 'cpu'}, inplace=True)
+        df = pl.concat([all_sw_df, wk_df], how='diagonal_relaxed')
+        df = df.sort('Time')
+        df = df.rename({'__cpu': 'cpu'})
 
         # Restrict the set of data we will process to a given set of tasks
         if tasks is not None:
@@ -719,75 +757,23 @@ class TasksAnalysis(TraceAnalysisBase):
             tasks = list(map(resolve_task, tasks))
             df = df_filter_task_ids(df, tasks)
 
-        df = df_window(df, window=self.trace.window)
+        df = df.with_columns(
+            next_state=pl.col('curr_state').shift(
+                -1,
+                fill_value=state(TaskState.TASK_UNKNOWN)
+            ).over(pl.col('pid')),
+            duration_delta=pl.col('Time').diff().shift(-1).over(pl.col('pid')),
+        )
+        df = df.with_columns(
+            delta=pl.col('duration_delta').dt.total_nanoseconds() / 1e9,
+        )
 
-        # Return a unique dataframe with new columns added
-        if return_one_df:
-            df.sort_index(inplace=True)
-            df.index.name = 'Time'
-            df.reset_index(inplace=True)
-
-            # Since sched_switch is split in two df (next and prev), we end up with
-            # duplicated indices. Avoid that by incrementing them by the minimum
-            # amount possible.
-            df = df_update_duplicates(df, col='Time', inplace=True)
-
-            grouped = df.groupby('pid', observed=True, sort=False, group_keys=False)
-            new_columns = dict(
-                next_state=grouped['curr_state'].shift(-1, fill_value=TaskState.TASK_UNKNOWN),
-                # GroupBy.transform() will run the function on each group, and
-                # concatenate the resulting series to create a new column.
-                # Note: We actually need transform() to chain 2 operations on
-                # the group, otherwise the first operation returns a final
-                # Series, and the 2nd is not applied on groups
-                delta=grouped['Time'].transform(lambda time: time.diff().shift(-1)),
-            )
-            df = df.assign(**new_columns)
-            df.set_index('Time', inplace=True)
-
-            return df
-
-        # Return a generator yielding (TaskID, task_df) tuples
-        else:
-            def make_pid_df(pid_df):
-                # Even though the initial dataframe contains duplicated indices due to
-                # using both prev_pid and next_pid in sched_switch event, we should
-                # never end up with prev_pid == next_pid, so task-specific dataframes
-                # are expected to be free from duplicated timestamps.
-                # assert not df.index.duplicated().any()
-
-                # Copy the df to add new columns
-                pid_df = pid_df.copy(deep=False)
-
-                # For each PID, add the time it spent in each state
-                pid_df['delta'] = pid_df.index.to_series().diff().shift(-1)
-                pid_df['next_state'] = pid_df['curr_state'].shift(-1, fill_value=TaskState.TASK_UNKNOWN)
-                return pid_df
-
-            signals = df_split_signals(df, ['pid'])
-            return (
-                (TaskID(pid=col['pid'], comm=None), make_pid_df(pid_df))
-                for col, pid_df in signals
-            )
+        return df
 
     @staticmethod
     def _reorder_tasks_states_columns(df):
-        """
-        Reorder once at the end of computation, since doing it for each tasks'
-        dataframe turned out to be very costly
-        """
-        order = ['pid', 'comm', 'target_cpu', 'cpu', 'curr_state', 'next_state', 'delta']
-        cols = set(order)
-        available_cols = set(df.columns)
-        displayed_cols = [
-            col
-            for col in order
-            if col in (available_cols & cols)
-        ]
-        extra_cols = sorted(available_cols - cols)
-
-        col_list = displayed_cols + extra_cols
-        return df[col_list]
+        order = ['Time', 'pid', 'comm', 'target_cpu', 'cpu', 'curr_state', 'next_state', 'delta']
+        return df.select(order_as(list(df.columns), order))
 
     @_df_tasks_states.used_events
     @TraceAnalysisBase.df_method
@@ -813,7 +799,7 @@ class TasksAnalysis(TraceAnalysisBase):
             avoid that, the duplicated timestamps are updated with the minimum
             increment possible to remove duplication.
         """
-        df = self._df_tasks_states(return_one_df=True)
+        df = self._df_tasks_states(df_fmt='polars-lazyframe')
         return self._reorder_tasks_states_columns(df)
 
     @TraceAnalysisBase.df_method
@@ -838,18 +824,17 @@ class TasksAnalysis(TraceAnalysisBase):
           * A ``delta`` column (the duration for which the task will remain in
             this state)
         """
-        tasks_df = list(self._df_tasks_states(tasks=[task]))
-
-        if not tasks_df:
-             raise ValueError(f'Task "{task}" has no associated events among: {self._df_tasks_states.used_events}')
-
-        task_id, task_df = tasks_df[0]
-        task_df = task_df.drop(columns=["pid", "comm"])
+        df = self._df_tasks_states(tasks=[task], df_fmt='polars-lazyframe')
+        df = df.drop(["pid", "comm"])
 
         if stringify:
-            self.stringify_df_task_states(task_df, ["curr_state", "next_state"], inplace=True)
+            df = self.stringify_df_task_states(
+                df,
+                ["curr_state", "next_state"],
+                inplace=True
+            )
 
-        return self._reorder_tasks_states_columns(task_df)
+        return self._reorder_tasks_states_columns(df)
 
     @classmethod
     def stringify_task_state_series(cls, series):
@@ -889,12 +874,35 @@ class TasksAnalysis(TraceAnalysisBase):
         :param inplace: Do the modification on the original DataFrame
         :type inplace: bool
         """
-        df = df if inplace else df.copy()
 
-        for col in columns:
-            df[f"{col}_str"] = cls.stringify_task_state_series(df[col])
+        if isinstance(df, pd.DataFrame):
+            df = df if inplace else df.copy()
 
-        return df
+            for col in columns:
+                df[f"{col}_str"] = cls.stringify_task_state_series(df[col])
+
+            return df
+        elif isinstance(df, pl.LazyFrame):
+            mapping = {
+                int(state): state.char
+                for state in TaskState.list_reported_states()
+            }
+
+            def fixup(df, col):
+                str_col = (pl.col(col) & 0xff).replace(mapping, default=None)
+                str_col = (
+                    pl.when(str_col.is_null() & (pl.col(col) > 0))
+                    .then(pl.col(col).map_elements(TaskState.sched_switch_str))
+                    .otherwise(str_col)
+                )
+
+                return df.with_columns(
+                    str_col.alias(f'{col}_str')
+                )
+
+            return functools.reduce(fixup, columns, df)
+        else:
+            raise TypeError(f'Cannot handle type dataframe of type {df.__class__}')
 
     @TraceAnalysisBase.df_method
     @_df_tasks_states.used_events
@@ -913,24 +921,11 @@ class TasksAnalysis(TraceAnalysisBase):
             order.
         """
 
-        runtimes = {}
-        for task, pid_df in self._df_tasks_states():
-            pid = task.pid
-            # Make sure to only look at the relevant portion of the dataframe
-            # with the window, since we are going to make a time-based sum
-            pid_df = df_refit_index(pid_df, window=self.trace.window)
-            pid_df = df_add_delta(pid_df)
-            # Resolve the comm to the last name of the PID in that window
-            comms = pid_df['comm'].unique()
-            comm = comms[-1]
-            pid_df = pid_df[pid_df['curr_state'] == TaskState.TASK_ACTIVE]
-            runtimes[pid] = (pid_df['delta'].sum(skipna=True), comm)
-
-        df = pd.DataFrame.from_dict(runtimes, orient="index", columns=["runtime", 'comm'])
-
-        df.index.name = "pid"
-        df.sort_values(by="runtime", ascending=False, inplace=True)
-
+        df = self._df_tasks_states(df_fmt='polars-lazyframe')
+        df = df.group_by('pid').agg(
+            comm=pl.col('comm').last(),
+            runtime=pl.col('delta').filter(pl.col('curr_state') == TaskState.TASK_ACTIVE).sum()
+        )
         return df
 
     @TraceAnalysisBase.df_method
