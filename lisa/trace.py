@@ -53,6 +53,11 @@ import warnings
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
 import types
+import stat
+import urllib.request
+import urllib.parse
+import sqlite3
+import logging
 
 import numpy as np
 import pandas as pd
@@ -61,6 +66,7 @@ import pyarrow.parquet
 import polars as pl
 import polars.exceptions
 import polars.selectors as cs
+from polars.io.plugins import register_io_source
 
 import devlib
 
@@ -856,6 +862,693 @@ class MockTraceParser(TraceParserBase):
             return set(self._available_events)
         else:
             super().get_metadata(key=key)
+
+
+class _PerfettoTraceProcessorWrapper(Loggable):
+    """
+    Wrap a Perfetto :class:`perfetto.TraceProcessor` instance so that it can be
+    queried from any thread.
+
+    The perfetto class unfortunately does not support multithreading natively
+    in part due to relying on SQLite3.
+    """
+    _DONE = object()
+    def __init__(self, trace_path, bin_path):
+        self._executor = None
+        self._bin_path = bin_path
+        self._trace_path = trace_path
+        self._tp = {}
+
+        self._cleanup()
+
+    def __enter__(self):
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='perfetto_trace_processor')
+        executor.__enter__()
+        self._executor = executor
+        return self
+
+    def _cleanup(self):
+        tp = self._tp
+        self._tp = {}
+        del tp
+
+    def __exit__(self, *args, **kwargs):
+        executor = self._executor
+        # Make sure we destroy the TraceProcessor in the same thread it was
+        # created, as it uses SQLite3 which is fussy about that.
+        executor.submit(self._cleanup).result()
+        executor.__exit__(*args, **kwargs)
+        self._executor = None
+
+    def query(self, query, process, ingest_ftrace_in_raw):
+        logger = self.logger
+
+        def make_key(ingest_ftrace_in_raw):
+            return (ingest_ftrace_in_raw,)
+
+        def compat_key(wanted, available):
+            wanted_ftrace, = wanted
+            available_ftrace, = available
+            return (
+                (wanted_ftrace and available_ftrace) or
+                (not wanted_ftrace)
+            )
+
+        # Lazily create the TraceProcessor instance, from the thread it will
+        # spend its whole life in. This is critical as it does not handle being
+        # moved around threads due to SQLite3 not liking that one bit.
+        def get_tp():
+            key = make_key(ingest_ftrace_in_raw)
+
+            # Reuse existing trace processor instances if they are compatible
+            # with the query we got.
+            ok = [
+                tp
+                for available, tp in self._tp.items()
+                if compat_key(key, available)
+            ]
+            try:
+                tp, *_ = ok
+            except ValueError as e:
+                from perfetto.trace_processor import TraceProcessor, TraceProcessorConfig
+
+                config = TraceProcessorConfig(
+                    # Without that, perfetto will disallow querying for most events in
+                    # the ftrace_event table
+                    ingest_ftrace_in_raw=ingest_ftrace_in_raw,
+                    bin_path=self._bin_path,
+                )
+                with measure_time() as m:
+                    tp = TraceProcessor(
+                        trace=self._trace_path,
+                        config=config,
+                    )
+                logger.debug(f'Loaded Perfetto trace in trace_processor in {m.delta:.2f}s')
+
+                # Purge existing TraceProcessor instances that overlap with the
+                # one we just made to free memory.
+                self._tp = {
+                    _key: _tp
+                    for _key, _tp in self._tp.items()
+                    if not compat_key(key, _key)
+                }
+                self._tp[key] = tp
+
+            return tp
+
+        def work(query, process):
+            tp = get_tp()
+            if logger.isEnabledFor(logging.DEBUG):
+                explain = tp.query(f'EXPLAIN QUERY PLAN {query}')
+                explain = explain.as_pandas_dataframe().to_markdown()
+                logger.debug(f'Running Perfetto query: {query}\n\nQuery plan:\n{explain}')
+
+            with measure_time() as m:
+                res = process(tp.query(query))
+            logger.debug(f'Perfetto query ran in {m.delta:.2f}s')
+            return res
+
+        executor = self._executor
+        if executor is None:
+            raise RuntimeError('_PerfettoTraceProcessorWrapper.query() can only be called when the instance is used as a context manager')
+        else:
+            return executor.submit(work, query, process).result()
+
+
+class PerfettoTraceParser(TraceParserBase):
+    """
+    Bridge to parsing Perfetto traces.
+
+    :param path: Path to the Perfetto trace.
+    :type path: str
+
+    :param events: Events to parse eagerly. This is currently unused.
+    :param events: collections.abc.Iterable(str)
+
+    :param trace_processor_path: Path or URL to Perfetto's ``trace_processor``
+        binary. If a URL is passed, it will be downloaded and cached
+        automatically.
+    :type trace_processor_path: str
+
+    :Variable keyword arguments: Forwarded to :class:`TraceParserBase`
+
+    """
+    @kwargs_forwarded_to(TraceParserBase.__init__)
+    def __init__(self, path=None, events=None, trace_processor_path='https://get.perfetto.dev/trace_processor', **kwargs):
+        super().__init__(events=events, **kwargs)
+
+        if urllib.parse.urlparse(trace_processor_path).scheme:
+            bin_path = self._download_trace_processor(url=trace_processor_path)
+        else:
+            bin_path = trace_processor_path
+
+        self._bin_path = bin_path
+        self._trace_path = path
+        self._metadata = {}
+
+        # Wrap the TraceProcessor so that we can call it from inside polars
+        # workers.
+        self._tp = _PerfettoTraceProcessorWrapper(
+            trace_path=path,
+            bin_path=bin_path,
+        )
+
+    def __enter__(self):
+        self._tp.__enter__()
+
+        not_supported = {
+            'trace-id',
+        }
+        needs_ftrace_events = {
+            'available-events',
+        }
+        cheap = set(self.METADATA_KEYS) - not_supported - needs_ftrace_events
+        requested_metadata = self._requested_metadata - not_supported
+
+        def must_compute(key):
+            return bool(
+                # If the metadata was explicitly requested, we don't really
+                # have a choice.
+                key in requested_metadata
+                or (
+                    key in cheap
+                    and (
+                        # A trace load would be needed, so we may as well get
+                        # the metadata out of it while we have it as loading
+                        # the trace is expensive.
+                        self._requested_events
+                        # Metadata require a trace load as well.
+                        or requested_metadata
+                    )
+                )
+            )
+
+        ingest_ftrace_in_raw = bool(
+            self._requested_events or
+            (
+                set(filter(must_compute, requested_metadata)) &
+                needs_ftrace_events
+            )
+        )
+
+        def metadata_query(query):
+            return self._query(
+                query,
+                ingest_ftrace_in_raw=ingest_ftrace_in_raw,
+            )
+
+        meta = {}
+
+        # Perfetto does provide a trace UUID, but spinning up the parser just
+        # for that is a lot slower than just computing a hash of the file, and
+        # we can't have the trace-id depend on what else we were asking the
+        # parser, so we just rely on the generic file hash instead.
+        #
+        # if must_compute('trace-id'):
+        #    trace_id = '-'.join(
+        #        row.str_value
+        #        for row in metadata_query("SELECT str_value FROM metadata WHERE name = 'trace_uuid'")
+        #    )
+        #    assert trace_id
+        #    meta['trace-id'] = f'perfetto-{trace_id}'
+
+        # This reads the TraceConfig protobuf packet, which includes all the
+        # events that Perfetto was configured to collect when tracing. Some of
+        # those events may have never fired, in which case we will have no
+        # occurence. Unfortunately, we cannot build an empty dataframe for
+        # those as we do not have any schema information without at least one
+        # occurence.
+        if must_compute('available-events-superset'):
+            row, = metadata_query(
+                """
+                SELECT str_value
+                FROM metadata
+                WHERE name = 'trace_config_pbtxt'
+                """,
+            )
+            config = row.str_value
+            meta['available-events-superset'] = set(
+                m.group('event')
+                for row in config.splitlines()
+                if (m := re.match(r'\s*ftrace_events: "(?:(?P<subsys>.*?)/)?(?P<event>.*?)"', row)) is not None
+            )
+
+        # This is much more expensive than looking a the trace_config_pbtxt
+        # Perfetto metadata as it requires:
+        # 1. Ingesting all the ftrace events in trace_processor, which is quite
+        #    costly.
+        # 2. A full scan of the ingested events, which is costly as well.
+        if must_compute('available-events'):
+            config = row.str_value
+            meta['available-events'] = set(
+                row.name
+                for row in metadata_query("SELECT DISTINCT name FROM ftrace_event")
+            )
+
+        if must_compute('time-range'):
+            time_range, = metadata_query("SELECT trace_start(), trace_end()")
+
+            start = Timestamp(
+                time_range.__dict__['trace_start()'],
+                unit='ns',
+                rounding='down',
+            )
+            end = Timestamp(
+                time_range.__dict__['trace_end()'],
+                unit='ns',
+                rounding='up',
+            )
+            meta['time-range'] = (start, end)
+
+        self._metadata.update(meta)
+        return super().__enter__()
+
+    def __exit__(self, *args, **kwargs):
+        self._tp.__exit__(*args, **kwargs)
+        return super().__exit__(*args, **kwargs)
+
+    def _query(self, query, process=tuple, ingest_ftrace_in_raw=False):
+        return self._tp.query(
+            query,
+            process=process,
+            ingest_ftrace_in_raw=ingest_ftrace_in_raw,
+        )
+
+    @classmethod
+    def _download_trace_processor(cls, url):
+        def populate(key, path):
+            url, = key
+            dst = path / 'trace_processor'
+            cls.get_logger().info(f"Downloading Perfetto's trace_processor at {dst}")
+            urllib.request.urlretrieve(url, dst)
+            os.chmod(dst, dst.stat().st_mode | stat.S_IEXEC)
+
+        dir_cache = DirCache(
+            category='perfetto_trace_processor',
+            populate=populate,
+            # FIXME: is that really what we want ? The URL does not have any
+            # version number in it, so we will never invalidate the cache as it
+            # is.
+            fmt_version='1',
+        )
+
+        cache_path = dir_cache.get_entry([url])
+        return cache_path / 'trace_processor'
+
+    @property
+    @memoized
+    def _max_id(self):
+        row, = self._query(
+            "SELECT MAX(id) AS max_id FROM ftrace_event",
+            ingest_ftrace_in_raw=True,
+        )
+        return row.max_id
+
+    def parse_event(self, event):
+        if event.startswith('perfetto@sql@'):
+            _, query = event.split('perfetto@sql@', 1)
+            return self._parse_sql(query)
+        else:
+            return self._parse_ftrace_event(event)
+
+    def _parse_sql(self, query):
+        def sql_query(query, *args, **kwargs):
+            return self._query(
+                query,
+                *args,
+                **kwargs,
+                ingest_ftrace_in_raw=False,
+            )
+
+        df = sql_query(query, lambda res: res.as_pandas_dataframe())
+        df = _df_to(df, fmt='polars-lazyframe')
+
+        # This avoids a costly ORDER BY clause in the common cases.
+        sort_cols = [
+            col
+            for col in [
+                # We almost always want to sort by Time first for monotonic
+                # frames
+                'Time',
+                # Then by "id", as they are usually allocated sequentially and
+                # can be used as a tie breaker if Time is equal. This is
+                # important as SQL otherwise does not guarantee any specific
+                # order for rows, so we cannot rely on a "physical row order".
+                'id',
+            ]
+            if col in df.collect_schema()
+        ]
+        if sort_cols:
+            df = df.sort(sort_cols)
+
+        # Make sure the file is unique as we may be asked to create more than
+        # one in the temp dir.
+        parquet_id = uuid.uuid4().hex
+        path = self._temp_dir / f'{parquet_id}.parquet'
+
+        # We immediately dump to a parquet file so that the Perfetto
+        # TraceProcessor instance does not live for longer than necessary.
+        # Since it loads the entire trace in memory, having a TraceProcessor
+        # attached to a dataframe would be disastrous.
+        df.sink_parquet(
+            path,
+            compression=_DEFAULT_PARQUET_COMPRESSION,
+        )
+
+        return _ParsedDataFrame.from_df(
+            df=pl.scan_parquet(path),
+            swap_cacheable=True,
+            mem_cacheable=True,
+            steal_files=True,
+        )
+
+    def _parse_ftrace_event(self, event):
+        def sql_quote(value):
+            dummy_sql_cursor = sqlite3.connect(":memory:").cursor()
+            (escaped,) = dummy_sql_cursor.execute("SELECT quote(?)", (value,)).fetchone()
+            return escaped
+
+        def event_query(query, *args, **kwargs):
+            return self._query(
+                query,
+                *args,
+                **kwargs,
+                ingest_ftrace_in_raw=True,
+            )
+
+        # List the fields of the event so we know their types and can query them
+        query = f"""
+        SELECT id, arg_set_id
+        FROM ftrace_event
+        WHERE name = {sql_quote(event)}
+        ORDER BY id
+        LIMIT 1
+        """
+
+        # This fails if there is no occurence of the requested event. This MUST
+        # fail so that we can safely rely on this function not succeeding when
+        # the event does not exist.
+        res = [
+            (row.id, row.arg_set_id)
+            for row in event_query(query)
+        ]
+        try:
+            (first_id, arg_set_id), = res
+        except ValueError:
+            raise MissingTraceEventError(
+                [event],
+            )
+
+        max_id = self._max_id
+
+        def pick_col(typ):
+            return {
+                'int': 'int_value',
+                'uint': 'int_value',
+                'string': 'string_value',
+                'real': 'real_value',
+                'pointer': 'int_value',
+                'bool': 'int_value',
+                'json': 'string_value',
+            }[typ]
+
+        def make_field_fragment(field):
+            # We cannot guarantee "field.flat_key" is a valid piece of identifier in SQL,
+            # so instead we use a UUID and rename the columns later.
+            uuid_ = uuid.uuid4().hex
+            table = f'__lisa_field_table_{uuid_}'
+            col = f'__lisa_field_col_{uuid_}'
+            return {
+                'column': col,
+                'flat_key': field.flat_key,
+                'select': f"{table}.{pick_col(field.value_type)} AS {col}",
+                'join': f"JOIN args AS {table} ON {table}.arg_set_id = ftrace_event.arg_set_id AND {table}.key = {sql_quote(field.key)}"
+            }
+
+        def translate_type(typ):
+            try:
+                return {
+                    'int': pl.Int64,
+                    'uint': pl.UInt64,
+                    'string': pl.Categorical(),
+                    'real': pl.Float64,
+                    'pointer': pl.UInt64,
+                    'bool': pl.Boolean,
+                    # TODO: we should probably decode that in a polars struct or
+                    # something like that
+                    #  'json': pl.String,
+                }[typ]
+            except KeyError:
+                raise TypeError(f'No mapping for Perfetto field type "{typ}" to polars dtype available')
+
+        arg_fields = event_query(
+            f"""
+            SELECT key, flat_key, value_type
+            FROM args
+            WHERE arg_set_id = {sql_quote(arg_set_id)}
+            """
+        )
+        schema = {
+            'Time': pl.UInt64,
+            # We use 64 bit ints here otherwise we would have a different type
+            # than event fields (which are always 64 bit ints), making it
+            # harder to manipulate the dataframes compared to data coming from
+            # ftrace.
+            '__cpu': pl.UInt64,
+            '__pid': pl.Int64,
+
+            '__comm': pl.Categorical,
+            **{
+                field.flat_key: translate_type(field.value_type)
+                for field in arg_fields
+            }
+        }
+
+        arg_fragments = [
+            make_field_fragment(field)
+            for field in arg_fields
+        ]
+
+        common_fragments = [
+            {
+                'select': 'ftrace_event.id AS __lisa_perfetto_event_id',
+            },
+            {
+                'flat_key': 'Time',
+                'select': 'ftrace_event.ts AS Time',
+            },
+            {
+                'flat_key': '__cpu',
+                'select': 'ftrace_event.cpu AS __cpu',
+            },
+            {
+                'flat_key': '__pid',
+                'select': 'thread.tid AS __pid',
+                # Ideally we would use LEFT JOIN to cope with a missing thread
+                # info (it shouldn't happen, but who knows). However, LEFT JOIN
+                # cannot be reordered as easily as inner JOIN by the query
+                # engine, leading to catastrophic performance drops if the
+                # wrong ordering is chosen (more than 10x slowdown). So we just
+                # use JOIN everywhere to avoid that.
+                'join': 'JOIN thread ON thread.utid = ftrace_event.utid',
+            },
+            {
+                'flat_key': '__comm',
+                'select': 'thread.name AS __comm',
+                'join': 'JOIN thread ON thread.utid = ftrace_event.utid',
+            },
+        ]
+
+        fragments = list(itertools.chain(
+            common_fragments,
+            arg_fragments,
+        ))
+
+        renames = {
+            col: flat_key
+            for frag in fragments
+            if (col := frag.get('column')) and (flat_key := frag.get('flat_key'))
+        }
+
+        inverse_renames = {
+            new: old
+            for old, new in renames.items()
+        }
+        pre_rename_schema = {
+            inverse_renames.get(col, col): dtype
+            for col, dtype in schema.items()
+        }
+
+        joins = '\n'.join(sorted(set(
+            join
+            for frag in fragments
+            if (join := frag.get('join'))
+        )))
+
+        def get_chunk(from_, to_, columns):
+            projections = ',\n    '.join(
+                frag['select']
+                for frag in fragments
+                if (
+                    columns is None
+                    or (flat_key := frag.get('flat_key')) is None
+                    or flat_key in columns
+                    or flat_key in ('Time', '__lisa_perfetto_event_id')
+                )
+            )
+            # SQL's BETWEEN operator is inclusive on the right bound, so we
+            # readjust.
+            to_ = max(to_ - 1, 0)
+
+            # Limit the amount of data we get in the window as we may request a
+            # very large window if there is very few of this event per section
+            # of IDs. If we suddenly get a window with lots of events, we could
+            # end up with a giant batch.
+            n = abs(to_ - from_)
+            query = f"""
+SELECT\n    {projections}
+FROM ftrace_event
+{joins}
+WHERE
+    ftrace_event.id BETWEEN {from_} AND {to_} AND
+    ftrace_event.name = {sql_quote(event)}
+LIMIT {n}
+"""
+
+            df = event_query(query, lambda res: res.as_pandas_dataframe())
+            df = pl.from_pandas(df, schema_overrides=pre_rename_schema)
+            df = _df_to(df, fmt='polars-lazyframe')
+
+            df = df.rename(
+                renames,
+                # Projection pushdown may have removed some columns
+                strict=False,
+            )
+            # Ensure the columns are in the same order all the time, otherwise
+            # polars will complain.
+            df = df.select(order_as(
+                sorted(df.collect_schema().names()),
+                schema.keys()
+            ))
+
+            last_id = df.select(pl.col('__lisa_perfetto_event_id').max()).collect().item()
+
+            # Sort each small chunk on its own to be streaming-friendly. We
+            # don't want to use ORDER BY in the query as this triggers the
+            # creation of an ephemeral index (USE TEMP B-TREE FOR ORDER BY in
+            # EXPLAIN QUERY PLAN). That consumes large amounts of memory and
+            # massively slows down the query.
+            df = df.sort('__lisa_perfetto_event_id', 'Time')
+            df = df.drop('__lisa_perfetto_event_id')
+            return (last_id, df)
+
+        IDEAL_CHUNK_SIZE = 128 * 1024 * 1024
+        def _get_chunks(with_columns, predicate, n_rows, batch_size):
+            remaining_rows = n_rows
+            last_id = first_id
+            sql_n_rows = 100_000
+            while (
+                last_id <= max_id and
+                (remaining_rows is None or remaining_rows > 0)
+            ):
+                n = (
+                    sql_n_rows
+                    if remaining_rows is None else
+                    min(remaining_rows, sql_n_rows)
+                )
+                to_ = last_id + n
+                _last_id, df = get_chunk(
+                    columns=with_columns,
+                    from_=last_id,
+                    to_=to_,
+                )
+
+                if with_columns is not None:
+                    df = df.select(with_columns)
+
+                if predicate is not None:
+                    df = df.filter(predicate)
+
+                if remaining_rows is not None:
+                    df = df.head(remaining_rows)
+
+                df = df.collect()
+
+                if remaining_rows is not None:
+                    remaining_rows -= len(df)
+
+                # Empty chunk, this can happen if the window happened to not
+                # contain any occurence of the event. It does not mean we are
+                # finished with that event.
+                if _last_id is None:
+                    assert not len(df)
+                    # We found nothing in that window, so fast-forward to the
+                    # end of the window and let's try the next chunk.
+                    last_id = to_
+                else:
+                    last_id = _last_id + 1
+                    assert len(df)
+                    chunk_size = df.estimated_size(unit='b')
+                    sql_n_rows = int(sql_n_rows * IDEAL_CHUNK_SIZE / chunk_size)
+                    sql_n_rows = max(1000, sql_n_rows)
+                    yield df
+
+        def get_chunks(*args):
+            try:
+                yield from _get_chunks(*args)
+            except Exception as e:
+                import traceback
+                # polars does not show the detail traceback, so get it
+                # ourselves
+                traceback.print_exc()
+                raise
+
+        # Use an IO plugin so that chunks are loaded one by one, and
+        # immediately dumped to the parquet file. This avoids loading the whole
+        # dataset in pandas/polars at once, reducing the peak memory
+        # consumption.
+        df = register_io_source(
+            get_chunks,
+            schema=schema,
+            validate_schema=True,
+            is_pure=True,
+        )
+
+        # Each chunk is sorted on Time, so the concatenation is also sorted on
+        # Time
+        df = df.set_sorted('Time')
+
+        df = df.select(order_as(
+            sorted(df.collect_schema().names()),
+            ['Time', '__cpu', '__pid', '__comm']
+        ))
+
+        # Make sure the file is unique as we may be asked to create more than
+        # one in the temp dir.
+        parquet_id = uuid.uuid4().hex
+        path = self._temp_dir / f'{parquet_id}.parquet'
+
+        # We immediately dump to a parquet file so that the Perfetto
+        # TraceProcessor instance does not live for longer than necessary.
+        # Since it loads the entire trace in memory, having a TraceProcessor
+        # attached to a dataframe would be disastrous.
+        df.sink_parquet(
+            path,
+            compression=_DEFAULT_PARQUET_COMPRESSION,
+        )
+
+        return _ParsedDataFrame.from_df(
+            df=pl.scan_parquet(path),
+            swap_cacheable=True,
+            mem_cacheable=True,
+            steal_files=True,
+        )
+
+    def get_metadata(self, key):
+        try:
+            return self._metadata[key]
+        except KeyError:
+            return super().get_metadata(key=key)
 
 
 class TraceDumpError(Exception):
@@ -5402,6 +6095,7 @@ class _Trace(Loggable, _InternalTraceBase):
         'trace_printk': {
             'bprint': _select_trace_printk,
         },
+        'perfetto': None,
     }
     """
     Define the source of each meta event.
@@ -5471,6 +6165,8 @@ class _Trace(Loggable, _InternalTraceBase):
                     parser = SysTraceParser.from_html
                 elif extension == '.txt':
                     parser = HRTxtTraceParser.from_txt_file
+                elif extension in ('.perfetto-trace', '.pftrace'):
+                    parser = PerfettoTraceParser
                 else:
                     parser = TraceDumpTraceParser.from_dat
         self._parser = parser
