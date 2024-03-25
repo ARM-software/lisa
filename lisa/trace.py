@@ -62,7 +62,7 @@ import devlib
 
 from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
-from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to_polars, _df_to_pandas, _df_to, _MemLazyFrame, Timestamp
+from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to_polars, _df_to_pandas, _df_to, _polars_df_in_memory, Timestamp
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString
 from lisa._kmod import LISADynamicKmod
@@ -83,7 +83,7 @@ def __getattr__(name):
 
 
 _DEALLOCATORS = weakref.WeakSet()
-_DEALLOCATORS_LOCK = threading.Lock()
+_DEALLOCATORS_LOCK = threading.RLock()
 
 def _dealloc_all():
     with _DEALLOCATORS_LOCK:
@@ -101,7 +101,7 @@ def _file_cleanup(paths):
 
 def _identity(x):
     return x
-def _make_identity(cls):
+def _make_identity():
     return _identity
 
 
@@ -584,8 +584,9 @@ class MockTraceParser(TraceParserBase):
                     Time=pl.col('Time').cast(pl.Duration('ns')).cast(pl.Int64)
                 )
 
-                start = df.min().collect()['Time'][0]
-                end = df.max().collect()['Time'][0]
+                start, end = df.select(
+                    (pl.min('Time'), pl.max('Time'))
+                ).collect().row(0)
 
                 start = Timestamp(start, unit='ns', rounding='down')
                 end = Timestamp(end, unit='ns', rounding='up')
@@ -860,11 +861,21 @@ class TraceDumpTraceParser(TraceParserBase):
         else:
             df = df.sort('Time')
 
+        # Turn all "comm" columns into categorical columns
+        categorical_cols = [
+            col
+            for col, dtype in df.schema.items()
+            if isinstance(dtype, pl.String) and (
+                col in ('comm', 'oldcomm', 'newcomm') or
+                col.startswith('comm_') or
+                col.endswith('_comm')
+            )
+        ]
 
-        if event == 'sched_switch':
+        if categorical_cols:
             df = df.with_columns([
-                pl.col('prev_comm').cast(pl.Categorical),
-                pl.col('next_comm').cast(pl.Categorical)
+                pl.col(col).cast(pl.Categorical)
+                for col in categorical_cols
             ])
 
         return df
@@ -4297,7 +4308,12 @@ class _TraceCache(Loggable):
         elif isinstance(data, pl.DataFrame):
             data.write_parquet(path, **kwargs)
         elif isinstance(data, pl.LazyFrame):
-            data.sink_parquet(path, **kwargs)
+            with pl.StringCache():
+                try:
+                    data.sink_parquet(path, **kwargs)
+                # Some LazyFrame cannot be sunk lazily to a parquet file
+                except pl.InvalidOperationError:
+                    data.collect().write_parquet(path, **kwargs)
         else:
             data.to_parquet(path, **kwargs)
 
@@ -4327,7 +4343,7 @@ class _TraceCache(Loggable):
             # just execute it and dump it to parquet. Otherwise, that would
             # force rendering the entire dataframe to JSON first which would
             # not scale well at all.
-            if isinstance(data, _MemLazyFrame):
+            if _polars_df_in_memory(data):
                 to_parquet()
             else:
                 try:
@@ -5127,7 +5143,7 @@ class _Trace(Loggable, _InternalTraceBase):
                     checked_events = self.available_events
 
                 max_cpu = max(
-                    int(df.select(pl.col('__cpu').max()).collect()['__cpu'][0])
+                    int(df.select(pl.max('__cpu')).collect().item())
                     for df, meta in (
                         self._internal_df_event(event)
                         for event in checked_events
@@ -5310,9 +5326,7 @@ class _Trace(Loggable, _InternalTraceBase):
         try:
             event_checker.check_events(df_map.keys())
         except MissingTraceEventError as e:
-            if allow_missing_events:
-                self.logger.warning(f'Events not found in the trace {self.trace_path}: {e}')
-            else:
+            if not allow_missing_events:
                 raise MissingTraceEventError(
                     e.missing_events,
                     msg='Events not found in the trace: {missing_events}{available}'
@@ -6007,7 +6021,11 @@ class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
                 except AttributeError:
                     pass
                 else:
-                    checker.check_events(trace.available_events)
+                    # Preload all the events that can be useful for that
+                    # function. This will allow loading them in parallel,
+                    # speeding up individual trace.df_event() calls
+                    view = trace.get_view(events=checker.get_all_events())
+                    checker.check_events(view.available_events)
 
                 return f(self, *args, **kwargs)
 

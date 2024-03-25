@@ -26,6 +26,8 @@ import uuid
 from operator import attrgetter
 import decimal
 from numbers import Number
+import weakref
+import threading
 
 import polars as pl
 import numpy as np
@@ -35,7 +37,7 @@ import scipy.integrate
 import scipy.signal
 import pyarrow
 
-from lisa.utils import TASK_COMM_MAX_LEN, groupby, deprecate
+from lisa.utils import TASK_COMM_MAX_LEN, groupby, deprecate, order_as
 
 
 class Timestamp(float):
@@ -207,49 +209,70 @@ def _polars_duration_expr(duration, unit='s', rounding='down'):
         return duration.to_polars_expr()
 
 
-class _MemLazyFrame(pl.LazyFrame):
+_MEM_LAZYFRAMES_LOCK = threading.Lock()
+_MEM_LAZYFRAMES = weakref.WeakValueDictionary()
+def _polars_declare_in_memory(df):
+        with _MEM_LAZYFRAMES_LOCK:
+            _MEM_LAZYFRAMES[id(df)] = df
+
+def _polars_df_in_memory(df):
     try:
-        pl.LazyFrame.__slots__
-    except AttributeError:
-        pass
+        with _MEM_LAZYFRAMES_LOCK:
+            _df = _MEM_LAZYFRAMES[id(df)]
+    except KeyError:
+        return False
     else:
-        __slots__ = tuple()
+        return _df is df
+
+
+def _polars_index_col(df):
+    if 'Time' in df.columns:
+        return 'Time'
+    else:
+        return df.columns[0]
 
 
 def _df_to_polars(df):
+    in_memory = _polars_df_in_memory(df)
+
     if isinstance(df, pl.LazyFrame):
-        index = 'Time'
+        index = _polars_index_col(df)
         dtype = df.schema[index]
         # This skips a useless cast, saving some time on the common path
-        if dtype == pl.Duration('ns'):
-            pass
-        else:
-            index = pl.col('Time')
-            if dtype.is_float():
-                # Convert to nanoseconds
-                df = df.with_columns(index * 1_000_000_000)
-            elif dtype.is_integer() or dtype.is_temporal():
-                pass
-            else:
-                raise TypeError(f'Time dtype not handled: {dtype}')
+        if index == 'Time':
+            if dtype != pl.Duration('ns'):
+                _index = pl.col(index)
+                if dtype.is_float():
+                    # Convert to nanoseconds
+                    df = df.with_columns(_index * 1_000_000_000)
+                elif dtype.is_integer() or dtype.is_temporal():
+                    pass
+                else:
+                    raise TypeError(f'Index dtype not handled: {dtype}')
 
-            df = df.with_columns(
-                index.cast(pl.Duration('ns'))
-            )
-        return df
+                df = df.with_columns(
+                    _index.cast(pl.Duration('ns'))
+                )
+
+        # Make the index column the first one
+        df = df.select(order_as(list(df.columns), [index]))
     # TODO: once this is solved, we can just inspect the plan and see if the
-    # data is backed by a "DataFrameScan" instead of a "Scan" of a file rather
-    # than using the _MemLazyFrame class as a way to tag the object:
+    # data is backed by a "DataFrameScan" instead of a "Scan" of a file:
     # https://github.com/pola-rs/polars/issues/9771
     elif isinstance(df, pl.DataFrame):
+        in_memory = True
         df = df.lazy()
-        df.__class__ = _MemLazyFrame
-        return _df_to_polars(df)
+        df = _df_to_polars(df)
     elif isinstance(df, pd.DataFrame):
         df = pl.from_pandas(df, include_index=True)
-        return _df_to_polars(df)
+        df = _df_to_polars(df)
     else:
         raise ValueError(f'{df.__class__} not supported')
+
+    if in_memory:
+        _polars_declare_in_memory(df)
+
+    return df
 
 
 def _df_to_pandas(df):
@@ -258,9 +281,10 @@ def _df_to_pandas(df):
     else:
         assert isinstance(df, pl.LazyFrame)
 
-        if df.schema['Time'].is_temporal():
+        index = _polars_index_col(df)
+        if index == 'Time' and df.schema[index].is_temporal():
             df = df.with_columns(
-                pl.col('Time').dt.total_nanoseconds() * 1e-9
+                pl.col(index).dt.total_nanoseconds() * 1e-9
             )
         df = df.collect()
 
@@ -279,7 +303,7 @@ def _df_to_pandas(df):
             pyarrow.string(): pd.StringDtype(),
         }
         df = df.to_pandas(types_mapper=dtype_mapping.get)
-        df.set_index('Time', inplace=True)
+        df.set_index(index, inplace=True)
 
         # Nullable dtypes are still not supported everywhere, so cast back to a
         # non-nullable dtype in cases where there is no null value:
@@ -1040,7 +1064,7 @@ def _polars_window(data, window, method):
     assert isinstance(data, pl.LazyFrame)
 
     # TODO: maybe expose that as a param
-    col = 'Time'
+    col = _polars_index_col(data)
 
     col = pl.col(col)
     start, stop = window
@@ -1287,21 +1311,24 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
     )
 
 def _polars_window_signals(df, window, signals, compress_init):
+    index = _polars_index_col(df)
+    assert df.schema[index].is_temporal()
+
     start, stop = window
     start = _polars_duration_expr(start, rounding='down')
     stop = _polars_duration_expr(stop, rounding='up')
 
     if start is not None:
         if stop is None:
-            post_filter = pl.col('Time') >= start
+            post_filter = pl.col(index) >= start
             pre_filter = pl.lit(True)
         else:
-            post_filter = pl.col('Time').is_between(
+            post_filter = pl.col(index).is_between(
                 lower_bound=start,
                 upper_bound=stop,
                 closed='both'
             )
-            pre_filter = (pl.col('Time') < stop)
+            pre_filter = (pl.col(index) < stop)
 
         pre_filter &= ~post_filter
 
@@ -1321,7 +1348,7 @@ def _polars_window_signals(df, window, signals, compress_init):
             )
 
             if compress_init:
-                first_row = post_df.select('Time').head(1).collect()
+                first_row = post_df.select(index).head(1).collect()
                 try:
                     first_time = first_row[0]
                 except IndexError:
@@ -1332,7 +1359,7 @@ def _polars_window_signals(df, window, signals, compress_init):
             # We could have multiple signals for the same event, so we want to
             # avoid duplicate events occurrences.
             pre_df = pre_df.unique()
-            pre_df = pre_df.sort('Time')
+            pre_df = pre_df.sort(index)
 
             return pl.concat(
                 [
@@ -1526,6 +1553,19 @@ def df_filter_task_ids(df, task_ids, pid_col='pid', comm_col='comm', invert=Fals
     :type invert: bool
     """
 
+    return _dispatch(
+        _polars_filter_task_ids,
+        _pandas_filter_task_ids,
+        df,
+
+        task_ids=task_ids,
+        pid_col=pid_col,
+        comm_col=comm_col,
+        invert=invert,
+        comm_max_len=comm_max_len,
+    )
+
+def _pandas_filter_task_ids(df, task_ids, pid_col, comm_col, invert, comm_max_len):
     def make_filter(task_id):
         if pid_col and task_id.pid is not None:
             pid = (df[pid_col] == task_id.pid)
@@ -1549,6 +1589,28 @@ def df_filter_task_ids(df, task_ids, pid_col='pid', comm_col='comm', invert=Fals
         return df[tasks_filter]
     else:
         return df if invert else df.iloc[0:0]
+
+def _polars_filter_task_ids(df, task_ids, pid_col, comm_col, invert, comm_max_len):
+    def make_filter(task_id):
+        if pid_col and task_id.pid is not None:
+            pid = (pl.col(pid_col) == pl.lit(task_id.pid))
+        else:
+            pid = pl.lit(True)
+
+        if comm_col and task_id.comm is not None:
+            comm = (pl.col(comm_col) == pl.lit(task_id.comm[:comm_max_len]))
+        else:
+            comm = pl.lit(True)
+
+        return pid & comm
+
+    tasks_filters = list(map(make_filter, task_ids))
+    # Combine all the task filters with OR
+    tasks_filter = functools.reduce(operator.or_, tasks_filters, pl.lit(False))
+    if invert:
+        tasks_filter = ~tasks_filter
+
+    return df.filter(tasks_filter)
 
 
 @SeriesAccessor.register_accessor
