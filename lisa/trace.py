@@ -3938,6 +3938,7 @@ class _TraceCache(Loggable):
     """
 
     def __init__(self, max_mem_size=None, trace_path=None, trace_id=None, swap_dir=None, max_swap_size=None, swap_content=None, metadata=None):
+        self._lock = threading.RLock()
         self._cache = {}
         self._data_cost = {}
         self._swap_content = swap_content or {}
@@ -4016,7 +4017,8 @@ class _TraceCache(Loggable):
         write it back to the swap area.
         """
         if metadata:
-            self._metadata.update(metadata)
+            with self._lock:
+                self._metadata.update(metadata)
             self.to_swap_dir()
 
     def get_metadata(self, key):
@@ -4024,7 +4026,8 @@ class _TraceCache(Loggable):
         Get the value of the given metadata ``key``.
         """
         try:
-            return self._metadata[key]
+            with self._lock:
+                return self._metadata[key]
         except KeyError as e:
             raise MissingMetadataError(key) from e
 
@@ -4144,13 +4147,14 @@ class _TraceCache(Loggable):
         return self._data_mem_usage(data) * self._data_mem_swap_ratio
 
     def _update_ewma(self, attr, new, alpha=0.25, override=False):
-        old = getattr(self, attr)
-        if override:
-            updated = new
-        else:
-            updated = (1 - alpha) * old + alpha * new
+        with self._lock:
+            old = getattr(self, attr)
+            if override:
+                updated = new
+            else:
+                updated = (1 - alpha) * old + alpha * new
 
-        setattr(self, attr, updated)
+            setattr(self, attr, updated)
 
     def _update_data_swap_size_estimation(self, data, size):
         mem_usage = self._data_mem_usage(data)
@@ -4172,7 +4176,8 @@ class _TraceCache(Loggable):
 
     def _should_evict_to_swap(self, cache_desc, data):
         # If we don't have any cost info, assume it is expensive to compute
-        compute_cost = self._data_cost.get(cache_desc, math.inf)
+        with self._lock:
+            compute_cost = self._data_cost.get(cache_desc, math.inf)
         swap_cost = self._estimate_data_swap_cost(data)
         return swap_cost <= compute_cost
 
@@ -4197,7 +4202,8 @@ class _TraceCache(Loggable):
                 write_meta=False,
             )
 
-        swap_entry = self._swap_content[cache_desc_nf]
+        with self._lock:
+            swap_entry = self._swap_content[cache_desc_nf]
         filename = swap_entry.data_filename
         return os.path.join(self.swap_dir, filename)
 
@@ -4216,7 +4222,8 @@ class _TraceCache(Loggable):
 
     def _is_written_to_swap(self, cache_desc):
         try:
-            swap_entry = self._swap_content[cache_desc.normal_form]
+            with self._lock:
+                swap_entry = self._swap_content[cache_desc.normal_form]
         except KeyError:
             return False
         else:
@@ -4361,7 +4368,8 @@ class _TraceCache(Loggable):
             # data file in advance so they can write to it directly, instead of
             # managing the data in the memory cache.
             try:
-                swap_entry = self._swap_content[cache_desc_nf]
+                with self._lock:
+                    swap_entry = self._swap_content[cache_desc_nf]
             except KeyError:
                 swap_entry = _CacheDataSwapEntry(cache_desc_nf)
 
@@ -4398,7 +4406,8 @@ class _TraceCache(Loggable):
                     else:
                         swap_entry.written = True
 
-                self._swap_content[swap_entry.cache_desc_nf] = swap_entry
+                with self._lock:
+                    self._swap_content[swap_entry.cache_desc_nf] = swap_entry
 
                 # Assume that reading from the swap will take as much time as
                 # writing to it. We cannot do better anyway, but that should
@@ -4412,7 +4421,8 @@ class _TraceCache(Loggable):
                 mem_usage = self._data_mem_usage(data)
                 if mem_usage:
                     self._update_swap_cost(data, swap_cost, mem_usage, data_swapped_size)
-                self._swap_size += data_swapped_size
+                with self._lock:
+                    self._swap_size += data_swapped_size
                 self._update_data_swap_size_estimation(data, data_swapped_size)
                 self.scrub_swap()
 
@@ -4447,15 +4457,18 @@ class _TraceCache(Loggable):
             for dir_entry in os.scandir(swap_dir)
         }
 
+        with self._lock:
+            swap_content = list(self._swap_content.values())
+
         data_files = {
             swap_entry.data_filename: swap_entry
-            for swap_entry in self._swap_content.values()
+            for swap_entry in swap_content
         }
 
         # Get rid of stale files that are not referenced by any swap entry
         metadata_files = {
             swap_entry.meta_filename
-            for swap_entry in self._swap_content.values()
+            for swap_entry in swap_content
         }
         metadata_files.add(self.TRACE_META_FILENAME)
         non_stale_files = data_files.keys() | metadata_files | {'hardlinks', 'temp'}
@@ -4491,19 +4504,21 @@ class _TraceCache(Loggable):
             stats.pop(swap_entry.data_filename, None)
             self._clear_swap_entry(swap_entry)
 
-        self._swap_size = sum(
-            stats[swap_entry.data_filename].st_size
-            for swap_entry in self._swap_content.values()
-            if swap_entry.data_filename in stats
-        )
+        with self._lock:
+            self._swap_size = sum(
+                stats[swap_entry.data_filename].st_size
+                for swap_entry in swap_content
+                if swap_entry.data_filename in stats
+            )
 
     def _clear_cache_desc_swap(self, cache_desc):
-        try:
-            swap_entry = self._swap_content[cache_desc.normal_form]
-        except KeyError:
-            pass
-        else:
-            self._clear_swap_entry(swap_entry)
+        with self._lock:
+            try:
+                swap_entry = self._swap_content[cache_desc.normal_form]
+            except KeyError:
+                pass
+            else:
+                self._clear_swap_entry(swap_entry)
 
     def _clear_swap_entry(self, swap_entry):
         try:
@@ -4511,7 +4526,9 @@ class _TraceCache(Loggable):
         except ValueError:
             pass
         else:
-            self._swap_content.pop(swap_entry.cache_desc_nf)
+            with self._lock:
+                self._swap_content.pop(swap_entry.cache_desc_nf)
+
             for filename in (swap_entry.meta_filename, swap_entry.data_filename):
                 path = os.path.join(swap_dir, filename)
                 try:
@@ -4531,7 +4548,8 @@ class _TraceCache(Loggable):
         :type insert: bool
         """
         try:
-            return self._cache[cache_desc]
+            with self._lock:
+                return self._cache[cache_desc]
         except KeyError as e:
             # pylint: disable=raise-missing-from
             try:
@@ -4583,9 +4601,10 @@ class _TraceCache(Loggable):
             on disk if the data are. Otherwise, no swap entry is written to disk.
         :type write_meta: bool
         """
-        self._cache[cache_desc] = data
-        if compute_cost is not None:
-            self._data_cost[cache_desc] = compute_cost
+        with self._lock:
+            self._cache[cache_desc] = data
+            if compute_cost is not None:
+                self._data_cost[cache_desc] = compute_cost
 
         if write_swap:
             self.write_swap(
@@ -4612,51 +4631,51 @@ class _TraceCache(Loggable):
         )
 
         if mem_usage > self.max_mem_size:
+            with self._lock:
+                # Make sure garbage collection occurred recently, to get the most
+                # accurate refcount possible
+                gc.collect()
+                refcounts = {
+                    cache_desc: sys.getrefcount(data)
+                    for cache_desc, data in self._cache.items()
+                }
+                min_refcount = min(refcounts.values())
 
-            # Make sure garbage collection occurred recently, to get the most
-            # accurate refcount possible
-            gc.collect()
-            refcounts = {
-                cache_desc: sys.getrefcount(data)
-                for cache_desc, data in self._cache.items()
-            }
-            min_refcount = min(refcounts.values())
+                # Low retention score means it's more likely to be evicted
+                def retention_score(cache_desc_and_data):
+                    cache_desc, data = cache_desc_and_data
 
-            # Low retention score means it's more likely to be evicted
-            def retention_score(cache_desc_and_data):
-                cache_desc, data = cache_desc_and_data
+                    # If we don't know the computation cost, assume it can be evicted cheaply
+                    compute_cost = self._data_cost.get(cache_desc, 0)
 
-                # If we don't know the computation cost, assume it can be evicted cheaply
-                compute_cost = self._data_cost.get(cache_desc, 0)
-
-                if not compute_cost:
-                    score = 0
-                else:
-                    swap_cost = self._estimate_data_swap_cost(data)
-                    # If it's already written back, make it cheaper to evict since
-                    # the eviction itself is going to be cheap
-                    if self._is_written_to_swap(cache_desc):
-                        swap_cost /= 2
-
-                    if swap_cost:
-                        score = compute_cost / swap_cost
-                    else:
+                    if not compute_cost:
                         score = 0
+                    else:
+                        swap_cost = self._estimate_data_swap_cost(data)
+                        # If it's already written back, make it cheaper to evict since
+                        # the eviction itself is going to be cheap
+                        if self._is_written_to_swap(cache_desc):
+                            swap_cost /= 2
 
-                # Assume that more references to an object implies it will
-                # stay around for longer. Therefore, it's less interesting to
-                # remove it from this cache and pay the cost of reading/writing it to
-                # swap, since the memory will not be freed anyway.
-                #
-                # Normalize to the minimum refcount, so that the _cache and other
-                # structures where references are stored are discounted for sure.
-                return (refcounts[cache_desc] - min_refcount + 1) * score
+                        if swap_cost:
+                            score = compute_cost / swap_cost
+                        else:
+                            score = 0
 
-            new_mem_usage = 0
-            for cache_desc, data in sorted(self._cache.items(), key=retention_score):
-                new_mem_usage += self._data_mem_usage(data)
-                if new_mem_usage > self.max_mem_size:
-                    self.evict(cache_desc)
+                    # Assume that more references to an object implies it will
+                    # stay around for longer. Therefore, it's less interesting to
+                    # remove it from this cache and pay the cost of reading/writing it to
+                    # swap, since the memory will not be freed anyway.
+                    #
+                    # Normalize to the minimum refcount, so that the _cache and other
+                    # structures where references are stored are discounted for sure.
+                    return (refcounts[cache_desc] - min_refcount + 1) * score
+
+                new_mem_usage = 0
+                for cache_desc, data in sorted(self._cache.items(), key=retention_score):
+                    new_mem_usage += self._data_mem_usage(data)
+                    if new_mem_usage > self.max_mem_size:
+                        self.evict(cache_desc)
 
     def evict(self, cache_desc):
         """
@@ -4671,7 +4690,8 @@ class _TraceCache(Loggable):
         self.write_swap(cache_desc)
 
         try:
-            del self._cache[cache_desc]
+            with self._lock:
+                del self._cache[cache_desc]
         except KeyError:
             pass
 
@@ -4692,7 +4712,8 @@ class _TraceCache(Loggable):
         :type write_meta: bool
         """
         try:
-            data = self._cache[cache_desc]
+            with self._lock:
+                data = self._cache[cache_desc]
         except KeyError:
             pass
         else:
@@ -4703,7 +4724,10 @@ class _TraceCache(Loggable):
         """
         Attempt to write all cached data to the swap.
         """
-        for cache_desc in self._cache.keys():
+        with self._lock:
+            cache_descs = list(self._cache.keys())
+
+        for cache_desc in cache_descs:
             self.write_swap(cache_desc, **kwargs)
 
     def clear_event(self, event, raw=None):
@@ -4718,33 +4742,35 @@ class _TraceCache(Loggable):
             ``None``, ignore whether the descriptor is about raw data or not.
         :type raw: bool or None
         """
-        self._cache = {
-            cache_desc: data
-            for cache_desc, data in self._cache.items()
-            if not (
-                cache_desc.get('event') == event
-                and (
-                    raw is None
-                    or cache_desc.get('raw') == raw
+        with self._lock:
+            self._cache = {
+                cache_desc: data
+                for cache_desc, data in self._cache.items()
+                if not (
+                    cache_desc.get('event') == event
+                    and (
+                        raw is None
+                        or cache_desc.get('raw') == raw
+                    )
                 )
-            )
-        }
+            }
 
     def clear_all_events(self, raw=None):
         """
         Same as :meth:`clear_event` but works on all events at once.
         """
-        self._cache = {
-            cache_desc: data
-            for cache_desc, data in self._cache.items()
-            if (
-                # Cache entries can be associated to something else than events
-                'event' not in cache_desc or
-                # Either we care about raw and we check, or blanket clear
-                raw is None or
-                cache_desc.get('raw') == raw
-            )
-        }
+        with self._lock:
+            self._cache = {
+                cache_desc: data
+                for cache_desc, data in self._cache.items()
+                if (
+                    # Cache entries can be associated to something else than events
+                    'event' not in cache_desc or
+                    # Either we care about raw and we check, or blanket clear
+                    raw is None or
+                    cache_desc.get('raw') == raw
+                )
+            }
 
 
 class _Trace(Loggable, _InternalTraceBase):
@@ -4806,6 +4832,8 @@ class _Trace(Loggable, _InternalTraceBase):
         max_swap_size=None,
     ):
         super().__init__()
+        self._lock = threading.RLock()
+
         trace_path = str(trace_path) if trace_path else None
 
         if enable_swap:
@@ -4928,21 +4956,23 @@ class _Trace(Loggable, _InternalTraceBase):
         return self._get_metadata(key=key)
 
     def _get_metadata(self, key, parser=None, cache=True, try_hard=False):
-        if key in self._unavailable_metadata:
-            raise MissingMetadataError(key)
+        with self._lock:
+            if key in self._unavailable_metadata:
+                raise MissingMetadataError(key)
 
         def process(key, value):
             if key == 'available-events':
                 # Ensure we have a list so that it can be dumped to JSON
                 value = sorted(set(value))
 
-                # Populate the list of available events, and inform the rest of
-                # the code that this list is definitive.
-                self._update_parseable_events({
-                    event: True
-                    for event in value
-                })
-                self._strict_events = True
+                with self._lock:
+                    # Populate the list of available events, and inform the
+                    # rest of the code that this list is definitive.
+                    self._update_parseable_events({
+                        event: True
+                        for event in value
+                    })
+                    self._strict_events = True
 
             elif key == 'trace-id':
                 value = str(value)
@@ -4974,7 +5004,8 @@ class _Trace(Loggable, _InternalTraceBase):
                         # not obtain it, so we remember that to avoid wasting
                         # time spinning up a parser again in the future
                         except MissingMetadataError:
-                            self._unavailable_metadata.add(key)
+                            with self._lock:
+                                self._unavailable_metadata.add(key)
                             raise
 
                 cm = _cm()
@@ -5117,11 +5148,12 @@ class _Trace(Loggable, _InternalTraceBase):
                 self._get_metadata(key, parser=parser)
 
     def _update_parseable_events(self, mapping):
-        self._parseable_events.update(mapping)
-        self._cache.update_metadata({
-            'parseable-events': self._parseable_events,
-        })
-        return self._parseable_events
+        with self._lock:
+            self._parseable_events.update(mapping)
+            self._cache.update_metadata({
+                'parseable-events': self._parseable_events,
+            })
+            return self._parseable_events
 
     @property
     def basetime(self):
@@ -5238,12 +5270,13 @@ class _Trace(Loggable, _InternalTraceBase):
         events_to_load = sorted(events - from_cache.keys())
 
         # Cheap check to avoid spinning up the parser for nothing
-        for event in list(events_to_load):
-            if not self._parseable_events.get(event, True):
-                if allow_missing_events:
-                    events_to_load.remove(event)
-                else:
-                    raise MissingTraceEventError([event])
+        with self._lock:
+            for event in list(events_to_load):
+                if not self._parseable_events.get(event, True):
+                    if allow_missing_events:
+                        events_to_load.remove(event)
+                    else:
+                        raise MissingTraceEventError([event])
 
         df_from_trace = self._load_raw_df(events_to_load)
 
