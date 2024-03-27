@@ -27,7 +27,7 @@ import holoviews as hv
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events, requires_one_event_of, CPU, MissingTraceEventError
-from lisa.datautils import series_integrate, df_refit_index, series_refit_index, series_deduplicate, df_add_delta, series_mean, df_window, df_merge
+from lisa.datautils import series_integrate, df_refit_index, series_refit_index, series_deduplicate, df_add_delta, series_mean, df_window, df_merge, SignalDesc
 from lisa.notebook import plot_signal, _hv_neutral
 
 
@@ -70,7 +70,14 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 return df
 
         try:
-            df = self.trace.df_event('cpu_frequency', signals_init=signals_init)
+            df = self.trace.df_event(
+                'cpu_frequency',
+                signals=(
+                    [SignalDesc('cpu_frequency', ['cpu_id'])]
+                    if signals_init else
+                    []
+                )
+            )
         except MissingTraceEventError as e:
             excep = e
             df = pd.DataFrame(columns=['cpu', 'frequency'])
@@ -172,7 +179,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 if not (ref.equals(col) or ref[:-1].equals(col.shift()[1:])):
                     raise ValueError(f'Frequencies of CPUs in the freq domain {cpus} are not coherent')
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @df_cpus_frequency.used_events
     @requires_events('cpu_idle')
     def _get_frequency_residency(self, cpus):
@@ -272,7 +279,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
             domain, = domains
             return self._get_frequency_residency(tuple(domain))
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @df_cpu_frequency.used_events
     def df_cpu_frequency_transitions(self, cpu):
         """
@@ -293,7 +300,6 @@ class FrequencyAnalysis(TraceAnalysisBase):
             freq_df,
             window=self.trace.window,
             method='exclusive',
-            clip_window=False,
         )
         cpu_freqs = freq_df['frequency']
 
@@ -307,7 +313,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         return pd.DataFrame(transitions)
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @df_cpu_frequency_transitions.used_events
     def df_cpu_frequency_transition_rate(self, cpu):
         """
@@ -337,7 +343,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         freq = series_refit_index(df['frequency'], window=self.trace.window)
         return series_mean(freq)
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @requires_events('clk_set_rate', 'clk_enable', 'clk_disable')
     def df_peripheral_clock_effective_rate(self, clk_name):
 

@@ -18,15 +18,17 @@
 import json
 import os
 from unittest import TestCase
-import numpy as np
-import pandas as pd
 import copy
+import math
 
 import pytest
+import numpy as np
+import pandas as pd
 
 from devlib.target import KernelVersion
 
-from lisa.trace import Trace, TxtTraceParser, TaskID, MockTraceParser
+from lisa.trace import Trace, TxtTraceParser, MockTraceParser
+from lisa.analysis.tasks import TaskID
 from lisa.datautils import df_squash
 from lisa.platforms.platinfo import PlatformInfo
 from .utils import StorageTestCase, ASSET_DIR
@@ -57,7 +59,7 @@ class TraceTestCase(StorageTestCase):
             parser=TxtTraceParser.from_txt_file,
         )
 
-    def make_trace(self, in_data):
+    def make_trace(self, in_data, plat_info=None, events=None):
         """
         Get a trace from an embedded string of textual trace data
         """
@@ -67,10 +69,9 @@ class TraceTestCase(StorageTestCase):
 
         return Trace(
             trace_path,
-            plat_info=self.plat_info,
-            events=self.events,
+            plat_info=self.plat_info if plat_info is None else plat_info,
+            events=self.events if events is None else events,
             normalize_time=False,
-            plots_dir=self.res_dir,
             parser=TxtTraceParser.from_txt_file,
         )
 
@@ -109,35 +110,35 @@ class TestTrace(TraceTestCase):
             task_id_tuple = TaskID(pid=None, comm=name)
 
             for x in (pid, name, task_id, task_id2, task_id3, task_id_tuple):
-                assert self.trace.get_task_id(x) == task_id
+                assert self.trace.ana.tasks.get_task_id(x) == task_id
 
         with pytest.raises(ValueError):
             for x in ('sh', 'sshd', 1639, 1642, 1702, 1717, 1718):
-                self.trace.get_task_id(x)
+                self.trace.ana.tasks.get_task_id(x)
 
     def test_get_task_name_pids(self):
         for name, pids in [
             ('watchdog/0', [12]),
             ('sh', [1642, 1702, 1717, 1718]),
         ]:
-            assert self.trace.get_task_name_pids(name) == pids
+            assert self.trace.ana.tasks.get_task_name_pids(name) == pids
 
         with pytest.raises(KeyError):
-            self.trace.get_task_name_pids('NOT_A_TASK')
+            self.trace.ana.tasks.get_task_name_pids('NOT_A_TASK')
 
     def test_get_task_pid_names(self):
         for pid, names in [
             (15, ['watchdog/1']),
             (1639, ['sshd']),
         ]:
-            assert self.trace.get_task_pid_names(pid) == names
+            assert self.trace.ana.tasks.get_task_pid_names(pid) == names
 
         with pytest.raises(KeyError):
-            self.trace.get_task_pid_names(987654321)
+            self.trace.ana.tasks.get_task_pid_names(987654321)
 
     def test_get_tasks(self):
         """TestTrace: get_tasks() returns a dictionary mapping PIDs to a single task name"""
-        tasks_dict = self.trace.get_tasks()
+        tasks_dict = self.trace.ana.tasks.get_tasks()
         for pid, name in [(1, ['init']),
                           (9, ['rcu_sched']),
                           (1383, ['jbd2/sda2-8'])]:
@@ -150,11 +151,12 @@ class TestTrace(TraceTestCase):
            child-5678  [002] 18766.018236: sched_switch:          prev_comm=child prev_pid=5678 prev_prio=120 prev_state=1 next_comm=sh next_pid=3367 next_prio=120
         """
         trace = self.make_trace(in_data)
+        ana = trace.ana.tasks
 
-        assert trace.get_task_pid_names(1234) == ['father']
-        assert trace.get_task_pid_names(5678) == ['father', 'child']
-        assert trace.get_task_name_pids('father') == [1234]
-        assert trace.get_task_name_pids('father', ignore_fork=False) == [1234, 5678]
+        assert ana.get_task_pid_names(1234) == ['father']
+        assert ana.get_task_pid_names(5678) == ['father', 'child']
+        assert ana.get_task_name_pids('father') == [1234]
+        assert ana.get_task_name_pids('father', ignore_fork=False) == [1234, 5678]
 
     def test_time_range(self):
         """
@@ -275,11 +277,11 @@ class TestTrace(TraceTestCase):
              child-5678  [002] 18765.018235: sched_switch: prev_comm=child prev_pid=5678 prev_prio=120 prev_state=1 next_comm=father next_pid=5678 next_prio=120
         """
 
-        trace = self.make_trace(in_data)
-
-        plat_info = copy.copy(trace.plat_info)
+        plat_info = copy.copy(
+            self.make_trace(in_data).plat_info
+        )
         plat_info.force_src('cpus-count', ['SOURCE THAT DOES NOT EXISTS'])
-        trace.plat_info = plat_info
+        trace = self.make_trace(in_data, plat_info=plat_info)
 
         assert trace.cpus_count == 3
 
@@ -341,12 +343,7 @@ class TestTrace(TraceTestCase):
         """
         TestTrace: getPeripheralClockInfo() returns proper effective rate info.
         """
-        self.events = [
-            'clock_set_rate',
-            'clock_disable',
-            'clock_enable'
-        ]
-        trace = self.make_trace("""
+        in_data = """
           <idle>-0 [002] 380330000000: clock_enable: bus_clk state=1 cpu_id=2
           <idle>-0 [002] 380331000000: clock_set_rate: bus_clk state=750000000 cpu_id=2
           <idle>-0 [000] 380332000000: clock_disable: bus_clk state=0 cpu_id=0
@@ -354,7 +351,15 @@ class TestTrace(TraceTestCase):
           <idle>-0 [002] 380334000000: clock_set_rate: bus_clk state=100000000 cpu_id=2
           <idle>-0 [000] 380335000000: clock_disable: bus_clk state=0 cpu_id=0
           <idle>-0 [004] 380339000000: cpu_idle:             state=1 cpu_id=4
-        """)
+        """
+        trace = self.make_trace(
+            in_data,
+            events=[
+                'clock_set_rate',
+                'clock_disable',
+                'clock_enable'
+            ]
+        )
         df = trace.ana.frequency.df_peripheral_clock_effective_rate(clk_name='bus_clk')
         exp_effective_rate = [float('NaN'), 750000000, 0.0, 750000000, 100000000, 0.0]
         effective_rate = df['effective_rate'].tolist()
@@ -369,7 +374,7 @@ class TestTrace(TraceTestCase):
     def test_df_tasks_states(self):
         df = self.trace.ana.tasks.df_tasks_states()
 
-        assert len(df) == 4779
+        assert len(df) == 4780
         # Proxy check for detecting delta computation changes
         assert df.delta.sum() == pytest.approx(134.568219)
 
@@ -402,7 +407,7 @@ class TestTraceView(TraceTestCase):
         assert len(view.ana.status.df_overutilized()) == 2
 
     def test_time_range(self):
-        expected_duration = 4.0
+        expected_duration = np.nextafter(4.0, math.inf)
 
         trace = Trace(
             self.trace_path,
@@ -410,7 +415,7 @@ class TestTraceView(TraceTestCase):
             events=self.events,
             normalize_time=False,
             parser=TxtTraceParser.from_txt_file,
-        ).get_view((76.402065, 80.402065))
+        ).get_view(window=(76.402065, 80.402065))
 
         assert trace.time_range == pytest.approx(expected_duration)
 
@@ -491,7 +496,7 @@ class TestMockTraceParser(TestCase):
         assert 'target_cpu' in df.columns
 
     def test_time_range(self):
-        assert self.trace.start == 0
-        assert self.trace.end == 42
+        assert self.trace.start.as_nanoseconds == 0
+        assert self.trace.end.as_nanoseconds == 42000000000
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

@@ -125,7 +125,12 @@ class AnalysisProxy(Loggable):
 
     def __init__(self, trace, params=None):
         self._preset_params = params or {}
-        self.trace = trace
+
+        # Ensure we always feed a backward-compatible trace to the analysis
+        # functions
+        view = trace.get_view(df_fmt='pandas')
+        self.trace = view
+
         # Get the list once when the proxy is built, since we know all classes
         # will have had a chance to get registered at that point
         self._class_map = TraceAnalysisBase.get_analysis_classes()

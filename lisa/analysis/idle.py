@@ -42,7 +42,7 @@ class IdleAnalysis(TraceAnalysisBase):
 ###############################################################################
 # DataFrame Getter Methods
 ###############################################################################
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @requires_events('cpu_idle')
     def df_cpus_idle(self, cpus=None):
         """
@@ -67,7 +67,7 @@ class IdleAnalysis(TraceAnalysisBase):
         df['state'] = df['state'].replace(non_idle, -1)
         return df
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @df_cpus_idle.used_events
     def df_cpu_idle(self, cpu=None):
         """
@@ -134,7 +134,7 @@ class IdleAnalysis(TraceAnalysisBase):
 
         return cluster_active
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @signal_cpu_active.used_events
     def df_cpus_wakeups(self):
         """

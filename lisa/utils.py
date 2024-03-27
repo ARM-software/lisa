@@ -632,38 +632,42 @@ def _lru_memoized(first_param_maxsize, other_params_maxsize, sig_f):
             insertion_counter = 0
             insertion_order = WeakKeyDictionary()
 
+            lock = threading.Lock()
+
             @functools.wraps(f)
             def wrapper(first, *args, **kwargs):
                 nonlocal insertion_counter
-                try:
-                    partial = cache_map[first]
-                except KeyError:
-                    # Only keep a weak reference here for the "partial" closure
-                    ref = weakref.ref(first)
 
-                    # This partial function does not take "first" as parameter, so
-                    # that the lru_cache will not keep a reference on it
-                    @apply_lru
-                    def partial(*args, **kwargs):
-                        return f(ref(), *args, **kwargs)
+                with lock:
+                    try:
+                        partial = cache_map[first]
+                    except KeyError:
+                        # Only keep a weak reference here for the "partial" closure
+                        ref = weakref.ref(first)
 
-                    cache_map[first] = partial
-                    insertion_order[first] = insertion_counter
-                    insertion_counter += 1
+                        # This partial function does not take "first" as parameter, so
+                        # that the lru_cache will not keep a reference on it
+                        @apply_lru
+                        def partial(*args, **kwargs):
+                            return f(ref(), *args, **kwargs)
 
-                    # Delete the caches for objects that are too old
-                    if first_param_maxsize is not None:
-                        # Make sure the content of insertion_order will not
-                        # change while iterating over it
-                        to_remove = [
-                            val
-                            for val, counter in insertion_order.items()
-                            if insertion_counter - counter > first_param_maxsize
-                        ]
+                        cache_map[first] = partial
+                        insertion_order[first] = insertion_counter
+                        insertion_counter += 1
 
-                        for val in to_remove:
-                            del cache_map[val]
-                            del insertion_order[val]
+                        # Delete the caches for objects that are too old
+                        if first_param_maxsize is not None:
+                            # Make sure the content of insertion_order will not
+                            # change while iterating over it
+                            to_remove = [
+                                val
+                                for val, counter in insertion_order.items()
+                                if insertion_counter - counter > first_param_maxsize
+                            ]
+
+                            for val in to_remove:
+                                del cache_map[val]
+                                del insertion_order[val]
 
                 return partial(*args, **kwargs)
 
@@ -2678,6 +2682,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
                 fget=wrap_func(obj.fget, stacklevel=2),
                 fset=wrap_func(obj.fset, stacklevel=2),
                 fdel=wrap_func(obj.fdel, stacklevel=2),
+                doc=obj.__doc__,
             )
             return_obj = obj
             update_doc_of = obj
@@ -2688,6 +2693,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
             func = wrap_func(func, stacklevel=stacklevel)
             # Build a new staticmethod/classmethod with the updated function
             return_obj = obj.__class__(func)
+            return_obj.__dict__.update(obj.__dict__)
             # Updating the __doc__ of the staticmethod/classmethod itself will
             # have no effect, so update the doc of the underlying function
             update_doc_of = func

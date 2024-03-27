@@ -51,7 +51,7 @@ class ThermalAnalysis(TraceAnalysisBase):
 
         return df
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @requires_events("thermal_power_cpu_limit")
     def df_cpufreq_cooling_state(self, cpus=None):
         """
@@ -78,7 +78,7 @@ class ThermalAnalysis(TraceAnalysisBase):
 
         return df
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @requires_events("thermal_power_devfreq_limit")
     def df_devfreq_cooling_state(self, devices=None):
         """

@@ -26,7 +26,8 @@ import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.analysis.status import StatusAnalysis
-from lisa.trace import requires_one_event_of, may_use_events, will_use_events_from, TaskID, CPU, MissingTraceEventError, OrTraceEventChecker
+from lisa.analysis.tasks import TaskID
+from lisa.trace import requires_one_event_of, may_use_events, will_use_events_from, CPU, MissingTraceEventError, OrTraceEventChecker
 from lisa.utils import deprecate
 from lisa.datautils import df_refit_index, series_refit_index, df_filter_task_ids, df_split_signals
 from lisa.notebook import plot_signal, _hv_neutral
@@ -191,7 +192,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         """
         return self._df_either_event(self._SCHED_PELT_CFS_NAMES)
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @will_use_events_from(
         requires_one_event_of(*_SCHED_PELT_SE_NAMES),
         'sched_util_est_se'
@@ -242,7 +243,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         columns = sorted(set(df.columns) & columns)
         return df[columns]
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @df_tasks_signal.used_events
     def df_task_signal(self, task, signal):
         """
@@ -253,7 +254,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         :param signal: See :meth:`df_tasks_signal`.
         """
-        task_id = self.trace.get_task_id(task, update=False)
+        task_id = self.trace.ana.tasks.get_task_id(task, update=False)
         df = self.df_tasks_signal(signal=signal)
         return df_filter_task_ids(df, [task_id])
 
@@ -279,7 +280,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             df['required_capacity'] = self.df_tasks_signal('required_capacity')['required_capacity']
         return df
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @df_tasks_signal.used_events
     def df_top_big_tasks(self, util_threshold, min_samples=100):
         """
@@ -308,7 +309,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         top_df = pd.DataFrame(samples).rename(columns={"util": "samples"})
 
         def get_name(pid):
-            return self.trace.get_task_pid_names(pid)[-1]
+            return self.trace.ana.tasks.get_task_pid_names(pid)[-1]
         top_df["comm"] = top_df.index.map(get_name)
 
         return top_df
@@ -385,7 +386,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         :type signals: list(str)
         """
         window = self.trace.window
-        task = self.trace.get_task_id(task, update=False)
+        task = self.trace.ana.tasks.get_task_id(task, update=False)
 
         def _plot_signal(signal):
             df = self.df_task_signal(task, signal)
@@ -420,7 +421,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         """
         window = self.trace.window
 
-        task_ids = self.trace.get_task_ids(task)
+        task_ids = self.trace.ana.tasks.get_task_ids(task)
         df = self.df_tasks_signal('required_capacity')
         df = df_filter_task_ids(df, task_ids)
         df = df_refit_index(df, window=window)
@@ -445,7 +446,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         :param task: The name or PID of the task, or a tuple ``(pid, comm)``
         :type task: str or int or tuple
         """
-        task_id = self.trace.get_task_id(task, update=False)
+        task_id = self.trace.ana.tasks.get_task_id(task, update=False)
 
         # Get all utilization update events
         df = self.df_task_signal(task_id, 'required_capacity').copy()

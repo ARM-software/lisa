@@ -282,7 +282,7 @@ def interact_tasks(trace, tasks=None, kind=None):
 
     :param tasks: List of tasks that are available. See ``kind`` for
         alternative way of specifying tasks.
-    :type tasks: list(int or str or lisa.trace.TaskID) or None
+    :type tasks: list(int or str or lisa.analysis.tasks.TaskID) or None
 
     :param kind: Alternatively to ``tasks``, a kind can be provided and the
         tasks will be selected from the trace for you. It can be:
@@ -303,13 +303,13 @@ def interact_tasks(trace, tasks=None, kind=None):
     """
     if tasks is not None:
         tasks = [
-            trace.get_task_id(task, update=False)
+            trace.ana.tasks.get_task_id(task, update=False)
             for task in tasks
         ]
     else:
         kind = kind or 'all'
         if kind == 'all':
-            tasks = trace.task_ids
+            tasks = trace.ana.tasks.task_ids
         elif kind == 'rtapp':
             tasks = trace.ana.rta.rtapp_tasks
         else:
@@ -587,7 +587,7 @@ def _hv_link_dataframes(fig, dfs):
 
         df_widget = pn.widgets.Tabulator(
             df,
-            name=df.attrs.get('name', f'dataframe #{i}'),
+            name=f'dataframe #{i}',
             formatters={
                 'bool': {'type': 'tickCross'}
             },

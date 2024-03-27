@@ -2,7 +2,7 @@
 
 ALPINE_VERSION=v3.19
 ALPINE_BUILD_DEPENDENCIES=(bash git curl musl-dev clang lld)
-CROSS_COMPILATION_BROKEN=0
+BROKEN_CROSS_COMPILATION=0
 
 make_triplet() {
     case $ARCH in

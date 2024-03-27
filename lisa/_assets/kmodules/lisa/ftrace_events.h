@@ -182,12 +182,12 @@ TRACE_EVENT(lisa__sched_pelt_se,
 #if HAS_KERNEL_FEATURE(SCHED_OVERUTILIZED)
 TRACE_EVENT(lisa__sched_overutilized,
 
-	TP_PROTO(int overutilized, const char *span),
+	TP_PROTO(bool overutilized, const char *span),
 
 	TP_ARGS(overutilized, span),
 
 	TP_STRUCT__entry(
-		__field(	int,		overutilized		)
+		__field(	bool,		overutilized		)
 		__array(	char,		span,	SPAN_SIZE	)
 	),
 

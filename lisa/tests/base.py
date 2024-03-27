@@ -43,10 +43,10 @@ import IPython.display
 from devlib.collector.dmesg import KernelLogEntry
 from devlib import TargetStableError
 
-from lisa.analysis.tasks import TasksAnalysis
+from lisa.analysis.tasks import TasksAnalysis, TaskID
 from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.trace import requires_events, TraceEventCheckerBase, AndTraceEventChecker
-from lisa.trace import Trace, TaskID
+from lisa.trace import Trace
 from lisa.wlgen.rta import RTA, PeriodicWload, RTAPhase, leaf_precedence
 from lisa.target import Target
 
@@ -1347,7 +1347,7 @@ class FtraceTestBundleBase(TestBundleBase):
     @lru_memoized(first_param_maxsize=5)
     def trace(self):
         """
-        :returns: a :class:`lisa.trace.TraceView`
+        :returns: a :class:`lisa.trace._TraceView`
 
         All events specified in ``FTRACE_CONF`` are parsed from the trace,
         so it is suitable for direct use in methods.
@@ -1707,7 +1707,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
     def rtapp_task_ids_map(self):
         """
         Mapping of task names as specified in the rtapp profile to list of
-        :class:`lisa.trace.TaskID` names found in the trace.
+        :class:`lisa.analysis.tasks.TaskID` names found in the trace.
 
         If the task forked, the list will contain more than one item.
         """
@@ -1722,10 +1722,10 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
     @_rtapp_tasks_events
     def rtapp_task_ids(self):
         """
-        The rtapp task :class:`lisa.trace.TaskID` as found from the trace in
+        The rtapp task :class:`lisa.analysis.tasks.TaskID` as found from the trace in
         this bundle.
 
-        :return: the list of actual trace task :class:`lisa.trace.TaskID`
+        :return: the list of actual trace task :class:`lisa.analysis.tasks.TaskID`
         """
         return sorted(itertools.chain.from_iterable(self.rtapp_task_ids_map.values()))
 
@@ -1761,7 +1761,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
     @lru_memoized(first_param_maxsize=5)
     def trace(self):
         """
-        :returns: a :class:`lisa.trace.TraceView` cropped to the window given
+        :returns: a :class:`lisa.trace._TraceView` cropped to the window given
             by :meth:`trace_window`.
 
         .. seealso:: :attr:`FtraceTestBundleBase.trace`
@@ -1793,11 +1793,11 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
             # Find out which task(s) this threshold is about
             if isinstance(key, str):
                 comms = df.loc[df['comm'].str.match(key), 'comm']
-                task_ids = comms.apply(self.trace.get_task_id)
+                task_ids = comms.apply(self.trace.ana.tasks.get_task_id)
             else:
                 # Use update=False to let None fields propagate, as they are
                 # used to indicate a "dont care" value
-                task_ids = [self.trace.get_task_id(key, update=False)]
+                task_ids = [self.trace.ana.tasks.get_task_id(key, update=False)]
 
             # For those tasks, check the cumulative threshold
             runtime_pct_sum = df_filter_task_ids(df,

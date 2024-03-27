@@ -311,7 +311,6 @@ impl Mmap {
                 memmap2::MmapOptions::new()
                     .offset(offset)
                     .len(len)
-                    .populate()
                     .map(file)
             };
             match mmap {
@@ -325,6 +324,9 @@ impl Mmap {
             }
         }?;
 
+        // This MADV_WILLNEED is equivalent to MAP_POPULATE in terms of enabling read-ahead but
+        // will not trigger a complete read in memory upon creation of the mapping. This
+        // dramatically lowers the reported RES memory consumption at no performance cost.
         let _ = mmap.advise(memmap2::Advice::WillNeed);
         let _ = mmap.advise(memmap2::Advice::Sequential);
 

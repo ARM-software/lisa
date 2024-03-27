@@ -99,7 +99,7 @@ class NotebookAnalysis(TraceAnalysisBase):
         )
         return x
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     def _df_all_events(self, events, field_sep=' ', fields_as_cols=None, event_as_col=True):
         """
         Split implementation to be able to use the cache
@@ -225,7 +225,7 @@ class NotebookAnalysis(TraceAnalysisBase):
         :param filter_columns: Pre-filter the dataframe using
             :func:`lisa.datautils.df_filter`. Also, a signal will be inferred
             from the column names being used and will be passed to
-            :meth:`lisa.trace.Trace.df_event`.
+            :meth:`lisa.trace.TraceBase.df_event`.
         :type filter_columns: dict or None
 
         :param filter_f: Function used to filter the dataframe of the event.
