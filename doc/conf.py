@@ -40,7 +40,7 @@ from lisa._doc.helpers import (
     autodoc_process_test_method, autodoc_process_analysis_events,
     autodoc_process_analysis_plots, autodoc_process_analysis_methods,
     autodoc_skip_member_handler,
-    DocPlotConf, get_xref_type,
+    DocPlotConf, get_xref_type, autodoc_pre_make_plots
 )
 
 # Do not rely on LISA_HOME as it may not be set and will default to current
@@ -393,6 +393,7 @@ intersphinx_mapping = {
     'matplotlib': ('https://matplotlib.org/stable/', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
     'holoviews': ('https://holoviews.org/', None),
+    'polars': ('https://docs.pola.rs/py-polars/html/', None),
     # XXX: Doesn't seem to work, might be due to how devlib doc is generated
     'devlib': ('https://devlib.readthedocs.io/en/latest/', None),
     'wa': ('https://workload-automation.readthedocs.io/en/latest/', None),
@@ -480,6 +481,12 @@ ignored_refs = {
     # :class:`typing.List[str]` since it does not seem to have specific support
     # for the bracketed syntax in that role.
     r'typing.*',
+
+
+    # Polars intersphinx inventory is incomplete:
+    # https://github.com/pola-rs/polars/issues/7027
+    # https://docs.pola.rs/py-polars/html/objects.inv
+    r'polars.*',
 }
 ignored_refs.update(
     re.escape(f'{x.__module__}.{x.__qualname__}')
@@ -507,11 +514,20 @@ class CustomPythonDomain(PythonDomain):
 def setup(app):
     app.add_domain(CustomPythonDomain, override=True)
 
-    plot_conf_path = os.path.join(HOME, 'doc', 'plot_conf.yml')
-    plot_conf = DocPlotConf.from_yaml_map(plot_conf_path)
+    # We pre-generate all the plots, otherwise we would end up running polars
+    # code in a multiprocessing subprocess created by forking CPython, leading
+    # to deadlocks:
+    # https://github.com/sphinx-doc/sphinx/issues/12201
+    if int(os.environ.get('LISA_DOC_BUILD_PLOT', '1')):
+        plot_conf_path = os.path.join(HOME, 'doc', 'plot_conf.yml')
+        plot_conf = DocPlotConf.from_yaml_map(plot_conf_path)
+        plots = autodoc_pre_make_plots(plot_conf)
+    else:
+        plots = {}
+
     _autodoc_process_analysis_plots_handler = functools.partial(
         autodoc_process_analysis_plots,
-        plot_conf=plot_conf,
+        plots=plots,
     )
     _autodoc_skip_member_handler = functools.partial(
         autodoc_skip_member_handler,
@@ -522,7 +538,6 @@ def setup(app):
     app.connect('autodoc-process-docstring', autodoc_process_analysis_events)
     app.connect('autodoc-process-docstring', autodoc_process_analysis_methods)
     app.connect('autodoc-skip-member',       _autodoc_skip_member_handler)
-    if int(os.environ.get('LISA_DOC_BUILD_PLOT', '1')):
-        app.connect('autodoc-process-docstring', _autodoc_process_analysis_plots_handler)
+    app.connect('autodoc-process-docstring', _autodoc_process_analysis_plots_handler)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab:

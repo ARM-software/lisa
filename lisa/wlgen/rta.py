@@ -1145,7 +1145,7 @@ class RTA(Workload):
         task_map = {
             prefix: sorted(
                 task_id
-                for task_id in trace.task_ids
+                for task_id in trace.ana.tasks.task_ids
                 if re.match(regexp, task_id.comm)
             )
             for prefix, regexp in prefix_regexps.items()
@@ -1165,10 +1165,10 @@ class RTA(Workload):
     def resolve_trace_task_names(cls, trace, names):
         """
         Translate an RTA profile task name to a list of
-        :class:`lisa.trace.TaskID` as found in a :class:`lisa.trace.Trace`.
+        :class:`lisa.analysis.tasks.TaskID` as found in a :class:`lisa.trace.Trace`.
 
         :returns: A dictionnary of ``rt-app`` profile names to list of
-            :class:`lisa.trace.TaskID` The list will contain more than one item
+            :class:`lisa.analysis.tasks.TaskID` The list will contain more than one item
             if the task forked.
 
         :param trace: Trace to look at.
@@ -1195,7 +1195,7 @@ class RTA(Workload):
 
     def get_trace_task_names(self, trace):
         """
-        Get a dictionnary of :class:`lisa.trace.TaskID` used in the given trace
+        Get a dictionnary of :class:`lisa.analysis.tasks.TaskID` used in the given trace
         for this task.
         """
         return self.resolve_trace_task_names(trace, self.tasks)

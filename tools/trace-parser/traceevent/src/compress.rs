@@ -60,12 +60,10 @@ impl Decompressor for DynDecompressor {
     }
 }
 
-#[cfg(target_arch = "x86_64")]
 pub(crate) struct ZstdDecompressor {
     inner: ThreadLocal<RefCell<zstd::bulk::Decompressor<'static>>>,
 }
 
-#[cfg(target_arch = "x86_64")]
 impl ZstdDecompressor {
     pub fn new() -> Self {
         ZstdDecompressor {
@@ -82,7 +80,6 @@ impl ZstdDecompressor {
     }
 }
 
-#[cfg(target_arch = "x86_64")]
 impl Decompressor for ZstdDecompressor {
     #[inline]
     fn to_dyn(&self) -> Box<dyn Decompressor> {
@@ -102,29 +99,32 @@ impl Decompressor for ZstdDecompressor {
     }
 }
 
-#[cfg(not(target_arch = "x86_64"))]
-pub(crate) struct ZstdDecompressor;
+// ruzstd is a pure-Rust implementation of zstd which can ease cross compiling, but at the moment
+// we don't really need it so leave it at that.
 
-#[cfg(not(target_arch = "x86_64"))]
-impl ZstdDecompressor {
-    pub fn new() -> Self {
-        ZstdDecompressor
-    }
-}
+// #[cfg(not(target_arch = "x86_64"))]
+// pub(crate) struct ZstdDecompressor;
 
-#[cfg(not(target_arch = "x86_64"))]
-impl Decompressor for ZstdDecompressor {
-    #[inline]
-    fn to_dyn(&self) -> Box<dyn Decompressor> {
-        Box::new(Self::new())
-    }
+// #[cfg(not(target_arch = "x86_64"))]
+// impl ZstdDecompressor {
+    // pub fn new() -> Self {
+        // ZstdDecompressor
+    // }
+// }
 
-    fn decompress_into(&self, src: &[u8], dst: &mut [u8]) -> io::Result<()> {
-        use std::io::Read as _;
-        let mut decoder = ruzstd::StreamingDecoder::new(src).map_err(io::Error::other)?;
-        decoder.read_exact(dst)
-    }
-}
+// #[cfg(not(target_arch = "x86_64"))]
+// impl Decompressor for ZstdDecompressor {
+    // #[inline]
+    // fn to_dyn(&self) -> Box<dyn Decompressor> {
+        // Box::new(Self::new())
+    // }
+
+    // fn decompress_into(&self, src: &[u8], dst: &mut [u8]) -> io::Result<()> {
+        // use std::io::Read as _;
+        // let mut decoder = ruzstd::StreamingDecoder::new(src).map_err(io::Error::other)?;
+        // decoder.read_exact(dst)
+    // }
+// }
 
 pub(crate) struct ZlibDecompressor {
     inner: ThreadLocal<RefCell<libdeflater::Decompressor>>,

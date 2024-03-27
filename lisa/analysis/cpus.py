@@ -36,7 +36,7 @@ class CpusAnalysis(TraceAnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    @TraceAnalysisBase.cache
+    @TraceAnalysisBase.df_method
     @requires_events('sched_switch')
     def df_context_switches(self):
         """
@@ -48,13 +48,15 @@ class CpusAnalysis(TraceAnalysisBase):
         """
         # Since we want to count the number of context switches, we don't want
         # all tasks to appear
-        sched_df = self.trace.df_event('sched_switch', signals_init=False)
+        sched_df = self.trace.df_event(
+            'sched_switch',
+            signals=[],
+        )
         # Make sure to only get the switches inside the window
         sched_df = df_window(
             sched_df,
             method='exclusive',
             window=self.trace.window,
-            clip_window=False,
         )
         cpus = list(range(self.trace.cpus_count))
         ctx_sw_df = pd.DataFrame(

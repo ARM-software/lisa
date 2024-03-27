@@ -34,8 +34,7 @@ import shlex
 import contextlib
 import tempfile
 from functools import wraps
-from collections.abc import Set, Mapping, Sequence
-from collections import namedtuple
+from collections.abc import Set, Mapping, Sequence, Iterable
 from operator import itemgetter, attrgetter
 from numbers import Number, Integral, Real
 import multiprocessing
@@ -47,111 +46,269 @@ import fnmatch
 import typing
 from pathlib import Path
 from difflib import get_close_matches
+import weakref
+import atexit
+import threading
+import warnings
 
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 import pyarrow.lib
 import pyarrow.parquet
+import polars as pl
 
 import devlib
 
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, bothmethod
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
-from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert
+from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to_polars, _df_to_pandas, _df_to, _polars_df_in_memory, Timestamp
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString
 from lisa._kmod import LISADynamicKmod
 from lisa._assets import get_bin
 
 
-class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
-    """
-    Unique identifier of a logical task in a :class:`Trace`.
-
-    :param pid: PID of the task. ``None`` indicates the PID is not important.
-    :type pid: int
-
-    :param comm: Name of the task. ``None`` indicates the name is not important.
-        This is useful to describe tasks like PID0, which can have multiple
-        names associated.
-    :type comm: str
-    """
-
-    # Prevent creation of a __dict__. This allows a more compact representation
-    __slots__ = []
-
-    def __init__(self, *args, **kwargs):
-        # pylint: disable=unused-argument
-        super().__init__()
-        # This happens when the number of saved PID/comms entries in the trace
-        # is too low
-        if self.comm == '<...>':
-            raise ValueError('Invalid comm name "<...>", please increase saved_cmdlines_nr value on FtraceCollector')
-
-    def __str__(self):
-        if self.pid is not None and self.comm is not None:
-            out = f'{self.pid}:{self.comm}'
-        else:
-            out = str(self.comm if self.comm is not None else self.pid)
-
-        return f'[{out}]'
-
-    _STR_PARSE_REGEX = re.compile(r'\[?([0-9]+):([a-zA-Z0-9_-]+)\]?')
+def _deprecated_warn(msg, **kwargs):
+    warnings.warn(msg, DeprecationWarning, **kwargs)
 
 
-class _TaskIDFromStringInstance(FromString, types=TaskID):
-    """
-    Instance of :class:`lisa._typeclass.FromString` for :class:`TaskID` type.
-    """
-    @classmethod
-    def from_str(cls, string):
-        # pylint: disable=unexpected-keyword-arg, no-value-for-parameter
+def __getattr__(name):
+    if name == 'TaskID':
+        _deprecated_warn(f'TaskID has been moved to lisa.analysis.tasks.TaskID, update your import accordingly')
+        from lisa.analysis.tasks import TaskID
+        return TaskID
+    else:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+_DEALLOCATORS = weakref.WeakSet()
+_DEALLOCATORS_LOCK = threading.RLock()
+
+def _dealloc_all():
+    with _DEALLOCATORS_LOCK:
+        for deallocator in _DEALLOCATORS:
+            deallocator.run()
+atexit.register(_dealloc_all)
+
+def _file_cleanup(paths):
+    for path in paths:
         try:
-            pid = int(string)
-            comm = None
-        except ValueError:
-            match = cls._STR_PARSE_REGEX.match(string)
-            if match:
-                pid = int(match.group(1))
-                comm = match.group(2)
-            else:
-                pid = None
-                comm = string
+            shutil.rmtree(path)
+        except Exception:
+            pass
 
-        return cls(pid=pid, comm=comm)
+
+def _identity(x):
+    return x
+def _make_identity():
+    return _identity
+
+
+class _Deallocator:
+    def __init__(self, f, on_del=True, at_exit=True):
+        self.f = f
+        self._on_del = on_del
+        if at_exit:
+            with _DEALLOCATORS_LOCK:
+                _DEALLOCATORS.add(self)
+
+        self._lock = threading.Lock()
+
+    def run(self):
+        with self._lock:
+            if (f := self.f) is not None:
+                self.f = None
+                f()
+
+    def __del__(self):
+        if self._on_del:
+            self.run()
+
+    # We never make a new copy. This is required so that only a single
+    # deallocator ever handles a given resource.
+    def __copy__(self):
+        return self
+    def __deepcopy__(self, memo):
+        return self
+
+
+class _LazyFrameOnDelete(_Deallocator):
+    @classmethod
+    def _attach(cls, df, f):
+        return df.map_batches(
+            cls(f),
+            streamable=True,
+            validate_output_schema=False,
+        )
 
     @classmethod
-    def get_format_description(cls, short):
-        if short:
-            return 'task ID'
+    def attach_file_cleanup(cls, df, paths):
+        paths = sorted(set(paths))
+        if paths:
+            df = cls._attach(
+                df,
+                functools.partial(
+                    _file_cleanup,
+                    paths,
+                )
+            )
+        return df
+
+    def __call__(self, x):
+        return x
+
+    def __reduce__(self):
+        # Replace itself with an identity function upon deserialization, so
+        # that we don't accidentally end up with 2 objects owning the same set
+        # of paths.
+        return (_make_identity, tuple())
+
+
+def _make_hardlink(src, dst):
+    try:
+        os.link(src, dst)
+    except FileExistsError:
+        pass
+
+
+def _logical_plan_resolve_paths(cache, plan, kind):
+    swap_dir = Path(cache.swap_dir).resolve()
+
+    hardlinks_base = Path(uuid.uuid4().hex)
+    hardlinks = set()
+    def update_path(path):
+        path = Path(path)
+        if kind == 'dump':
+            path = path.relative_to(swap_dir)
+            # Remove the "hardlinks" part of the path so we point at the file
+            # in the cache
+            if path.parts[0] == 'hardlinks':
+                path = swap_dir / path.name
+            return path
+        elif kind == 'load':
+            assert not path.is_absolute()
+
+            # Create a hardlink to the data so that the data backing the
+            # LazyFrame we are reloading is guaranteed to stay around long
+            # enough and will not be scrubbed away.
+            hardlink_base, hardlink_path = cache._hardlink_path(hardlinks_base, path.name)
+            _make_hardlink(swap_dir / path, hardlink_path)
+            hardlinks.add(hardlink_base)
+            return hardlink_path
         else:
-            return textwrap.dedent("""
-            Can be any of:
-               * a PID
-               * a task name
-               * a PID (first) and a name (second): pid:name
-            """).strip()
+            raise ValueError(f'Unknown kind {kind}')
+    plan = _logical_plan_update_paths(plan, update_path=update_path)
+    return (plan, hardlinks)
 
 
-class _TaskIDSeqFromStringInstance(FromString, types=(typing.List[TaskID], typing.Sequence[TaskID])):
-    """
-    Instance of :class:`lisa._typeclass.FromString` for lists :class:`TaskID` type.
-    """
-    @classmethod
-    def from_str(cls, string):
+def _logical_plan_update_paths(plan, update_path):
+    def fixup_scans(obj):
+        if isinstance(obj, Mapping):
+            try:
+                scan = obj['Scan']
+            except KeyError:
+                return fixup_scans(obj.values())
+            else:
+                scan['paths'] = [
+                    str(update_path(path))
+                    for path in scan['paths']
+                ]
+        elif isinstance(obj, str):
+            return
+        elif isinstance(obj, Iterable):
+            for value in obj:
+                fixup_scans(value)
+
+    plan = plan.copy()
+    fixup_scans(plan)
+    return plan
+
+
+def _convert_df_from_parser(df, cache):
+    def to_polars(df):
+        if isinstance(df, pd.DataFrame):
+            df.index.name = 'Time'
+        df = _df_to_polars(df)
+        return df
+
+    def move_to_cache(df, cache):
         """
-        The format is a comma-separated list of :class:`TaskID`.
+        Move data files backing a :class:`polars.LazyFrame` into the trace
+        cache, so that freeing the temporary storage used by the trace parser
+        does not break the returned objects.
         """
-        from_str = FromString(TaskID).from_str
-        return [
-            from_str(string.strip())
-            for string in string.split(',')
-        ]
+        def update_path(path, hardlinks_base, hardlinks):
+            cache_path = cache.insert_disk_only(
+                spec=dict(
+                    # This unique key ensures we will never accidentally re-use
+                    # that path for anything else.
+                    key=uuid.uuid4().hex,
+                ),
+                compute_cost=None,
+            )
+            hardlink_base, hardlink_path = cache._hardlink_path(hardlinks_base, cache_path.name)
 
-    @classmethod
-    def get_format_description(cls, short):
-        return 'comma-separated TaskIDs'
+            # Move the original file under the hardlinks/ folder
+            shutil.move(path, hardlink_path)
+
+            # Hardlink the new path to a normal swap entry
+            _make_hardlink(hardlink_path, cache_path)
+
+            # Use the path under hardlinks/ so that if the swap entry gets
+            # scrubed away, the existing LazyFrame will not break as they
+            # will refer to the ones maintained by the trace.
+            hardlinks.add(hardlink_base)
+            return hardlink_path
+
+        def fixup(df):
+            if isinstance(df, pl.LazyFrame):
+                if cache is not None and cache.swap_dir:
+                    hardlinks = set()
+                    df = _lazyframe_rewrite(
+                        df=df,
+                        update_plan=functools.partial(
+                            _logical_plan_update_paths,
+                            update_path=functools.partial(
+                                update_path,
+                                hardlinks_base=uuid.uuid4().hex,
+                                hardlinks=hardlinks
+                            )
+                        )
+                    )
+
+                    # TODO: Ideally we should only attach that to the LazyFrame
+                    # right before leaking it in df_event, otherwise we end up
+                    # serializing in the cache the deallocator as well. This is
+                    # not a huge problem though, but it does mean that we will
+                    # end up with 2 layers of "map_batches(identity)" on
+                    # LazyFrames reloaded from the cache.
+                    df = _LazyFrameOnDelete.attach_file_cleanup(df, hardlinks)
+
+                # If we cannot move the backing data to the swap folder, we are
+                # forced to just load the data eagerly as backing storage (e.g.
+                # tmp folder) will probably disappear
+                else:
+                    df = df.collect()
+
+            return to_polars(df)
+        return fixup(df)
+    return move_to_cache(df, cache=cache)
+
+
+def _lazyframe_rewrite(df, update_plan):
+    assert isinstance(df, pl.LazyFrame)
+
+    # TODO: once this is solved, we can just inspect the plan rather than
+    # serialize()/deserialize() in JSON
+    # https://github.com/pola-rs/polars/issues/9771
+    plan = df.serialize()
+    plan = json.loads(plan)
+    plan = update_plan(plan)
+    plan = json.dumps(plan)
+    plan = io.StringIO(plan)
+    df = pl.LazyFrame.deserialize(plan)
+    return df
 
 
 CPU = newtype(int, 'CPU', doc='Alias to ``int`` used for CPU IDs')
@@ -196,6 +353,12 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
     manager multiple times in its lifetime.
     """
 
+    _STEAL_FILES = False
+    """
+    If ``True``, files backing a :class:`polars.LazyFrame` will  be stolen by
+    :class:`~lisa.trace.Trace` to add them to the cache.
+    """
+
     METADATA_KEYS = [
         'time-range',
         'symbols-address',
@@ -207,10 +370,11 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
     Possible metadata keys
     """
 
-    def __init__(self, events, needed_metadata=None):
+    def __init__(self, events, temp_dir, needed_metadata=None):
         # pylint: disable=unused-argument
         self._requested_metadata = set(needed_metadata or [])
         self._requested_events = set(events or [])
+        self._temp_dir = Path(temp_dir)
 
     def get_metadata(self, key):
         """
@@ -382,7 +546,11 @@ class MockTraceParser(TraceParserBase):
     """
     @kwargs_forwarded_to(TraceParserBase.__init__)
     def __init__(self, dfs, time_range=None, events=None, path=None, **kwargs):
-        self.dfs = dfs
+        self.dfs = {
+            event: _df_to_polars(df)
+            for event, df in dfs.items()
+        }
+
         # "path" is useless for now, but it's part of the Trace API, and it will
         # be used for the dataframe cache as well.
         #
@@ -396,7 +564,7 @@ class MockTraceParser(TraceParserBase):
 
     def parse_event(self, event):
         try:
-            return self.dfs[event].copy(deep=True)
+            return self.dfs[event]
         except KeyError as e:
             raise MissingTraceEventError(
                 [event],
@@ -407,17 +575,22 @@ class MockTraceParser(TraceParserBase):
         if key == 'time-range':
             if self._time_range:
                 return self._time_range
-            elif self.dfs:
-                indices = [
-                    df.index
-                    for df in self.dfs.values()
-                    if not df.empty
-                ]
-
-                return (
-                    float(min(map(itemgetter(0), indices))),
-                    float(max(map(itemgetter(-1), indices))),
+            elif (dfs := self.dfs):
+                df = pl.concat(
+                    df.select('Time')
+                    for df in dfs.values()
                 )
+                df = df.with_columns(
+                    Time=pl.col('Time').cast(pl.Duration('ns')).cast(pl.Int64)
+                )
+
+                start, end = df.select(
+                    (pl.min('Time'), pl.max('Time'))
+                ).collect().row(0)
+
+                start = Timestamp(start, unit='ns', rounding='down')
+                end = Timestamp(end, unit='ns', rounding='up')
+                return (start, end)
             else:
                 return (0, 0)
 
@@ -462,14 +635,17 @@ class TraceDumpTraceParser(TraceParserBase):
     """
     trace.dat parser shipped by LISA
     """
+
+    _STEAL_FILES = True
+
     @kwargs_forwarded_to(TraceParserBase.__init__)
     def __init__(self, path, events, needed_metadata=None, **kwargs):
         super().__init__(events=events, needed_metadata=needed_metadata, **kwargs)
         self._trace_path = str(Path(path).resolve())
         self._metadata = {}
-        self._temp_dir = None
 
     def __enter__(self):
+        temp_dir = self._temp_dir
         events = self._requested_events
         path = self._trace_path
         needed_metadata = (
@@ -478,40 +654,42 @@ class TraceDumpTraceParser(TraceParserBase):
         )
         meta = {}
 
-        temp_dir = tempfile.TemporaryDirectory()
-        self._temp_dir = temp_dir
-
         # time-range will not be available in the basic metadata, this requires
         # a full parse
         if events or ('time-range' in needed_metadata):
             meta = self._make_parquets(
                 path=path,
                 events=events,
-                temp_dir=temp_dir.name
+                temp_dir=temp_dir
             )
+            for desc in meta['events-info']:
+                _path = desc.get('path')
+                if _path is not None:
+                    _path = temp_dir / _path
+                    event = desc['event']
+
         elif needed_metadata:
             meta = self._make_metadata(
                 path=path,
-                temp_dir=temp_dir.name
+                temp_dir=temp_dir,
             )
 
         self._metadata.update(meta)
         return self
 
     def __exit__(self, *args, **kwargs):
-        if (temp_dir := self._temp_dir):
-            temp_dir.__exit__(*args, **kwargs)
+        pass
 
     @classmethod
     def from_dat(cls, path, events, **kwargs):
         return cls(path=path, events=events, **kwargs)
 
     @classmethod
-    def _run(cls, cli_args, temp_dir, run_kwargs=None):
+    def _run(cls, cli_args, temp_dir):
         logger = cls.get_logger()
 
         trace_dump = get_bin('trace-dump')
-        errors_path = Path(temp_dir) / 'errors.json'
+        errors_path = 'errors.json'
         cmd = (
             trace_dump,
             '--errors-json', errors_path,
@@ -526,9 +704,9 @@ class TraceDumpTraceParser(TraceParserBase):
         try:
             completed = subprocess.run(
                 cmd,
-                **(run_kwargs or {}),
                 check=True,
                 capture_output=True,
+                cwd=temp_dir,
             )
         except subprocess.CalledProcessError as e:
             log(e.stdout, e.stderr)
@@ -539,7 +717,7 @@ class TraceDumpTraceParser(TraceParserBase):
             return stdout
         finally:
             try:
-                with open(errors_path) as f:
+                with open(temp_dir / errors_path) as f:
                     errors = json.load(f)
             except FileNotFoundError:
                 pass
@@ -556,7 +734,9 @@ class TraceDumpTraceParser(TraceParserBase):
         except KeyError:
             pass
         else:
-            meta['time-range'] = (start / 1e9, end / 1e9)
+            start = Timestamp(start, unit='ns', rounding='down')
+            end = Timestamp(end, unit='ns', rounding='up')
+            meta['time-range'] = (start, end)
 
         try:
             meta['pid-comms'] = dict(meta['pid-comms'])
@@ -578,7 +758,6 @@ class TraceDumpTraceParser(TraceParserBase):
 
     @classmethod
     def _make_parquets(cls, events, path, temp_dir):
-        temp_dir = Path(temp_dir)
         cls._run(
             cli_args=(
                 '--trace', path,
@@ -594,7 +773,6 @@ class TraceDumpTraceParser(TraceParserBase):
                     for arg in ('--events', _event)
                 )
             ),
-            run_kwargs=dict(cwd=temp_dir),
             temp_dir=temp_dir,
         )
 
@@ -626,14 +804,14 @@ class TraceDumpTraceParser(TraceParserBase):
                 return '<...>'
         return Mapper(pid_comms)
 
-    def _parse_event(self, event):
+    def parse_event(self, event):
         try:
             desc = self._event_descs[event]
         except KeyError:
             raise MissingTraceEventError([event])
         else:
             pid_comms = self._pid_comms
-            temp_dir = Path(self._temp_dir.name)
+            temp_dir = Path(self._temp_dir)
 
             if errors := desc['errors']:
                 # Only raise a TraceDumpError if the event is contained within
@@ -642,46 +820,65 @@ class TraceDumpTraceParser(TraceParserBase):
             else:
                 if (path := desc.get('path')) is None:
                     raise FileNotFoundError(f'No parquet file for event "{event}"')
+                # TODO: For now, we cannot know if the event was selected or not when
+                # trace-cmd was invoked so we just assume that if no occurence
+                # exist, the event is missing. This might get fixed one day
+                # (e.g. if trace-cmd records its CLI parameters to trace.dat).
+                elif desc['nr-rows'] < 1:
+                    raise MissingTraceEventError([event])
                 else:
-                    df = pd.read_parquet(temp_dir / path)
+                    df = pl.scan_parquet(temp_dir / path)
                     df = self._fixup_df(
+                        event=event,
                         df=df,
                         pid_comms=pid_comms,
                     )
                     return df
 
-    @classmethod
-    def _fixup_df(cls, df, pid_comms):
-        df.rename(
-            columns={
-                'common_ts': 'Time',
-                'common_pid': '__pid',
-                'common_cpu': '__cpu',
-            },
-            inplace=True,
+    def _fixup_df(self, event, df, pid_comms):
+        df = df.rename({
+            'common_ts': 'Time',
+            'common_pid': '__pid',
+            'common_cpu': '__cpu',
+        })
+        df = df.with_columns([
+            pl.col('Time').cast(pl.Duration("ns")),
+            pl.col('__pid').replace(pid_comms).alias('__comm')
+        ])
+        df = df.drop('common_type', 'common_flags', 'common_preempt_count')
+
+        monotonic_clocks = (
+            'local',
+            'global',
+            'uptime',
+            'x86-tsc',
+            'mono',
+            'mono_raw',
+            'counter'
         )
-        df['Time'] /= 1e9
-
-        df['__comm'] = df['__pid'].map(pid_comms)
-
-        df.set_index('Time', inplace=True)
-        df.drop(['common_type', 'common_flags', 'common_preempt_count'], errors='ignore', inplace=True)
-        return df
-
-    def parse_event(self, event):
-        try:
-            df = self._parse_event(event)
-        except MissingTraceEventError:
-            raise
+        if self._metadata.get('trace-clock') in monotonic_clocks:
+            df = df.set_sorted('Time')
         else:
-            # For now, we consider an empty df as being the sign of a missing
-            # event. This may change in the future if trace.dat somehow records
-            # the set of events that were actually enabled during tracing.
-            if df.empty:
-                raise MissingTraceEventError([event])
-            else:
-                return df
+            df = df.sort('Time')
 
+        # Turn all "comm" columns into categorical columns
+        categorical_cols = [
+            col
+            for col, dtype in df.schema.items()
+            if isinstance(dtype, pl.String) and (
+                col in ('comm', 'oldcomm', 'newcomm') or
+                col.startswith('comm_') or
+                col.endswith('_comm')
+            )
+        ]
+
+        if categorical_cols:
+            df = df.with_columns([
+                pl.col(col).cast(pl.Categorical)
+                for col in categorical_cols
+            ])
+
+        return df
 
     def get_metadata(self, key):
         try:
@@ -1049,6 +1246,7 @@ class TxtTraceParserBase(TraceParserBase):
 
     _RE_MATCH_CLS = re.Match
 
+    @kwargs_forwarded_to(TraceParserBase.__init__)
     def __init__(self,
         lines,
         events=None,
@@ -1056,9 +1254,10 @@ class TxtTraceParserBase(TraceParserBase):
         event_parsers=None,
         default_event_parser_cls=None,
         pre_filled_metadata=None,
+        **kwargs,
     ):
         needed_metadata = set(needed_metadata or [])
-        super().__init__(events, needed_metadata=needed_metadata)
+        super().__init__(events, needed_metadata=needed_metadata, **kwargs)
         self._pre_filled_metadata = pre_filled_metadata or {}
         events = set(events or [])
 
@@ -1267,7 +1466,6 @@ class TxtTraceParserBase(TraceParserBase):
 
         begin_time = None
         end_time = None
-        time_type = getattr(np, self.HEADER_FIELDS['__timestamp'])
 
         # THE FOLLOWING LOOP IS A THE MOST PERFORMANCE-SENSITIVE PART OF THAT
         # CLASS, APPLY EXTREME CARE AND BENCHMARK WHEN MODIFYING
@@ -1281,13 +1479,11 @@ class TxtTraceParserBase(TraceParserBase):
         append = list.append
         group = self._RE_MATCH_CLS.group
         groups = self._RE_MATCH_CLS.groups
-        nextafter = np.nextafter
         inf = math.inf
-        line_time = 0
+        prev_time = Timestamp(0, unit='ns')
         parse_time = '__timestamp' in skeleton_regex.groupindex.keys()
 
         for line in lines:
-            prev_time = line_time
             if time_is_provided:
                 line_time, line = line
 
@@ -1295,18 +1491,6 @@ class TxtTraceParserBase(TraceParserBase):
             # Stop at the first non-matching line
             try:
                 event = group(match, '__event')
-                line_time = time_type(group(match, '__timestamp'))
-            # Assume only "time" is not in the regex. Keep that out of the hot
-            # path since it's only needed in rare cases (like nesting parsers)
-            except IndexError:
-                # If we are supposed to parse time, let's re-raise the
-                # exception
-                if parse_time:
-                    raise
-                else:
-                    # Otherwise, make sure "event" is defined so that we only
-                    # go a match failure on "time"
-                    event # pylint: disable=pointless-statement
             # The line did not match the skeleton regex, so skip it
             except TypeError:
                 if b'EVENTS DROPPED' in line:
@@ -1314,13 +1498,17 @@ class TxtTraceParserBase(TraceParserBase):
                 # Unknown line, could be coming e.g. from stderr
                 else:
                     continue
-
-            # Do a global deduplication of timestamps, across all
-            # events regardless of the one we will parse. This ensures
-            # stable results and joinable dataframes from multiple
-            # parser instance.
-            if line_time <= prev_time:
-                line_time = nextafter(prev_time, inf)
+            else:
+                if not time_is_provided:
+                    line_time = Timestamp(group(match, '__timestamp').decode('utf-8'))
+                    # Do a global deduplication of timestamps, across all
+                    # events regardless of the one we will parse. This ensures
+                    # stable results and joinable dataframes from multiple
+                    # parser instance.
+                    line_time = line_time.as_nanoseconds
+                    if line_time <= prev_time:
+                        line_time += prev_time - line_time + 2
+                    prev_time = line_time
 
             if begin_time is None:
                 begin_time = line_time
@@ -1374,7 +1562,11 @@ class TxtTraceParserBase(TraceParserBase):
                 df = self._make_df_from_data(parser.regex, data, ['__timestamp'])
                 # Post-process immediately to shorten the memory consumption
                 # peak
-                df = self._postprocess_df(decoded_event, parser, df)
+                df = self._postprocess_df(
+                    decoded_event,
+                    parser,
+                    df,
+                )
                 events_df[decoded_event] = df
 
         # Compute the skeleton dataframe for the events that have not been
@@ -1390,6 +1582,18 @@ class TxtTraceParserBase(TraceParserBase):
         available_events.update(skeleton_df['__event'].unique())
 
         available_events = {event.decode('ascii') for event in available_events}
+
+        # If time was provided, we assume it's coming from a finalized pandas
+        # dataframe that uses float for index.
+        if time_is_provided:
+            assert isinstance(begin_time, float)
+            assert isinstance(end_time, float)
+            begin_time = Timestamp(begin_time, unit='s')
+            end_time = Timestamp(end_time, unit='s')
+        else:
+            begin_time = Timestamp(begin_time, unit='ns')
+            end_time = Timestamp(end_time, unit='ns')
+
         return (events_df, skeleton_df, (begin_time, end_time), available_events)
 
     def _lazyily_parse_event(self, event, parser, df):
@@ -1561,6 +1765,76 @@ class TxtTraceParserBase(TraceParserBase):
         # fails, so use an explicit loop instead
         for col in set(df.columns) & converters.keys():
             df[col] = converters[col](df[col])
+
+        if event == 'sched_switch':
+            copied = False
+            def copy_once(x):
+                nonlocal copied
+                if copied:
+                    return x
+                else:
+                    copied = True
+                    return x.copy(deep=False)
+
+            if df['prev_state'].dtype.name == 'string':
+                # Avoid circular dependency issue by importing at the last moment
+                # pylint: disable=import-outside-toplevel
+                from lisa.analysis.tasks import TaskState
+                df = copy_once(df)
+                df['prev_state'] = df['prev_state'].apply(TaskState.from_sched_switch_str).astype('uint16', copy=False)
+
+            # Save a lot of memory by using category for strings
+            df = copy_once(df)
+            for col in ('next_comm', 'prev_comm'):
+                df[col] = df[col].astype('category', copy=False)
+
+        elif event == 'lisa__sched_overutilized':
+            copied = False
+            def copy_once(x):
+                nonlocal copied
+                if copied:
+                    return x
+                else:
+                    copied = True
+                    return x.copy(deep=False)
+
+            if not df['overutilized'].dtype.name == 'bool':
+                df = copy_once(df)
+                df['overutilized'] = df['overutilized'].astype(bool, copy=False)
+
+            if 'span' in df.columns and df['span'].dtype.name == 'string':
+                df = copy_once(df)
+                df['span'] = df['span'].apply(lambda x: x if pd.isna(x) else int(x, base=16))
+
+        elif event in ('thermal_power_cpu_limit', 'thermal_power_cpu_get_power'):
+            def parse_load(array):
+                # Parse b'{2 3 2 8}'
+                return tuple(map(int, array[1:-1].split()))
+
+            # In-kernel name is "cpumask", "cpus" is just an artifact of the pretty
+            # printing format string of ftrace, that happens to be used by a
+            # specific parser.
+            df = df.rename(columns={'cpus': 'cpumask'}, copy=False)
+            df = df.copy(deep=False)
+
+            if event == 'thermal_power_cpu_get_power':
+                if df['load'].dtype.name == 'object':
+                    df['load'] = df['load'].apply(parse_load)
+
+        elif event in ('ipi_entry', 'ipi_exit'):
+            df = df.copy(deep=False)
+            df['reason'] = df['reason'].str.strip('()')
+
+        elif event in ('print', 'bprint', 'bputs'):
+            df = df.copy(deep=False)
+
+            # Only process string "ip" (function name), not if it is a numeric
+            # address
+            if not is_numeric_dtype(df['ip'].dtype):
+                # Reduce memory usage and speedup selection based on function
+                with contextlib.suppress(KeyError):
+                    df['ip'] = df['ip'].astype('category', copy=False)
+
         return df
 
     def get_metadata(self, key):
@@ -2152,10 +2426,6 @@ class MetaTxtTraceParser(SimpleTxtTraceParser):
     :param time: Iterable of timestamps matching ``lines``.
     :type time: collections.abc.Iterable(float)
 
-    :param merged_df: Dataframe to merge into the parsed ones, to add
-        pre-computed fields.
-    :type merged_df: pandas.DataFrame
-
     Meta events are events "embedded" as a string inside the field of another
     event. They are expected to comply with the raw format as output by
     ``trace-cmd report -R``.
@@ -2216,9 +2486,8 @@ class MetaTxtTraceParser(SimpleTxtTraceParser):
     }
 
     @kwargs_forwarded_to(SimpleTxtTraceParser.__init__)
-    def __init__(self, *args, time, merged_df=None, **kwargs):
+    def __init__(self, *args, time, **kwargs):
         self._time = time
-        self._merged_df = merged_df
         super().__init__(*args, **kwargs)
 
     def _eagerly_parse_lines(self, *args, **kwargs):
@@ -2226,13 +2495,6 @@ class MetaTxtTraceParser(SimpleTxtTraceParser):
         return super()._eagerly_parse_lines(
             *args, **kwargs, time=self._time,
         )
-
-    def _postprocess_df(self, event, parser, df):
-        df = super()._postprocess_df(event, parser, df)
-        merged_df = self._merged_df
-        if merged_df is not None:
-            df = df.merge(merged_df, left_index=True, right_index=True, copy=False)
-        return df
 
 
 class HRTxtTraceParser(SimpleTxtTraceParser):
@@ -2292,110 +2554,31 @@ class SysTraceParser(HRTxtTraceParser):
         return super().from_txt_file(*args, **kwargs)
 
 
-class TrappyTraceParser(TraceParserBase):
+class _InternalTraceBase(abc.ABC):
     """
-    Glue with :mod:`trappy` trace parsers.
+    Base class for common functionalities between :class:`Trace` and
+    :class:`_TraceViewBase`.
 
-    .. note:: This class is deprecated and the use of :class:`TxtTraceParser`
-        is recommended instead. This class is only provided in case
-        compatibility with :mod:`trappy` is needed for one reason or another.
-    """
+    :Attributes:
 
-    @kwargs_forwarded_to(TraceParserBase.__init__)
-    def __init__(self, path, events, trace_format=None, **kwargs):
-        super().__init__(events=events, **kwargs)
+        * ``start``: The timestamp of the first trace event.
+        * ``end``: The timestamp of the last trace event.
+        * ``basetime``: Absolute timestamp when the tracing started. This might
+          differ from ``start`` as the latter can be affected by various
+          normalization or windowing features.
+        * ``endtime``: Absolute timestamp when the tracing stopped. It has
+          similar characteristics as ``basetime``.
 
-        # Lazy import so that it's not a required dependency
-        import trappy # pylint: disable=import-outside-toplevel,import-error
-
-        events = set(events)
-        # Make sure we won't attempt parsing 'print' events, so that this
-        # parser is not used to resolve meta events.
-        events -= {'print'}
-        self._events = events
-
-        events = set(events)
-        if trace_format is None:
-            if path.endswith('html'):
-                trace_format = 'SySTrace'
-            else:
-                trace_format = 'FTrace'
-
-        self.logger.debug(f'Parsing {trace_format} events from {path}: {sorted(events)}')
-        if trace_format == 'SysTrace':
-            trace_class = trappy.SysTrace
-        elif trace_format == 'FTrace':
-            trace_class = trappy.FTrace
-        else:
-            raise ValueError(f'Unknown trace format: {trace_format}')
-
-        # Since we handle the cache in lisa.trace.Trace, we do not need to duplicate it
-        trace_class.disable_cache = True
-        trace = trace_class(
-            path,
-            scope="custom",
-            events=sorted(events),
-            normalize_time=False,
-        )
-        self._trace = trace
-
-        # trappy sometimes decides to be "clever" and overrules the path to be
-        # used, even though it was specifically asked for a given file path
-        assert path == trace.trace_path
-
-    def get_metadata(self, key):
-        if key == 'time-range':
-            trace = self._trace
-            return (trace.basetime, trace.endtime)
-        else:
-            return super().get_metadata(key)
-
-    def parse_event(self, event):
-        trace = self._trace
-
-        if event not in self._events:
-            raise MissingTraceEventError([event])
-
-        df = getattr(trace, event).data_frame
-        if df.empty:
-            raise MissingTraceEventError([event])
-
-        return df
-
-
-class TraceBase(abc.ABC):
-    """
-    Base class for common functionalities between :class:`Trace` and :class:`TraceView`
     """
 
     def __init__(self):
-        # Import here to avoid a circular dependency issue at import time
-        # with lisa.analysis.base
-
-        # pylint: disable=import-outside-toplevel
-        from lisa.analysis._proxy import AnalysisProxy, _DeprecatedAnalysisProxy
-        # self.analysis is deprecated so we can transition to using holoviews
-        # in all situations, even when the backend is matplotlib
-
-        # In the user-visible analysis, we want to change some defaults that
-        # will improve the immediate experience, at the expense of good
-        # composition. For example, using ui=None means that a user calling a
-        # plot method twice will get 2 toolbars. but it can still be disabled
-        # manually. Since composition can sometimes suffer, the internal
-        # analysis proxy and the default values on plot methods are set to less
-        # friendly but more predictable defaults.
-        params = dict(
-            # Default to displaying a toolbar in notebooks
-            output=None,
-        )
-        self.analysis = _DeprecatedAnalysisProxy(self, params=params)
-        self.ana = AnalysisProxy(self, params=params)
+        pass
 
     @property
     def trace_state(self):
         """
         State of the trace object that might impact the output of dataframe
-        getter functions like :meth:`Trace.df_event`.
+        getter functions like :meth:`lisa.trace.TraceBase.df_event`.
 
         It must be hashable and serializable to JSON, so that it can be
         recorded when analysis methods results are cached to the swap.
@@ -2418,13 +2601,30 @@ class TraceBase(abc.ABC):
         """
         return (self.start, self.end)
 
-    @abc.abstractmethod
-    def get_view(self, window, **kwargs):
-        """
-        Get a view on a trace cropped time-wise to fit in ``window``
+    @property
+    def available_events(self):
+        return _AvailableTraceEventsSet(self)
 
-        :Variable keyword arguments: Forwarded to the contructor of the view.
+    # Allow positional parameter for "window" for backward compat
+    def get_view(self, window=None, **kwargs):
+        view = _TraceViewBase.make_view(self, window=window, **kwargs)
+        assert isinstance(view, TraceBase)
+        return view
+
+    @abc.abstractmethod
+    def _internal_df_event(self, event, **kwargs):
         """
+        Internal function creating the :class:`polars.LazyFrame` for the given
+        ``event`` and returning associated metadata.
+
+        Unrecognized keyword arguments should be passed down to the parent
+        trace view when that's relevant or simply ignored.
+        """
+        pass
+
+    @abc.abstractmethod
+    def _preload_events(self, events):
+        pass
 
     def __getitem__(self, window):
         if not isinstance(window, slice):
@@ -2433,7 +2633,7 @@ class TraceBase(abc.ABC):
         if window.step is not None:
             raise ValueError("Slice step is not supported")
 
-        return self.get_view((window.start, window.stop))
+        return self.get_view(window=(window.start, window.stop))
 
     @deprecate('Prefer adding delta once signals have been extracted from the event dataframe for correctness',
         deprecated_in='2.0',
@@ -2474,14 +2674,6 @@ class TraceBase(abc.ABC):
 
         return df_add_delta(df, col=col_name, inplace=inplace, window=self.window)
 
-    @deprecate('This method has been deprecated and is an alias',
-        deprecated_in='2.0',
-        removed_in='4.0',
-        replaced_by='df_event',
-    )
-    def df_events(self, *args, **kwargs):
-        return self.df_event(*args, **kwargs)
-
     @deprecate('This method has been deprecated and is an alias for "trace.ana.notebook.df_all_events()"',
         deprecated_in='2.0',
         removed_in='4.0',
@@ -2491,20 +2683,337 @@ class TraceBase(abc.ABC):
         return self.ana.notebook.df_all_events(*args, **kwargs)
 
 
-class TraceView(Loggable, TraceBase):
-    """
-    A view on a :class:`Trace`
+# User-facing
+class TraceBase(_InternalTraceBase):
+    @abc.abstractmethod
+    def df_event(self, event, **kwargs):
+        """
+        Get a dataframe containing all occurrences of the specified trace event
+        in the parsed trace.
 
-    :param trace: The trace to trim
+        :param event: Trace event name.
+
+            In addition to actual events, the following formats for meta events
+            are supported:
+
+            * ``trace_printk@``: The event format is described by the
+              ``bprint`` event format string, and the field values are decoded
+              from the variable arguments buffer. Note that:
+
+                * The field values *must* be in the buffer, i.e. the format
+                  string is only used as the event format, no "literal value"
+                  will be extracted from it.
+
+                * The event *must* have fields. If not, ``trace_printk()``
+                  will emit a bputs event that will be ignored at the moment.
+                  We need to get a bprint event.
+
+                * Field names *must* be unique.
+
+              .. code-block:: C
+
+                  // trace.df_event('trace_printk@myevent')
+                  void foo(void) {
+                      trace_printk("myevent: field1=%s field2=%i", "foo", 42);
+                  }
+
+            * ``userspace@``: the event is generated by userspace:
+
+              .. code-block:: shell
+
+                  # trace.df_event('userspace@myevent')
+                  echo "myevent: field1=foo field2=42" > /sys/kernel/debug/tracing/trace_marker
+
+              Note that the field names must be unique.
+
+            .. note:: All meta event names are expected to be valid C language
+                identifiers. Usage of other characters will prevent correct
+                parsing.
+
+        :type event: str
+
+        :param signals: List of signals to fixup if ``signals_init == True``.
+            If left to ``None``, :meth:`lisa.datautils.SignalDesc.from_event`
+            will be used to infer a list of default signals.
+        :type signals: list(SignalDesc)
+
+        :param compress_signals_init: Give a timestamp very close to the
+            beginning of the sliced dataframe to rows that are added by
+            ``signals_init``. This allows keeping a very close time span
+            without introducing duplicate indices.
+        :type compress_signals_init: bool
+        """
+        pass
+
+    def get_view(self, *args, **kwargs):
+        """
+        Get a view on a trace cropped time-wise to fit in ``window`` and with
+        event dataframes post processed with ``process_df``.
+
+        :param window: Crop the dataframe to include events that are inside the
+            given window. This includes the event immediately preceding the
+            left boundary if there is no exact timestamp match. This can also
+            include more rows before the beginning of the window based on the
+            ``signals`` required by the user. A ``None`` boundary will extend
+            to the beginning/end of the trace.
+        :type window: tuple(float or None, float or None) or None
+
+        :param signals: List of :class:`lisa.datautils.SignalDesc` to use when
+            selecting rows before the beginning of the ``window``. This allows
+            ensuring that all the given signals have a known value at the beginning
+            of the window.
+        :type signals: list(lisa.datautils.SignalDesc) or None
+
+        :param compress_signals_init: If ``True``, the timestamp of the events
+            before the beginning of the ``window`` will be compressed to be
+            either right before the beginning of the window, or at the exact
+            timestamp of the beginning of the window (depending on the
+            dataframe library chosen, since pandas cannot cope with more than
+            one row for each timestamp).
+        :type compress_signals_init: bool or None
+
+        :param normalize_time: If ``True``, the beginning of the ``window``
+            will become timestamp 0. If no ``window`` is used, the beginning of
+            the trace is taken as T=0. This allows easier comparison of traces
+            that were generated with absolute timestamps (e.g. timestamp
+            related to the uptime of the system). It also allows comparing
+            various slices of the same trace.
+        :type normalize_time: bool or None
+
+        :param events_namespaces: List of namespaces of the requested events.
+            Each namespace will be tried in order until the event is found. The
+            ``None`` namespace can be used to specify no namespace. The full
+            event name is formed with ``<namespace>__<event>``.
+        :type events_namespaces: list(str or None)
+
+        :param events: Preload the given events when creating the view. This
+            can be advantageous as a single instance of the parser will be
+            spawned, so if the parser supports it, multiple events will be
+            parsed in one trace traversal.
+        :type events: list(str) or lisa.trace.TraceEventCheckerBase or None
+
+        :param strict_events: If ``True``, will raise an exception if the
+            ``events`` specified cannot be loaded from the trace. This allows
+            failing early in trace processing.
+        :param strict_events: bool or None
+
+        :param process_df: Function called on each dataframe returned by
+            :meth:`lisa.trace.TraceBase.df_event`. The parameters are as follow:
+
+                1. Name of the event being queried.
+                2. A :class:`polars.LazyFrame` of the event.
+
+            It is expected to return a :class:`polars.LazyFrame` as well.
+
+        :type process_df: typing.Callable[[str, polars.LazyFrame], polars.LazyFrame] or None
+
+        :param df_fmt: Format of the dataframes returned by
+            :meth:`lisa.trace.TraceBase.df_events`. One of:
+
+                * ``"pandas"``: :class:`pandas.DataFrame`.
+                * ``"polars-lazyframe"``: :class:`polars.LazyFrame`.
+                * ``None``: defaults to ``"pandas"`` for
+                  backward-compatibility.
+
+        :type df_fmt: str or None
+
+        :Variable arguments: Forwarded to the contructor of the view.
+        """
+        return super().get_view(*args, **kwargs)
+
+    @deprecate('This method has been deprecated and is an alias',
+        deprecated_in='2.0',
+        removed_in='4.0',
+        replaced_by='df_event',
+    )
+    def df_events(self, *args, **kwargs):
+        return self.df_event(*args, **kwargs)
+
+    @property
+    @abc.abstractmethod
+    def ana(self):
+        pass
+
+    @property
+    @abc.abstractmethod
+    def analysis(self):
+        pass
+
+    def show(self):
+        """
+        Open the parsed trace using the most appropriate native viewer.
+
+        The native viewer depends on the specified trace format:
+        - ftrace: open using kernelshark
+        - systrace: open using a browser
+
+        In both cases the native viewer is assumed to be available in the host
+        machine.
+        """
+        path = self.trace_path
+        if not path:
+            raise ValueError('No trace file is backing this Trace instance')
+
+        if path.endswith('.dat'):
+            cmd = 'kernelshark'
+        else:
+            cmd = 'xdg-open'
+
+        return os.popen(f"{cmd} {shlex.quote(path)}")
+
+
+    @deprecate('This method has been deprecated and is an alias',
+        deprecated_in='3.0',
+        removed_in='4.0',
+        replaced_by='lisa.analysis.tasks.TasksAnalysis.get_task_name_pids',
+    )
+    def get_task_name_pids(self, *args, **kwargs):
+        return self.ana.tasks.get_task_name_pids(*args, **kwargs)
+
+    @deprecate('This method has been deprecated and is an alias',
+        deprecated_in='2.0',
+        removed_in='4.0',
+        replaced_by=get_task_name_pids,
+    )
+    def get_task_by_name(self, name):
+        return self.get_task_name_pids(name, ignore_fork=True)
+
+    @deprecate('This method has been deprecated and is an alias',
+        deprecated_in='3.0',
+        removed_in='4.0',
+        replaced_by='lisa.analysis.tasks.TasksAnalysis.get_task_pid_names',
+    )
+    def get_task_pid_names(self, *args, **kwargs):
+        return self.ana.tasks.get_task_pid_names(*args, **kwargs)
+
+    @deprecate('This method has been deprecated and is an alias',
+        deprecated_in='3.0',
+        removed_in='4.0',
+        replaced_by='lisa.analysis.tasks.TasksAnalysis.get_task_by_pid',
+    )
+    def get_task_by_pid(self, *args, **kwargs):
+        return self.ana.tasks.get_task_by_pid(*args, **kwargs)
+
+    @deprecate('This method has been deprecated and is an alias',
+        deprecated_in='3.0',
+        removed_in='4.0',
+        replaced_by='lisa.analysis.tasks.TasksAnalysis.get_task_ids',
+    )
+    def get_task_ids(self, *args, **kwargs):
+        return self.ana.tasks.get_task_ids(*args, **kwargs)
+
+    @deprecate('This method has been deprecated and is an alias',
+        deprecated_in='3.0',
+        removed_in='4.0',
+        replaced_by='lisa.analysis.tasks.TasksAnalysis.get_task_id',
+    )
+    def get_task_id(self, *args, **kwargs):
+        return self.ana.tasks.get_task_id(*args, **kwargs)
+
+    @deprecate('This method has been deprecated and is an alias',
+        deprecated_in='3.0',
+        removed_in='4.0',
+        replaced_by='lisa.analysis.tasks.TasksAnalysis.get_task_pid',
+    )
+    def get_task_pid(self, *args, **kwargs):
+        return self.ana.tasks.get_task_pid(*args, **kwargs)
+
+    @deprecate('This method has been deprecated and is an alias',
+        deprecated_in='3.0',
+        removed_in='4.0',
+        replaced_by='lisa.analysis.tasks.TasksAnalysis.get_tasks',
+    )
+    def get_tasks(self, *args, **kwargs):
+        return self.ana.tasks.get_tasks(*args, **kwargs)
+
+    @deprecate('This property has been deprecated and is an alias',
+        deprecated_in='3.0',
+        removed_in='4.0',
+        replaced_by='lisa.analysis.tasks.TasksAnalysis.task_ids',
+    )
+    @property
+    def task_ids(self):
+        """
+        List of all the :class:`lisa.analysis.tasks.TaskID` in the trace,
+        sorted by PID.
+        """
+        return self.ana.tasks.task_ids
+
+
+class _TraceViewBase(_InternalTraceBase):
+    def __init__(self, trace):
+        self.base_trace = trace
+        super().__init__()
+
+    def __getattr__(self, name):
+        return getattr(self.base_trace, name)
+
+    @classmethod
+    def make_view(cls, trace, *, window=None, signals=None, compress_signals_init=None, normalize_time=False, events_namespaces=None, events=None, strict_events=False, process_df=None, df_fmt=None, clear_base_cache=None):
+        if clear_base_cache is not None:
+            _deprecated_warn(f'"clear_base_cache" parameter has no effect anymore')
+
+        view = trace
+
+        # Most views are stacked regardless whether they were needed right away
+        # in order to have them ready to handle the parameters they add to
+        # df_event() (via _internal_df_event())
+
+        view = _NamespaceTraceView(view, namespaces=events_namespaces)
+
+        # Preload events as early as possible in case other views need to
+        # access some of the costly metadata that would be gathered when
+        # preloading.
+        view = _PreloadEventsTraceView(
+            view,
+            events=events,
+            strict_events=strict_events
+        )
+
+        window_cls = _NormalizedTimeTraceView if normalize_time else _WindowTraceView
+        view = window_cls(
+            view,
+            window=window,
+            signals=signals,
+            compress_signals_init=compress_signals_init,
+        )
+
+        if process_df:
+            view = _ProcessTraceView(view, process_df)
+
+        # This _must_ be the top view in the stack currently, otherwise it
+        # won't have any effect
+        view = _TopTraceView(view, df_fmt)
+        return view
+
+    @property
+    def trace_state(self):
+        return (
+            self.__class__.__qualname__,
+            self.base_trace.trace_state,
+        )
+
+    def _preload_events(self, *args, **kwargs):
+        return self.base_trace._preload_events(*args, **kwargs)
+
+    def _internal_df_event(self, *args, **kwargs):
+        return self.base_trace._internal_df_event(*args, **kwargs)
+
+
+class _WindowTraceView(_TraceViewBase):
+    """
+    A view on a :class:`Trace`.
+
+    :param trace: The base trace.
     :type trace: Trace
 
-    :param clear_base_cache: Clear the cache of the base ``trace`` for non-raw
-        data. This can release memory if the base trace is not going to be used
-        anymore, apart as a data server for the view.
-    :type clear_base_cache: bool
+    :param window: The time window to base this view on. If ``None``, the whole
+        base trace will be selected.
+    :type window: tuple(float, float) or None
 
-    :param window: The time window to base this view on
-    :type window: tuple(float, float)
+    :param process_df: Function used to post process the event dataframes
+        returned by :meth:`TraceBase.df_event`.
+    :type process_df: typing.Callable[[str, pandas.DataFrame], pandas.DataFrame] or None
 
     :Attributes:
         * ``base_trace``: The original :class`:`Trace` this view is based on.
@@ -2515,7 +3024,7 @@ class TraceView(Loggable, TraceBase):
           ``window[1]``)
 
     You can substitute an instance of :class:`Trace` with an instance of
-    :class:`TraceView`. This means you can create a view of a trimmed down trace
+    :class:`_WindowTraceView`. This means you can create a view of a trimmed down trace
     and run analysis code/plots that will only use data within that window, e.g.::
 
       trace = Trace(...)
@@ -2526,67 +3035,513 @@ class TraceView(Loggable, TraceBase):
 
       # This will only use events in the (2, 4) time window
       df = view.ana.tasks.df_tasks_runtime()
-
-    **Design notes:**
-
-      * :meth:`df_event` uses the underlying :meth:`lisa.trace.Trace.df_event`
-        and trims the dataframe according to the given ``window`` before
-        returning it.
-      * ``self.start`` and ``self.end`` mimic the :class:`Trace` attributes but
-        they are adjusted to match the given window. On top of this, this class
-        mimics a regular :class:`Trace` using :func:`getattr`.
     """
 
-    def __init__(self, trace, window, clear_base_cache=False):
-        super().__init__()
-        self.base_trace = trace
+    def __init__(
+        self,
+        trace,
+        *,
+        window=None,
+        signals=None,
+        compress_signals_init=None,
+    ):
+        super().__init__(trace)
+        self._window = window
+        self._signals = set(signals or [])
+        self._compress_signals_init = compress_signals_init
 
-        # evict all the non-raw dataframes from the base cache, as they are
-        # unlikely to be used anymore.
-        if clear_base_cache:
-            self.base_trace._cache.clear_all_events(raw=False)
+    # These attributes are absolutely critical for the performance of the view
+    # stack, but pre-computing them is very harmful as it might trigger a
+    # trace-parse to find the boundary timestamps before we need to parse a
+    # dataframe, which can be very costly on a big trace.
+    @property
+    @memoized
+    def start(self):
+        t_min, _ = self._window or (None, None)
+        if t_min is None:
+            return self.base_trace.start
+        else:
+            return t_min
 
-        t_min, t_max = window
-        self.start = t_min if t_min is not None else self.base_trace.start
-        self.end = t_max if t_max is not None else self.base_trace.end
+    @property
+    @memoized
+    def end(self):
+        _, t_max = self._window or (None, None)
+        if t_max is None:
+            return self.base_trace.end
+        else:
+            end = t_max
+
+        # Ensure we never end up with end < start
+        end = max(end, self.start)
+        return end
+
+    def _fixup_window(self, window):
+        _start = self.start
+        _end = self.end
+        # Add missing window and fill-in None values
+        if window is None:
+            start = _start
+            end = _end
+        else:
+            start, end = window
+
+        # Clip the window to our own window
+        start = _start if start is None else max(start, _start)
+        end = _end if end is None else min(end, _end)
+
+        # If we are not restricting more than the base trace, we don't want to
+        # apply any windowing
+        if start == self.base_trace.start:
+            start = None
+
+        if end == self.base_trace.end:
+            end = None
+
+        window = (start, end)
+
+        if window == (None, None):
+            window = None
+
+        return window
 
     @property
     def trace_state(self):
-        return (self.start, self.end, self.base_trace.trace_state)
+        return (
+            super().trace_state,
+            self.window,
+            self._signals,
+            self._compress_signals_init,
+        )
 
-    def __getattr__(self, name):
-        return getattr(self.base_trace, name)
+    def _internal_df_event(self, event, *, df_fmt=None, _legacy_signals=None, _inner_window=False, window=None, compress_signals_init=None, signals_init=None, signals=None, **kwargs):
+        compress_signals_init = self._compress_signals_init if compress_signals_init is None else compress_signals_init
+        compress_signals_init = False if compress_signals_init is None else compress_signals_init
+        _legacy_signals = df_fmt == 'pandas' if _legacy_signals is None else _legacy_signals
 
-    def df_event(self, event, **kwargs):
-        """
-        Get a dataframe containing all occurrences of the specified trace event
-        in the sliced trace.
+        if window is not None:
+            _deprecated_warn('"window", "signals" and "signals_init" are deprecated parameter of Trace.df_event(). Instead, use the matching parameters on trace.get_view(...).df_event(...)')
 
-        :param event: Trace event name
-        :type event: str
+        def fixup_signals(events):
+            return {
+                signal_desc
+                for event in events
+                for signal_desc in self._fixup_signals(
+                    event=event,
+                    signals=signals,
+                    signals_init=signals_init,
+                    legacy_signals=_legacy_signals,
+                    inner_window=_inner_window,
+                )
+            }
 
-        :Variable keyword arguments: Forwarded to
-            :meth:`lisa.trace.Trace.df_event`.
-        """
+        _window = self._fixup_window(window)
+        _signals = self._fixup_signals(
+                event=event,
+                signals=signals,
+                signals_init=signals_init,
+                legacy_signals=_legacy_signals,
+                inner_window=_inner_window,
+            )
+
+        df, meta = self.base_trace._internal_df_event(
+            event,
+            _inner_window=True,
+            df_fmt=df_fmt,
+            # We propagate the list signals to base traces. This will let some
+            # events "leak into the window" if a window was set, but that is
+            # necessary to reliably implement self-contained analysis.
+            # Otherwise, an analysis function would have no way of asking for
+            # some specific signals it needs to work. Even if the user manually
+            # specified signals to be friendly to that function, it could still
+            # break the day the function makes use of a new signal (e.g. using
+            # a new equivalent signal the legacy user code could not know about
+            # at the time of writing).
+            signals=_signals,
+            # This needs to be passed to the base trace, in case we are not the
+            # view applying a windowing. This can happen if there is e.g. a
+            # no-op _WindowTraceView() layer.
+            compress_signals_init=compress_signals_init,
+            **kwargs,
+        )
+
+        df = self._apply_window(
+            df=df,
+            window=_window,
+            signals=_signals,
+            compress_signals_init=compress_signals_init,
+        )
+
+        return (df, meta)
+
+    def _fixup_signals(self, event, signals, signals_init, legacy_signals, inner_window):
+        if legacy_signals:
+            # Warning-less backward compat for the default parameter value, so
+            # that existing code will keep running without extra output
+            if signals_init is None:
+                signals_init = True
+            # If the user specified manually, they will get the warning and be
+            # asked to make a change that will ease transition to polars.
+            else:
+                _deprecated_warn('signals_init should not be used anymore. Instead, use trace.get_view(signals=[...]) with the list of signals you need', stacklevel=2)
+
+            # Legacy behavior where signals are inferred from the event. We
+            # only keep this in pandas for backward commpat. New code based
+            # on polars has to define its own signals, so we don't have to
+            # maintain an ever-growing list of signals in LISA itself, and
+            # possibly breaking user code when we add a new one.
+            signals = list(SignalDesc._from_event(event) if signals is None else signals)
+            signals = signals if signals_init else []
+        else:
+            signals = list(signals or [])
+            if signals_init is not None:
+                raise ValueError(f'"signals_init" parameter is only supported for df_fmt="pandas". Use the TraceBase.get_view(signals=...) parameter.')
+
+        # If we are in an inner window, it is pointless to add our
+        # self._signals since they will be discarded by the outer window layer
+        # (e.g. if the outer layer asked for no signals, it will simply apply a
+        # normal window and not make use of any extra data we would have
+        # included)
+        if inner_window:
+            pass
+        # Otherwise, the signals are coming from the user and we should add our
+        # own, since the user will be able to see their effect
+        else:
+            signals = {*signals, *self._signals}
+
+        signals = {
+            signal_desc
+            for signal_desc in signals
+            if signal_desc.event == event and signal_desc.fields
+        }
+        return signals
+
+    def _apply_window(self, df, window, signals, compress_signals_init):
+        if window is None or window == (None, None):
+            return df
+        else:
+            if signals:
+                df = df_window_signals(
+                    df,
+                    window=window,
+                    signals=signals,
+                    compress_init=compress_signals_init,
+                )
+            else:
+                df = df_window(df, window, method='pre')
+
+            return df
+
+
+class _TopTraceView(TraceBase, _TraceViewBase):
+    def __init__(self, trace, df_fmt):
+        super().__init__(trace)
+        self.__df_fmt = df_fmt
+
+    @property
+    def _default_ana_params(self):
+        # In the user-visible analysis, we want to change some defaults that
+        # will improve the immediate experience, at the expense of good
+        # composition. For example, using ui=None means that a user calling a
+        # plot method twice will get 2 toolbars. but it can still be disabled
+        # manually. Since composition can sometimes suffer, the internal
+        # analysis proxy and the default values on plot methods are set to less
+        # friendly but more predictable defaults.
+        return dict(
+            # Default to displaying a toolbar in notebooks
+            output=None,
+            df_fmt=self._df_fmt,
+        )
+
+    # Memoize the analysis as the analysis themselves might memoize some
+    # things, so we don't want to trash that.
+    @property
+    @memoized
+    def ana(self):
+        # Import here to avoid a circular dependency issue at import time
+        # with lisa.analysis.base
+        # pylint: disable=import-outside-toplevel
+        from lisa.analysis._proxy import AnalysisProxy
+        return AnalysisProxy(self, params=self._default_ana_params)
+
+    @property
+    @memoized
+    def analysis(self):
+        # Import here to avoid a circular dependency issue at import time
+        # with lisa.analysis.base
+        # pylint: disable=import-outside-toplevel
+        from lisa.analysis._proxy import _DeprecatedAnalysisProxy
+
+        # self.analysis is deprecated so we can transition to using holoviews
+        # in all situations, even when the backend is matplotlib
+        return _DeprecatedAnalysisProxy(self, params=self._default_ana_params)
+
+    @property
+    @memoized
+    def _df_fmt(self):
+        if (df_fmt := self.__df_fmt):
+            return df_fmt
+        else:
+            try:
+                return self.base_trace._df_fmt
+            except AttributeError:
+                return 'pandas'
+
+    @property
+    def trace_state(self):
+        return (
+            super().trace_state,
+            self.__df_fmt,
+        )
+
+    def df_event(self, event, *, df_fmt=None, **kwargs):
+        df_fmt = df_fmt or self._df_fmt
+
+        df, meta = self.base_trace._internal_df_event(
+            event,
+            # Provide the information to the stack so that we can apply the
+            # legacy signals in _WindowTraceView for pandas format
+            df_fmt=df_fmt,
+            **kwargs
+        )
+
+        df = _df_to(df, fmt=df_fmt)
+        return df
+
+
+class _ProcessTraceView(_TraceViewBase):
+    def __init__(self, trace, process_df):
+        super().__init__(trace)
+        self._process_df = process_df
+
+    @property
+    def trace_state(self):
+        f = self._process_df
+        return (
+            super().trace_state,
+            # This likely will be a value that cannot be serialized to JSON if
+            # it was user-provided. This will prevent caching as it should.
+            None if f is None else f,
+        )
+
+    def _internal_df_event(self, event, **kwargs):
+        df, meta = self.base_trace._internal_df_event(event, **kwargs)
+
+        if (process := self._process_df):
+            df = process(event, df)
+
+        return (df, meta)
+
+
+class _PreloadEventsTraceView(_TraceViewBase):
+    def __init__(self, trace, events=None, strict_events=False):
+        super().__init__(trace)
+
+        if isinstance(events, str):
+            raise ValueError('Events passed to Trace(events=...) must be a list of strings, not a string.')
+        else:
+            events = set(events or [])
+
+        events = AndTraceEventChecker.from_events(events)
+        self._events = events
+
+        preloaded = self.base_trace._preload_events(events)
+        if strict_events:
+            events.check_events(preloaded)
+
+    @property
+    def events(self):
         try:
-            window = kwargs['window']
-        except KeyError:
-            window = self.window
-        kwargs['window'] = window
+            base_events = self.base_trace.events
+        except AttributeError:
+            base_events = set()
+        else:
+            base_events = base_events.get_all_events()
 
-        return self.base_trace.df_event(event, **kwargs)
+        events = sorted({*self._events, *base_events})
+        return AndTraceEventChecker.from_events(events)
 
-    def get_view(self, window, **kwargs):
-        start = self.start
-        end = self.end
 
-        if window[0]:
-            start = max(start, window[0])
+class _NamespaceTraceView(_TraceViewBase):
+    def __init__(self, trace, namespaces):
+        # Allow using self.base_trace.events
+        trace = _PreloadEventsTraceView(trace)
+        super().__init__(trace)
 
-        if window[1]:
-            end = min(end, window[1])
+        self._events_namespaces = namespaces or []
+        self._preload_events(self.base_trace.events)
 
-        return self.base_trace.get_view(window=(start, end), **kwargs)
+    def _preload_events(self, events):
+        # It is critical to not enter that path if we don't have any actual
+        # namespaces, otherwise the overhead of the loop will get multiplicated
+        # at every layer and we end up with large overheads.
+        if self._events_namespaces:
+            mapping = {
+                _event: event
+                for event in events
+                for _event in self._expand_namespaces(event)
+            }
+
+            # Preload the events in a single batch. This is critical for
+            # performance, otherwise we will spin up the parser multiple times.
+            preloaded = self.base_trace._preload_events(mapping.keys())
+
+            return {
+                # Return the requested name instead of the actual event
+                # preloaded so that _PreloadEventsTraceView() can check for
+                # what it actually asked for
+                mapping.get(_event, _event)
+                for _event in preloaded
+            }
+        else:
+            return super()._preload_events(events)
+
+    @property
+    def trace_state(self):
+        return (
+            super().trace_state,
+            self._events_namespaces,
+        )
+
+    @property
+    @memoized
+    def events_namespaces(self):
+        try:
+            base_namespaces = self.base_trace.events_namespaces
+        except AttributeError:
+            base_namespaces = (None,)
+
+        return deduplicate(
+            [
+                *self._events_namespaces,
+                *base_namespaces,
+            ],
+            keep_last=False,
+        )
+
+    @classmethod
+    def _resolve_namespaces(cls, namespaces):
+        return namespaces or (None,)
+
+    def _expand_namespaces(self, event, namespaces=None):
+        return self._do_expand_namespaces(
+            event,
+            self._resolve_namespaces(
+                namespaces or self._events_namespaces
+            )
+        )
+
+    @classmethod
+    def _do_expand_namespaces(cls, event, namespaces):
+        namespaces = cls._resolve_namespaces(namespaces)
+
+        def expand_namespace(event, namespace):
+            if namespace:
+                if namespace.endswith('_'):
+                    ns_prefix = namespace
+                else:
+                    ns_prefix = f'{namespace}__'
+
+                if event.startswith(ns_prefix):
+                    return event
+                else:
+                    return f'{ns_prefix}{event}'
+            else:
+                return event
+
+        def expand(event, namespaces):
+            if Trace._is_meta_event(event):
+                return [event]
+            else:
+                return deduplicate(
+                    [
+                        expand_namespace(event, namespace)
+                        for namespace in namespaces
+                    ],
+                    keep_last=False,
+                )
+
+        return expand(event, namespaces)
+
+    def _internal_df_event(self, event, namespaces=None, **kwargs):
+        if namespaces is not None:
+            _deprecated_warn('"namespaces" is a deprecated parameter of Trace.df_event(). Instead, use trace.get_view(events_namespaces=...).df_event(...)')
+
+        if namespaces or self._events_namespaces:
+            events = self._expand_namespaces(event, namespaces)
+            events = events or [event]
+            trace = self.base_trace
+
+            # Preload all the events as we likely will only get one match
+            # anyway, so we can avoid spinning up a parser several times for
+            # nothing.
+            trace._preload_events(events)
+
+            for _event in events:
+                try:
+                    return trace._internal_df_event(_event, **kwargs)
+                except MissingTraceEventError as e:
+                    last_excep = e
+            else:
+                raise last_excep
+        else:
+            return super()._internal_df_event(event, **kwargs)
+
+
+class _NormalizedTimeTraceView(_TraceViewBase):
+    def __init__(self, trace, window, **kwargs):
+        window = window or (trace.start, None)
+        try:
+            start, end = window
+        except ValueError:
+            raise ValueError('A window with non-None left bound must be provided with normalize_time=True')
+        else:
+            if start is None:
+                raise ValueError('A window with non-None left bound must be provided with normalize_time=True')
+            else:
+                self._offset = start
+
+                view = trace.get_view(window=window)
+                view = self._with_time_offset(view, start)
+                view = view.get_view(**kwargs)
+                super().__init__(view)
+
+                self.start = 0
+                self.end = self.base_trace.end - start
+
+    @classmethod
+    def _with_time_offset(cls, trace, start):
+        # Round down to avoid ending up with negative Time for anything that
+        # does not actually happen before the start
+        offset = _polars_duration_expr(start, rounding='down')
+        def time_offset(event, df):
+            return df.with_columns(
+                pl.col('Time') - offset
+            )
+
+        return trace.get_view(
+            process_df=time_offset
+        )
+
+    @property
+    def basetime(self):
+        return self.base_trace.basetime - self._offset
+
+    @property
+    def endtime(self):
+        return self.base_trace.endtime - self._offset
+
+    @property
+    def trace_state(self):
+        return (
+            super().trace_state,
+            self._offset,
+        )
+
+    @property
+    def normalize_time(self):
+        return True
+
 
 # One might be tempted to make that a subclass of collections.abc.Set: don't.
 # The problem is that Set expects new instances to be created by passing an
@@ -2607,39 +3562,40 @@ class _AvailableTraceEventsSet:
         return self.contains(event)
 
     def contains(self, event, namespaces=None):
-        return any(map(self._contains, self._trace._expand_namespaces(event, namespaces)))
-
-    def _contains(self, event):
         trace = self._trace
+        view = trace.get_view(events_namespaces=namespaces)
 
-        if trace._strict_events and not trace._is_meta_event(event):
-            return trace._parseable_events.setdefault(event, False)
-
-        # Try to parse the event in case it was not parsed already
-        if event not in trace._parseable_events:
-            # If the trace file is not accessible anymore, we will get an OSError
-            with contextlib.suppress(MissingTraceEventError, OSError):
-                trace.df_event(event=event, raw=True, namespaces=[])
-
-        return trace._parseable_events.setdefault(event, False)
+        try:
+            trace._internal_df_event(event=event)
+        except MissingTraceEventError:
+            return False
+        else:
+            return True
 
     @property
     def _available_events(self):
-        parseable = lambda: self._trace._parseable_events
-
-        # Get the available events, which will populate the parseable events if
-        # they were empty, which happens when a trace has just been created
-        if not parseable():
+        trace = self._trace
+        # Ideally the parser can report the available events, so the set is
+        # stable.
+        try:
+            available = trace.get_metadata('available-events')
+        except MissingMetadataError:
+            # In case the parser does not implement this metadata, we fall back
+            # on listing all the events we have succesfully parsed in the past.
+            # This will be updated in various places, so the result will not be
+            # stable.
             try:
-                self._trace.get_metadata('available-events')
+                parseable = trace._cache.get_metadata('parseable-events')
             except MissingMetadataError:
-                pass
-
-        return {
-            event
-            for event, available in parseable().items()
-            if available
-        }
+                return set()
+            else:
+                return {
+                    _event
+                    for _event, _parseable in parseable.items()
+                    if _parseable
+                }
+        else:
+            return set(available)
 
     def __iter__(self):
         return iter(self._available_events)
@@ -2658,8 +3614,9 @@ class _CacheDataDesc(Mapping):
     :param spec: Specification of the data as a key/value mapping.
 
     This holds all the information needed to uniquely identify a
-    :class:`pandas.DataFrame` or :class:`pandas.Series`. It is used to manage
-    the cache and swap.
+    :class:`pandas.DataFrame` or :class:`pandas.Series` or
+    :class:`polars.LazyFrame` or :class:`polars.DataFrame`. It is used to
+    manage the cache and swap.
 
     It implements the :class:`collections.abc.Mapping` interface, so
     specification keys can be accessed directly like from a dict.
@@ -2673,6 +3630,12 @@ class _CacheDataDesc(Mapping):
     """
 
     def __init__(self, spec, fmt):
+        if fmt == 'polars-lazyframe':
+            spec = {
+                'polars-version': pl.__version__,
+                **spec
+            }
+
         self.fmt = fmt
         self.spec = spec
         self.normal_form = _CacheDataDescNF.from_spec(self.spec, fmt)
@@ -2810,6 +3773,10 @@ class _CacheDataDescNF:
         return cls(nf=nf, fmt=fmt)
 
 
+class _CannotWriteSwapEntry(Exception):
+    pass
+
+
 class _CacheDataSwapEntry:
     """
     Entry in the data swap area of :class:`Trace`.
@@ -2844,20 +3811,35 @@ class _CacheDataSwapEntry:
         return f'{self.name}.{self.META_EXTENSION}'
 
     @property
+    def fmt(self):
+        """
+        Format of the swap entry.
+        """
+        return self.cache_desc_nf._fmt
+
+    @property
     def data_filename(self):
         """
         Filename of the data file in the swap.
         """
-        return f'{self.name}.{self.cache_desc_nf._fmt}'
+        return f'{self.name}.{self.fmt}'
 
     def to_json_map(self):
         """
         Return a mapping suitable for JSON serialization.
         """
+        desc = self.cache_desc_nf.to_json_map()
+        try:
+            # Use json.dumps() here to fail early if the descriptor cannot be
+            # dumped to JSON
+            desc = json.dumps(desc)
+        except TypeError as e:
+            raise _CannotWriteSwapEntry(e)
+
         return {
             'version-token': VERSION_TOKEN,
             'name': self.name,
-            'desc': self.cache_desc_nf.to_json_map(),
+            'encoded_desc': desc,
         }
 
     @classmethod
@@ -2866,9 +3848,10 @@ class _CacheDataSwapEntry:
         Create an instance with a mapping created using :meth:`to_json_map`.
         """
         if mapping['version-token'] != VERSION_TOKEN:
-            raise TraceCacheSwapVersionError('Version token differ')
+            raise _TraceCacheSwapVersionError('Version token differ')
 
-        cache_desc_nf = _CacheDataDescNF.from_json_map(mapping['desc'])
+        desc = json.loads(mapping['encoded_desc'])
+        cache_desc_nf = _CacheDataDescNF.from_json_map(desc)
         name = mapping['name']
         return cls(cache_desc_nf=cache_desc_nf, name=name, written=written)
 
@@ -2892,14 +3875,14 @@ class _CacheDataSwapEntry:
         return cls.from_json_map(mapping, written=True)
 
 
-class TraceCacheSwapVersionError(ValueError):
+class _TraceCacheSwapVersionError(ValueError):
     """
     Exception raised when the swap entry was created by another version of LISA
     than the one loading it.
     """
 
 
-class TraceCache(Loggable):
+class _TraceCache(Loggable):
     """
     Cache of a :class:`Trace`.
 
@@ -2949,18 +3932,19 @@ class TraceCache(Loggable):
     Name of the trace metadata file in the swap area.
     """
 
-    DATAFRAME_SWAP_FORMAT = 'parquet'
+    DATAFRAME_SWAP_FORMAT = 'polars-lazyframe'
     """
     Data storage format used to swap.
     """
 
     def __init__(self, max_mem_size=None, trace_path=None, trace_id=None, swap_dir=None, max_swap_size=None, swap_content=None, metadata=None):
+        self._lock = threading.RLock()
         self._cache = {}
         self._data_cost = {}
         self._swap_content = swap_content or {}
         self._cache_desc_swap_filename = {}
         self.swap_cost = self.INIT_SWAP_COST
-        self.swap_dir = swap_dir
+        self._swap_dir = swap_dir
         self.max_swap_size = max_swap_size if max_swap_size is not None else math.inf
         self._swap_size = self._get_swap_size()
 
@@ -2970,54 +3954,62 @@ class TraceCache(Loggable):
 
         self.trace_path = os.path.abspath(trace_path) if trace_path else trace_path
         self._trace_id = trace_id
+        self._unique_id = uuid.uuid4().hex
+
+    @property
+    def swap_dir(self):
+        if (swap_dir := self._swap_dir) is None:
+            raise ValueError(f'swap_dir is not set')
+        else:
+            return swap_dir
 
     @property
     @memoized
-    def _swap_size_overhead(self):
-        def make_df(nr_col):
-            return pd.DataFrame({
-                str(x): []
-                for x in range(nr_col)
-            })
+    def _hardlinks_base(self):
+        path = Path(self.swap_dir) / 'hardlinks' / str(self._unique_id)
+        return path.resolve()
 
-        def get_size(nr_col):
-            df = make_df(nr_col)
-            buffer = io.BytesIO()
-            self._write_data('parquet', df, buffer)
-            return buffer.getbuffer().nbytes
+    @property
+    @memoized
+    def _hardlinks_base_deallocator(self):
+        path = self._hardlinks_base
+        f = functools.partial(_file_cleanup, paths=[path])
+        return _Deallocator(
+            f=f,
+            on_del=False,
+            at_exit=True,
+        )
 
-        size1 = get_size(1)
-        size2 = get_size(2)
+    def _hardlink_path(self, base, name):
+        path = self._hardlinks_base / base
+        path.mkdir(parents=True, exist_ok=True)
 
-        col_overhead = size2 - size1
-        # Since parquet seems to fail serializing of a dataframe with 0 columns
-        # in some cases, we use the dataframe with one column and remove the
-        # overhead of the column. It gives almost the same result.
-        file_overhead = size1 - col_overhead
-        assert col_overhead > 0
+        # Make sure the deallocator has been created
+        self._hardlinks_base_deallocator
+        return (
+            path,
+            path / name,
+        )
 
-        return (file_overhead, col_overhead)
+    def __del__(self):
+        # Only try with rmdir first, so that we don't sabbotage existing
+        # LazyFrame that might still be alive.
+        try:
+            path = self._hardlinks_base
+            os.rmdir(path)
+        except Exception:
+            pass
 
-    def _unbias_swap_size(self, data, size):
-        """
-        Remove the fixed size overhead of the file format being used, assuming
-        a non-compressible overhead per file and per column.
-
-        .. note:: This model seems to work pretty well for parquet format.
-        """
-        if isinstance(data, (pd.DataFrame, pd.Series)):
-            file_overhead, col_overhead = self._swap_size_overhead
-            # DataFrame
-            try:
-                nr_columns = data.shape[1]
-            # Series
-            except IndexError:
-                nr_columns = 1
-
-            size = size - file_overhead - nr_columns * col_overhead
-            return size
+    def _parser_temp_path(self):
+        try:
+            swap_dir = self.swap_dir
+        except ValueError:
+            path = None
         else:
-            return self._data_mem_usage(data)
+            path = Path(swap_dir) / 'temp'
+            path.mkdir(parents=True, exist_ok=True)
+
+        return tempfile.TemporaryDirectory(dir=path)
 
     def update_metadata(self, metadata):
         """
@@ -3025,7 +4017,8 @@ class TraceCache(Loggable):
         write it back to the swap area.
         """
         if metadata:
-            self._metadata.update(metadata)
+            with self._lock:
+                self._metadata.update(metadata)
             self.to_swap_dir()
 
     def get_metadata(self, key):
@@ -3033,7 +4026,8 @@ class TraceCache(Loggable):
         Get the value of the given metadata ``key``.
         """
         try:
-            return self._metadata[key]
+            with self._lock:
+                return self._metadata[key]
         except KeyError as e:
             raise MissingMetadataError(key) from e
 
@@ -3044,10 +4038,12 @@ class TraceCache(Loggable):
         trace_path = self.trace_path
 
         if trace_path:
-            if self.swap_dir:
-                trace_path = os.path.relpath(trace_path, self.swap_dir)
-            else:
+            try:
+                swap_dir = self.swap_dir
+            except ValueError:
                 trace_path = os.path.abspath(trace_path)
+            else:
+                trace_path = os.path.relpath(trace_path, swap_dir)
 
         return {
             'version-token': VERSION_TOKEN,
@@ -3073,7 +4069,7 @@ class TraceCache(Loggable):
             mapping = json.load(f)
 
         if mapping['version-token'] != VERSION_TOKEN:
-            raise TraceCacheSwapVersionError('Version token differ')
+            raise _TraceCacheSwapVersionError('Version token differ')
 
         swap_trace_path = mapping['trace-path']
         swap_trace_path = os.path.join(swap_dir, swap_trace_path) if swap_trace_path else None
@@ -3121,8 +4117,12 @@ class TraceCache(Loggable):
         """
         Write the persistent state to the swap area if any, no-op otherwise.
         """
-        if self.swap_dir:
-            path = os.path.join(self.swap_dir, self.TRACE_META_FILENAME)
+        try:
+            swap_dir = self.swap_dir
+        except ValueError:
+            pass
+        else:
+            path = os.path.join(swap_dir, self.TRACE_META_FILENAME)
             self.to_path(path)
 
     @classmethod
@@ -3130,12 +4130,12 @@ class TraceCache(Loggable):
         """
         Reload the persistent state from the given ``swap_dir``.
 
-        :Variable keyword arguments: Forwarded to :class:`TraceCache`.
+        :Variable keyword arguments: Forwarded to :class:`_TraceCache`.
         """
         if swap_dir:
             try:
                 return cls._from_swap_dir(swap_dir=swap_dir, **kwargs)
-            except (FileNotFoundError, TraceCacheSwapVersionError, json.decoder.JSONDecodeError):
+            except (FileNotFoundError, _TraceCacheSwapVersionError, json.decoder.JSONDecodeError):
                 pass
 
         return cls(swap_dir=swap_dir, **kwargs)
@@ -3147,22 +4147,19 @@ class TraceCache(Loggable):
         return self._data_mem_usage(data) * self._data_mem_swap_ratio
 
     def _update_ewma(self, attr, new, alpha=0.25, override=False):
-        old = getattr(self, attr)
-        if override:
-            updated = new
-        else:
-            updated = (1 - alpha) * old + alpha * new
+        with self._lock:
+            old = getattr(self, attr)
+            if override:
+                updated = new
+            else:
+                updated = (1 - alpha) * old + alpha * new
 
-        setattr(self, attr, updated)
+            setattr(self, attr, updated)
 
     def _update_data_swap_size_estimation(self, data, size):
-        size = self._unbias_swap_size(data, size)
-
-        # If size < 0, the dataframe is so small that it's basically just noise
-        if size > 0:
-            mem_usage = self._data_mem_usage(data)
-            if mem_usage:
-                self._update_ewma('_data_mem_swap_ratio', size / mem_usage)
+        mem_usage = self._data_mem_usage(data)
+        if mem_usage:
+            self._update_ewma('_data_mem_swap_ratio', size / mem_usage)
 
     @staticmethod
     def _data_mem_usage(data):
@@ -3179,7 +4176,8 @@ class TraceCache(Loggable):
 
     def _should_evict_to_swap(self, cache_desc, data):
         # If we don't have any cost info, assume it is expensive to compute
-        compute_cost = self._data_cost.get(cache_desc, math.inf)
+        with self._lock:
+            compute_cost = self._data_cost.get(cache_desc, math.inf)
         swap_cost = self._estimate_data_swap_cost(data)
         return swap_cost <= compute_cost
 
@@ -3187,38 +4185,33 @@ class TraceCache(Loggable):
         return os.path.join(self.swap_dir, swap_entry.meta_filename)
 
     def _cache_desc_swap_path(self, cache_desc, create=False):
-        if self.swap_dir:
-            cache_desc_nf = cache_desc.normal_form
+        cache_desc_nf = cache_desc.normal_form
 
-            if create and not self._is_written_to_swap(cache_desc):
-                self.insert(
-                    cache_desc,
-                    data=None,
-                    compute_cost=None,
-                    write_swap=True,
-                    force_write_swap=True,
-                    # We do not write the swap_entry meta file, so that the
-                    # user can write the data file before the swap entry is
-                    # added. This way, another process will not be tricked into
-                    # believing the data is available whereas in fact it's in
-                    # the process of being populated.
-                    write_meta=False,
-                )
+        if create and not self._is_written_to_swap(cache_desc):
+            self.insert(
+                cache_desc,
+                data=None,
+                compute_cost=None,
+                write_swap=True,
+                force_write_swap=True,
+                # We do not write the swap_entry meta file, so that the
+                # user can write the data file before the swap entry is
+                # added. This way, another process will not be tricked into
+                # believing the data is available whereas in fact it's in
+                # the process of being populated.
+                write_meta=False,
+            )
 
+        with self._lock:
             swap_entry = self._swap_content[cache_desc_nf]
-            filename = swap_entry.data_filename
-            return os.path.join(self.swap_dir, filename)
-        else:
-            raise ValueError('Swap dir is not setup')
+        filename = swap_entry.data_filename
+        return os.path.join(self.swap_dir, filename)
 
     def _update_swap_cost(self, data, swap_cost, mem_usage, swap_size):
-        unbiased_swap_size = self._unbias_swap_size(data, swap_size)
         # Take out from the swap cost the time it took to write the overhead
         # that comes with the file format, assuming the cost is
         # proportional to amount of data written in the swap.
-        if swap_size:
-            swap_cost *= unbiased_swap_size / swap_size
-        else:
+        if not swap_size:
             swap_cost = 0
 
         new_cost = swap_cost / mem_usage
@@ -3229,22 +4222,15 @@ class TraceCache(Loggable):
 
     def _is_written_to_swap(self, cache_desc):
         try:
-            swap_entry = self._swap_content[cache_desc.normal_form]
+            with self._lock:
+                swap_entry = self._swap_content[cache_desc.normal_form]
         except KeyError:
             return False
         else:
             return swap_entry.written
 
     @staticmethod
-    def _data_to_parquet(data, path, **kwargs):
-        """
-        Equivalent to `df.to_parquet(...)` but workaround until pandas can save
-        attrs to parquet on its own: ENH request on pandas:
-        https://github.com/pandas-dev/pandas/issues/20521
-
-        Workaround:
-        https://github.com/pandas-dev/pandas/pull/20534#issuecomment-453236538
-        """
+    def _data_to_parquet(data, path, compression='snappy', **kwargs):
         if isinstance(data, pd.DataFrame):
             # Data must be convertible to bytes so we dump them as JSON
             attrs = json.dumps(data.attrs)
@@ -3255,33 +4241,57 @@ class TraceCache(Loggable):
             )
             table = table.replace_schema_metadata(updated_metadata)
             pyarrow.parquet.write_table(table, path, **kwargs)
+        elif isinstance(data, pl.DataFrame):
+            data.write_parquet(path, **kwargs)
+        elif isinstance(data, pl.LazyFrame):
+            with pl.StringCache():
+                try:
+                    data.sink_parquet(path, **kwargs)
+                # Some LazyFrame cannot be sunk lazily to a parquet file
+                except pl.InvalidOperationError:
+                    data.collect().write_parquet(path, **kwargs)
         else:
             data.to_parquet(path, **kwargs)
 
-    @staticmethod
-    def _data_from_parquet(path):
-        """
-        Equivalent to `pd.read_parquet(...)` but also load the metadata back
-        into dataframes's attrs
-        """
-        data = pd.read_parquet(path)
-
-        # Load back LISA metadata into "df.attrs", as they were written in
-        # _data_to_parquet()
-        if isinstance(data, pd.DataFrame):
-            schema = pyarrow.parquet.read_schema(path)
-            attrs = schema.metadata.get(b'lisa', '{}')
-            data.attrs = json.loads(attrs)
-
-        return data
-
-    @classmethod
-    def _write_data(cls, fmt, data, path):
+    def _write_data(self, fmt, data, path):
         if fmt == 'disk-only':
             return
         elif fmt == 'parquet':
             # Snappy compression seems very fast
-            cls._data_to_parquet(data, path, compression='snappy')
+            self._data_to_parquet(data, path)
+        elif fmt == 'polars-lazyframe':
+            assert isinstance(data, pl.LazyFrame)
+
+            def to_parquet():
+                self._data_to_parquet(data, path)
+
+            def to_json(plan):
+                plan = json.loads(plan)
+                plan, _ = _logical_plan_resolve_paths(
+                    self,
+                    plan=plan,
+                    kind='dump',
+                )
+                with open(path, 'wt') as f:
+                    json.dump(plan, f)
+
+            # If the LazyFrame is actually backed by an in-memory DataFrame, we
+            # just execute it and dump it to parquet. Otherwise, that would
+            # force rendering the entire dataframe to JSON first which would
+            # not scale well at all.
+            if _polars_df_in_memory(data):
+                to_parquet()
+            else:
+                try:
+                    plan = data.serialize()
+                # We failed to serialize the logical plan. This could happen
+                # because it contains references to UDF (e.g. a lambda passed
+                # to Expr.map_elements())
+                except ValueError:
+                    to_parquet()
+                else:
+                    to_json(plan)
+
         elif fmt == 'json':
             with open(path, 'wt') as f:
                 try:
@@ -3291,28 +4301,64 @@ class TraceCache(Loggable):
         else:
             raise ValueError(f'Does not know how to dump to disk format: {fmt}')
 
+    def _load_data(self, fmt, path):
+        def load_parquet(path):
+            path = Path(path)
+            hardlink_base, hardlink_path = self._hardlink_path(
+                uuid.uuid4().hex,
+                path.name
+            )
+            # We make a hardlink to the cache entry that will not be
+            # subject to scrubbing. This way we ensure that we can keep the
+            # LazyFrame working even if another process decides to scrub
+            # the swap area.
+            _make_hardlink(path, hardlink_path)
+            try:
+                df = pl.scan_parquet(hardlink_path)
+            except BaseException:
+                try:
+                    shutil.rmtree(hardlink_base)
+                except Exception:
+                    pass
+                raise
+            else:
+                df = _LazyFrameOnDelete.attach_file_cleanup(df, [hardlink_base])
+                return df
 
-    @classmethod
-    def _load_data(cls, fmt, path):
         if fmt == 'disk-only':
             data = None
         elif fmt == 'parquet':
-            data = cls._data_from_parquet(path)
+            data = load_parquet(path)
         elif fmt == 'json':
             with open(path, 'rt') as f:
                 data = json.load(f)
+        elif fmt == 'polars-lazyframe':
+            try:
+                data = load_parquet(path)
+            except pl.ComputeError:
+                with open(path, 'r') as f:
+                    plan = json.load(f)
+
+                plan, hardlinks = _logical_plan_resolve_paths(
+                    self,
+                    plan=plan,
+                    kind='load',
+                )
+                plan = json.dumps(plan)
+                plan = io.StringIO(plan)
+                data = pl.LazyFrame.deserialize(plan)
+                data = _LazyFrameOnDelete.attach_file_cleanup(data, hardlinks)
         else:
             raise ValueError(f'File format not supported "{fmt}" at path: {path}')
 
         return data
 
     def _write_swap(self, cache_desc, data, write_meta=True):
-        if not self.swap_dir:
-            return
+        try:
+            swap_dir = self.swap_dir
+        except ValueError:
+            pass
         else:
-            # TODO: this is broken for disk-only format, as we have the swap
-            # entry in _swap_content[] in order to match it again but the meta
-            # file has not been written to the disk yet.
             if self._is_written_to_swap(cache_desc):
                 return
 
@@ -3322,11 +4368,12 @@ class TraceCache(Loggable):
             # data file in advance so they can write to it directly, instead of
             # managing the data in the memory cache.
             try:
-                swap_entry = self._swap_content[cache_desc_nf]
+                with self._lock:
+                    swap_entry = self._swap_content[cache_desc_nf]
             except KeyError:
                 swap_entry = _CacheDataSwapEntry(cache_desc_nf)
 
-            data_path = os.path.join(self.swap_dir, swap_entry.data_filename)
+            data_path = os.path.join(swap_dir, swap_entry.data_filename)
 
             # If that would make the swap dir too large, try to do some cleanup
             if self._estimate_data_swap_size(data) + self._swap_size > self.max_swap_size:
@@ -3345,11 +4392,22 @@ class TraceCache(Loggable):
             else:
                 # Update the swap entry on disk
                 if write_meta:
-                    swap_entry.to_path(
-                        self._path_of_swap_entry(swap_entry)
-                    )
-                    swap_entry.written = True
-                self._swap_content[swap_entry.cache_desc_nf] = swap_entry
+                    try:
+                        swap_entry.to_path(
+                            self._path_of_swap_entry(swap_entry)
+                        )
+                    # We have a swap entry that cannot be written to the swap,
+                    # probably because the descriptor includes something that
+                    # cannot be serialized to JSON.
+                    except _CannotWriteSwapEntry as e:
+                        self.logger.debug(f'Could not write {cache_desc} to swap: {e}')
+                        swap_entry.written = False
+                        return
+                    else:
+                        swap_entry.written = True
+
+                with self._lock:
+                    self._swap_content[swap_entry.cache_desc_nf] = swap_entry
 
                 # Assume that reading from the swap will take as much time as
                 # writing to it. We cannot do better anyway, but that should
@@ -3363,87 +4421,120 @@ class TraceCache(Loggable):
                 mem_usage = self._data_mem_usage(data)
                 if mem_usage:
                     self._update_swap_cost(data, swap_cost, mem_usage, data_swapped_size)
-                self._swap_size += data_swapped_size
+                with self._lock:
+                    self._swap_size += data_swapped_size
                 self._update_data_swap_size_estimation(data, data_swapped_size)
                 self.scrub_swap()
 
     def _get_swap_size(self):
-        if self.swap_dir:
+        try:
+            swap_dir = self.swap_dir
+        except ValueError:
+            return 1
+        else:
             return sum(
                 dir_entry.stat().st_size
-                for dir_entry in os.scandir(self.swap_dir)
+                for dir_entry in os.scandir(swap_dir)
             )
-        else:
-            return 1
 
     def scrub_swap(self):
         """
         Scrub the swap area to remove old files if the storage size limit is exceeded.
         """
-        # TODO: Load the file information from __init__ by discovering the swap
-        # area's content to avoid doing it each time here
-        if self._swap_size > self.max_swap_size and self.swap_dir:
-            stats = {
-                dir_entry.name: dir_entry.stat()
-                for dir_entry in os.scandir(self.swap_dir)
-            }
+        try:
+            swap_dir = self.swap_dir
+        except ValueError:
+            pass
+        else:
+            # TODO: Load the file information from __init__ by discovering the
+            # swap area's content to avoid doing it each time here
+            if self._swap_size > self.max_swap_size:
+                self._scrub_swap(swap_dir)
 
-            data_files = {
-                swap_entry.data_filename: swap_entry
-                for swap_entry in self._swap_content.values()
-            }
+    def _scrub_swap(self, swap_dir):
+        stats = {
+            dir_entry.name: dir_entry.stat()
+            for dir_entry in os.scandir(swap_dir)
+        }
 
-            # Get rid of stale files that are not referenced by any swap entry
-            metadata_files = {
-                swap_entry.meta_filename
-                for swap_entry in self._swap_content.values()
-            }
-            metadata_files.add(self.TRACE_META_FILENAME)
-            non_stale_files = data_files.keys() | metadata_files
-            stale_files = stats.keys() - non_stale_files
-            for filename in stale_files:
-                stats.pop(filename, None)
-                path = os.path.join(self.swap_dir, filename)
+        with self._lock:
+            swap_content = list(self._swap_content.values())
+
+        data_files = {
+            swap_entry.data_filename: swap_entry
+            for swap_entry in swap_content
+        }
+
+        # Get rid of stale files that are not referenced by any swap entry
+        metadata_files = {
+            swap_entry.meta_filename
+            for swap_entry in swap_content
+        }
+        metadata_files.add(self.TRACE_META_FILENAME)
+        non_stale_files = data_files.keys() | metadata_files | {'hardlinks', 'temp'}
+        stale_files = stats.keys() - non_stale_files
+        for filename in stale_files:
+            stats.pop(filename, None)
+            path = os.path.join(swap_dir, filename)
+            try:
+                os.unlink(path)
+            except Exception:
+                pass
+
+        def by_mtime(path_stat):
+            _, stat = path_stat
+            return stat.st_mtime
+
+        # Sort by modification time, so we discard the oldest caches
+        total_size = 0
+        discarded_swap_entries = set()
+        for filename, stat in sorted(stats.items(), key=by_mtime):
+            total_size += stat.st_size
+            if total_size > self.max_swap_size:
+                try:
+                    swap_entry = data_files[filename]
+                # That was not a data file
+                except KeyError:
+                    continue
+                else:
+                    discarded_swap_entries.add(swap_entry)
+
+        # Update the swap content
+        for swap_entry in discarded_swap_entries:
+            stats.pop(swap_entry.data_filename, None)
+            self._clear_swap_entry(swap_entry)
+
+        with self._lock:
+            self._swap_size = sum(
+                stats[swap_entry.data_filename].st_size
+                for swap_entry in swap_content
+                if swap_entry.data_filename in stats
+            )
+
+    def _clear_cache_desc_swap(self, cache_desc):
+        with self._lock:
+            try:
+                swap_entry = self._swap_content[cache_desc.normal_form]
+            except KeyError:
+                pass
+            else:
+                self._clear_swap_entry(swap_entry)
+
+    def _clear_swap_entry(self, swap_entry):
+        try:
+            swap_dir = self.swap_dir
+        except ValueError:
+            pass
+        else:
+            with self._lock:
+                self._swap_content.pop(swap_entry.cache_desc_nf)
+
+            for filename in (swap_entry.meta_filename, swap_entry.data_filename):
+                path = os.path.join(swap_dir, filename)
                 try:
                     os.unlink(path)
                 except Exception:
                     pass
-
-            def by_mtime(path_stat):
-                _, stat = path_stat
-                return stat.st_mtime
-
-            # Sort by modification time, so we discard the oldest caches
-            total_size = 0
-            discarded_swap_entries = set()
-            for filename, stat in sorted(stats.items(), key=by_mtime):
-                total_size += stat.st_size
-                if total_size > self.max_swap_size:
-                    try:
-                        swap_entry = data_files[filename]
-                    # That was not a data file
-                    except KeyError:
-                        continue
-                    else:
-                        discarded_swap_entries.add(swap_entry)
-
-            # Update the swap content
-            for swap_entry in discarded_swap_entries:
-                del self._swap_content[swap_entry.cache_desc_nf]
-                stats.pop(swap_entry.data_filename, None)
-
-                for filename in (swap_entry.meta_filename, swap_entry.data_filename):
-                    path = os.path.join(self.swap_dir, filename)
-                    try:
-                        os.unlink(path)
-                    except Exception:
-                        pass
-
-            self._swap_size = sum(
-                stats[swap_entry.data_filename].st_size
-                for swap_entry in self._swap_content.values()
-                if swap_entry.data_filename in stats
-            )
 
     def fetch(self, cache_desc, insert=True):
         """
@@ -3457,16 +4548,25 @@ class TraceCache(Loggable):
         :type insert: bool
         """
         try:
-            return self._cache[cache_desc]
+            with self._lock:
+                return self._cache[cache_desc]
         except KeyError as e:
             # pylint: disable=raise-missing-from
             try:
                 path = self._cache_desc_swap_path(cache_desc)
             # If there is no swap, bail out
             except (ValueError, KeyError):
-                raise KeyError(f'Could not find swap entry for: {cache_desc}')
+                raise KeyError('Could not find swap entry for cache_desc')
             else:
-                data = self._load_data(cache_desc.fmt, path)
+                try:
+                    data = self._load_data(cache_desc.fmt, path)
+                except Exception as e:
+                    # Rotten swap entry, we clear it. This may happen e.g. when
+                    # reloading a LazyFrame that depended on another cache
+                    # entry that has been scrubbed
+                    self._clear_cache_desc_swap(cache_desc)
+                    raise KeyError('Could not load swap entry content of cache_desc')
+
                 if insert:
                     # We have no idea of the cost of something coming from
                     # the cache
@@ -3501,9 +4601,10 @@ class TraceCache(Loggable):
             on disk if the data are. Otherwise, no swap entry is written to disk.
         :type write_meta: bool
         """
-        self._cache[cache_desc] = data
-        if compute_cost is not None:
-            self._data_cost[cache_desc] = compute_cost
+        with self._lock:
+            self._cache[cache_desc] = data
+            if compute_cost is not None:
+                self._data_cost[cache_desc] = compute_cost
 
         if write_swap:
             self.write_swap(
@@ -3513,6 +4614,12 @@ class TraceCache(Loggable):
             )
 
         self._scrub_mem()
+
+    def insert_disk_only(self, spec, compute_cost=None):
+        cache_desc = _CacheDataDesc(spec=spec, fmt='disk-only')
+        self.insert(cache_desc, data=None, compute_cost=compute_cost, write_swap=True)
+        path = self._cache_desc_swap_path(cache_desc, create=True)
+        return Path(path).resolve()
 
     def _scrub_mem(self):
         if self.max_mem_size == math.inf:
@@ -3524,51 +4631,51 @@ class TraceCache(Loggable):
         )
 
         if mem_usage > self.max_mem_size:
+            with self._lock:
+                # Make sure garbage collection occurred recently, to get the most
+                # accurate refcount possible
+                gc.collect()
+                refcounts = {
+                    cache_desc: sys.getrefcount(data)
+                    for cache_desc, data in self._cache.items()
+                }
+                min_refcount = min(refcounts.values())
 
-            # Make sure garbage collection occurred recently, to get the most
-            # accurate refcount possible
-            gc.collect()
-            refcounts = {
-                cache_desc: sys.getrefcount(data)
-                for cache_desc, data in self._cache.items()
-            }
-            min_refcount = min(refcounts.values())
+                # Low retention score means it's more likely to be evicted
+                def retention_score(cache_desc_and_data):
+                    cache_desc, data = cache_desc_and_data
 
-            # Low retention score means it's more likely to be evicted
-            def retention_score(cache_desc_and_data):
-                cache_desc, data = cache_desc_and_data
+                    # If we don't know the computation cost, assume it can be evicted cheaply
+                    compute_cost = self._data_cost.get(cache_desc, 0)
 
-                # If we don't know the computation cost, assume it can be evicted cheaply
-                compute_cost = self._data_cost.get(cache_desc, 0)
-
-                if not compute_cost:
-                    score = 0
-                else:
-                    swap_cost = self._estimate_data_swap_cost(data)
-                    # If it's already written back, make it cheaper to evict since
-                    # the eviction itself is going to be cheap
-                    if self._is_written_to_swap(cache_desc):
-                        swap_cost /= 2
-
-                    if swap_cost:
-                        score = compute_cost / swap_cost
-                    else:
+                    if not compute_cost:
                         score = 0
+                    else:
+                        swap_cost = self._estimate_data_swap_cost(data)
+                        # If it's already written back, make it cheaper to evict since
+                        # the eviction itself is going to be cheap
+                        if self._is_written_to_swap(cache_desc):
+                            swap_cost /= 2
 
-                # Assume that more references to an object implies it will
-                # stay around for longer. Therefore, it's less interesting to
-                # remove it from this cache and pay the cost of reading/writing it to
-                # swap, since the memory will not be freed anyway.
-                #
-                # Normalize to the minimum refcount, so that the _cache and other
-                # structures where references are stored are discounted for sure.
-                return (refcounts[cache_desc] - min_refcount + 1) * score
+                        if swap_cost:
+                            score = compute_cost / swap_cost
+                        else:
+                            score = 0
 
-            new_mem_usage = 0
-            for cache_desc, data in sorted(self._cache.items(), key=retention_score):
-                new_mem_usage += self._data_mem_usage(data)
-                if new_mem_usage > self.max_mem_size:
-                    self.evict(cache_desc)
+                    # Assume that more references to an object implies it will
+                    # stay around for longer. Therefore, it's less interesting to
+                    # remove it from this cache and pay the cost of reading/writing it to
+                    # swap, since the memory will not be freed anyway.
+                    #
+                    # Normalize to the minimum refcount, so that the _cache and other
+                    # structures where references are stored are discounted for sure.
+                    return (refcounts[cache_desc] - min_refcount + 1) * score
+
+                new_mem_usage = 0
+                for cache_desc, data in sorted(self._cache.items(), key=retention_score):
+                    new_mem_usage += self._data_mem_usage(data)
+                    if new_mem_usage > self.max_mem_size:
+                        self.evict(cache_desc)
 
     def evict(self, cache_desc):
         """
@@ -3583,7 +4690,8 @@ class TraceCache(Loggable):
         self.write_swap(cache_desc)
 
         try:
-            del self._cache[cache_desc]
+            with self._lock:
+                del self._cache[cache_desc]
         except KeyError:
             pass
 
@@ -3604,19 +4712,23 @@ class TraceCache(Loggable):
         :type write_meta: bool
         """
         try:
-            data = self._cache[cache_desc]
+            with self._lock:
+                data = self._cache[cache_desc]
         except KeyError:
             pass
         else:
             if force or self._should_evict_to_swap(cache_desc, data):
                 self._write_swap(cache_desc, data, write_meta)
 
-    def write_swap_all(self):
+    def write_swap_all(self, **kwargs):
         """
         Attempt to write all cached data to the swap.
         """
-        for cache_desc in self._cache.keys():
-            self.write_swap(cache_desc)
+        with self._lock:
+            cache_descs = list(self._cache.keys())
+
+        for cache_desc in cache_descs:
+            self.write_swap(cache_desc, **kwargs)
 
     def clear_event(self, event, raw=None):
         """
@@ -3630,176 +4742,38 @@ class TraceCache(Loggable):
             ``None``, ignore whether the descriptor is about raw data or not.
         :type raw: bool or None
         """
-        self._cache = {
-            cache_desc: data
-            for cache_desc, data in self._cache.items()
-            if not (
-                cache_desc.get('event') == event
-                and (
-                    raw is None
-                    or cache_desc.get('raw') == raw
+        with self._lock:
+            self._cache = {
+                cache_desc: data
+                for cache_desc, data in self._cache.items()
+                if not (
+                    cache_desc.get('event') == event
+                    and (
+                        raw is None
+                        or cache_desc.get('raw') == raw
+                    )
                 )
-            )
-        }
+            }
 
     def clear_all_events(self, raw=None):
         """
         Same as :meth:`clear_event` but works on all events at once.
         """
-        self._cache = {
-            cache_desc: data
-            for cache_desc, data in self._cache.items()
-            if (
-                # Cache entries can be associated to something else than events
-                'event' not in cache_desc or
-                # Either we care about raw and we check, or blanket clear
-                raw is None or
-                cache_desc.get('raw') == raw
-            )
-        }
+        with self._lock:
+            self._cache = {
+                cache_desc: data
+                for cache_desc, data in self._cache.items()
+                if (
+                    # Cache entries can be associated to something else than events
+                    'event' not in cache_desc or
+                    # Either we care about raw and we check, or blanket clear
+                    raw is None or
+                    cache_desc.get('raw') == raw
+                )
+            }
 
 
-class Trace(Loggable, TraceBase):
-    """
-    The Trace object is the LISA trace events parser.
-
-    :param trace_path: File containing the trace
-    :type trace_path: str or None
-
-    :param events: events to be parsed. Since events can be loaded on-demand,
-        that is optional but still recommended to improve trace parsing speed.
-
-        .. seealso:: :meth:`df_event` for event formats accepted.
-    :type events: TraceEventCheckerBase or list(str) or None
-
-    :param events_namespaces: List of namespaces of the requested events. Each
-        namespace will be tried in order until the event is found. The
-        ``None`` namespace can be used to specify no namespace. An empty
-        list is treated as ``[None]`` The full event name is formed with
-        ``<namespace>__<event>``.
-    :type events_namespaces: list(str or None)
-
-
-    :param strict_events: When ``True``, all the events specified in ``events``
-        have to be present, and any other events will be assumed to not be
-        present. This allows early failure and avoid the cost of lazy detection
-        of events in very large traces.
-    :type strict_events: bool
-
-    :param plat_info: Platform info describing the target that this trace was
-        collected on.
-    :type plat_info: lisa.platforms.platinfo.PlatformInfo
-
-    :param normalize_time: Make the first timestamp in the trace 0 instead
-        of the system timestamp that was captured when tracing.
-    :type normalize_time: bool
-
-    :param parser: Optional trace parser to use as a backend. It must
-        implement the API defined by :class:`TraceParserBase`, and will be
-        called as ``parser(path=trace_path, events=events,
-        needed_metadata={'time-range', ...})`` with the events that should be
-        parsed. Other parameters must either have default values, or be
-        pre-assigned using partially-applied constructor (for subclasses of
-        :class:`lisa.utils.PartialInit`) or :func:`functools.partial`. By
-        default, ``.txt`` files will be assumed to be in human-readable format
-        output directly by the kernel (or ``trace-cmd report`` without ``-R``).
-        Support for this format is limited and some events might not be parsed
-        correctly (or at least without custom event parsers).
-    :type parser: object or None
-
-    :param plots_dir: directory where to save plots
-    :type plots_dir: str
-
-    :param sanitization_functions: Mapping of event name to sanitization
-        function. Each function takes:
-
-            * the trace instance
-            * the name of the event
-            * a dataframe of the raw event
-            * a dictionary of aspects to sanitize
-
-        These functions *must not* modify their input dataframe under any
-        circumstances. They are required to make copies where appropriate.
-    :type sanitization_functions: dict(str, collections.abc.Callable) or None
-
-    :param max_mem_size: Maximum memory usage to be used for dataframe cache.
-        Note that the peak memory usage can exceed that, as the cache can not
-        forcefully evict an object from memory (it can only drop references to it).
-        When ``None``, use illimited amount of memory.
-    :type max_mem_size: int or None
-
-    :param swap_dir: Swap directory used to store dataframes evicted from the
-        cache. When ``None``, a hidden directory along the trace file is used.
-    :type swap_dir: str or None
-
-    :param enable_swap: If ``True``, the on-disk swap is enabled.
-    :type enable_swap: bool
-
-    :param max_swap_size: Maximum size of the swap directory. When ``None``,
-        the max size is the size of the trace file.
-    :type max_swap_size: int or None
-
-    :param write_swap: Default value used for :meth:`df_event` ``write_swap``
-        parameter.
-    :type write_swap: bool
-
-    :Attributes:
-        * ``start``: The timestamp of the first trace event in the trace
-        * ``end``: The timestamp of the last trace event in the trace
-        * ``time_range``: Maximum timespan for all collected events
-        * ``window``: Conveniency tuple of ``(start, end)``.
-        * ``available_events``: Events available in the parsed trace, exposed
-          as some kind of set-ish smart container. Querying for event might
-          trigger the parsing of it.
-        * ``ana``: The analysis proxy used as an entry point to run analysis
-          methods on the trace. See :class:`lisa.analysis._proxy.AnalysisProxy`.
-
-    :Supporting more events:
-        Subclasses of :class:`TraceParserBase` can usually auto-detect the
-        event format, but there may be a number of reasons to pass a custom
-        event parser:
-
-            * The event format produced by a given kernel differs from the
-              description bundled with the parser, leading to incorrect parse
-              (missing field).
-
-            * The event cannot be parsed in raw format in case text output of
-              ``trace-cmd`` is used, because of a ``const char*`` field displayed
-              as a pointer for example.
-
-              .. seealso:: For events not following the regular field syntax,
-                use :class:`CustomFieldsTxtEventParser`
-
-            * Automatic detection can take a heavy performance toll. This is
-              why parsers needing descriptions will come with pre-defined
-              descritption of most used events.
-
-        Custom event parsers can be passed as extra parameters to the parser,
-        which can be set manually::
-
-            # Event parsers provided by TxtTraceParser can also be overridden
-            # with user-provided ones in case they fail to parse what a given
-            # kernel produced
-            event_parsers = [
-                TxtEventParser('foobar', fields={'foo': int, 'bar': 'string'}, raw=True)
-            ]
-
-            # Pre-fill the "event_parsers" parameter of
-            # TxtEventParser.from_dat() using a partial application.
-            #
-            # Note: you need to choose the parser appropriately for the
-            # format of the trace, since the automatic filetype detection is
-            # bypassed.
-            parser = TxtTraceParser.from_dat(event_parsers=event_parsers)
-            trace = Trace('foobar.dat', parser=parser)
-
-        .. warning:: Custom event parsers that are not types or functions (such
-            as partially-applied values) will tie the on-disc swap entries to
-            the parser :class:`Trace` instance, incurring higher
-            :class:`pandas.DataFrame` load time when a new :class:`Trace`
-            object is created.
-    """
-
+class _Trace(Loggable, _InternalTraceBase):
     def _select_userspace(self, source_event, meta_event, df):
         # pylint: disable=unused-argument,no-self-use
 
@@ -3807,8 +4781,8 @@ class Trace(Loggable, TraceBase):
         # writing to: /sys/kernel/debug/tracing/trace_marker
         # That said, it's not the end of the world if we don't filter on that
         # as the meta event name is supposed to be unique anyway
-        if not is_numeric_dtype(df['ip'].dtype):
-            df = df[df['ip'].str.startswith('tracing_mark_write')]
+        if isinstance(df.schema['ip'], pl.String):
+            df = df.filter(pl.col('ip').str.starts_with('tracing_mark_write'))
         return (df, 'buf')
 
     def _select_trace_printk(self, source_event, meta_event, df):
@@ -3849,28 +4823,18 @@ class Trace(Loggable, TraceBase):
     def __init__(self,
         trace_path=None,
         plat_info=None,
-        events=None,
-        strict_events=False,
-        normalize_time=False,
         parser=None,
         plots_dir=None,
-        sanitization_functions=None,
 
         max_mem_size=None,
         swap_dir=None,
         enable_swap=True,
         max_swap_size=None,
-        write_swap=True,
-        events_namespaces=('lisa', None),
     ):
         super().__init__()
-        trace_path = str(trace_path) if trace_path else None
+        self._lock = threading.RLock()
 
-        sanitization_functions = sanitization_functions or {}
-        self._sanitization_functions = {
-            **self._SANITIZATION_FUNCTIONS,
-            **sanitization_functions,
-        }
+        trace_path = str(trace_path) if trace_path else None
 
         if enable_swap:
             if trace_path:
@@ -3895,10 +4859,9 @@ class Trace(Loggable, TraceBase):
             swap_dir = None
             max_swap_size = None
 
-        self._write_swap = write_swap
-        self.normalize_time = normalize_time
         self.trace_path = trace_path
         self._parseable_events = {}
+        self._unavailable_metadata = set()
 
         if parser is None:
             if not trace_path:
@@ -3923,17 +4886,19 @@ class Trace(Loggable, TraceBase):
             # Make a shallow copy so we can update it
             plat_info = copy.copy(plat_info)
 
-        self._strict_events = strict_events
-        self.available_events = _AvailableTraceEventsSet(self)
-        if not plots_dir and trace_path:
+        self._strict_events = False
+
+        if plots_dir:
+            _deprecated_warn('Trace(plots_dir=...) parameter is deprecated', stacklevel=2)
+        elif not plots_dir and trace_path:
             plots_dir = os.path.dirname(trace_path)
         self.plots_dir = plots_dir
 
         # No-op cache so that the cacheable metadata machinery does not fall
         # over when querying the trace-id.
-        self._cache = TraceCache()
+        self._cache = _TraceCache()
         trace_id = self._get_trace_id()
-        self._cache = TraceCache.from_swap_dir(
+        self._cache = _TraceCache.from_swap_dir(
             trace_path=trace_path,
             swap_dir=swap_dir,
             max_swap_size=max_swap_size,
@@ -3951,75 +4916,23 @@ class Trace(Loggable, TraceBase):
         except MissingMetadataError:
             pass
 
-        if isinstance(events, str):
-            raise ValueError('Events passed to Trace(events=...) must be a list of strings, not a string.')
-        elif events is None:
-            events = AndTraceEventChecker()
-        elif isinstance(events, TraceEventCheckerBase):
-            pass
-        else:
-            events = AndTraceEventChecker.from_events(events)
-
-        self.events_namespaces = events_namespaces
-        self.events = events
-        # Pre-load the selected events
-        if events:
-            preload_events = OptionalTraceEventChecker.from_events(
-                event_
-                for event in events
-                for event_ in self._expand_namespaces(event, events_namespaces)
-            )
-            df_map = self._load_cache_raw_df(preload_events, write_swap=True, allow_missing_events=True)
-
-            missing_events = {
-                event
-                for event in events
-                if not (df_map.keys() & set(self._expand_namespaces(event, events_namespaces)))
-            }
-
-            if strict_events and missing_events:
-                raise MissingTraceEventError(
-                    missing_events,
-                    available_events=self.available_events,
-                )
-
         # Register what we currently have
         self.plat_info = plat_info
         # Update the platform info with the data available from the trace once
         # the Trace is almost fully initialized
         self.plat_info = plat_info.add_trace_src(self)
 
-    @bothmethod
-    def _resolve_namespaces(self_or_cls, namespaces=None):
-        if not isinstance(self_or_cls, type):
-            namespaces = self_or_cls.events_namespaces if namespaces is None else namespaces
-        return namespaces or (None,)
+    def _preload_events(self, events):
+        events = OptionalTraceEventChecker.from_events(events)
 
-    @bothmethod
-    def _expand_namespaces(self_or_cls, event, namespaces=None):
-        namespaces = self_or_cls._resolve_namespaces(namespaces)
+        # This creates a polars LazyFrame from the cache if available, so it's
+        # cheap since we always cache the data coming from the parser.
+        df_map = self._load_cache_raw_df(
+            events,
+            allow_missing_events=True,
+        )
+        return set(df_map.keys())
 
-        def expand_namespace(event, namespace):
-            if namespace:
-                ns_prefix = f'{namespace}__'
-                if event.startswith(ns_prefix):
-                    return [event]
-                else:
-                    return [f'{ns_prefix}{event}']
-            else:
-                return [event]
-
-        def expand(event, namespaces):
-            if self_or_cls._is_meta_event(event):
-                return [event]
-            else:
-                return [
-                    _event
-                    for namespace in namespaces
-                    for _event in expand_namespace(event, namespace)
-                ]
-
-        return expand(event, namespaces)
 
     _CACHEABLE_METADATA = {
         'time-range',
@@ -4043,27 +4956,59 @@ class Trace(Loggable, TraceBase):
         return self._get_metadata(key=key)
 
     def _get_metadata(self, key, parser=None, cache=True, try_hard=False):
+        with self._lock:
+            if key in self._unavailable_metadata:
+                raise MissingMetadataError(key)
+
         def process(key, value):
             if key == 'available-events':
                 # Ensure we have a list so that it can be dumped to JSON
                 value = sorted(set(value))
 
-                # Populate the list of available events, and inform the rest of
-                # the code that this list is definitive.
-                self._update_parseable_events({
-                    event: True
-                    for event in value
-                })
-                self._strict_events = True
+                with self._lock:
+                    # Populate the list of available events, and inform the
+                    # rest of the code that this list is definitive.
+                    self._update_parseable_events({
+                        event: True
+                        for event in value
+                    })
+                    self._strict_events = True
 
             elif key == 'trace-id':
                 value = str(value)
+
+            elif key == 'time-range':
+                start, end = value
+                # Ensure we round the float value of the window boundaries
+                # correctly so that all events are within that window.
+                # Otherwise we could have the first/last event out of that
+                # window due to wrong rounding.
+                start = Timestamp(start, rounding='down')
+                end = Timestamp(end, rounding='up')
+
+                # Return integer number of nanoseconds. This ensures we cache
+                # the nanosecond exact value rather than a float that might be
+                # imprecise.
+                value = (start.as_nanoseconds, end.as_nanoseconds)
 
             return value
 
         def get(key, parser):
             if parser is None:
-                cm = self._get_parser(needed_metadata={key})
+                @contextlib.contextmanager
+                def _cm():
+                    with self._get_parser(needed_metadata={key}) as parser:
+                        try:
+                            yield parser
+                        # We explicitly asked for a bit of metadata and could
+                        # not obtain it, so we remember that to avoid wasting
+                        # time spinning up a parser again in the future
+                        except MissingMetadataError:
+                            with self._lock:
+                                self._unavailable_metadata.add(key)
+                            raise
+
+                cm = _cm()
             else:
                 # If we got passed a parser, we leave the decision to use it as a
                 # context manager or not to the caller.
@@ -4133,7 +5078,10 @@ class Trace(Loggable, TraceBase):
         except AttributeError:
             parser_name = f'{get_name(parser.__class__)}-instance:{uuid.uuid4().hex}'
 
-        return (self.normalize_time, parser_name)
+        return (
+            self.__class__.__qualname__,
+            parser_name,
+        )
 
     @property
     @memoized
@@ -4155,9 +5103,9 @@ class Trace(Loggable, TraceBase):
                     checked_events = self.available_events
 
                 max_cpu = max(
-                    int(df['__cpu'].max())
-                    for df in (
-                        self.df_event(event, namespaces=[])
+                    int(df.select(pl.max('__cpu')).collect().item())
+                    for df, meta in (
+                        self._internal_df_event(event)
                         for event in checked_events
                     )
                     if '__cpu' in df.columns
@@ -4167,101 +5115,31 @@ class Trace(Loggable, TraceBase):
 
             return count
 
-    @classmethod
-    @contextlib.contextmanager
-    def from_target(cls, target, events=None, buffer_size=10240, filepath=None, **kwargs):
-        """
-        Context manager that can be used to collect a :class:`Trace` directly
-        from a :class:`lisa.target.Target` without needing to setup an
-        :class:`FtraceCollector`.
-
-        **Example**::
-
-            from lisa.trace import Trace
-            from lisa.target import Target
-
-            target = Target.from_default_conf()
-
-            with Trace.from_target(target, events=['sched_switch', 'sched_wakeup']) as trace:
-                target.execute('echo hello world')
-                # DO NOT USE trace object inside the `with` statement
-
-            trace.ana.tasks.plot_tasks_total_residency(filepath='plot.png')
-
-
-        :param target: Target to connect to.
-        :type target: Target
-
-        :param events: ftrace events to collect and parse in the trace.
-        :type events: list(str)
-
-        :param buffer_size: Size of the ftrace ring buffer.
-        :type buffer_size: int
-
-        :param filepath: If set, the trace file will be saved at that location.
-            Otherwise, a temporary file is created and removed as soon as the
-            parsing is finished.
-        :type filepath: str or None
-
-        :Variable keyword arguments: Forwarded to :class:`Trace`.
-        """
-        plat_info = target.plat_info
-
-        class TraceProxy(TraceBase):
-            def get_view(self, *args, **kwargs):
-                return self.base_trace.get_view(*args, **kwargs)
-
-            def __getattr__(self, attr):
-                try:
-                    base_trace = self.__dict__['base_trace']
-                except KeyError:
-                    # pylint: disable=raise-missing-from
-                    raise RuntimeError('The trace instance can only be used outside its "with" statement.')
-                else:
-                    return getattr(base_trace, attr)
-
-        proxy = TraceProxy()
-
-        if filepath:
-            cm = nullcontext(filepath)
-        else:
-            @contextlib.contextmanager
-            def cm_func():
-                with tempfile.NamedTemporaryFile(suffix='.dat', delete=True) as temp:
-                    yield temp.name
-
-            cm = cm_func()
-
-        with cm as path:
-            ftrace_coll = FtraceCollector(target, events=events, buffer_size=buffer_size, output_path=path)
-            with ftrace_coll:
-                yield proxy
-
-            trace = cls(
-                path,
-                events=events,
-                strict_events=True,
-                plat_info=plat_info,
-                # Disable swap if the folder is going to disappear
-                enable_swap=bool(filepath),
-                **kwargs
-            )
-
-        # pylint: disable=attribute-defined-outside-init
-        proxy.base_trace = trace
-
     def _get_parser(self, events=tuple(), needed_metadata=None):
+        cache = self._cache
         path = self.trace_path
         events = set(events)
         needed_metadata = set(needed_metadata or [])
-        parser = self._parser(path=path, events=events, needed_metadata=needed_metadata)
 
-        # While we are at it, gather a bunch of metadata. Since we did not
-        # explicitly asked for it, the parser will only give
-        # it if it was a cheap byproduct.
-        self._update_metadata(parser)
+        @contextlib.contextmanager
+        def cm():
+            with pl.StringCache(), self._cache._parser_temp_path() as temp_dir:
+                parser = self._parser(
+                    path=path,
+                    events=events,
+                    needed_metadata=needed_metadata,
+                    temp_dir=temp_dir,
+                )
 
-        return parser
+                # While we are at it, gather a bunch of metadata. Since we did not
+                # explicitly asked for it, the parser will only give
+                # it if it was a cheap byproduct.
+                self._update_metadata(parser)
+
+                with parser as parser:
+                    yield parser
+
+        return cm()
 
     def _update_metadata(self, parser):
         # Tentatively get the metadata value, in case they are available
@@ -4270,14 +5148,14 @@ class Trace(Loggable, TraceBase):
                 self._get_metadata(key, parser=parser)
 
     def _update_parseable_events(self, mapping):
-        self._parseable_events.update(mapping)
-        self._cache.update_metadata({
-            'parseable-events': self._parseable_events,
-        })
-        return self._parseable_events
+        with self._lock:
+            self._parseable_events.update(mapping)
+            self._cache.update_metadata({
+                'parseable-events': self._parseable_events,
+            })
+            return self._parseable_events
 
     @property
-    @memoized
     def basetime(self):
         """
         First absolute timestamp available in the trace.
@@ -4285,7 +5163,6 @@ class Trace(Loggable, TraceBase):
         return self._get_time_range()[0]
 
     @property
-    @memoized
     def endtime(self):
         """
         Timestamp of when the tracing stopped.
@@ -4295,8 +5172,16 @@ class Trace(Loggable, TraceBase):
         """
         return self._get_time_range()[1]
 
+    @memoized
     def _get_time_range(self, parser=None):
-        return self._get_metadata('time-range', parser=parser)
+        (start, end) = self._get_metadata('time-range', parser=parser)
+
+        # We get a number of nanoseconds (so it could be cached without loss of
+        # precision), so we turn it back into a Timestamp.
+        return (
+            Timestamp(start, unit='ns', rounding='down'),
+            Timestamp(end, unit='ns', rounding='up'),
+        )
 
     @memoized
     def _get_trace_id(self):
@@ -4312,242 +5197,47 @@ class Trace(Loggable, TraceBase):
         else:
             return f'parser-trace-id-{trace_id}'
 
-    def df_event(self, event, raw=None, window=None, signals=None, signals_init=True, compress_signals_init=False, write_swap=None, namespaces=None):
-        """
-        Get a dataframe containing all occurrences of the specified trace event
-        in the parsed trace.
-
-        :param event: Trace event name.
-
-            In addition to actual events, the following formats for meta events
-            are supported:
-
-            * ``trace_printk@``: The event format is described by the
-              ``bprint`` event format string, and the field values are decoded
-              from the variable arguments buffer. Note that:
-
-                * The field values *must* be in the buffer, i.e. the format
-                  string is only used as the event format, no "literal value"
-                  will be extracted from it.
-
-                * The event *must* have fields. If not, ``trace_printk()``
-                  will emit a bputs event that will be ignored at the moment.
-                  We need to get a bprint event.
-
-                * Field names *must* be unique.
-
-              .. code-block:: C
-
-                  // trace.df_event('trace_printk@myevent')
-                  void foo(void) {
-                      trace_printk("myevent: field1=%s field2=%i", "foo", 42);
-                  }
-
-            * ``userspace@``: the event is generated by userspace:
-
-              .. code-block:: shell
-
-                  # trace.df_event('userspace@myevent')
-                  echo "myevent: field1=foo field2=42" > /sys/kernel/debug/tracing/trace_marker
-
-              Note that the field names must be unique.
-
-            .. note:: All meta event names are expected to be valid C language
-                identifiers. Usage of other characters will prevent correct
-                parsing.
-
-        :type event: str
-
-        :param namespaces: List of namespaces of the requested event. See
-            :class:`lisa.trace.Trace` ``events_namespaces`` parameters for the
-            format. A ``None`` value defaults to the trace's namespace.
-        :type namespaces: list(str or None) or None
-
-        :param window: Return a dataframe sliced to fit the given window (in
-            seconds). Note that ``signals_init=True`` will result in including
-            more rows than what you might expect.
-        :type window: tuple(float, float)
-
-        :param signals: List of signals to fixup if ``signals_init == True``.
-            If left to ``None``, :meth:`lisa.datautils.SignalDesc.from_event`
-            will be used to infer a list of default signals.
-        :type signals: list(SignalDesc)
-
-        :param signals_init: If ``True``, an initial value is provided for each
-            signal that is multiplexed in that dataframe.
-
-            .. seealso::
-
-                :class:`lisa.datautils.SignalDesc` and
-                :func:`lisa.datautils.df_window_signals`.
-        :type signals_init: bool
-
-        :param compress_signals_init: Give a timestamp very close to the
-            beginning of the sliced dataframe to rows that are added by
-            ``signals_init``. This allows keeping a very close time span
-            without introducing duplicate indices.
-        :type compress_signals_init: bool
-
-        :param write_swap: If ``True``, the dataframe will be written to the
-            swap area when meeting the following conditions:
-
-                * This trace has a swap directory
-                * Computing the dataframe takes more time than the estimated
-                  time it takes to write it to the cache.
-        :type write_swap: bool
-        """
-        call = functools.partial(
-            self._df_event,
-            raw=raw,
-            window=window,
-            signals=signals,
-            signals_init=signals_init,
-            compress_signals_init=compress_signals_init,
-            write_swap=write_swap,
+    @memoized
+    def _make_raw_cache_desc(self, event):
+        spec = dict(
+            # This is used when clearing the cache to know if a given entry is
+            # related to a raw event or e.g. an analysis.
+            raw=True,
+            event=event,
+            trace_state=self.trace_state,
         )
+        return _CacheDataDesc(spec=spec, fmt=_TraceCache.DATAFRAME_SWAP_FORMAT)
 
-        for event_ in self._expand_namespaces(event, namespaces):
-            try:
-                return call(event=event_)
-            except MissingTraceEventError as e:
-                last_excep = e
-
-        raise last_excep
-
-
-    def _df_event(self, event, raw, window, signals, signals_init, compress_signals_init, write_swap):
-        sanitization_f = self._sanitization_functions.get(event)
-
-        # Make sure no `None` value flies around in the cache, since it's
-        # not uniquely identifying a dataframe
-        orig_raw = raw
-        if raw is None:
-            if sanitization_f:
-                raw = False
-            else:
-                raw = True
-
+    def _internal_df_event(self, event, write_swap=None, raw=None, **kwargs):
+        if write_swap is not None:
+            _deprecated_warn('write_swap parameter has no effect anymore')
 
         if raw:
-            sanitization_f = None
-        elif not orig_raw and orig_raw is not None and not sanitization_f:
-            raise ValueError(f'Sanitized dataframe for {event} does not exist, please pass raw=True or raw=None')
+            raise ValueError(f'raw=True is not supported anymore, dataframes are always post processed by parsers to be as close as possible to the ftrace event format')
 
-        if raw:
-            # Make sure all raw descriptors are made the same way, to avoid
-            # missed sharing opportunities
-            spec = self._make_raw_cache_desc_spec(event)
-        else:
-            spec = dict(
-                event=event,
-                raw=raw,
-                trace_state=self.trace_state,
-            )
-
-        if window is not None:
-            signals = signals if signals else SignalDesc.from_event(event)
-            cols_list = [
-                signal_desc.fields
-                for signal_desc in signals
-            ]
-            spec.update(
-                window=window,
-                signals=cols_list,
-                signals_init=signals_init,
-                compress_signals_init=compress_signals_init,
-            )
-
-        if not raw:
-            spec.update(
-                rename_cols=True,
-                sanitization=sanitization_f.__qualname__ if sanitization_f else None,
-            )
-
-        cache_desc = _CacheDataDesc(spec=spec, fmt=TraceCache.DATAFRAME_SWAP_FORMAT)
+        # Make sure all raw descriptors are made the same way, to avoid
+        # missed sharing opportunities
+        cache_desc = self._make_raw_cache_desc(event)
 
         try:
             try:
                 df = self._cache.fetch(cache_desc, insert=True)
             except KeyError:
-                df = self._load_df(cache_desc, sanitization_f=sanitization_f, write_swap=write_swap)
+                df = self._load_cache_raw_df(TraceEventChecker(event))[event]
         except MissingTraceEventError as e:
             e.available_events = self.available_events
             raise e
-
-        # We used to set a ".name" attribute, but:
-        # 1. There is no central way of saving these metadata when serializing
-        # 2. It conflicts with a "name" column in the dataframe.
-        df.attrs['name'] = event
-        return df
-
-    def _make_raw_cache_desc(self, event):
-        spec = self._make_raw_cache_desc_spec(event)
-        return _CacheDataDesc(spec=spec, fmt=TraceCache.DATAFRAME_SWAP_FORMAT)
-
-    def _make_raw_cache_desc_spec(self, event):
-        return dict(
-            event=event,
-            raw=True,
-            trace_state=self.trace_state,
-        )
-
-    def _load_df(self, cache_desc, sanitization_f=None, write_swap=None):
-        event = cache_desc['event']
-
-        # Do not even bother loading the event if we know it cannot be
-        # there. This avoids some OSError in case the trace file has
-        # disappeared
-        if not self._parseable_events.get(event, True):
-            raise MissingTraceEventError([event], available_events=self.available_events)
-
-        if write_swap is None:
-            write_swap = self._write_swap
-
-        df = self._load_cache_raw_df(TraceEventChecker(event), write_swap=True)[event]
-
-        if sanitization_f:
-            # Evict the raw dataframe once we got the sanitized version, since
-            # we are unlikely to reuse it again
-            self._cache.evict(self._make_raw_cache_desc(event))
-
-            # We can ask to sanitize various aspects of the dataframe.
-            # Adding a new aspect can be done without modifying existing
-            # sanitization functions, as long as the default is the
-            # previous behavior
-            aspects = dict(
-                rename_cols=cache_desc['rename_cols'],
-            )
-            with measure_time() as measure:
-                df = sanitization_f(self, event, df, aspects=aspects)
-            sanitization_time = measure.exclusive_delta
         else:
-            sanitization_time = 0
+            # TODO: If and when this is solved, attach the name of the event to
+            # the LazyFrames:
+            # https://github.com/pola-rs/polars/issues/5117
+            meta = dict(event=event)
+            return df, meta
 
-        window = cache_desc.get('window')
-        if window is not None:
-            signals_init = cache_desc['signals_init']
-            compress_signals_init = cache_desc['compress_signals_init']
-            cols_list = cache_desc['signals']
-            signals = [SignalDesc(event, cols) for cols in cols_list]
-
-            with measure_time() as measure:
-                if signals_init and signals:
-                    df = df_window_signals(df, window, signals, compress_init=compress_signals_init)
-                else:
-                    df = df_window(df, window, method='pre')
-
-            windowing_time = measure.exclusive_delta
-        else:
-            windowing_time = 0
-
-        compute_cost = sanitization_time + windowing_time
-        self._cache.insert(cache_desc, df, compute_cost=compute_cost, write_swap=write_swap)
-        return df
-
-    def _load_cache_raw_df(self, event_checker, write_swap, allow_missing_events=False):
+    def _load_cache_raw_df(self, event_checker, allow_missing_events=False):
         events = event_checker.get_all_events()
         insert_kwargs = dict(
-            write_swap=write_swap,
+            write_swap=True,
             # For raw dataframe, always write in the swap area if asked for
             # since parsing cost is known to be high
             force_write_swap=True,
@@ -4557,8 +5247,7 @@ class Trace(Loggable, TraceBase):
         def try_from_cache(event):
             cache_desc = self._make_raw_cache_desc(event)
             try:
-                # The caller is responsible of inserting in the cache if
-                # necessary
+                # We re-insert based on parameters coming from the caller
                 df = self._cache.fetch(cache_desc, insert=False)
             except KeyError:
                 return None
@@ -4579,6 +5268,16 @@ class Trace(Loggable, TraceBase):
 
         # Load the remaining events from the trace directly
         events_to_load = sorted(events - from_cache.keys())
+
+        # Cheap check to avoid spinning up the parser for nothing
+        with self._lock:
+            for event in list(events_to_load):
+                if not self._parseable_events.get(event, True):
+                    if allow_missing_events:
+                        events_to_load.remove(event)
+                    else:
+                        raise MissingTraceEventError([event])
+
         df_from_trace = self._load_raw_df(events_to_load)
 
         for event, df in df_from_trace.items():
@@ -4589,22 +5288,13 @@ class Trace(Loggable, TraceBase):
         try:
             event_checker.check_events(df_map.keys())
         except MissingTraceEventError as e:
-            if allow_missing_events:
-                self.logger.warning(f'Events not found in the trace {self.trace_path}: {e}')
-            else:
+            if not allow_missing_events:
                 raise MissingTraceEventError(
                     e.missing_events,
                     msg='Events not found in the trace: {missing_events}{available}'
                 ) from e
+
         return df_map
-
-    def _apply_normalize_time(self, df, inplace):
-        df = df if inplace else df.copy(deep=False)
-
-        if self.normalize_time:
-            df.index -= self.basetime
-
-        return df
 
     def _parse_raw_events(self, events):
         if not events:
@@ -4612,7 +5302,7 @@ class Trace(Loggable, TraceBase):
 
         def parse(parser, event):
             try:
-                df = parser.parse_event(event)
+                return parser.parse_event(event)
             # We only catch MissingTraceEventError, so that we know the parser
             # made a voluntary decision to state the event was not available,
             # rather than just crashing in an unintended way. However, we will
@@ -4621,14 +5311,14 @@ class Trace(Loggable, TraceBase):
             # parsing the data.
             except MissingTraceEventError as e:
                 return None
-            else:
-                self._apply_normalize_time(df, inplace=True)
-                return df
 
 
         with self._get_parser(events) as parser:
             df_map = {
-                event: df
+                event: _convert_df_from_parser(
+                    df=df,
+                    cache=self._cache if parser._STEAL_FILES else None,
+                )
                 for event in events
                 if (df := parse(parser, event)) is not None
             }
@@ -4672,46 +5362,73 @@ class Trace(Loggable, TraceBase):
         # dataframes one by one
         for source_event, specs in groupby(meta_specs, key=itemgetter(2)):
             try:
-                df = self.df_event(source_event, namespaces=[])
+                df, meta = self._internal_df_event(source_event)
             except MissingTraceEventError:
                 pass
             else:
+                assert isinstance(df, pl.LazyFrame)
+
                 # Add all the header fields from the source dataframes
                 extra_fields = [x for x in df.columns if x.startswith('__')]
-                merged_df = df[extra_fields]
+                extra_df = df.select(('Time', *extra_fields))
 
-                for (meta_event, event, _source_event, source_getter) in specs:  # pylint: disable=unused-variable
-                    source_df, line_field = source_getter(self, _source_event, event, df)
-                    try:
-                        parser = MetaTxtTraceParser(
-                            lines=source_df[line_field],
-                            time=source_df.index,
-                            merged_df=merged_df,
-                            events=[event],
-                        )
-                    # An empty dataframe would trigger an exception from
-                    # MetaTxtTraceParser, so we just skip over it and if the
-                    # event cannot be found anywhere, we will raise an
-                    # exception.
-                    #
-                    # Also, some android kernels hide trace_printk() strings
-                    # which prevents from parsing anything at all ...
-                    except ValueError:
-                        continue
-                    else:
-                        try:
-                            with parser as parser:
-                                meta_event_df = parser.parse_event(event)
-                        except MissingTraceEventError:
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    for (meta_event, event, _source_event, source_getter) in specs:  # pylint: disable=unused-variable
+                        source_df, line_field = source_getter(self, _source_event, event, df)
+
+                        # If the lines are in a dtype we won't be able to
+                        # handle, we won't add an entry to df_map, leading to a
+                        # missing event
+                        if source_df.schema[line_field] not in (pl.String, pl.Binary):
                             continue
-                            # In case a meta-event is spread among multiple
-                            # events, we get all the dataframes and concatenate
-                            # them together
-                        else:
-                            df_map.setdefault(event, []).append(meta_event_df)
 
-                    if not get_missing(df_map):
-                        break
+                        # Ensure we have bytes and not str
+                        source_df = source_df.with_columns(
+                            pl.col(line_field).cast(pl.Binary)
+                        )
+                        source_df = source_df.select(('Time', line_field))
+                        pandas_df = _df_to_pandas(source_df)
+                        source_series = pandas_df[line_field]
+
+                        try:
+                            parser = MetaTxtTraceParser(
+                                lines=source_series,
+                                time=source_series.index,
+                                events=[event],
+                                temp_dir=temp_dir,
+                            )
+                        # An empty dataframe would trigger an exception from
+                        # MetaTxtTraceParser, so we just skip over it and if the
+                        # event cannot be found anywhere, we will raise an
+                        # exception.
+                        #
+                        # Also, some android kernels hide trace_printk() strings
+                        # which prevents from parsing anything at all ...
+                        except ValueError:
+                            continue
+                        else:
+                            try:
+                                with parser as parser:
+                                    _df = parser.parse_event(event)
+                            except MissingTraceEventError:
+                                continue
+                                # In case a meta-event is spread among multiple
+                                # events, we get all the dataframes and concatenate
+                                # them together
+                            else:
+                                _df = _convert_df_from_parser(
+                                    _df,
+                                    cache=self._cache if parser._STEAL_FILES else None,
+                                )
+                                _df = _df.join(
+                                    extra_df,
+                                    on='Time',
+                                    how='left',
+                                )
+                                df_map.setdefault(event, []).append(_df)
+
+                        if not get_missing(df_map):
+                            break
 
         def concat(df_list):
             if len(df_list) > 1:
@@ -4737,7 +5454,8 @@ class Trace(Loggable, TraceBase):
         # to load them from there as well
         for event in get_missing(df_map):
             with contextlib.suppress(MissingTraceEventError):
-                df_map[event] = self.df_event(event, raw=True, namespaces=[])
+                df, meta = self._internal_df_event(event)
+                df_map[event] = df
 
         return {
             events_map[event]: df
@@ -4757,20 +5475,6 @@ class Trace(Loggable, TraceBase):
         meta_df_map = self._parse_meta_events(meta_events - df_map.keys())
         df_map.update(meta_df_map)
 
-        for event, df in df_map.items():
-            df.attrs['name'] = event
-            df.index.name = 'Time'
-
-        # Save some memory by changing values of this column into an category
-        categorical_fields = [
-            '__comm',
-            'comm',
-        ]
-        for df in df_map.values():
-            for field in categorical_fields:
-                with contextlib.suppress(KeyError):
-                    df[field] = df[field].astype('category', copy=False)
-
         # remember the events that we tried to parse and that turned out to not be available
         self._update_parseable_events({
             event: (event in df_map)
@@ -4778,76 +5482,6 @@ class Trace(Loggable, TraceBase):
         })
 
         return df_map
-
-    @memoized
-    def _get_task_maps(self):
-        """
-        Give the mapping from PID to task names, and the opposite.
-
-        The names or PIDs are listed in appearance order.
-        """
-        # Keep only the values, in appearance order according to the timestamp
-        # index
-        def finalize(df, key_col, value_col, key_type, value_type):
-            # Aggregate the values for each key and convert to python types
-            mapping = {}
-            grouped = df.groupby(key_col, observed=True, sort=False, group_keys=False)
-            for key, subdf in grouped:
-                values = subdf[value_col].apply(value_type).to_list()
-                key = key_type(key)
-                mapping[key] = values
-
-            return mapping
-
-        mapping_df_list = []
-        def _load(event, name_col, pid_col):
-            df = self.df_event(event, namespaces=[])
-
-            # Get a Time column
-            df = df.reset_index()
-            grouped = df.groupby([name_col, pid_col], observed=True, sort=False)
-
-            # Get timestamp of first occurrences of each key/value combinations
-            mapping_df = grouped.head(1)
-            mapping_df = mapping_df[['Time', name_col, pid_col]]
-            mapping_df.rename({name_col: 'name', pid_col: 'pid'}, axis=1, inplace=True)
-            mapping_df_list.append(mapping_df)
-
-        missing = []
-        def load(event, *args, **kwargs):
-            try:
-                _load(event, *args, **kwargs)
-            except MissingTraceEventError as e:
-                missing.append(e.missing_events)
-
-        load('task_rename', 'oldcomm', 'pid')
-        load('task_rename', 'newcomm', 'pid')
-
-        load('sched_switch', 'prev_comm', 'prev_pid')
-        load('sched_switch', 'next_comm', 'next_pid')
-
-        if not mapping_df_list:
-            missing = OrTraceEventChecker.from_events(events=missing)
-            raise MissingTraceEventError(missing, available_events=self.available_events)
-
-        df = pd.concat(mapping_df_list)
-        # Sort by order of appearance
-        df.sort_values(by=['Time'], inplace=True)
-        # Remove duplicated name/pid mapping and only keep the first appearance
-        df = df_deduplicate(df, consecutives=False, keep='first', cols=['name', 'pid'])
-
-        name_to_pid = finalize(df, 'name', 'pid', str, int)
-        pid_to_name = finalize(df, 'pid', 'name', int, str)
-
-        return (name_to_pid, pid_to_name)
-
-    @property
-    def _task_name_map(self):
-        return self._get_task_maps()[0]
-
-    @property
-    def _task_pid_map(self):
-        return self._get_task_maps()[1]
 
     def has_events(self, events, namespaces=None):
         """
@@ -4871,371 +5505,339 @@ class Trace(Loggable, TraceBase):
         else:
             return True
 
-    def get_view(self, window, **kwargs):
-        return TraceView(self, window, **kwargs)
-
     @property
     def start(self):
-        return 0 if self.normalize_time else self.basetime
+        return self.basetime
 
     @property
     def end(self):
-        time_range = self.endtime - self.basetime
-        return self.start + time_range
+        return self.endtime
 
-    def get_task_name_pids(self, name, ignore_fork=True):
-        """
-        Get the PIDs of all tasks with the specified name.
 
-        The same PID can have different task names, mainly because once a task
-        is generated it inherits the parent name and then its name is updated
-        to represent what the task really is.
+class _TraceMeta(type(TraceBase)):
+    # For backward compat uses of classmethods and such
+    def __getattr__(cls, attr):
+        return getattr(_Trace, attr)
 
-        :param name: task name
-        :type name: str
+class Trace(TraceBase, metaclass=_TraceMeta):
+    """
+    This class provides a way to access event dataframes and ties
+    together various low-level moving pieces to make that happen.
 
-        :param ignore_fork: Hide the PIDs of tasks that initially had ``name``
-            but were later renamed. This is common for shell processes for
-            example, which fork a new task, inheriting the shell name, and then
-            being renamed with the final "real" task name
-        :type ignore_fork: bool
+    :param trace_path: File containing the trace
+    :type trace_path: str or None
 
-        :return: a list of PID for tasks which name matches the required one.
-        """
-        pids = self._task_name_map[name]
+    :param events: events to be parsed. Since events can be loaded on-demand,
+        that is optional but still recommended to improve trace parsing speed.
 
-        if ignore_fork:
-            pids = [
-                pid
-                for pid in pids
-                # Only keep the PID if its last name was the name we are
-                # looking for.
-                if self._task_pid_map[pid][-1] == name
+        .. seealso:: :meth:`lisa.trace.TraceBase.df_event` for event formats accepted.
+    :type events: TraceEventCheckerBase or list(str) or None
+
+    :param events_namespaces: List of namespaces of the requested events. Each
+        namespace will be tried in order until the event is found. The ``None``
+        namespace can be used to specify no namespace. The full event name is
+        formed with ``<namespace>__<event>``.
+    :type events_namespaces: list(str or None)
+
+    :param strict_events: When ``True``, all the events specified in ``events``
+        have to be present, and any other events will be assumed to not be
+        present. This allows early failure and avoid the cost of lazy detection
+        of events in very large traces.
+    :type strict_events: bool
+
+    :param plat_info: Platform info describing the target that this trace was
+        collected on.
+    :type plat_info: lisa.platforms.platinfo.PlatformInfo
+
+    :param normalize_time: Make the first timestamp in the trace 0 instead
+        of the system timestamp that was captured when tracing.
+    :type normalize_time: bool
+
+    :param parser: Optional trace parser to use as a backend. It must
+        implement the API defined by :class:`TraceParserBase`, and will be
+        called as ``parser(path=trace_path, events=events,
+        needed_metadata={'time-range', ...})`` with the events that should be
+        parsed. Other parameters must either have default values, or be
+        pre-assigned using partially-applied constructor (for subclasses of
+        :class:`lisa.utils.PartialInit`) or :func:`functools.partial`. By
+        default, ``.txt`` files will be assumed to be in human-readable format
+        output directly by the kernel (or ``trace-cmd report`` without ``-R``).
+        Support for this format is limited and some events might not be parsed
+        correctly (or at least without custom event parsers).
+    :type parser: object or None
+
+    :param plots_dir: directory where to save plots
+    :type plots_dir: str
+
+    :param sanitization_functions: This parameter is only for backward
+        compatibility with existing code, use
+        :meth:`lisa.trace.TraceBase.get_view` with ``process_df`` parameter
+        instead.
+    :type sanitization_functions: object
+
+    :param max_mem_size: Maximum memory usage to be used for dataframe cache.
+        Note that the peak memory usage can exceed that, as the cache can not
+        forcefully evict an object from memory (it can only drop references to it).
+        When ``None``, use illimited amount of memory.
+    :type max_mem_size: int or None
+
+    :param swap_dir: Swap directory used to store dataframes evicted from the
+        cache. When ``None``, a hidden directory along the trace file is used.
+    :type swap_dir: str or None
+
+    :param enable_swap: If ``True``, the on-disk swap is enabled.
+    :type enable_swap: bool
+
+    :param max_swap_size: Maximum size of the swap directory. When ``None``,
+        the max size is the size of the trace file.
+    :type max_swap_size: int or None
+
+    :Attributes:
+        * ``start``: The timestamp of the first trace event in the trace
+        * ``end``: The timestamp of the last trace event in the trace
+        * ``time_range``: Maximum timespan for all collected events
+        * ``window``: Conveniency tuple of ``(start, end)``.
+        * ``available_events``: Events available in the parsed trace, exposed
+          as some kind of set-ish smart container. Querying for event might
+          trigger the parsing of it.
+        * ``ana``: The analysis proxy used as an entry point to run analysis
+          methods on the trace. See :class:`lisa.analysis._proxy.AnalysisProxy`.
+
+    :Supporting more events:
+        Subclasses of :class:`TraceParserBase` can usually auto-detect the
+        event format, but there may be a number of reasons to pass a custom
+        event parser:
+
+            * The event format produced by a given kernel differs from the
+              description bundled with the parser, leading to incorrect parse
+              (missing field).
+
+            * The event cannot be parsed in raw format in case text output of
+              ``trace-cmd`` is used, because of a ``const char*`` field displayed
+              as a pointer for example.
+
+              .. seealso:: For events not following the regular field syntax,
+                use :class:`CustomFieldsTxtEventParser`
+
+            * Automatic detection can take a heavy performance toll. This is
+              why parsers needing descriptions will come with pre-defined
+              descritption of most used events.
+
+        Custom event parsers can be passed as extra parameters to the parser,
+        which can be set manually::
+
+            # Event parsers provided by TxtTraceParser can also be overridden
+            # with user-provided ones in case they fail to parse what a given
+            # kernel produced
+            event_parsers = [
+                TxtEventParser('foobar', fields={'foo': int, 'bar': 'string'}, raw=True)
             ]
 
-        return pids
+            # Pre-fill the "event_parsers" parameter of
+            # TxtEventParser.from_dat() using a partial application.
+            #
+            # Note: you need to choose the parser appropriately for the
+            # format of the trace, since the automatic filetype detection is
+            # bypassed.
+            parser = TxtTraceParser.from_dat(event_parsers=event_parsers)
+            trace = Trace('foobar.dat', parser=parser)
 
-    @deprecate('This method has been deprecated and is an alias',
-        deprecated_in='2.0',
-        removed_in='4.0',
-        replaced_by=get_task_name_pids,
-    )
-    def get_task_by_name(self, name):
-        return self.get_task_name_pids(name, ignore_fork=True)
+        .. warning:: Custom event parsers that are not types or functions (such
+            as partially-applied values) will tie the on-disc swap entries to
+            the parser :class:`Trace` instance, incurring higher
+            :class:`pandas.DataFrame` load time when a new :class:`Trace`
+            object is created.
+    """
 
-    def get_task_pid_names(self, pid):
-        """
-        Get the all the names of the task(s) with the specified PID, in
-        appearance order.
+    def _init(self, view):
+        self.__view = view
 
-        The same PID can have different task names, mainly because once a task
-        is generated it inherits the parent name and then its name is
-        updated to represent what the task really is.
+    def __init__(self, *args, **kwargs):
+        view = self._view_from_user_kwargs(*args, **kwargs)
+        self._init(view)
 
-        :param name: task PID
-        :type name: int
+    @classmethod
+    def _from_view(cls, view):
+        self = super().__new__(cls)
+        self._init(view)
+        return self
 
-        :return: the name of the task which PID matches the required one,
-                 the last time they ran in the current trace
-        """
-        return self._task_pid_map[pid]
+    @classmethod
+    def _view_from_user_kwargs(cls,
+        *args,
+        normalize_time=False,
+        strict_events=False,
+        events=None,
 
-    @deprecate('This function raises exceptions when faced with ambiguity instead of giving the choice to the user',
-        deprecated_in='2.0',
-        removed_in='4.0',
-        replaced_by=get_task_pid_names,
-    )
-    def get_task_by_pid(self, pid):
-        """
-        Get the name of the task with the specified PID.
+        df_fmt='pandas',
+        events_namespaces=('lisa', None),
 
-        The same PID can have different task names, mainly because once a task
-        is generated it inherits the parent name and then its name is
-        updated to represent what the task really is.
+        sanitization_functions=None,
+        write_swap=None,
+        **kwargs,
+    ):
+        view_kwargs = {}
 
-        This API works under the assumption that a task name is updated at
-        most one time and it always report the name the task had the last time
-        it has been scheduled for execution in the current trace.
+        if write_swap is not None:
+            _deprecated_warn('write_swap parameter has no effect anymore, you can stop using it')
 
-        :param name: task PID
-        :type name: int
+        if sanitization_functions is not None:
+            _deprecated_warn('Custom sanitization functions are not supported anymore, use trace.get_view(process_df=...) instead.')
 
-        :return: the name of the task which PID matches the required one,
-                 the last time they ran in the current trace
-        """
-        name_list = self.get_task_pid_names(pid)
+            def process_df(event, df):
+                try:
+                    f = sanitization_functions[event]
+                except KeyError:
+                    return df
+                else:
+                    return f(view, event, df, dict())
 
-        if len(name_list) > 2:
-            raise RuntimeError(f'The PID {pid} had more than two names in its life: {name_list}')
+            view_kwargs.update(process_df=process_df)
 
-        return name_list[-1]
+        view_kwargs.update(
+            normalize_time=normalize_time,
+            events_namespaces=events_namespaces,
+            strict_events=strict_events,
+            events=events,
+            df_fmt=df_fmt,
+        )
 
-    def get_task_ids(self, task, update=True):
-        """
-        Similar to :meth:`get_task_id` but returns a list with all the
-        combinations, instead of raising an exception.
+        trace = _Trace(*args, **kwargs)
+        view = trace.get_view(**view_kwargs)
 
-        :param task: Either the task name, the task PID, or a tuple ``(pid, comm)``
-        :type task: int or str or tuple(int, str)
+        assert isinstance(view, TraceBase)
+        return view
 
-        :param update: If a partially-filled :class:`TaskID` is passed (one of
-            the fields set to ``None``), returns a complete :class:`TaskID`
-            instead of leaving the ``None`` fields.
-        :type update: bool
-        """
+    def get_view(self, *args, **kwargs):
+        view = self.__view.get_view(*args, **kwargs)
+        # Always preserve the same user-visible type so that view types are
+        # 100% an implementation detail that does not leak.
+        return self._from_view(view)
 
-        def comm_to_pid(comm):
-            try:
-                pid_list = self._task_name_map[comm]
-            except IndexError:
-                # pylint: disable=raise-missing-from
-                raise ValueError(f'trace does not have any task named "{comm}"')
+    def __getattr__(self, attr):
+        return getattr(self.__view, attr)
 
-            return pid_list
+    def df_event(self, *args, **kwargs):
+        return self.__view.df_event(*args, **kwargs)
 
-        def pid_to_comm(pid):
-            try:
-                comm_list = self._task_pid_map[pid]
-            except IndexError:
-                # pylint: disable=raise-missing-from
-                raise ValueError(f'trace does not have any task PID {pid}')
+    def _internal_df_event(self, *args, **kwargs):
+        return self.__view._internal_df_event(*args, **kwargs)
 
-            return comm_list
-
-        if isinstance(task, str):
-            task_ids = [
-                TaskID(pid=pid, comm=task)
-                for pid in comm_to_pid(task)
-            ]
-        elif isinstance(task, Number):
-            task_ids = [
-                TaskID(pid=task, comm=comm)
-                for comm in pid_to_comm(task)
-            ]
-        else:
-            pid, comm = task
-            if pid is None and comm is None:
-                raise ValueError('TaskID needs to have at least one of PID or comm specified')
-
-            if update and (pid is None or comm is None):
-                non_none = pid if comm is None else comm
-                task_ids = self.get_task_ids(non_none)
-            else:
-                task_ids = [TaskID(pid=pid, comm=comm)]
-
-        return task_ids
-
-    def get_task_id(self, task, update=True):
-        """
-        Helper that resolves a task PID or name to a :class:`TaskID`.
-
-        :param task: Either the task name, the task PID, or a tuple ``(pid, comm)``
-        :type task: int or str or tuple(int, str)
-
-        :param update: If a partially-filled :class:`TaskID` is passed (one of
-            the fields set to ``None``), returns a complete :class:`TaskID`
-            instead of leaving the ``None`` fields.
-        :type update: bool
-
-        :raises ValueError: If there the input matches multiple tasks in the trace.
-            See :meth:`get_task_ids` to get all the ambiguous alternatives
-            instead of an exception.
-        """
-        task_ids = self.get_task_ids(task, update=update)
-        if len(task_ids) > 1:
-            raise ValueError(f'More than one TaskID matching: {task_ids}')
-
-        return task_ids[0]
-
-    @deprecate(deprecated_in='2.0', removed_in='4.0', replaced_by=get_task_id)
-    def get_task_pid(self, task):
-        """
-        Helper that takes either a name or a PID and always returns a PID
-
-        :param task: Either the task name or the task PID
-        :type task: int or str or tuple(int, str)
-        """
-        return self.get_task_id(task).pid
-
-    def get_tasks(self):
-        """
-        Get a dictionary of all the tasks in the Trace.
-
-        :return: a dictionary which maps each PID to the corresponding list of
-                 task name
-        """
-        return self._task_pid_map
+    def _preload_events(self, *args, **kwargs):
+        return self.__view._preload_events(*args, **kwargs)
 
     @property
-    @memoized
-    def task_ids(self):
-        """
-        List of all the :class:`TaskID` in the trace, sorted by PID.
-        """
-        return [
-            TaskID(pid=pid, comm=comm)
-            for pid, comms in sorted(self._task_pid_map.items(), key=itemgetter(0))
-            for comm in comms
-        ]
+    def ana(self):
+        return self.__view.ana
 
-    def show(self):
+    @property
+    def analysis(self):
+        return self.__view.ana
+
+    @classmethod
+    @contextlib.contextmanager
+    def from_target(cls, target, events=None, buffer_size=10240, filepath=None, **kwargs):
         """
-        Open the parsed trace using the most appropriate native viewer.
+        Context manager that can be used to collect a
+        :class:`lisa.trace.TraceBase` directly from a
+        :class:`lisa.target.Target` without needing to setup an
+        :class:`FtraceCollector`.
 
-        The native viewer depends on the specified trace format:
-        - ftrace: open using kernelshark
-        - systrace: open using a browser
+        **Example**::
 
-        In both cases the native viewer is assumed to be available in the host
-        machine.
+            from lisa.trace import Trace
+            from lisa.target import Target
+
+            target = Target.from_default_conf()
+
+            with Trace.from_target(target, events=['sched_switch', 'sched_wakeup']) as trace:
+                target.execute('echo hello world')
+                # DO NOT USE trace object inside the `with` statement
+
+            trace.ana.tasks.plot_tasks_total_residency(filepath='plot.png')
+
+
+        :param target: Target to connect to.
+        :type target: Target
+
+        :param events: ftrace events to collect and parse in the trace.
+        :type events: list(str)
+
+        :param buffer_size: Size of the ftrace ring buffer.
+        :type buffer_size: int
+
+        :param filepath: If set, the trace file will be saved at that location.
+            Otherwise, a temporary file is created and removed as soon as the
+            parsing is finished.
+        :type filepath: str or None
+
+        :Variable keyword arguments: Forwarded to :class:`Trace`.
         """
-        path = self.trace_path
-        if not path:
-            raise ValueError('No trace file is backing this Trace instance')
+        plat_info = target.plat_info
+        needs_temp = filepath is None
 
-        if path.endswith('.dat'):
-            cmd = 'kernelshark'
+        class _TraceNotSet:
+            def __getattribute__(self, attr):
+                raise RuntimeError('The trace instance can only be used after the end of the "with" statement.')
+
+        class _TraceProxy(TraceBase):
+            def __init__(self, path):
+                self.__base_trace = _TraceNotSet()
+
+                if path is not None:
+                    # Delete the file once we are done accessing it
+                    self.__deallocator = _Deallocator(
+                        f=functools.partial(_file_cleanup, paths=[path]),
+                        on_del=True,
+                        at_exit=True,
+                    )
+
+            def __getattr__(self, attr):
+                return getattr(self.__base_trace, attr)
+
+            @property
+            def ana(self):
+                return self.__base_trace.ana
+
+            @property
+            def analysis(self):
+                return self.__base_trace.analysis
+
+            def df_event(self, *args, **kwargs):
+                return self.__base_trace.df_event(*args, **kwargs)
+
+            def _internal_df_event(self, *args, **kwargs):
+                return self.__base_trace._internal_df_event(*args, **kwargs)
+
+            def _preload_events(self, *args, **kwargs):
+                return self.__base_trace._preload_events(*args, **kwargs)
+
+        if needs_temp:
+            @contextlib.contextmanager
+            def cm_func():
+                with tempfile.NamedTemporaryFile(suffix='.dat', delete=False) as temp:
+                    yield temp.name
+
+            cm = cm_func()
         else:
-            cmd = 'xdg-open'
+            cm = nullcontext(filepath)
 
-        return os.popen(f"{cmd} {shlex.quote(path)}")
+        with cm as path:
+            proxy = _TraceProxy(path if needs_temp else None)
+            ftrace_coll = FtraceCollector(target, events=events, buffer_size=buffer_size, output_path=path)
+            with ftrace_coll:
+                yield proxy
 
-###############################################################################
-# Trace Events Sanitize Methods
-###############################################################################
+            trace = cls(
+                path,
+                events=events,
+                strict_events=True,
+                plat_info=plat_info,
+                **kwargs
+            )
 
-    _SANITIZATION_FUNCTIONS = {}
-    def _sanitize_event(event, mapping=_SANITIZATION_FUNCTIONS):
-        """
-        Sanitization functions must not modify their input.
-        """
-        # pylint: disable=dangerous-default-value,no-self-argument
-
-        def decorator(f):
-            mapping[event] = f
-            return f
-        return decorator
-
-    @_sanitize_event('sched_switch')
-    def _sanitize_sched_switch(self, event, df, aspects):
-        """
-        If ``prev_state`` is a string, turn it back into an integer state by
-        parsing it.
-        """
-        # pylint: disable=unused-argument,no-self-use
-        copied = False
-        def copy_once(x):
-            nonlocal copied
-            if copied:
-                return x
-            else:
-                copied = True
-                return x.copy(deep=False)
-
-        if df['prev_state'].dtype.name == 'string':
-            # Avoid circular dependency issue by importing at the last moment
-            # pylint: disable=import-outside-toplevel
-            from lisa.analysis.tasks import TaskState
-            df = copy_once(df)
-            df['prev_state'] = df['prev_state'].apply(TaskState.from_sched_switch_str).astype('uint16', copy=False)
-
-        # Save a lot of memory by using category for strings
-        df = copy_once(df)
-        for col in ('next_comm', 'prev_comm'):
-            df[col] = df[col].astype('category', copy=False)
-
-        return df
-
-    @_sanitize_event('lisa__sched_overutilized')
-    def _sanitize_sched_overutilized(self, event, df, aspects):
-        # pylint: disable=unused-argument,no-self-use
-        copied = False
-        def copy_once(x):
-            nonlocal copied
-            if copied:
-                return x
-            else:
-                copied = True
-                return x.copy(deep=False)
-
-        if not df['overutilized'].dtype.name == 'bool':
-            df = copy_once(df)
-            df['overutilized'] = df['overutilized'].astype(bool, copy=False)
-
-        if 'span' in df.columns and df['span'].dtype.name == 'string':
-            df = copy_once(df)
-            df['span'] = df['span'].apply(lambda x: x if pd.isna(x) else int(x, base=16))
-
-        return df
-
-    @_sanitize_event('thermal_power_cpu_limit')
-    @_sanitize_event('thermal_power_cpu_get_power')
-    def _sanitize_thermal_power_cpu(self, event, df, aspects):
-        # pylint: disable=unused-argument,no-self-use
-
-        def parse_load(array):
-            # Parse b'{2 3 2 8}'
-            return tuple(map(int, array[1:-1].split()))
-
-        # In-kernel name is "cpumask", "cpus" is just an artifact of the pretty
-        # printing format string of ftrace, that happens to be used by a
-        # specific parser.
-        df = df.rename(columns={'cpus': 'cpumask'}, copy=False)
-        df = df.copy(deep=False)
-
-        if event == 'thermal_power_cpu_get_power':
-            if df['load'].dtype.name == 'object':
-                df['load'] = df['load'].apply(parse_load)
-
-        return df
-
-    @_sanitize_event('print')
-    @_sanitize_event('bprint')
-    @_sanitize_event('bputs')
-    def _sanitize_print(self, event, df, aspects):
-        # pylint: disable=unused-argument,no-self-use
-
-        df = df.copy(deep=False)
-
-        # Only process string "ip" (function name), not if it is a numeric
-        # address
-        if not is_numeric_dtype(df['ip'].dtype):
-            # Reduce memory usage and speedup selection based on function
-            with contextlib.suppress(KeyError):
-                df['ip'] = df['ip'].astype('category', copy=False)
-
-        content_col = 'str' if event == 'bputs' else 'buf'
-
-        # Ensure we have "bytes" values, since some parsers might give
-        # str type.
-        try:
-            df[content_col] = df[content_col].str.encode('utf-8')
-        except TypeError:
-            pass
-
-        if event == 'print':
-            # Print event is mainly used through the trace_marker sysfs file.
-            # Since userspace application typically end the write with a
-            # newline char, strip it from the values, as some parsers will not
-            # include that in the output.
-            try:
-                last_char = df['buf'].iat[0][-1]
-            except (KeyError, IndexError):
-                pass
-            else:
-                if last_char == ord(b'\n'):
-                    df['buf'] = df['buf'].apply(lambda x: x.rstrip(b'\n'))
-
-        return df
-
-    @_sanitize_event('ipi_entry')
-    @_sanitize_event('ipi_exit')
-    def _sanitize_ipi_enty_exit(self, event, df, aspects):
-        # pylint: disable=unused-argument,no-self-use
-
-        df = df.copy(deep=False)
-        df['reason'] = df['reason'].str.strip('()')
-        return df
+        # pylint: disable=attribute-defined-outside-init
+        proxy._TraceProxy__base_trace = trace
 
 
 class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
@@ -5281,18 +5883,20 @@ class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
         else:
             checker = self
 
+
         if isinstance(event_set, _AvailableTraceEventsSet):
-            namespaces = event_set._trace._resolve_namespaces(namespaces)
-            def check(event):
-                # We already expanded namespaces, so we don't want the
-                # inclusion check to apply the default trace's namespace.
-                return event_set.contains(event, namespaces=[])
+            # Note that this will lead to selecting an event if one of its
+            # namespaced names is available. This is expected, but the
+            # check_events() returned set will also contain that non-namespaced
+            # name, rather than the actual namespaced name that exists.
+            trace = event_set._trace
+            view = trace.get_view(events_namespaces=namespaces)
+            event_set = view.available_events
         else:
-            def check(event):
-                return event in event_set
+            checker = checker.expand_namespaces(namespaces)
 
-        checker = checker.expand_namespaces(namespaces=namespaces)
-
+        def check(event):
+            return event in event_set
         return checker._select_events(check=check, event_set=event_set)
 
     @abc.abstractmethod
@@ -5316,10 +5920,14 @@ class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
         Build a :class:`TraceEventCheckerBase` that will fixup the event names
         to take into account the given namespaces.
         """
+        expand = lambda event: _NamespaceTraceView._do_expand_namespaces(event, namespaces=namespaces)
+        return self._expand_namespaces(expand)
+
+    def _expand_namespaces(self, expand):
         def fixup(checker):
             if isinstance(checker, TraceEventChecker):
                 event = checker.event
-                namespaced = Trace._expand_namespaces(event, namespaces=namespaces)
+                namespaced = expand(event)
 
                 # fnmatch patterns need to be AND-ed so that we can collect all
                 # the events matching that pattern, in all namespaces.
@@ -5375,7 +5983,11 @@ class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
                 except AttributeError:
                     pass
                 else:
-                    checker.check_events(trace.available_events)
+                    # Preload all the events that can be useful for that
+                    # function. This will allow loading them in parallel,
+                    # speeding up individual trace.df_event() calls
+                    view = trace.get_view(events=checker.get_all_events())
+                    checker.check_events(view.available_events)
 
                 return f(self, *args, **kwargs)
 

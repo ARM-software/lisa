@@ -22,6 +22,7 @@ import io
 import subprocess
 import lzma
 import logging
+from concurrent.futures import ProcessPoolExecutor
 
 from lisa._btf import parse_btf, dump_c
 
@@ -33,6 +34,8 @@ def _test_btf(btf_path):
     _Static_assert() to check member offsets and type sizes, this is almost
     equivalent to a roundtrip test.
     """
+    logging.info(f'Checking BTF blob: {btf_path}')
+
     with lzma.open(btf_path, 'rb') as f:
         buf = f.read()
 
@@ -76,8 +79,10 @@ class BTFDump(TestCase):
             for (root, dirs, files) in os.walk(btf_folder)
             for filename in files
         )
-        for btf_path in paths:
-            logging.info(f'Checking BTF blob: {btf_path}')
-            _test_btf(btf_path)
+        with ProcessPoolExecutor() as executor:
+            executor.map(
+                _test_btf,
+                paths
+            )
 
 

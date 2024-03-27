@@ -447,6 +447,7 @@ where
 
                                             table_state.fixed_cols.time.push(Some(ts));
                                             table_state.fixed_cols.cpu.push(Some(cpu));
+                                            table_state.nr_rows += 1;
 
                                             if len.get() >= CHUNK_SIZE {
                                                 let chunk = table_state.extract_chunk()?;
@@ -519,6 +520,7 @@ where
 
                             events_info.push(serde_json::json!({
                                 "event": read_state.name,
+                                "nr-rows": read_state.nr_rows,
                                 "path": path,
                                 "format": "parquet",
                                 "errors": errors.into_iter().map(|err| err.to_string()).collect::<Vec<_>>(),
@@ -531,6 +533,7 @@ where
                             Some(desc) => {
                                 events_info.push(serde_json::json!({
                                     "event": desc.name,
+                                    "nr-rows": 0,
                                     "path": None::<&str>,
                                     "format": "parquet",
                                     "errors": [err.to_string()],
@@ -597,12 +600,34 @@ fn dump_metadata<W: Write>(
         json_value["time-range"] = vec![time_range.0, time_range.1].into();
     }
 
-    let trace_id = header.options().into_iter().find_map(|opt| match opt {
-        Options::TraceId(id) => Some(*id),
-        _ => None,
-    });
+    let mut trace_id = None;
+    let mut trace_clock = None;
+    for opt in header.options() {
+        match opt {
+            Options::TraceId(id) => { trace_id = Some(*id); },
+            Options::TraceClock(clock) => { trace_clock = Some(clock.deref()); },
+            _ => {},
+        }
+    }
+
     if let Some(id) = trace_id {
         json_value["trace-id"] = id.into();
+    }
+    if let Some(clock) = trace_clock {
+        let mut parser = nom::sequence::preceded(
+            nom::bytes::complete::take_till(|c| c == '['),
+            nom::sequence::delimited(
+                nom::character::complete::char('['),
+                nom::bytes::complete::take_till(|c| c == ']'),
+                nom::character::complete::char(']'),
+            )
+        );
+        match parser.parse(clock).finish() {
+            Ok((_, clock)) => {
+                json_value["trace-clock"] = clock.into();
+            }
+            Err(()) => {},
+        }
     }
 
     Ok(writer.write_all(json_value.to_string().as_bytes())?)
@@ -1248,6 +1273,7 @@ struct TableState<'scope> {
     fields_schema: Schema,
     fixed_cols: FixedCols,
     field_cols: Vec<FieldArray>,
+    nr_rows: u64,
 
     sender: Sender<ArrayChunk>,
     handle: ScopedJoinHandle<'scope, Result<(), MainError>>,
@@ -1301,6 +1327,7 @@ impl<'scope> TableState<'scope> {
             handle,
             path,
             errors: TableErrors::new(),
+            nr_rows: 0,
         })
     }
 

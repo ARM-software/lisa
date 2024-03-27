@@ -29,6 +29,8 @@ from collections.abc import Mapping
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError, URLError
 from operator import itemgetter
+import collections
+from concurrent.futures import ThreadPoolExecutor
 
 from docutils.parsers.rst import Directive, directives
 from docutils.parsers.rst.directives import flag
@@ -40,7 +42,7 @@ from sphinx.ext.autodoc import exclude_members_option
 
 import lisa
 import lisa.analysis
-from lisa.analysis.base import AnalysisHelpers, TraceAnalysisBase
+from lisa.analysis.base import AnalysisHelpers, TraceAnalysisBase, measure_time
 from lisa.utils import get_subclasses, import_all_submodules, DEPRECATED_MAP, get_sphinx_name, groupby, get_short_doc, order_as, is_link_dead
 from lisa.trace import TraceEventCheckerBase
 from lisa.conf import KeyDesc, SimpleMultiSrcConf, TopLevelKeyDesc
@@ -303,44 +305,102 @@ class DocPlotConf(SimpleMultiSrcConf):
         KeyDesc('plots', 'Mapping of function qualnames to their settings', [Mapping], deepcopy_val=False),
     ))
 
+def autodoc_pre_make_plots(conf):
 
-def autodoc_process_analysis_plots(app, what, name, obj, options, lines, plot_conf):
-    if what != 'method':
-        return
+    def spec_of_meth(conf, meth_name):
+        plot_conf = conf['plots']
+        default_spec = plot_conf.get('default', {})
+        spec = plot_conf.get(meth_name, {})
+        spec = {**default_spec, **spec}
+        return spec
+
+    def preload_events(conf, methods):
+        """
+        Preload the events in the traces that will be used so that they can be
+        preloaded in parallel rather than invoking the parser several times.
+        """
+        methods = {
+            meth.__qualname__: meth
+            for meth in methods
+        }
+
+        def events_of(name):
+            meth = methods[name]
+            spec = spec_of_meth(conf, name)
+            trace = spec['trace']
+            try:
+                events = meth.used_events
+            except AttributeError:
+                events = set()
+            else:
+                events = events.get_all_events()
+
+            return (trace, events)
+
+        traces = collections.defaultdict(set)
+
+        for name in conf['plots'].keys():
+            try:
+                trace, events = events_of(name)
+            except KeyError:
+                pass
+            else:
+                traces[trace].update(events)
+
+        for trace, events in traces.items():
+            trace.get_view(events=events)
+
+    def _make_plot(meth):
+        spec = spec_of_meth(conf, meth.__qualname__)
+        kwargs = spec.get('kwargs', {})
+        trace = spec['trace']
+
+        if spec.get('hide'):
+            return None
+        else:
+            print(f'Generating plot for {meth.__qualname__} ...')
+
+            # Suppress deprecation warnings so we can still have them in the doc
+            with warnings.catch_warnings(), measure_time() as m:
+                warnings.simplefilter("ignore", category=DeprecationWarning)
+
+                rst_figure = TraceAnalysisBase.call_on_trace(meth, trace, {
+                    'backend': 'bokeh',
+                    'output': 'sphinx-rst',
+                    'interactive': False,
+                    **kwargs
+                })
+
+            print(f'Plot for {meth.__qualname__} generated in {m.delta}s')
+
+            rst_figure = f'\n:Example plot:\n\n{rst_figure}'
+            return rst_figure
 
     plot_methods = set(itertools.chain.from_iterable(
         subclass.get_plot_methods()
         for subclass in TraceAnalysisBase.get_analysis_classes().values()
     ))
 
-    if obj not in plot_methods:
+    preload_events(conf, plot_methods)
+    plots = {
+        meth.__qualname__: plot
+        for meth in plot_methods
+        if (plot := _make_plot(meth)) is not None
+    }
+
+    return plots
+
+
+def autodoc_process_analysis_plots(app, what, name, obj, options, lines, plots):
+    if what != 'method':
         return
 
-    plot_conf = plot_conf['plots']
-
-    default_spec = plot_conf.get('default', {})
-    spec = plot_conf.get(obj.__qualname__, {})
-    spec = {**default_spec, **spec}
-    kwargs = spec.get('kwargs', {})
-    trace = spec['trace']
-
-    if spec.get('hide'):
+    try:
+        rst_figure = plots[obj.__qualname__]
+    except KeyError:
         return
-
-    print(f'Generating plot for {obj.__qualname__}')
-
-    # Suppress deprecation warnings so we can still have them in the doc
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", category=DeprecationWarning)
-
-        rst_figure = TraceAnalysisBase.call_on_trace(obj, trace, {
-            'backend': 'bokeh',
-            'output': 'sphinx-rst',
-            'interactive': False,
-            **kwargs
-        })
-    rst_figure = f'\n:Example plot:\n\n{rst_figure}'
-    lines.extend(rst_figure.splitlines())
+    else:
+        lines.extend(rst_figure.splitlines())
 
 
 def autodoc_process_analysis_methods(app, what, name, obj, options, lines):
@@ -375,16 +435,17 @@ def get_analysis_list(meth_type):
     # Ensure all the submodules have been imported
     TraceAnalysisBase.get_analysis_classes()
 
+    assert issubclass(TraceAnalysisBase, AnalysisHelpers)
     for subclass in get_subclasses(AnalysisHelpers):
         class_path = f"{subclass.__module__}.{subclass.__qualname__}"
         if meth_type == 'plot':
             meth_list = subclass.get_plot_methods()
         elif meth_type == 'df':
-            meth_list = [
-                member
-                for name, member in inspect.getmembers(subclass, callable)
-                if name.startswith('df_')
-            ]
+            meth_list = (
+                subclass.get_df_methods()
+                if isinstance(subclass, TraceAnalysisBase) else
+                []
+            )
         else:
             raise ValueError()
 

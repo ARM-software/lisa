@@ -51,20 +51,13 @@ fn _main() -> Result<(), Box<dyn Error>> {
     let mut reader = unsafe { traceevent::io::MmapFile::new(file) }?;
     let header = header::header(&mut reader)?;
 
-    // We make the timestamp unique assuming it will be manipulated as an f64 number of seconds by
-    // consumers
-    let conv_ts = |ts| (ts as f64) / 1e9;
     let make_unique_timestamps = {
-        let mut prev = (0, conv_ts(0));
-        move |mut ts: Timestamp| {
-            ts = std::cmp::max(prev.0, ts);
-            let mut _ts = conv_ts(ts);
-            while prev.1 == _ts {
-                ts += 1;
-                _ts = conv_ts(ts);
-            }
-            prev = (ts, _ts);
-            ts
+        let mut prev = 0;
+        move |ts: Timestamp| {
+            // Ensure there is at least 2ns of difference between each timestamp, so that we never
+            // end up with duplicated timestamps once converted to f64 (due to rounding errors).
+            prev = std::cmp::max(ts, prev + 2);
+            prev
         }
     };
 
