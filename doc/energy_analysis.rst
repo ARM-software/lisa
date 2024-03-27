@@ -23,7 +23,7 @@ by EAS, and lets us do some energy analysis.
    providing this target does have an energy model.
 
 Its most noteworthy use is in our :meth:`EAS behavioural tests
-<lisa_tests.kernel.scheduler.eas_behaviour.EASBehaviour.test_task_placement()>`, as it lets us
+<lisa_tests.kernel.scheduler.eas_behaviour.EASBehaviour.test_task_placement>`, as it lets us
 estimate the amount of energy consumed in an execution trace and compare this
 to an estimated energy-optimal placement.
 

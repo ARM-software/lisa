@@ -62,7 +62,7 @@ def _find_packages(toplevel):
         )))
     ]
 
-packages = _find_packages('lisa') + _find_packages('lisa_tests')
+packages = _find_packages('lisa')
 
 package_data = {
     package: ['*']
