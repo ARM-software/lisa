@@ -3,9 +3,8 @@ https://gitlab.arm.com/tooling/lisa. Please update your clone URLs and note
 that the GitHub repository will not be used for any pull requests or issue
 management. ⚠️
 
-⚠️ ``lisa_tests`` package will be moved to another repository in
-January 2024. When more details are available, this pull request will be
-updated: https://gitlab.arm.com/tooling/lisa/-/merge_requests/2140/ ⚠️
+⚠️ ``lisa_tests`` package have been removed from the main repository as they are
+unmaintained. ⚠️
 
 Introduction |CI status|
 ===================================================

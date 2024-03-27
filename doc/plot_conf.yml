@@ -12,28 +12,76 @@
 #   hide [optional]: Do not produce an example plot, in case no trace with
 #   necessary events is available for example.
 
+
+# Scratch area to create anchors that are then used in the rest of the file.
+scratch:
+    rta_phase_little: &rta_phase_little0 !call:lisa.wlgen.rta.RTAPhase
+        prop_wload: !call:lisa.wlgen.rta.PeriodicWload
+            duty_cycle_pct: 10
+            duration: 1
+            period: 0.016
+
+    rta_phase_big: &rta_phase_big0 !call:lisa.wlgen.rta.RTAPhase
+        prop_wload: !call:lisa.wlgen.rta.PeriodicWload
+            duty_cycle_pct: 70
+            duration: 1
+            period: 0.016
+
+    rta_phase_padding: &rta_phase_padding0 !call:lisa.wlgen.rta.RTAPhase
+        prop_wload: !call:lisa.wlgen.rta.PeriodicWload
+            duty_cycle_pct: 0.01
+            duration: 0.1
+            period: 0.016
+        prop_meta:
+            from_test: false
+
+    wlgen_profile0: &wlgen_profile0
+        small_0: !call:operator.add
+            0: *rta_phase_little0
+            1: *rta_phase_padding0
+
+        small_1: !call:operator.add
+            0: *rta_phase_little0
+            1: *rta_phase_padding0
+
+        small_2: !call:operator.add
+            0: *rta_phase_little0
+            1: *rta_phase_padding0
+
+        big_0: !call:operator.add
+            0: *rta_phase_big0
+            1: *rta_phase_padding0
+
+        big_1: !call:operator.add
+            0: *rta_phase_big0
+            1: *rta_phase_padding0
+
+    plat_info0: &plat_info0 !call:lisa.platforms.platinfo.PlatformInfo.from_yaml_map
+        path: !env:interpolate $LISA_HOME/doc/traces/plat_info.yml
+
+    plat_info1: &plat_info1 !call:lisa.platforms.platinfo.PlatformInfo.from_yaml_map
+        path: !env:interpolate $LISA_HOME/doc/traces/juno_r2_plat_info.yml
+
+    task0: &task0 big_0-0
+    cpu0: &cpu0 0
+    cluster0: &cluster0 [0, 3, 4, 5]
+
+    trace0: &trace0 !call:lisa.trace.Trace
+        trace_path: !env:interpolate $LISA_HOME/doc/traces/trace.dat
+        normalize_time: true
+        plat_info: *plat_info0
+
+
 doc-plot-conf:
     plots:
         # Default values for the other entries
         default:
-            plat_info: &plat_info0 !call:lisa.platforms.platinfo.PlatformInfo.from_yaml_map
-                path: !env:interpolate $LISA_HOME/doc/traces/plat_info.yml
-
-            plat_info1: &plat_info1 !call:lisa.platforms.platinfo.PlatformInfo.from_yaml_map
-                path: !env:interpolate $LISA_HOME/doc/traces/juno_r2_plat_info.yml
-
-            trace: &trace0 !call:lisa.trace.Trace
-                trace_path: !env:interpolate $LISA_HOME/doc/traces/trace.dat
-                normalize_time: true
-                plat_info: *plat_info0
-
-            wlgen_profile: &wlgen_profile0 !call:lisa_tests.arm.kernel.scheduler.eas_behaviour.TwoBigThreeSmall.get_rtapp_profile
-                plat_info: *plat_info0
-
-            task: &task0 big_0-0
-            cpu: &cpu0 0
-            cluster: &cluster0 [0, 3, 4, 5]
-
+            plat_info: *plat_info0
+            trace: *trace0
+            wlgen_profile: *wlgen_profile0
+            task: *task0
+            cpu: *cpu0
+            cluster: *cluster0
 
         TasksAnalysis.plot_task_residency:
             kwargs:

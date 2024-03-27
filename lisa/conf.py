@@ -895,7 +895,7 @@ class MultiSrcConfABC(Serializable, abc.ABC):
         """
         # Make sure that all modules from LISA are loaded, so that
         # get_subclasses will be accurate.
-        import_all_submodules(lisa)
+        import_all_submodules(lisa, best_effort=True)
 
         conf_cls_set = set(get_subclasses(cls, only_leaves=True))
         conf_list = []

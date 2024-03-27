@@ -506,7 +506,7 @@ def get_deprecated_map():
     """
 
     # Import everything there is to import, so the map is fully populated
-    import_all_submodules(lisa)
+    import_all_submodules(lisa, best_effort=True)
     return DEPRECATED_MAP
 
 def get_deprecated_table():
@@ -709,7 +709,7 @@ def make_changelog(repo, since=None, head_release_name='Next release', fmt='rst'
             if marker in msg
         }))
         for marker in selected:
-            pattern = f'^\s*{re.escape(marker)}\s*$'
+            pattern = rf'^\s*{re.escape(marker)}\s*$'
             msg = re.sub(pattern, '', msg, flags=re.MULTILINE)
 
         return (msg, selected)
