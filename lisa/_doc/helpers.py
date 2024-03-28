@@ -31,6 +31,7 @@ from urllib.error import HTTPError, URLError
 from operator import itemgetter
 import collections
 from concurrent.futures import ThreadPoolExecutor
+from textwrap import dedent
 
 from docutils.parsers.rst import Directive, directives
 from docutils.parsers.rst.directives import flag
@@ -101,6 +102,7 @@ class ExecDirective(RecursiveDirective):
     def run(self):
         stdout = io.StringIO()
         code = '\n'.join(self.content)
+        code = dedent(code)
         with contextlib.redirect_stdout(stdout):
             exec(code, {})
         out = stdout.getvalue()

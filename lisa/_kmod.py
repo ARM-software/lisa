@@ -1118,11 +1118,14 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                 except urllib.error.HTTPError as e:
                     # Maybe this is a development kernel and no release has been
                     # done for that version yet, keep trying with lower versions
-                    if e.code == 404:
+                    if e.code == 404 and orig_version.rc is None:
                         try:
                             parts = decrement_version(parts)
                         except ValueError:
                             raise ValueError('Cannot fetch any tarball matching {orig_version}')
+
+                    else:
+                        raise e
                 else:
                     cls._URL_CACHE[str(version)] = response.url
                     return (url, response)

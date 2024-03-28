@@ -384,7 +384,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
                 warnings.warn(f'{cls_name} kmod_overlay_backend and kmod_make_vars parameters are deprecated, please pass the information inside build_env instead using keys: {", ".join(deprecated.keys())}', DeprecationWarning)
 
             kmod_build_env.add_src(
-                src='deprecated-{cls_name}-params',
+                src=f'deprecated-{cls_name}-params',
                 conf=deprecated,
                 filter_none=True
             )
