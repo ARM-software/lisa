@@ -92,7 +92,13 @@ fn _main() -> Result<(), Box<dyn Error>> {
                 Box::new(|ts| ts)
             };
 
-            dump_events(&header, reader, make_ts, events)
+            // This size is a sweet spot. If in doubt, it's best to have chunks that are too big
+            // than too small, as smaller chunks can wreak performances and might also mean more
+            // work when consuming the file. In my experiments, 16 * 1024 was a transition point
+            // between good and horrible performance.  Note that this chunk size is expressed in
+            // terms of number of rows, independently from the size of the rows themselves.
+            let chunk_size = 64 * 1024;
+            dump_events(&header, reader, make_ts, events, chunk_size)
         }
         Command::CheckHeader { trace } => {
             let (header, _) = open_trace(trace)?;

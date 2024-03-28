@@ -44,13 +44,6 @@ use traceevent::{
 
 use crate::error::DynMultiError;
 
-// This size is a sweet spot. If in doubt, it's best to have chunks that are too big than too
-// small, as smaller chunks can wreak performances and might also mean more work when consuming the
-// file. In my experiments, 16 * 1024 was a transition point between good and horrible performance.
-// Note that this chunk size is expressed in terms of number of rows, independently from the size
-// of the rows themselves.
-const CHUNK_SIZE: usize = 64 * 1024;
-
 type ArrayChunk = Chunk<Arc<dyn Array>>;
 
 #[allow(clippy::enum_variant_names)]
@@ -152,6 +145,7 @@ pub fn dump_events<R, FTimestamp>(
     reader: R,
     mut modify_timestamps: FTimestamp,
     only_events: Option<Vec<String>>,
+    chunk_size: usize,
 ) -> Result<(), DynMultiError>
 where
     FTimestamp: FnMut(Timestamp) -> Timestamp,
@@ -244,7 +238,7 @@ where
                     };
                     if select {
                         let state = {
-                            ReadState::new(header, event_desc, options, &event_desc.name, scope)
+                            ReadState::new(header, event_desc, options, chunk_size, &event_desc.name, scope)
                         };
 
                         let state = EventCtx::Selected(SharedState::new(state));
@@ -449,7 +443,7 @@ where
                                             table_state.fixed_cols.cpu.push(Some(cpu));
                                             table_state.nr_rows += 1;
 
-                                            if len.get() >= CHUNK_SIZE {
+                                            if len.get() >= chunk_size {
                                                 let chunk = table_state.extract_chunk()?;
                                                 table_state.sender.send(chunk).unwrap();
                                             }
@@ -740,10 +734,10 @@ struct FixedCols {
 }
 
 impl FixedCols {
-    fn new() -> Self {
+    fn new(chunk_size: usize) -> Self {
         FixedCols {
-            time: MutablePrimitiveArray::with_capacity(CHUNK_SIZE),
-            cpu: MutablePrimitiveArray::with_capacity(CHUNK_SIZE),
+            time: MutablePrimitiveArray::with_capacity(chunk_size),
+            cpu: MutablePrimitiveArray::with_capacity(chunk_size),
         }
     }
 
@@ -764,6 +758,7 @@ impl FixedCols {
 struct ReadState<'scope, 'scopeenv> {
     variant: ReadStateVariant<'scope>,
     options: WriteOptions,
+    chunk_size: usize,
     scope: &'scope Scope<'scopeenv>,
 }
 
@@ -797,11 +792,12 @@ where
         header: &Header,
         event_desc: &EventDesc,
         options: WriteOptions,
+        chunk_size: usize,
         name: &str,
         scope: &'scope Scope<'scopeenv>,
     ) -> Result<Self, MainError> {
         let (full_schema, fields_schema) = Self::make_event_desc_schemas(header, event_desc)?;
-        let state = TableState::new(full_schema, fields_schema, options, name, scope)?;
+        let state = TableState::new(full_schema, fields_schema, options, chunk_size, name, scope)?;
 
         let variant = match event_desc.name.deref() {
             event_name @ "bprint" => {
@@ -835,6 +831,7 @@ where
             variant,
             options,
             scope,
+            chunk_size,
         })
     }
 
@@ -1023,6 +1020,7 @@ where
                                             full_schema,
                                             fields_schema,
                                             self.options,
+                                            self.chunk_size,
                                             &meta_event_name,
                                             self.scope,
                                         ) {
@@ -1274,6 +1272,7 @@ where
 struct TableState<'scope> {
     name: String,
     path: PathBuf,
+    chunk_size: usize,
     fields_schema: Schema,
     fixed_cols: FixedCols,
     field_cols: Vec<FieldArray>,
@@ -1296,10 +1295,11 @@ impl<'scope> TableState<'scope> {
         full_schema: Schema,
         fields_schema: Schema,
         options: WriteOptions,
+        chunk_size: usize,
         name: &str,
         scope: &'scope Scope,
     ) -> Result<Self, MainError> {
-        let (fixed_cols, field_cols) = Self::make_cols(name, &fields_schema)?;
+        let (fixed_cols, field_cols) = Self::make_cols(name, &fields_schema, chunk_size)?;
 
         let path = PathBuf::from(format!("{}.parquet", name));
         let file = File::create(&path)?;
@@ -1332,13 +1332,18 @@ impl<'scope> TableState<'scope> {
             path,
             errors: TableErrors::new(),
             nr_rows: 0,
+            chunk_size,
         })
     }
 
-    fn make_cols(name: &str, schema: &Schema) -> Result<(FixedCols, Vec<FieldArray>), MainError> {
+    fn make_cols(
+        name: &str,
+        schema: &Schema,
+        chunk_size: usize,
+    ) -> Result<(FixedCols, Vec<FieldArray>), MainError> {
         macro_rules! make_array {
             ($variant:path) => {
-                Ok($variant(MutablePrimitiveArray::with_capacity(CHUNK_SIZE)))
+                Ok($variant(MutablePrimitiveArray::with_capacity(chunk_size)))
             };
         }
         let make_col = |field: &Field| match &field.data_type {
@@ -1353,11 +1358,11 @@ impl<'scope> TableState<'scope> {
             DataType::UInt64 => make_array!(FieldArray::U64),
 
             DataType::Boolean => Ok(FieldArray::Bool(MutableBooleanArray::with_capacity(
-                CHUNK_SIZE,
+                chunk_size,
             ))),
-            DataType::Utf8 => Ok(FieldArray::Str(MutableUtf8Array::with_capacity(CHUNK_SIZE))),
+            DataType::Utf8 => Ok(FieldArray::Str(MutableUtf8Array::with_capacity(chunk_size))),
             DataType::Binary => Ok(FieldArray::Binary(MutableBinaryArray::with_capacity(
-                CHUNK_SIZE,
+                chunk_size,
             ))),
 
             DataType::List(field)
@@ -1370,7 +1375,7 @@ impl<'scope> TableState<'scope> {
                 ) =>
             {
                 Ok(FieldArray::ListBool(MutableListArray::with_capacity(
-                    CHUNK_SIZE,
+                    chunk_size,
                 )))
             }
 
@@ -1384,7 +1389,7 @@ impl<'scope> TableState<'scope> {
                 ) =>
             {
                 Ok(FieldArray::ListU8(MutableListArray::with_capacity(
-                    CHUNK_SIZE,
+                    chunk_size,
                 )))
             }
             DataType::List(field)
@@ -1397,7 +1402,7 @@ impl<'scope> TableState<'scope> {
                 ) =>
             {
                 Ok(FieldArray::ListU16(MutableListArray::with_capacity(
-                    CHUNK_SIZE,
+                    chunk_size,
                 )))
             }
             DataType::List(field)
@@ -1410,7 +1415,7 @@ impl<'scope> TableState<'scope> {
                 ) =>
             {
                 Ok(FieldArray::ListU32(MutableListArray::with_capacity(
-                    CHUNK_SIZE,
+                    chunk_size,
                 )))
             }
             DataType::List(field)
@@ -1423,7 +1428,7 @@ impl<'scope> TableState<'scope> {
                 ) =>
             {
                 Ok(FieldArray::ListU64(MutableListArray::with_capacity(
-                    CHUNK_SIZE,
+                    chunk_size,
                 )))
             }
 
@@ -1437,7 +1442,7 @@ impl<'scope> TableState<'scope> {
                 ) =>
             {
                 Ok(FieldArray::ListI8(MutableListArray::with_capacity(
-                    CHUNK_SIZE,
+                    chunk_size,
                 )))
             }
             DataType::List(field)
@@ -1450,7 +1455,7 @@ impl<'scope> TableState<'scope> {
                 ) =>
             {
                 Ok(FieldArray::ListI16(MutableListArray::with_capacity(
-                    CHUNK_SIZE,
+                    chunk_size,
                 )))
             }
             DataType::List(field)
@@ -1463,7 +1468,7 @@ impl<'scope> TableState<'scope> {
                 ) =>
             {
                 Ok(FieldArray::ListI32(MutableListArray::with_capacity(
-                    CHUNK_SIZE,
+                    chunk_size,
                 )))
             }
             DataType::List(field)
@@ -1476,7 +1481,7 @@ impl<'scope> TableState<'scope> {
                 ) =>
             {
                 Ok(FieldArray::ListI64(MutableListArray::with_capacity(
-                    CHUNK_SIZE,
+                    chunk_size,
                 )))
             }
 
@@ -1490,12 +1495,13 @@ impl<'scope> TableState<'scope> {
             .collect();
         let fields = fields?;
 
-        let fixed = FixedCols::new();
+        let fixed = FixedCols::new(chunk_size);
         Ok((fixed, fields))
     }
 
     fn extract_chunk(&mut self) -> Result<ArrayChunk, MainError> {
-        let (mut fixed_cols, mut field_cols) = Self::make_cols(&self.name, &self.fields_schema)?;
+        let (mut fixed_cols, mut field_cols) =
+            Self::make_cols(&self.name, &self.fields_schema, self.chunk_size)?;
 
         assert_eq!(field_cols.len(), self.field_cols.len());
         core::mem::swap(&mut self.field_cols, &mut field_cols);
