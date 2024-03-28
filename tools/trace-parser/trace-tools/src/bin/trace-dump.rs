@@ -17,9 +17,6 @@ use lib::{
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
-    #[arg(long, value_name = "TRACE")]
-    trace: PathBuf,
-
     #[arg(long, value_name = "ERRORS_JSON")]
     errors_json: Option<PathBuf>,
 
@@ -30,26 +27,40 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     HumanReadable {
+        #[arg(long, value_name = "TRACE")]
+        trace: PathBuf,
+
         #[arg(long, value_name = "RAW")]
         raw: bool,
     },
     Parquet {
+        #[arg(long, value_name = "TRACE")]
+        trace: PathBuf,
+
         #[arg(long, value_name = "EVENTS")]
         events: Option<Vec<String>>,
         #[arg(long)]
         unique_timestamps: bool,
     },
-    CheckHeader,
-    Metadata,
+    CheckHeader {
+        #[arg(long, value_name = "TRACE")]
+        trace: PathBuf,
+    },
+    Metadata {
+        #[arg(long, value_name = "TRACE")]
+        trace: PathBuf,
+    },
 }
 
 fn _main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
 
-    let path = cli.trace;
-    let file = std::fs::File::open(path)?;
-    let mut reader = unsafe { traceevent::io::MmapFile::new(file) }?;
-    let header = header::header(&mut reader)?;
+    let open_trace = |path| -> Result<_, Box<dyn Error>>{
+        let file = std::fs::File::open(path)?;
+        let mut reader = unsafe { traceevent::io::MmapFile::new(file) }?;
+        let header = header::header(&mut reader)?;
+        Ok((header, reader))
+    };
 
     let make_unique_timestamps = {
         let mut prev = 0;
@@ -65,11 +76,16 @@ fn _main() -> Result<(), Box<dyn Error>> {
     let mut out = std::io::BufWriter::with_capacity(1024 * 1024, stdout);
 
     let res = match cli.command {
-        Command::HumanReadable { raw } => print_events(&header, reader, &mut out, raw),
+        Command::HumanReadable { trace, raw } => {
+            let (header, reader) = open_trace(trace)?;
+            print_events(&header, reader, &mut out, raw)
+        }
         Command::Parquet {
+            trace,
             events,
             unique_timestamps,
         } => {
+            let (header, reader) = open_trace(trace)?;
             let make_ts: Box<dyn FnMut(_) -> _> = if unique_timestamps {
                 Box::new(make_unique_timestamps)
             } else {
@@ -78,8 +94,14 @@ fn _main() -> Result<(), Box<dyn Error>> {
 
             dump_events(&header, reader, make_ts, events)
         }
-        Command::CheckHeader => check_header(&header, &mut out),
-        Command::Metadata => dump_header_metadata(&header, &mut out),
+        Command::CheckHeader { trace } => {
+            let (header, _) = open_trace(trace)?;
+            check_header(&header, &mut out)
+        }
+        Command::Metadata { trace } => {
+            let (header, _) = open_trace(trace)?;
+            dump_header_metadata(&header, &mut out)
+        }
     };
     out.flush()?;
 

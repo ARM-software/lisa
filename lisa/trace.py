@@ -749,8 +749,8 @@ class TraceDumpTraceParser(TraceParserBase):
     def _make_metadata(cls, path, temp_dir):
         stdout = cls._run(
             cli_args=(
-                '--trace', path,
                 'metadata',
+                '--trace', path,
             ),
             temp_dir=temp_dir,
         )
@@ -760,8 +760,8 @@ class TraceDumpTraceParser(TraceParserBase):
     def _make_parquets(cls, events, path, temp_dir):
         cls._run(
             cli_args=(
-                '--trace', path,
                 'parquet',
+                '--trace', path,
                 '--unique-timestamps',
                 *(
                     arg

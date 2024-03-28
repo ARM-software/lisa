@@ -604,9 +604,13 @@ fn dump_metadata<W: Write>(
     let mut trace_clock = None;
     for opt in header.options() {
         match opt {
-            Options::TraceId(id) => { trace_id = Some(*id); },
-            Options::TraceClock(clock) => { trace_clock = Some(clock.deref()); },
-            _ => {},
+            Options::TraceId(id) => {
+                trace_id = Some(*id);
+            }
+            Options::TraceClock(clock) => {
+                trace_clock = Some(clock.deref());
+            }
+            _ => {}
         }
     }
 
@@ -620,13 +624,13 @@ fn dump_metadata<W: Write>(
                 nom::character::complete::char('['),
                 nom::bytes::complete::take_till(|c| c == ']'),
                 nom::character::complete::char(']'),
-            )
+            ),
         );
         match parser.parse(clock).finish() {
             Ok((_, clock)) => {
                 json_value["trace-clock"] = clock.into();
             }
-            Err(()) => {},
+            Err(()) => {}
         }
     }
 
