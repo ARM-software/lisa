@@ -233,16 +233,16 @@ LISA Python package will compile and load the module automatically when required
 for tracing so there is usually no reason to do so manually. The most reliable
 way to configure LISA for building the module is:
 
-  * Kernel config:
+  * Kernel config (also available under ``$LISA_HOME/tools/kmodules/kconfig_fragment.config``):
 
-    .. code-block:: sh
+    .. exec::
+       :literal:
 
-      CONFIG_IKHEADERS=y
-      CONFIG_IKCONFIG=y
-      CONFIG_DEBUG_INFO=y
-      CONFIG_DEBUG_INFO_BTF=y
-      CONFIG_DEBUG_INFO_REDUCED=n
-      CONFIG_BPF_SYSCALL=y
+        from pathlib import Path
+        from lisa._assets import ASSETS_PATH
+        frag_path = Path(ASSETS_PATH) / 'kmodules' / 'kconfig_fragment.config'
+        frag = frag_path.read_text()
+        print(frag)
 
   * Target configuration (:class:`lisa.target.TargetConf`):
 
