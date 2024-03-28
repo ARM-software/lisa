@@ -54,6 +54,14 @@ enum Command {
 
         #[arg(long)]
         compression: Option<ParquetCompression>,
+
+        // This size is a sweet spot. If in doubt, it's best to have chunks that are too big than
+        // too small, as smaller chunks can wreak performances and might also mean more work when
+        // consuming the file. In my experiments, 16 * 1024 was a transition point between good and
+        // horrible performance.  Note that this chunk size is expressed in terms of number of
+        // rows, independently from the size of the rows themselves.
+        #[arg(long, default_value_t=64 * 1024)]
+        chunk_size: usize,
     },
     CheckHeader {
         #[arg(long, value_name = "TRACE")]
@@ -98,6 +106,7 @@ fn _main() -> Result<(), Box<dyn Error>> {
             events,
             unique_timestamps,
             compression,
+            chunk_size,
         } => {
             let (header, reader) = open_trace(trace)?;
             let make_ts: Box<dyn FnMut(_) -> _> = if unique_timestamps {
@@ -112,13 +121,6 @@ fn _main() -> Result<(), Box<dyn Error>> {
                 Some(ParquetCompression::Lz4) => CompressionOptions::Lz4,
                 None => CompressionOptions::Uncompressed,
             };
-
-            // This size is a sweet spot. If in doubt, it's best to have chunks that are too big
-            // than too small, as smaller chunks can wreak performances and might also mean more
-            // work when consuming the file. In my experiments, 16 * 1024 was a transition point
-            // between good and horrible performance.  Note that this chunk size is expressed in
-            // terms of number of rows, independently from the size of the rows themselves.
-            let chunk_size = 64 * 1024;
             dump_events(&header, reader, make_ts, events, chunk_size, compression)
         }
         Command::CheckHeader { trace } => {
