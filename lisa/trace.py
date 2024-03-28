@@ -762,6 +762,7 @@ class TraceDumpTraceParser(TraceParserBase):
             cli_args=(
                 'parquet',
                 '--trace', path,
+                '--compression', 'lz4',
                 '--unique-timestamps',
                 *(
                     arg

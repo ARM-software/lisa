@@ -7,12 +7,13 @@ use traceevent::{header, header::Timestamp};
 #[cfg(target_arch = "x86_64")]
 static GLOBAL: MiMalloc = MiMalloc;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use lib::{
     check::check_header,
     parquet::{dump_events, dump_header_metadata},
     print::print_events,
 };
+use arrow2::io::parquet::write::CompressionOptions;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -22,6 +23,14 @@ struct Cli {
 
     #[command(subcommand)]
     command: Command,
+}
+
+#[derive(Clone, Debug, ValueEnum)]
+#[clap(rename_all = "lower")]
+enum ParquetCompression {
+    Lz4,
+    Snappy,
+    Zstd,
 }
 
 #[derive(Subcommand)]
@@ -39,8 +48,12 @@ enum Command {
 
         #[arg(long, value_name = "EVENTS")]
         events: Option<Vec<String>>,
+
         #[arg(long)]
         unique_timestamps: bool,
+
+        #[arg(long)]
+        compression: Option<ParquetCompression>,
     },
     CheckHeader {
         #[arg(long, value_name = "TRACE")]
@@ -84,6 +97,7 @@ fn _main() -> Result<(), Box<dyn Error>> {
             trace,
             events,
             unique_timestamps,
+            compression,
         } => {
             let (header, reader) = open_trace(trace)?;
             let make_ts: Box<dyn FnMut(_) -> _> = if unique_timestamps {
@@ -92,13 +106,20 @@ fn _main() -> Result<(), Box<dyn Error>> {
                 Box::new(|ts| ts)
             };
 
+            let compression = match compression {
+                Some(ParquetCompression::Snappy) => CompressionOptions::Snappy,
+                Some(ParquetCompression::Zstd) => CompressionOptions::Zstd(None),
+                Some(ParquetCompression::Lz4) => CompressionOptions::Lz4,
+                None => CompressionOptions::Uncompressed,
+            };
+
             // This size is a sweet spot. If in doubt, it's best to have chunks that are too big
             // than too small, as smaller chunks can wreak performances and might also mean more
             // work when consuming the file. In my experiments, 16 * 1024 was a transition point
             // between good and horrible performance.  Note that this chunk size is expressed in
             // terms of number of rows, independently from the size of the rows themselves.
             let chunk_size = 64 * 1024;
-            dump_events(&header, reader, make_ts, events, chunk_size)
+            dump_events(&header, reader, make_ts, events, chunk_size, compression)
         }
         Command::CheckHeader { trace } => {
             let (header, _) = open_trace(trace)?;

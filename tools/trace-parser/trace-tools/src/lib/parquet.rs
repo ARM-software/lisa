@@ -146,6 +146,7 @@ pub fn dump_events<R, FTimestamp>(
     mut modify_timestamps: FTimestamp,
     only_events: Option<Vec<String>>,
     chunk_size: usize,
+    compression: CompressionOptions,
 ) -> Result<(), DynMultiError>
 where
     FTimestamp: FnMut(Timestamp) -> Timestamp,
@@ -154,9 +155,9 @@ where
     let only_events = &only_events;
     let options = WriteOptions {
         write_statistics: true,
-        compression: CompressionOptions::Zstd(None),
         version: Version::V2,
         data_pagesize_limit: None,
+        compression,
     };
 
     // TODO: EventId might not be enough if we extend the API to deal with buffers from multiple
