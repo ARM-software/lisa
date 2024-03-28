@@ -76,4 +76,4 @@ EOF
 
 # merge_config.sh seems to have issue if called from other working directories
 cd "$KERNEL_DIR" &&
-KCONFIG_CONFIG="$KERNEL_CONFIG" "$KERNEL_DIR/scripts/kconfig/merge_config.sh" "$KERNEL_CONFIG" "$fragment"
+KCONFIG_CONFIG="$KERNEL_CONFIG" "$KERNEL_DIR/scripts/kconfig/merge_config.sh" -m -Q "$KERNEL_CONFIG" "$fragment"
