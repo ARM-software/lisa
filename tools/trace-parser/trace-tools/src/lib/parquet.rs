@@ -29,6 +29,8 @@ use crossbeam::{
     thread::{scope, Scope, ScopedJoinHandle},
 };
 use nom::{Finish as _, Parser as _};
+use serde::Serialize;
+
 use traceevent::{
     self,
     buffer::{BufferError, EventVisitor},
@@ -49,9 +51,12 @@ type ArrayChunk = Chunk<Arc<dyn Array>>;
 #[allow(clippy::enum_variant_names)]
 #[derive(thiserror::Error, Debug)]
 #[non_exhaustive]
-enum MainError {
+pub enum MainError {
     #[error("Error while loading data: {0}")]
     IoError(#[from] std::io::Error),
+
+    #[error("Error while creating JSON: {0}")]
+    JsonError(#[from] serde_json::Error),
 
     #[error("Error while parsing header: {0}")]
     HeaderError(#[from] HeaderError),
@@ -94,7 +99,7 @@ enum MainError {
 }
 
 #[derive(Debug)]
-struct FieldError {
+pub struct FieldError {
     event_name: Option<String>,
     field_name: String,
     error: MainError,
@@ -107,6 +112,93 @@ impl MainError {
             field_name: field_name.into(),
             error: self,
         }))
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct EventMetadata {
+    event: String,
+    errors: Vec<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    nr_rows: Option<u64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    path: Option<PathBuf>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    format: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Metadata<'h> {
+    header: &'h Header,
+    events_info: Option<Vec<EventMetadata>>,
+    time_range: Option<(Timestamp, Timestamp)>,
+}
+
+impl<'h> Metadata<'h> {
+    pub fn dump<W: Write>(
+        self,
+        mut writer: W,
+    ) -> Result<(), MainError> {
+        let header = self.header;
+        let events_info = self.events_info;
+        let time_range = self.time_range;
+
+        let mut json_value = serde_json::json!({
+            "pid-comms": header.pid_comms().into_iter().collect::<Vec<_>>(),
+            "cpus-count": header.nr_cpus(),
+            "symbols-address": header.kallsyms().into_iter().collect::<Vec<_>>(),
+            // We cannot provide all events the kernel support here, as most of them
+            // were not enabled during the trace.
+            // "available-events": header.event_descs().into_iter().map(|desc| desc.name.deref()).collect::<Vec<&str>>(),
+        });
+
+        if let Some(events_info) = events_info {
+            json_value["events-info"] = serde_json::to_value(events_info)?;
+        }
+
+        if let Some(time_range) = time_range {
+            json_value["time-range"] = vec![time_range.0, time_range.1].into();
+        }
+
+        let mut trace_id = None;
+        let mut trace_clock = None;
+        for opt in header.options() {
+            match opt {
+                Options::TraceId(id) => {
+                    trace_id = Some(*id);
+                }
+                Options::TraceClock(clock) => {
+                    trace_clock = Some(clock.deref());
+                }
+                _ => {}
+            }
+        }
+
+        if let Some(id) = trace_id {
+            json_value["trace-id"] = id.into();
+        }
+        if let Some(clock) = trace_clock {
+            let mut parser = nom::sequence::preceded(
+                nom::bytes::complete::take_till(|c| c == '['),
+                nom::sequence::delimited(
+                    nom::character::complete::char('['),
+                    nom::bytes::complete::take_till(|c| c == ']'),
+                    nom::character::complete::char(']'),
+                ),
+            );
+            match parser.parse(clock).finish() {
+                Ok((_, clock)) => {
+                    json_value["trace-clock"] = clock.into();
+                }
+                Err(()) => {}
+            }
+        }
+
+        Ok(writer.write_all(json_value.to_string().as_bytes())?)
     }
 }
 
@@ -147,7 +239,7 @@ pub fn dump_events<R, FTimestamp>(
     only_events: Option<Vec<String>>,
     chunk_size: usize,
     compression: CompressionOptions,
-) -> Result<(), DynMultiError>
+) -> Result<Metadata, DynMultiError>
 where
     FTimestamp: FnMut(Timestamp) -> Timestamp,
     R: BorrowingRead + Send,
@@ -221,7 +313,7 @@ where
         };
     }
 
-    scope(move |scope| -> Result<_, _> {
+    scope(move |scope| {
         let mut count: u64 = 0;
         let buffers = header.buffers(reader)?;
         let mut state_map = StateMap::new();
@@ -504,10 +596,6 @@ where
                                     }
                                     Err(err) => Err(err),
                                 };
-                                let path = match res {
-                                    Ok(_) => read_state.path.to_str().expect("Unable to convert PathBuf to String").into(),
-                                    Err(_) => serde_json::Value::Null,
-                                };
                                 read_state.errors.extend_errors([res]);
 
                                 let errors = read_state.errors.errors;
@@ -515,25 +603,26 @@ where
                                     eprintln!("Errors encountered while dumping event {}, see meta.json for details", read_state.name);
                                 }
 
-                                events_info.push(serde_json::json!({
-                                    "event": read_state.name,
-                                    "nr-rows": read_state.nr_rows,
-                                    "path": path,
-                                    "format": "parquet",
-                                    "errors": errors.into_iter().map(|err| err.to_string()).collect::<Vec<_>>(),
-                                }));
+                                events_info.push(EventMetadata {
+                                    event: read_state.name.to_string(),
+                                    nr_rows: Some(read_state.nr_rows),
+                                    path: Some(read_state.path),
+                                    format: Some("parquet".into()),
+                                    errors: errors.into_iter().map(|err| err.to_string()).collect::<Vec<_>>(),
+                                });
                             }
                             Ok(())
                         }
                         Err(err) => {
                             match header.event_desc_by_id(id) {
                                 Some(desc) => {
-                                    events_info.push(serde_json::json!({
-                                        "event": desc.name,
-                                        "path": None::<&str>,
-                                        "format": "parquet",
-                                        "errors": [err.to_string()],
-                                    }));
+                                    events_info.push(EventMetadata {
+                                        event: desc.name.to_string(),
+                                        nr_rows: None,
+                                        path: None,
+                                        format: Some("parquet".into()),
+                                        errors: vec![err.to_string()],
+                                    });
                                     Ok(())
                                 },
                                 // If we cannot get the associated event name, we just turn it into
@@ -548,9 +637,13 @@ where
                 EventCtx::NotSelected => {
                     match header.event_desc_by_id(id) {
                         Some(desc) => {
-                            events_info.push(serde_json::json!({
-                                "event": desc.name,
-                            }));
+                            events_info.push(EventMetadata {
+                                event: desc.name.to_string(),
+                                nr_rows: None,
+                                path: None,
+                                format: None,
+                                errors: vec![],
+                            });
                             Ok(())
                         },
                         // This is not an event anyone requested, and we can't find its name, so
@@ -573,85 +666,58 @@ where
             (None, Some(end)) => panic!("Time time_range has an end ({end}) but not a start"),
         };
 
-        push_global_err((|| {
-            dump_metadata(
-                File::create("meta.json")?,
-                header,
-                Some(events_info),
-                Some(time_range),
-            )
-        })());
+        let metadata = Metadata {
+            header,
+            events_info: Some(events_info),
+            time_range: Some(time_range),
+        };
 
         if errors.is_empty() {
-            Ok(())
+            Ok(metadata)
         } else {
             Err(DynMultiError::new(errors))
         }
     }).unwrap()
 }
 
-fn dump_metadata<W: Write>(
-    mut writer: W,
+
+pub fn dump_metadata<R, W>(
     header: &Header,
-    events_info: Option<Vec<serde_json::Value>>,
-    time_range: Option<(Timestamp, Timestamp)>,
-) -> Result<(), MainError> {
-    let mut json_value = serde_json::json!({
-        "pid-comms": header.pid_comms().into_iter().collect::<Vec<_>>(),
-        "cpus-count": header.nr_cpus(),
-        "symbols-address": header.kallsyms().into_iter().collect::<Vec<_>>(),
-        // We cannot provide all events the kernel support here, as most of them
-        // were not enabled during the trace.
-        // "available-events": header.event_descs().into_iter().map(|desc| desc.name.deref()).collect::<Vec<&str>>(),
-    });
+    reader: R,
+    writer: W,
+    keys: Option<Vec<String>>,
+) -> Result<(), DynMultiError>
+where
+    W: Write,
+    R: BorrowingRead + Send,
+{
+    let scan_trace = match keys {
+        Some(keys) => keys
+            .iter()
+            .any(|item| item == "available-events" || item == "time-range"),
+        None => false,
+    };
 
-    if let Some(events_info) = events_info {
-        json_value["events-info"] = events_info.into();
-    }
-
-    if let Some(time_range) = time_range {
-        json_value["time-range"] = vec![time_range.0, time_range.1].into();
-    }
-
-    let mut trace_id = None;
-    let mut trace_clock = None;
-    for opt in header.options() {
-        match opt {
-            Options::TraceId(id) => {
-                trace_id = Some(*id);
-            }
-            Options::TraceClock(clock) => {
-                trace_clock = Some(clock.deref());
-            }
-            _ => {}
+    // Some metadata require a full scan of the trace
+    let metadata = if scan_trace {
+        dump_events(
+            &header,
+            reader,
+            |ts| ts,
+            // Do not create any parquet file.
+            Some(vec![]),
+            0,
+            CompressionOptions::Uncompressed,
+        )?
+    } else {
+        Metadata {
+            header,
+            time_range: None,
+            events_info: None,
         }
-    }
+    };
 
-    if let Some(id) = trace_id {
-        json_value["trace-id"] = id.into();
-    }
-    if let Some(clock) = trace_clock {
-        let mut parser = nom::sequence::preceded(
-            nom::bytes::complete::take_till(|c| c == '['),
-            nom::sequence::delimited(
-                nom::character::complete::char('['),
-                nom::bytes::complete::take_till(|c| c == ']'),
-                nom::character::complete::char(']'),
-            ),
-        );
-        match parser.parse(clock).finish() {
-            Ok((_, clock)) => {
-                json_value["trace-clock"] = clock.into();
-            }
-            Err(()) => {}
-        }
-    }
-
-    Ok(writer.write_all(json_value.to_string().as_bytes())?)
-}
-
-pub fn dump_header_metadata<W: Write>(header: &Header, writer: W) -> Result<(), DynMultiError> {
-    Ok(dump_metadata(writer, header, None, None)?)
+    Ok(metadata.dump(writer)?)
 }
 
 #[derive(Debug)]

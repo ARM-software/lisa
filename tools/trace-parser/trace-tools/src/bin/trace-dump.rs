@@ -7,13 +7,14 @@ use traceevent::{header, header::Timestamp};
 #[cfg(target_arch = "x86_64")]
 static GLOBAL: MiMalloc = MiMalloc;
 
+use arrow2::io::parquet::write::CompressionOptions;
 use clap::{Parser, Subcommand, ValueEnum};
 use lib::{
     check::check_header,
-    parquet::{dump_events, dump_header_metadata},
+    error::DynMultiError,
+    parquet::{dump_events, dump_metadata},
     print::print_events,
 };
-use arrow2::io::parquet::write::CompressionOptions;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -46,8 +47,8 @@ enum Command {
         #[arg(long, value_name = "TRACE")]
         trace: PathBuf,
 
-        #[arg(long, value_name = "EVENTS")]
-        events: Option<Vec<String>>,
+        #[arg(long, value_name = "EVENT")]
+        event: Option<Vec<String>>,
 
         #[arg(long)]
         unique_timestamps: bool,
@@ -70,13 +71,16 @@ enum Command {
     Metadata {
         #[arg(long, value_name = "TRACE")]
         trace: PathBuf,
+
+        #[arg(long, value_name = "KEY")]
+        key: Option<Vec<String>>,
     },
 }
 
 fn _main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
 
-    let open_trace = |path| -> Result<_, Box<dyn Error>>{
+    let open_trace = |path| -> Result<_, Box<dyn Error>> {
         let file = std::fs::File::open(path)?;
         let mut reader = unsafe { traceevent::io::MmapFile::new(file) }?;
         let header = header::header(&mut reader)?;
@@ -96,14 +100,14 @@ fn _main() -> Result<(), Box<dyn Error>> {
     let stdout = std::io::stdout().lock();
     let mut out = std::io::BufWriter::with_capacity(1024 * 1024, stdout);
 
-    let res = match cli.command {
+    let res: Result<_, DynMultiError> = match cli.command {
         Command::HumanReadable { trace, raw } => {
             let (header, reader) = open_trace(trace)?;
             print_events(&header, reader, &mut out, raw)
         }
         Command::Parquet {
             trace,
-            events,
+            event,
             unique_timestamps,
             compression,
             chunk_size,
@@ -121,15 +125,20 @@ fn _main() -> Result<(), Box<dyn Error>> {
                 Some(ParquetCompression::Lz4) => CompressionOptions::Lz4,
                 None => CompressionOptions::Uncompressed,
             };
-            dump_events(&header, reader, make_ts, events, chunk_size, compression)
+            match dump_events(&header, reader, make_ts, event, chunk_size, compression) {
+                Ok(metadata) => Ok(metadata.dump(
+                    File::create("meta.json")?,
+                )?),
+                Err(err) => Err(err),
+            }
         }
         Command::CheckHeader { trace } => {
             let (header, _) = open_trace(trace)?;
             check_header(&header, &mut out)
         }
-        Command::Metadata { trace } => {
-            let (header, _) = open_trace(trace)?;
-            dump_header_metadata(&header, &mut out)
+        Command::Metadata { trace, key } => {
+            let (header, reader) = open_trace(trace)?;
+            dump_metadata(&header, reader, &mut out, key)
         }
     };
     out.flush()?;

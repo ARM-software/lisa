@@ -656,7 +656,7 @@ class TraceDumpTraceParser(TraceParserBase):
 
         # time-range will not be available in the basic metadata, this requires
         # a full parse
-        if events or ('time-range' in needed_metadata):
+        if events:
             meta = self._make_parquets(
                 path=path,
                 events=events,
@@ -672,6 +672,7 @@ class TraceDumpTraceParser(TraceParserBase):
             meta = self._make_metadata(
                 path=path,
                 temp_dir=temp_dir,
+                needed_metadata=needed_metadata,
             )
 
         self._metadata.update(meta)
@@ -759,11 +760,16 @@ class TraceDumpTraceParser(TraceParserBase):
         return meta
 
     @classmethod
-    def _make_metadata(cls, path, temp_dir):
+    def _make_metadata(cls, path, temp_dir, needed_metadata):
         stdout = cls._run(
             cli_args=(
                 'metadata',
                 '--trace', path,
+                *(
+                    arg
+                    for key in sorted(set(needed_metadata or []))
+                    for arg in ('--key', key)
+                )
             ),
             temp_dir=temp_dir,
         )
@@ -784,7 +790,7 @@ class TraceDumpTraceParser(TraceParserBase):
                     # parser will reject the source and we will never get a
                     # chance to get the meta event itself, so we need both.
                     for _event in Trace.get_event_sources(event)
-                    for arg in ('--events', _event)
+                    for arg in ('--event', _event)
                 )
             ),
             temp_dir=temp_dir,
