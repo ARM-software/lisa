@@ -237,17 +237,18 @@ where
                             event_desc.name.deref() == selected.deref()
                         })
                     };
-                    if select {
+                    let state = if select {
                         let state = {
                             ReadState::new(header, event_desc, options, chunk_size, &event_desc.name, scope)
                         };
 
                         let state = EventCtx::Selected(SharedState::new(state));
-                        entry.insert(state.clone());
                         state
                     } else {
                         EventCtx::NotSelected
-                    }
+                    };
+                    entry.insert(state.clone());
+                    state
                 }
                 Entry::Occupied(entry) => entry.get().clone(),
             }
