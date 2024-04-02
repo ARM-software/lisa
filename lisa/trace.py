@@ -5073,10 +5073,16 @@ class _Trace(Loggable, _InternalTraceBase):
 
     def _update_parseable_events(self, mapping):
         with self._lock:
-            self._parseable_events.update(mapping)
-            self._cache.update_metadata({
-                'parseable-events': self._parseable_events,
-            })
+            update = {
+                k: v
+                for k, v in mapping.items()
+                if v != self._parseable_events.get(k)
+            }
+            if update:
+                self._parseable_events.update(update)
+                self._cache.update_metadata({
+                    'parseable-events': self._parseable_events,
+                })
             return self._parseable_events
 
     @property
