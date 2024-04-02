@@ -4170,7 +4170,8 @@ class _TraceCache(Loggable):
             return swap_entry.written
 
     @staticmethod
-    def _data_to_parquet(data, path, compression='snappy', **kwargs):
+    def _data_to_parquet(data, path, compression='lz4', **kwargs):
+        kwargs['compression'] = compression
         if isinstance(data, pd.DataFrame):
             # Data must be convertible to bytes so we dump them as JSON
             attrs = json.dumps(data.attrs)
@@ -4197,7 +4198,6 @@ class _TraceCache(Loggable):
         if fmt == 'disk-only':
             return
         elif fmt == 'parquet':
-            # Snappy compression seems very fast
             self._data_to_parquet(data, path)
         elif fmt == 'polars-lazyframe':
             assert isinstance(data, pl.LazyFrame)
