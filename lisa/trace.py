@@ -4799,7 +4799,6 @@ class _Trace(Loggable, _InternalTraceBase):
 
         self.trace_path = trace_path
         self._parseable_events = {}
-        self._unavailable_metadata = set()
 
         if parser is None:
             if not trace_path:
@@ -4894,10 +4893,6 @@ class _Trace(Loggable, _InternalTraceBase):
         return self._get_metadata(key=key)
 
     def _get_metadata(self, key, parser=None, cache=True, try_hard=False):
-        with self._lock:
-            if key in self._unavailable_metadata:
-                raise MissingMetadataError(key)
-
         def process(key, value):
             if key == 'available-events':
                 # Ensure we have a list so that it can be dumped to JSON
@@ -4936,15 +4931,7 @@ class _Trace(Loggable, _InternalTraceBase):
                 @contextlib.contextmanager
                 def _cm():
                     with self._get_parser(needed_metadata={key}) as parser:
-                        try:
-                            yield parser
-                        # We explicitly asked for a bit of metadata and could
-                        # not obtain it, so we remember that to avoid wasting
-                        # time spinning up a parser again in the future
-                        except MissingMetadataError:
-                            with self._lock:
-                                self._unavailable_metadata.add(key)
-                            raise
+                        yield parser
 
                 cm = _cm()
             else:
@@ -5069,13 +5056,13 @@ class _Trace(Loggable, _InternalTraceBase):
                     temp_dir=temp_dir,
                 )
 
+                with parser as parser:
+                    yield parser
+
                 # While we are at it, gather a bunch of metadata. Since we did not
                 # explicitly asked for it, the parser will only give
                 # it if it was a cheap byproduct.
                 self._update_metadata(parser)
-
-                with parser as parser:
-                    yield parser
 
         return cm()
 
@@ -5266,10 +5253,6 @@ class _Trace(Loggable, _InternalTraceBase):
                 for event in events
                 if (df := parse(parser, event)) is not None
             }
-
-            # Gather the metadata that might have been made available when
-            # entering the context manager
-            self._update_metadata(parser)
 
         return df_map
 
