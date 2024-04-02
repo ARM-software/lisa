@@ -2605,10 +2605,9 @@ class _InternalTraceBase(abc.ABC):
     def available_events(self):
         return _AvailableTraceEventsSet(self)
 
-    # Allow positional parameter for "window" for backward compat
-    def get_view(self, window=None, **kwargs):
-        view = _TraceViewBase.make_view(self, window=window, **kwargs)
-        assert isinstance(view, TraceBase)
+    def get_view(self, **kwargs):
+        view = _TraceViewBase.make_view(self, **kwargs)
+        assert isinstance(view, _TraceViewBase)
         return view
 
     @abc.abstractmethod
@@ -2981,9 +2980,6 @@ class _TraceViewBase(_InternalTraceBase):
         if process_df:
             view = _ProcessTraceView(view, process_df)
 
-        # This _must_ be the top view in the stack currently, otherwise it
-        # won't have any effect
-        view = _TopTraceView(view, df_fmt)
         return view
 
     @property
@@ -3233,82 +3229,6 @@ class _WindowTraceView(_TraceViewBase):
             return df
 
 
-class _TopTraceView(TraceBase, _TraceViewBase):
-    def __init__(self, trace, df_fmt):
-        super().__init__(trace)
-        self.__df_fmt = df_fmt
-
-    @property
-    def _default_ana_params(self):
-        # In the user-visible analysis, we want to change some defaults that
-        # will improve the immediate experience, at the expense of good
-        # composition. For example, using ui=None means that a user calling a
-        # plot method twice will get 2 toolbars. but it can still be disabled
-        # manually. Since composition can sometimes suffer, the internal
-        # analysis proxy and the default values on plot methods are set to less
-        # friendly but more predictable defaults.
-        return dict(
-            # Default to displaying a toolbar in notebooks
-            output=None,
-            df_fmt=self._df_fmt,
-        )
-
-    # Memoize the analysis as the analysis themselves might memoize some
-    # things, so we don't want to trash that.
-    @property
-    @memoized
-    def ana(self):
-        # Import here to avoid a circular dependency issue at import time
-        # with lisa.analysis.base
-        # pylint: disable=import-outside-toplevel
-        from lisa.analysis._proxy import AnalysisProxy
-        return AnalysisProxy(self, params=self._default_ana_params)
-
-    @property
-    @memoized
-    def analysis(self):
-        # Import here to avoid a circular dependency issue at import time
-        # with lisa.analysis.base
-        # pylint: disable=import-outside-toplevel
-        from lisa.analysis._proxy import _DeprecatedAnalysisProxy
-
-        # self.analysis is deprecated so we can transition to using holoviews
-        # in all situations, even when the backend is matplotlib
-        return _DeprecatedAnalysisProxy(self, params=self._default_ana_params)
-
-    @property
-    @memoized
-    def _df_fmt(self):
-        if (df_fmt := self.__df_fmt):
-            return df_fmt
-        else:
-            try:
-                return self.base_trace._df_fmt
-            except AttributeError:
-                return 'pandas'
-
-    @property
-    def trace_state(self):
-        return (
-            super().trace_state,
-            self.__df_fmt,
-        )
-
-    def df_event(self, event, *, df_fmt=None, **kwargs):
-        df_fmt = df_fmt or self._df_fmt
-
-        df, meta = self.base_trace._internal_df_event(
-            event,
-            # Provide the information to the stack so that we can apply the
-            # legacy signals in _WindowTraceView for pandas format
-            df_fmt=df_fmt,
-            **kwargs
-        )
-
-        df = _df_to(df, fmt=df_fmt)
-        return df
-
-
 class _ProcessTraceView(_TraceViewBase):
     def __init__(self, trace, process_df):
         super().__init__(trace)
@@ -3450,7 +3370,7 @@ class _NamespaceTraceView(_TraceViewBase):
                 return event
 
         def expand(event, namespaces):
-            if Trace._is_meta_event(event):
+            if _Trace._is_meta_event(event):
                 return [event]
             else:
                 return deduplicate(
@@ -5514,12 +5434,7 @@ class _Trace(Loggable, _InternalTraceBase):
         return self.endtime
 
 
-class _TraceMeta(type(TraceBase)):
-    # For backward compat uses of classmethods and such
-    def __getattr__(cls, attr):
-        return getattr(_Trace, attr)
-
-class Trace(TraceBase, metaclass=_TraceMeta):
+class Trace(TraceBase):
     """
     This class provides a way to access event dataframes and ties
     together various low-level moving pieces to make that happen.
@@ -5649,18 +5564,21 @@ class Trace(TraceBase, metaclass=_TraceMeta):
             object is created.
     """
 
-    def _init(self, view):
+    def _init(self, view, df_fmt):
         self.__view = view
+        self._df_fmt = df_fmt or 'pandas'
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, df_fmt=None, **kwargs):
         view = self._view_from_user_kwargs(*args, **kwargs)
-        self._init(view)
+        self._init(view, df_fmt=df_fmt)
 
-    @classmethod
-    def _from_view(cls, view):
-        self = super().__new__(cls)
-        self._init(view)
-        return self
+    def _with_view(self, view, df_fmt):
+        new = super().__new__(self.__class__)
+        new._init(
+            view=view,
+            df_fmt=df_fmt or self._df_fmt
+        )
+        return new
 
     @classmethod
     def _view_from_user_kwargs(cls,
@@ -5668,8 +5586,6 @@ class Trace(TraceBase, metaclass=_TraceMeta):
         normalize_time=False,
         strict_events=False,
         events=None,
-
-        df_fmt='pandas',
         events_namespaces=('lisa', None),
 
         sanitization_functions=None,
@@ -5699,40 +5615,92 @@ class Trace(TraceBase, metaclass=_TraceMeta):
             events_namespaces=events_namespaces,
             strict_events=strict_events,
             events=events,
-            df_fmt=df_fmt,
         )
 
         trace = _Trace(*args, **kwargs)
         view = trace.get_view(**view_kwargs)
 
-        assert isinstance(view, TraceBase)
+        assert isinstance(view, _TraceViewBase)
         return view
 
-    def get_view(self, *args, **kwargs):
-        view = self.__view.get_view(*args, **kwargs)
+    @property
+    def _default_ana_params(self):
+        # In the user-visible analysis, we want to change some defaults that
+        # will improve the immediate experience, at the expense of good
+        # composition. For example, using ui=None means that a user calling a
+        # plot method twice will get 2 toolbars. but it can still be disabled
+        # manually. Since composition can sometimes suffer, the internal
+        # analysis proxy and the default values on plot methods are set to less
+        # friendly but more predictable defaults.
+        return dict(
+            # Default to displaying a toolbar in notebooks
+            output=None,
+            df_fmt=self._df_fmt,
+        )
+
+    # Memoize the analysis as the analysis themselves might memoize some
+    # things, so we don't want to trash that.
+    @property
+    @memoized
+    def ana(self):
+        # Import here to avoid a circular dependency issue at import time
+        # with lisa.analysis.base
+        # pylint: disable=import-outside-toplevel
+        from lisa.analysis._proxy import AnalysisProxy
+        return AnalysisProxy(self, params=self._default_ana_params)
+
+    @property
+    @memoized
+    def analysis(self):
+        # Import here to avoid a circular dependency issue at import time
+        # with lisa.analysis.base
+        # pylint: disable=import-outside-toplevel
+        from lisa.analysis._proxy import _DeprecatedAnalysisProxy
+
+        # self.analysis is deprecated so we can transition to using holoviews
+        # in all situations, even when the backend is matplotlib
+        return _DeprecatedAnalysisProxy(self, params=self._default_ana_params)
+
+    # Allow positional parameter for "window" for backward compat
+    def get_view(self, window=None, *, df_fmt=None, **kwargs):
+        kwargs['window'] = window
+        view = self.__view.get_view(**kwargs)
         # Always preserve the same user-visible type so that view types are
         # 100% an implementation detail that does not leak.
-        return self._from_view(view)
+        return self._with_view(
+            view,
+            df_fmt=df_fmt
+        )
 
     def __getattr__(self, attr):
         return getattr(self.__view, attr)
 
-    def df_event(self, *args, **kwargs):
-        return self.__view.df_event(*args, **kwargs)
+    @property
+    def trace_state(self):
+        return (
+            self.__view.trace_state,
+            self._df_fmt,
+        )
+
+    def df_event(self, event, *, df_fmt=None, **kwargs):
+        df_fmt = df_fmt or self._df_fmt
+
+        df, meta = self.__view._internal_df_event(
+            event,
+            # Provide the information to the stack so that we can apply the
+            # legacy signals in _WindowTraceView for pandas format
+            df_fmt=df_fmt,
+            **kwargs
+        )
+
+        df = _df_to(df, fmt=df_fmt)
+        return df
 
     def _internal_df_event(self, *args, **kwargs):
         return self.__view._internal_df_event(*args, **kwargs)
 
     def _preload_events(self, *args, **kwargs):
         return self.__view._preload_events(*args, **kwargs)
-
-    @property
-    def ana(self):
-        return self.__view.ana
-
-    @property
-    def analysis(self):
-        return self.__view.ana
 
     @classmethod
     @contextlib.contextmanager
@@ -5838,6 +5806,10 @@ class Trace(TraceBase, metaclass=_TraceMeta):
 
         # pylint: disable=attribute-defined-outside-init
         proxy._TraceProxy__base_trace = trace
+
+    @classmethod
+    def get_event_sources(cls, *args, **kwargs):
+        return _Trace.get_event_sources(*args, **kwargs)
 
 
 class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
@@ -6779,7 +6751,7 @@ class FtraceCollector(CollectorBase, Configurable):
         meta_events = {
             event
             for event in events_checker.get_all_events()
-            if Trace._is_meta_event(event)
+            if _Trace._is_meta_event(event)
         }
 
         events_checker = events_checker.map(rewrite)
