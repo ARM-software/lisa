@@ -484,64 +484,81 @@ where
         let mut events_info = Vec::new();
 
         while let Some((id, ctx)) = state_map.pop_first() {
-            if let EventCtx::Selected(read_state) = ctx {
-                // There shouldn't be any other clone of the Rc<> at this point so we can
-                // safely unwrap.
-                push_global_err(match read_state.into_inner().unwrap() {
-                    Ok(read_state) => {
-                        for mut read_state in read_state.drain_states() {
-                            let res = match read_state.extract_chunk() {
-                                Ok(chunk) => {
-                                    read_state.sender.send(chunk).unwrap();
-                                    // Drop the sender which will close the channel so that the writer thread will
-                                    // know it's time to finish.
-                                    drop(read_state.sender);
-                                    handles.push(read_state.handle);
-                                    eprintln!("File written successfully {}", read_state.name);
-                                    Ok(())
+            push_global_err(match ctx {
+                EventCtx::Selected(read_state) => {
+                    // There shouldn't be any other clone of the Rc<> at this point so we can
+                    // safely unwrap.
+                    match read_state.into_inner().unwrap() {
+                        Ok(read_state) => {
+                            for mut read_state in read_state.drain_states() {
+                                let res = match read_state.extract_chunk() {
+                                    Ok(chunk) => {
+                                        read_state.sender.send(chunk).unwrap();
+                                        // Drop the sender which will close the channel so that the writer thread will
+                                        // know it's time to finish.
+                                        drop(read_state.sender);
+                                        handles.push(read_state.handle);
+                                        eprintln!("File written successfully {}", read_state.name);
+                                        Ok(())
+                                    }
+                                    Err(err) => Err(err),
+                                };
+                                let path = match res {
+                                    Ok(_) => read_state.path.to_str().expect("Unable to convert PathBuf to String").into(),
+                                    Err(_) => serde_json::Value::Null,
+                                };
+                                read_state.errors.extend_errors([res]);
+
+                                let errors = read_state.errors.errors;
+                                if !errors.is_empty() {
+                                    eprintln!("Errors encountered while dumping event {}, see meta.json for details", read_state.name);
                                 }
-                                Err(err) => Err(err),
-                            };
-                            let path = match res {
-                                Ok(_) => read_state.path.to_str().expect("Unable to convert PathBuf to String").into(),
-                                Err(_) => serde_json::Value::Null,
-                            };
-                            read_state.errors.extend_errors([res]);
 
-                            let errors = read_state.errors.errors;
-                            if !errors.is_empty() {
-                                eprintln!("Errors encountered while dumping event {}, see meta.json for details", read_state.name);
-                            }
-
-                            events_info.push(serde_json::json!({
-                                "event": read_state.name,
-                                "nr-rows": read_state.nr_rows,
-                                "path": path,
-                                "format": "parquet",
-                                "errors": errors.into_iter().map(|err| err.to_string()).collect::<Vec<_>>(),
-                            }));
-                        }
-                        Ok(())
-                    }
-                    Err(err) => {
-                        match header.event_desc_by_id(id) {
-                            Some(desc) => {
                                 events_info.push(serde_json::json!({
-                                    "event": desc.name,
-                                    "nr-rows": 0,
-                                    "path": None::<&str>,
+                                    "event": read_state.name,
+                                    "nr-rows": read_state.nr_rows,
+                                    "path": path,
                                     "format": "parquet",
-                                    "errors": [err.to_string()],
+                                    "errors": errors.into_iter().map(|err| err.to_string()).collect::<Vec<_>>(),
                                 }));
-                                Ok(())
-                            },
-                            // If we cannot get the associated event name, we just turn it into
-                            // a global error.
-                            _ => Err(err)
+                            }
+                            Ok(())
+                        }
+                        Err(err) => {
+                            match header.event_desc_by_id(id) {
+                                Some(desc) => {
+                                    events_info.push(serde_json::json!({
+                                        "event": desc.name,
+                                        "path": None::<&str>,
+                                        "format": "parquet",
+                                        "errors": [err.to_string()],
+                                    }));
+                                    Ok(())
+                                },
+                                // If we cannot get the associated event name, we just turn it into
+                                // a global error.
+                                _ => Err(err)
+                            }
                         }
                     }
-                });
-            }
+                }
+                // Still register the events that we did not select, as they indicate what event is
+                // available in that trace.
+                EventCtx::NotSelected => {
+                    match header.event_desc_by_id(id) {
+                        Some(desc) => {
+                            events_info.push(serde_json::json!({
+                                "event": desc.name,
+                            }));
+                            Ok(())
+                        },
+                        // This is not an event anyone requested, and we can't find its name, so
+                        // that means no-one can request it. Since this is in-effect unselectable,
+                        // we just ignore it.
+                        None => Ok(())
+                    }
+                }
+            })
         }
 
         for handle in handles {

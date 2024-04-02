@@ -743,6 +743,19 @@ class TraceDumpTraceParser(TraceParserBase):
         except KeyError:
             pass
 
+        try:
+            events_info = meta['events-info']
+        except KeyError:
+            pass
+        else:
+            # The parser reports all the events that appeared in the trace even
+            # if they were not collected.
+            meta['available-events'] = {
+                desc['event']
+                for desc in events_info
+                if not desc.get('errors')
+            }
+
         return meta
 
     @classmethod
@@ -814,7 +827,7 @@ class TraceDumpTraceParser(TraceParserBase):
             pid_comms = self._pid_comms
             temp_dir = Path(self._temp_dir)
 
-            if errors := desc['errors']:
+            if errors := desc.get('errors', []):
                 # Only raise a TraceDumpError if the event is contained within
                 # the trace but we had problems parsing it out
                 raise TraceDumpError(errors, event=event)
@@ -825,7 +838,7 @@ class TraceDumpTraceParser(TraceParserBase):
                 # trace-cmd was invoked so we just assume that if no occurence
                 # exist, the event is missing. This might get fixed one day
                 # (e.g. if trace-cmd records its CLI parameters to trace.dat).
-                elif desc['nr-rows'] < 1:
+                elif desc.get('nr-rows', 0) < 1:
                     raise MissingTraceEventError([event])
                 else:
                     df = pl.scan_parquet(temp_dir / path)
