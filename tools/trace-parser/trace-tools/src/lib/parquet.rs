@@ -96,6 +96,9 @@ pub enum MainError {
 
     #[error("Error while processing {} field {}: {}", .0.field_name, .0.event_name.as_deref().unwrap_or("<unknown event>"), .0.error)]
     FieldError(Box<FieldError>),
+
+    #[error("Writer thread error")]
+    WriterThreadError,
 }
 
 #[derive(Debug)]
@@ -539,7 +542,7 @@ where
 
                                             if len.get() >= chunk_size {
                                                 let chunk = table_state.extract_chunk()?;
-                                                table_state.sender.send(chunk).unwrap();
+                                                table_state.sender.send(chunk).map_err(|_| MainError::WriterThreadError)?;
                                             }
                                             Ok(())
                                         }
@@ -1397,7 +1400,7 @@ impl<'scope> TableState<'scope> {
             writer,
             count: 0,
         };
-        let write_thread = move |_: &_| -> Result<_, MainError> {
+        let write_thread = move |_: &_| -> Result<(), MainError> {
             for chunk in receiver.iter() {
                 write_state.dump_to_file(chunk)?;
             }
