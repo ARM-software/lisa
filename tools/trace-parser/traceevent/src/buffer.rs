@@ -110,6 +110,7 @@ pub struct EventVisitor<'i, 'h, 'edm, MakeCtx, Ctx = ()> {
     // &'edm mut EventDescMap<'h, Ctx, MakeCtx>,
     // But because of variance limitation, we use *mut instead of &mut and we use 'static instead
     // of 'h
+    #[allow(clippy::type_complexity)]
     _phantom_desc_map: PhantomData<(
         &'edm mut EventDescMap<'static, Ctx, MakeCtx>,
         &'edm EventDescMap<'h, Ctx, MakeCtx>,
@@ -648,6 +649,7 @@ impl Type {
 use core::cmp::Ordering;
 #[derive(Debug)]
 struct BufferItem<'a, Ctx, MakeCtx>(
+    #[allow(clippy::type_complexity)]
     Result<
         (
             &'a Header,
@@ -1309,6 +1311,7 @@ impl PrintFmtStr {
     fn vbin_decoders<'a>(&'a self, header: &'a Header) -> &Vec<VBinDecoder> {
         let abi = header.kernel_abi();
         let char_signedness = abi.char_signedness;
+        #[allow(clippy::type_complexity)]
         self.vbin_decoders.get_or_init(|| {
             make_closure_coerce_type!(
                 decoder_hrtb,

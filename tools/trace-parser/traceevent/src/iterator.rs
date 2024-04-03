@@ -1,7 +1,6 @@
 use core::{
     cmp::{Ordering, Reverse},
     fmt::{Debug, Error, Formatter},
-    iter::Iterator,
     ops::{Deref, DerefMut},
 };
 use std::collections::BinaryHeap;

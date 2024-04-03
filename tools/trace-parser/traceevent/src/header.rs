@@ -1,6 +1,5 @@
 use core::{
     borrow::Borrow,
-    convert::TryFrom,
     ffi::CStr,
     fmt::{Debug, Display, Formatter},
     hash::{Hash, Hasher},
@@ -13,7 +12,7 @@ use std::{
     io,
     io::Error as IoError,
     rc::Rc,
-    string::{String as StdString, ToString},
+    string::String as StdString,
     sync::{Arc, RwLock},
 };
 
@@ -439,6 +438,36 @@ impl Header {
             event_desc.header = Some(Arc::clone(&header))
         }
     }
+
+    pub fn clock(&self) -> Option<&str> {
+        let mut parser = nom::sequence::preceded(
+            nom::bytes::complete::take_till(|c| c == '['),
+            nom::sequence::delimited(
+                nom::character::complete::char('['),
+                nom::bytes::complete::take_till(|c| c == ']'),
+                nom::character::complete::char(']'),
+            ),
+        );
+
+        for opt in self.options() {
+            if let Options::TraceClock(clock) = opt {
+                return match nom::Parser::<_, _, ()>::parse(&mut parser, clock.deref()).finish() {
+                    Ok((_, clock)) => Some(clock),
+                    _ => None,
+                };
+            }
+        }
+        None
+    }
+
+    pub fn trace_id(&self) -> Option<StdString> {
+        for opt in self.options() {
+            if let Options::TraceId(id) = opt {
+                return Some(id.to_string());
+            }
+        }
+        None
+    }
 }
 
 #[derive(Clone)]
@@ -749,6 +778,7 @@ pub struct EventDesc {
 #[derive(Clone)]
 pub struct EventFmt {
     struct_fmt: Result<StructFmt, HeaderError>,
+    #[allow(clippy::type_complexity)]
     print_fmt_args:
         Result<(PrintFmtStr, Vec<Result<Arc<dyn Evaluator>, CompileError>>), HeaderError>,
 }
@@ -2071,7 +2101,7 @@ where
                 pid_comms.extend(parse_cmdlines_section(&abi, &mut section)?);
             }
 
-            Options::Buffer {cpu, ..} => {
+            Options::Buffer { cpu, .. } => {
                 nr_cpus = std::cmp::max(nr_cpus, *cpu);
             }
             Options::CpuCount(_nr_cpus) => {
@@ -2357,10 +2387,7 @@ mod tests {
     use super::*;
     use crate::{
         parser::tests::test_parser,
-        print::{
-            PrintAtom, PrintFlags, PrintFmtStr, PrintPrecision, PrintSpecifier, PrintWidth,
-            VBinSpecifier,
-        },
+        print::{PrintFlags, PrintPrecision, PrintWidth, VBinSpecifier},
     };
 
     #[derive(Debug, PartialEq)]

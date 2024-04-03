@@ -7,7 +7,6 @@ use traceevent::{header, header::Timestamp};
 #[cfg(target_arch = "x86_64")]
 static GLOBAL: MiMalloc = MiMalloc;
 
-use arrow2::io::parquet::write::CompressionOptions;
 use clap::{Parser, Subcommand, ValueEnum};
 use lib::{
     check::check_header,
@@ -15,6 +14,7 @@ use lib::{
     parquet::{dump_events, dump_metadata},
     print::print_events,
 };
+use parquet::basic::{Compression as ParquetCompression, ZstdLevel};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -28,10 +28,11 @@ struct Cli {
 
 #[derive(Clone, Debug, ValueEnum)]
 #[clap(rename_all = "lower")]
-enum ParquetCompression {
-    Lz4,
+enum Compression {
     Snappy,
+    Lz4,
     Zstd,
+    Uncompressed,
 }
 
 #[derive(Subcommand)]
@@ -53,8 +54,8 @@ enum Command {
         #[arg(long)]
         unique_timestamps: bool,
 
-        #[arg(long)]
-        compression: Option<ParquetCompression>,
+        #[arg(long, default_value = "snappy")]
+        compression: Compression,
 
         // This size is a sweet spot. If in doubt, it's best to have chunks that are too big than
         // too small, as smaller chunks can wreak performances and might also mean more work when
@@ -120,15 +121,17 @@ fn _main() -> Result<(), Box<dyn Error>> {
             };
 
             let compression = match compression {
-                Some(ParquetCompression::Snappy) => CompressionOptions::Snappy,
-                Some(ParquetCompression::Zstd) => CompressionOptions::Zstd(None),
-                Some(ParquetCompression::Lz4) => CompressionOptions::Lz4,
-                None => CompressionOptions::Uncompressed,
+                Compression::Snappy => ParquetCompression::SNAPPY,
+                Compression::Zstd => ParquetCompression::ZSTD(
+                    ZstdLevel::try_new(3).expect("Invalid zstd compression level"),
+                ),
+                // LZ4 codec is deprecated, so use LZ4_RAW instead:
+                // https://parquet.apache.org/docs/file-format/data-pages/compression/
+                Compression::Lz4 => ParquetCompression::LZ4_RAW,
+                Compression::Uncompressed => ParquetCompression::UNCOMPRESSED,
             };
             match dump_events(&header, reader, make_ts, event, chunk_size, compression) {
-                Ok(metadata) => Ok(metadata.dump(
-                    File::create("meta.json")?,
-                )?),
+                Ok(metadata) => Ok(metadata.dump(File::create("meta.json")?)?),
                 Err(err) => Err(err),
             }
         }
