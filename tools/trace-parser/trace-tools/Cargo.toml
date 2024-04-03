@@ -14,7 +14,7 @@ traceevent = { path = "../traceevent" }
 
 thiserror = "1.0"
 smartstring = {version = "1.0", features = ["serde"]}
-arrow2 = { version = "0.18.0", features = ["io_parquet", "io_parquet_compression"] }
+arrow2 = { version = "0.18.0", features = ["io_parquet", "io_parquet_lz4", "io_parquet_snappy", "io_parquet_zstd" ] }
 crossbeam = "0.8"
 serde_json = "1.0"
 serde = "1.0"
