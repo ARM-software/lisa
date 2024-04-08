@@ -225,7 +225,9 @@ def _logical_plan_update_paths(plan, update_path):
     return plan
 
 
-def _convert_df_from_parser(df, cache):
+def _convert_df_from_parser(df, parser, cache):
+    cache = cache if parser._STEAL_FILES else None
+
     def to_polars(df):
         if isinstance(df, pd.DataFrame):
             df.index.name = 'Time'
@@ -334,12 +336,21 @@ class MissingMetadataError(KeyError):
         return f'Missing metadata: {self.metadata}'
 
 
+class _AllEvents(Iterable):
+    def __iter__(self):
+        return iter([])
+
+_ALL_EVENTS = _AllEvents()
+
+
 class TraceParserBase(abc.ABC, Loggable, PartialInit):
     """
     Abstract Base Class for trace parsers.
 
     :param events: Iterable of events to parse. An empty iterable can be
-        passed, in which case some metadata may still be available.
+        passed, in which case some metadata may still be available. If
+        ``_ALL_EVENTS`` is passed, the caller may subsequently call
+        :meth:`parse_all_events`.
     :param events: collections.abc.Iterable(str)
 
     :param needed_metadata: Set of metadata name to gather in the parser.
@@ -373,7 +384,7 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
     def __init__(self, events, temp_dir, needed_metadata=None):
         # pylint: disable=unused-argument
         self._requested_metadata = set(needed_metadata or [])
-        self._requested_events = set(events or [])
+        self._requested_events = events if events is _ALL_EVENTS else set(events)
         self._temp_dir = Path(temp_dir)
 
     def get_metadata(self, key):
@@ -460,6 +471,21 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
         .. note:: The caller is free to modify the index of the data, and it
             must not affect other dataframes.
         """
+
+    def parse_all_events(self):
+        """
+        Parse all available events.
+
+        .. note:: A parser that does not support querying the
+            ``available-events`` metadata may raise an exception. This might
+            also lead to multilple scans of the trace in some implementations.
+        """
+        try:
+            events = self.get_metadata('available-events')
+            return self.parse_events(events)
+        except Exception:
+            raise NotImplementedError(f'{self.__class__.__qualname__} parser does not support parsing all events')
+
 
     def parse_events(self, events, best_effort=False, **kwargs):
         """
@@ -656,7 +682,7 @@ class TraceDumpTraceParser(TraceParserBase):
 
         # time-range will not be available in the basic metadata, this requires
         # a full parse
-        if events:
+        if events or events is _ALL_EVENTS:
             meta = self._make_parquets(
                 path=path,
                 events=events,
@@ -777,21 +803,27 @@ class TraceDumpTraceParser(TraceParserBase):
 
     @classmethod
     def _make_parquets(cls, events, path, temp_dir):
+        # Let the parser parse all available events
+        if events is _ALL_EVENTS:
+            events = []
+        else:
+            events = [
+                arg
+                for event in sorted(set(events))
+                # If we don't enable the source of the meta event, the
+                # parser will reject the source and we will never get a
+                # chance to get the meta event itself, so we need both.
+                for _event in Trace.get_event_sources(event)
+                for arg in ('--event', _event)
+            ]
+
         cls._run(
             cli_args=(
                 'parquet',
                 '--trace', path,
                 '--compression', 'lz4',
                 '--unique-timestamps',
-                *(
-                    arg
-                    for event in sorted(set(events))
-                    # If we don't enable the source of the meta event, the
-                    # parser will reject the source and we will never get a
-                    # chance to get the meta event itself, so we need both.
-                    for _event in Trace.get_event_sources(event)
-                    for arg in ('--event', _event)
-                )
+                *events,
             ),
             temp_dir=temp_dir,
         )
@@ -838,6 +870,7 @@ class TraceDumpTraceParser(TraceParserBase):
                 # the trace but we had problems parsing it out
                 raise TraceDumpError(errors, event=event)
             else:
+                #  if event == 'task_newtask':
                 if (path := desc.get('path')) is None:
                     raise FileNotFoundError(f'No parquet file for event "{event}"')
                 # TODO: For now, we cannot know if the event was selected or not when
@@ -4866,16 +4899,64 @@ class _Trace(Loggable, _InternalTraceBase):
         self.plat_info = plat_info.add_trace_src(self)
 
     def _preload_events(self, events):
-        events = OptionalTraceEventChecker.from_events(events)
+        if events is _ALL_EVENTS:
+            meta, df_map = self._parse_all()
+        else:
+            events = OptionalTraceEventChecker.from_events(events)
 
-        # This creates a polars LazyFrame from the cache if available, so it's
-        # cheap since we always cache the data coming from the parser.
-        df_map = self._load_cache_raw_df(
-            events,
-            allow_missing_events=True,
-        )
+            # This creates a polars LazyFrame from the cache if available, so it's
+            # cheap since we always cache the data coming from the parser.
+            df_map = self._load_cache_raw_df(
+                events,
+                allow_missing_events=True,
+            )
+
         return set(df_map.keys())
 
+    def _parse_all(self):
+        needed_metadata = set(TraceParserBase.METADATA_KEYS)
+
+        def convert(parser, df_map):
+            return {
+                event: _convert_df_from_parser(
+                    df,
+                    parser=parser,
+                    cache=self._cache,
+                )
+                for event, df in df_map.items()
+            }
+
+        def finalize(parser, df_map):
+            df_map = convert(parser, df_map)
+            meta = parser.get_all_metadata()
+            return (meta, df_map)
+
+        def get():
+            with self._get_parser(events=_ALL_EVENTS, needed_metadata=needed_metadata) as parser:
+                try:
+                    return finalize(parser, parser.parse_all_events())
+                except NotImplementedError:
+                    events = parser.get_metadata('available-events')
+                    try:
+                        return finalize(parser, parser.parse_events(events))
+                    except Exception:
+                        meta = parser.get_all_metadata()
+
+            with self._get_parser(events=events, needed_metadata=needed_metadata) as parser:
+                df_map = convert(parser, parser.parse_events(events))
+
+            return (meta, df_map)
+
+
+        meta, df_map = get()
+
+        self._insert_events(df_map)
+        meta = {
+            k: self._process_metadata(key=k, get=lambda: v, cache=True)
+            for k, v in meta.items()
+        }
+
+        return (meta, df_map)
 
     _CACHEABLE_METADATA = {
         'time-range',
@@ -4899,6 +4980,27 @@ class _Trace(Loggable, _InternalTraceBase):
         return self._get_metadata(key=key)
 
     def _get_metadata(self, key, parser=None, cache=True, try_hard=False):
+        def get():
+            if parser is None:
+                @contextlib.contextmanager
+                def _cm():
+                    with self._get_parser(needed_metadata={key}) as parser:
+                        yield parser
+
+                cm = _cm()
+            else:
+                # If we got passed a parser, we leave the decision to use it as a
+                # context manager or not to the caller.
+                cm = parser if try_hard else nullcontext(parser)
+
+            with cm as _parser:
+                value = _parser.get_metadata(key)
+
+            return value
+
+        return self._process_metadata(get=get, key=key, cache=cache)
+
+    def _process_metadata(self, key, get, cache=True):
         def process(key, value):
             if key == 'available-events':
                 # Ensure we have a list so that it can be dumped to JSON
@@ -4932,36 +5034,22 @@ class _Trace(Loggable, _InternalTraceBase):
 
             return value
 
-        def get(key, parser):
-            if parser is None:
-                @contextlib.contextmanager
-                def _cm():
-                    with self._get_parser(needed_metadata={key}) as parser:
-                        yield parser
-
-                cm = _cm()
-            else:
-                # If we got passed a parser, we leave the decision to use it as a
-                # context manager or not to the caller.
-                cm = parser if try_hard else nullcontext(parser)
-
-            with cm as parser:
-                value = parser.get_metadata(key)
-
+        def _get():
+            value = get()
             return process(key, value)
 
-        def get_cacheable(key, parser):
+        def get_cacheable(key):
             try:
                 value = self._cache.get_metadata(key)
             except MissingMetadataError:
-                value = get(key, parser=parser)
+                value = _get()
                 self._cache.update_metadata({key: value})
             return value
 
         if cache and key in self._CACHEABLE_METADATA:
-            return get_cacheable(key, parser=parser)
+            return get_cacheable(key)
         else:
-            return get(key, parser=parser)
+            return _get()
 
     @classmethod
     def _is_meta_event(cls, event):
@@ -5046,10 +5134,12 @@ class _Trace(Loggable, _InternalTraceBase):
 
             return count
 
+
+
     def _get_parser(self, events=tuple(), needed_metadata=None):
         cache = self._cache
         path = self.trace_path
-        events = set(events)
+        events = events if events is _ALL_EVENTS else set(events)
         needed_metadata = set(needed_metadata or [])
 
         @contextlib.contextmanager
@@ -5173,25 +5263,14 @@ class _Trace(Loggable, _InternalTraceBase):
 
     def _load_cache_raw_df(self, event_checker, allow_missing_events=False):
         events = event_checker.get_all_events()
-        insert_kwargs = dict(
-            write_swap=True,
-            # For raw dataframe, always write in the swap area if asked for
-            # since parsing cost is known to be high
-            force_write_swap=True,
-        )
 
         # Get the raw dataframe from the cache if possible
         def try_from_cache(event):
             cache_desc = self._make_raw_cache_desc(event)
             try:
-                # We re-insert based on parameters coming from the caller
-                df = self._cache.fetch(cache_desc, insert=False)
+                return self._cache.fetch(cache_desc, insert=False)
             except KeyError:
                 return None
-            else:
-                self._cache.insert(cache_desc, df, **insert_kwargs)
-                return df
-
         from_cache = {
             event: try_from_cache(event)
             for event in events
@@ -5216,10 +5295,7 @@ class _Trace(Loggable, _InternalTraceBase):
                         raise MissingTraceEventError([event])
 
         df_from_trace = self._load_raw_df(events_to_load)
-
-        for event, df in df_from_trace.items():
-            cache_desc = self._make_raw_cache_desc(event)
-            self._cache.insert(cache_desc, df, **insert_kwargs)
+        self._insert_events(df_from_trace)
 
         df_map = {**from_cache, **df_from_trace}
         try:
@@ -5232,6 +5308,18 @@ class _Trace(Loggable, _InternalTraceBase):
                 ) from e
 
         return df_map
+
+    def _insert_events(self, df_map):
+        for event, df in df_map.items():
+            cache_desc = self._make_raw_cache_desc(event)
+            self._cache.insert(
+                cache_desc,
+                df,
+                write_swap=True,
+                # For raw dataframe, always write in the swap area if asked for
+                # since parsing cost is known to be high
+                force_write_swap=True,
+            )
 
     def _parse_raw_events(self, events):
         if not events:
@@ -5254,7 +5342,8 @@ class _Trace(Loggable, _InternalTraceBase):
             df_map = {
                 event: _convert_df_from_parser(
                     df=df,
-                    cache=self._cache if parser._STEAL_FILES else None,
+                    parser=parser,
+                    cache=self._cache,
                 )
                 for event in events
                 if (df := parse(parser, event)) is not None
@@ -5351,7 +5440,8 @@ class _Trace(Loggable, _InternalTraceBase):
                             else:
                                 _df = _convert_df_from_parser(
                                     _df,
-                                    cache=self._cache if parser._STEAL_FILES else None,
+                                    parser=parser,
+                                    cache=self._cache,
                                 )
                                 _df = _df.join(
                                     extra_df,
