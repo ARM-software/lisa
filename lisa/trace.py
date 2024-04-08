@@ -3309,18 +3309,25 @@ class _ProcessTraceView(_TraceViewBase):
 class _PreloadEventsTraceView(_TraceViewBase):
     def __init__(self, trace, events=None, strict_events=False):
         super().__init__(trace)
+        trace = self.base_trace
 
         if isinstance(events, str):
             raise ValueError('Events passed to Trace(events=...) must be a list of strings, not a string.')
+        elif events is _ALL_EVENTS:
+            pass
         else:
             events = set(events or [])
+            events = AndTraceEventChecker.from_events(events)
 
-        events = AndTraceEventChecker.from_events(events)
-        self._events = events
+        preloaded = trace._preload_events(events)
 
-        preloaded = self.base_trace._preload_events(events)
+        if events is _ALL_EVENTS:
+            events = AndTraceEventChecker.from_events(set(trace.available_events))
+
         if strict_events:
             events.check_events(preloaded)
+
+        self._events = events
 
     @property
     def events(self):
@@ -3345,10 +3352,12 @@ class _NamespaceTraceView(_TraceViewBase):
         self._preload_events(self.base_trace.events)
 
     def _preload_events(self, events):
+        if events is _ALL_EVENTS:
+            return super()._preload_events(events)
         # It is critical to not enter that path if we don't have any actual
         # namespaces, otherwise the overhead of the loop will get multiplicated
         # at every layer and we end up with large overheads.
-        if self._events_namespaces:
+        elif self._events_namespaces:
             mapping = {
                 _event: event
                 for event in events
