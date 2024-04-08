@@ -4862,7 +4862,7 @@ class _Trace(Loggable, _InternalTraceBase):
             # Make a shallow copy so we can update it
             plat_info = copy.copy(plat_info)
 
-        self._strict_events = False
+        self._available_events_known = False
 
         if plots_dir:
             _deprecated_warn('Trace(plots_dir=...) parameter is deprecated', stacklevel=2)
@@ -5013,7 +5013,7 @@ class _Trace(Loggable, _InternalTraceBase):
                         event: True
                         for event in value
                     })
-                    self._strict_events = True
+                    self._available_events_known = True
 
             elif key == 'trace-id':
                 value = str(value)
@@ -5288,7 +5288,10 @@ class _Trace(Loggable, _InternalTraceBase):
         # Cheap check to avoid spinning up the parser for nothing
         with self._lock:
             for event in list(events_to_load):
-                if not self._parseable_events.get(event, True):
+                # If we have discovered all the available events, there is no
+                # point in trying again.
+                default = not self._available_events_known
+                if not self._parseable_events.get(event, default):
                     if allow_missing_events:
                         events_to_load.remove(event)
                     else:
