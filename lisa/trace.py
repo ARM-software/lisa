@@ -4901,11 +4901,29 @@ class _Trace(Loggable, _InternalTraceBase):
         except MissingMetadataError:
             pass
 
+        # Preload metadata from the cache, to trigger any side effect when
+        # processing them. For example, this can help avoiding spinning the
+        # parser if the set of available events is already known.
+        self._preload_metadata()
+
         # Register what we currently have
         self.plat_info = plat_info
         # Update the platform info with the data available from the trace once
         # the Trace is almost fully initialized
         self.plat_info = plat_info.add_trace_src(self)
+
+    def _preload_metadata(self):
+        def fail():
+            raise ValueError('Fake metadata value')
+
+        def load(key):
+            try:
+                self._process_metadata(key=key, get=fail)
+            except ValueError:
+                pass
+
+        for key in TraceParserBase.METADATA_KEYS:
+            load(key)
 
     def _preload_events(self, events):
         if events is _ALL_EVENTS:
@@ -5010,19 +5028,14 @@ class _Trace(Loggable, _InternalTraceBase):
         return self._process_metadata(get=get, key=key, cache=cache)
 
     def _process_metadata(self, key, get, cache=True):
-        def process(key, value):
+
+        def process_raw(key, value):
+            """
+            Prepare metadata value to be stored in the cache
+            """
             if key == 'available-events':
                 # Ensure we have a list so that it can be dumped to JSON
                 value = sorted(set(value))
-
-                with self._lock:
-                    # Populate the list of available events, and inform the
-                    # rest of the code that this list is definitive.
-                    self._update_parseable_events({
-                        event: True
-                        for event in value
-                    })
-                    self._available_events_known = True
 
             elif key == 'trace-id':
                 value = str(value)
@@ -5043,22 +5056,52 @@ class _Trace(Loggable, _InternalTraceBase):
 
             return value
 
-        def _get():
-            value = get()
-            return process(key, value)
+        def process(key, value):
+            """
+            Process a value prepared with ``process_raw``
+            """
+            if key == 'available-events':
+                with self._lock:
+                    # Populate the list of available events, and inform the
+                    # rest of the code that this list is definitive.
+                    self._update_parseable_events({
+                        event: True
+                        for event in value
+                    })
+                    self._available_events_known = True
+
+            elif key == 'time-range':
+                start, end = value
+                assert isinstance(start, int)
+                assert isinstance(end, int)
+
+                # Ensure we round the float value of the window boundaries
+                # correctly so that all events are within that window.
+                # Otherwise we could have the first/last event out of that
+                # window due to wrong rounding.
+                start = Timestamp(start, unit='ns', rounding='down')
+                end = Timestamp(end, unit='ns', rounding='up')
+                value = (start, end)
+
+            return value
+
+        def _get(key):
+            return process_raw(key, get())
 
         def get_cacheable(key):
             try:
                 value = self._cache.get_metadata(key)
             except MissingMetadataError:
-                value = _get()
+                value = _get(key)
                 self._cache.update_metadata({key: value})
             return value
 
         if cache and key in self._CACHEABLE_METADATA:
-            return get_cacheable(key)
+            value = get_cacheable(key)
         else:
-            return _get()
+            value = _get(key)
+
+        return process(key, value)
 
     @classmethod
     def _is_meta_event(cls, event):
@@ -5210,14 +5253,7 @@ class _Trace(Loggable, _InternalTraceBase):
 
     @memoized
     def _get_time_range(self, parser=None):
-        (start, end) = self._get_metadata('time-range', parser=parser)
-
-        # We get a number of nanoseconds (so it could be cached without loss of
-        # precision), so we turn it back into a Timestamp.
-        return (
-            Timestamp(start, unit='ns', rounding='down'),
-            Timestamp(end, unit='ns', rounding='up'),
-        )
+        return self._get_metadata('time-range', parser=parser)
 
     @memoized
     def _get_trace_id(self):
