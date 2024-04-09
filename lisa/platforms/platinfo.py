@@ -29,6 +29,7 @@ from lisa.conf import (
 from lisa._generic import SortedSequence
 from lisa.energy_model import EnergyModel
 from lisa.wlgen.rta import RTA
+from lisa._kallsyms import parse_kallsyms
 
 from devlib.target import KernelVersion, TypedKernelConfig
 from devlib.exception import TargetStableError
@@ -347,13 +348,6 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         Read and parse the content of ``/proc/kallsyms``.
         """
 
-        def parse_line(line):
-            splitted = re.split(r'\W+', line)
-            addr = int(splitted[0], base=16)
-            symtype = splitted[1]
-            func = splitted[2]
-            return addr, func
-
         logger = cls.get_logger()
         logger.info('Attempting to read kallsyms from target')
 
@@ -363,10 +357,14 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         except TargetStableError as e:
             raise ConfigKeyError(f"Couldn't read /proc/kallsyms: {e}")
 
-        symbols = dict(map(parse_line, kallsyms.splitlines()))
+        symbols = {
+            addr: name
+            for (addr, name, symtype, module) in parse_kallsyms(kallsyms)
+        }
+
         if symbols.keys() == {0}:
             raise ConfigKeyError("kallsyms only contains null pointers")
-
-        return symbols
+        else:
+            return symbols
 
  # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

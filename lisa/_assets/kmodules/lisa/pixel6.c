@@ -227,7 +227,7 @@ SEQUENCE(sample_t, parse_sample, ({
 
 LEFT(sample_t, int, parse_sample_line, parse_sample, count_whitespaces)
 
-int process_sample(int nr, sample_t sample)
+static int process_sample(int nr, sample_t sample)
 {
 	/* pr_info("parsed: device=%u chan=%u, ts=%lu chan_name=%s value=%lu\n", sample.device, sample.chan, */
 	/*        sample.ts, sample.chan_name, sample.value); */

@@ -24,8 +24,15 @@ def git(repo, *args):
     """
     Call git in the given repo with the given arguments
     """
-
-    return subprocess.check_output(['git', '-C', repo, *args]).decode(errors='backslashreplace')
+    return subprocess.check_output((
+        'git',
+        # Avoid storing UID/GID in the index. Otherwise, we end up invalidating
+        # the entire index when running under a user namespace where the
+        # current user got remapped on root.
+         '-c', 'core.checkStat=minimal',
+        '-C', repo,
+        *args
+    )).decode(errors='backslashreplace')
 
 def find_shortest_symref(repo_path, sha1):
     """
@@ -61,7 +68,7 @@ def get_sha1(repo, ref='HEAD'):
     """
     return git(repo, 'rev-list', '-1', ref).strip()
 
-def get_uncommited_patch(repo, include_binary=False):
+def get_uncommited_patch(repo, include_binary=True):
     """
     Return the patch of non commited changes, both staged and not staged yet.
 

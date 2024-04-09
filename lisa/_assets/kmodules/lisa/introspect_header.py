@@ -151,7 +151,7 @@ def is_exported_symbol(code):
 def open_kallsyms(path):
     with open(path, 'r') as f:
         yield from (
-            line.split(maxsplit=2)
+            line.split(maxsplit=3)
             for line in map(str.strip, f)
             if line
         )
@@ -159,7 +159,7 @@ def open_kallsyms(path):
 
 def process_kallsyms_introspection(path):
     has_records = False
-    def make_record(addr, code, name):
+    def make_record(addr, code, name, module=None):
         nonlocal has_records
 
         # Uppercase codes are for STB_GLOBAL symbols, i.e. exported symbols.
@@ -186,7 +186,7 @@ def process_kallsyms_introspection(path):
 
 
 def process_kallsyms_lds(path):
-    def make_record(addr, code, name):
+    def make_record(addr, code, name, module=None):
         if name.isidentifier():
             return f'PROVIDE({name} = 0x{addr});\n'
         else:
