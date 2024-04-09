@@ -48,7 +48,7 @@ def _compute_version_token():
 
         try:
             sha1 = get_sha1(repo)
-            patch = get_uncommited_patch(repo, include_binary=True)
+            patch = get_uncommited_patch(repo)
         # Git is not installed, just use the regular version
         except (FileNotFoundError, CalledProcessError):
             return plain_version_token
