@@ -1202,7 +1202,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             # toolchains etc.
             (
                 lambda path: make_runner(
-                    ('git', '-C', path, 'clean', '-fdx'),
+                    ('git', '-c', 'core.checkStat=minimal', '-C', path, 'clean', '-fdx'),
                     allow_fail=True,
                     env={
                         **os.environ,
