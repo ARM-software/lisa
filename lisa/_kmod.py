@@ -146,6 +146,7 @@ from lisa._assets import ASSETS_PATH, HOST_PATH, ABI_BINARIES_FOLDER
 from lisa._unshare import ensure_root
 import lisa._git as git
 from lisa.conf import SimpleMultiSrcConf, TopLevelKeyDesc, LevelKeyDesc, KeyDesc, VariadicLevelKeyDesc
+from lisa._kallsyms import parse_kallsyms
 
 _CC_MAKE_VARS_DEFAULT = object()
 def _make_vars_cc(make_vars, default=_CC_MAKE_VARS_DEFAULT):
@@ -1201,7 +1202,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             # toolchains etc.
             (
                 lambda path: make_runner(
-                    ('git', '-C', path, 'clean', '-fdx'),
+                    ('git', '-c', 'core.checkStat=minimal', '-C', path, 'clean', '-fdx'),
                     allow_fail=True,
                     env={
                         **os.environ,
@@ -2175,6 +2176,8 @@ class KmodSrc(Loggable):
         }
         self._mod_name = name
 
+        self.logger.debug(f'Created {self.__class__.__qualname__} with name {self._mod_name} and sources: {", ".join(self.src.keys())}')
+
     @property
     def code_files(self):
         return {
@@ -2797,6 +2800,7 @@ class LISADynamicKmod(FtraceDynamicKmod):
 
     @classmethod
     def from_target(cls, target, **kwargs):
+        mod_name = 'lisa'
 
         extra = {}
 
@@ -2822,14 +2826,35 @@ class LISADynamicKmod(FtraceDynamicKmod):
             )):
                 kallsyms = target.read_value('/proc/kallsyms')
         except TargetStableError:
-            extra['kallsyms'] = b''
+            kallsyms = []
         else:
-            extra['kallsyms'] = kallsyms.encode('utf-8')
+            kallsyms = parse_kallsyms(kallsyms)
 
+        def sym_mod(module):
+            if module:
+                return f'\t[{module}]'
+            else:
+                return ''
 
-        src = KmodSrc.from_path(path, extra=extra, name='lisa')
-        src_list = "\n".join(sorted(src.src.keys()))
-        cls.get_logger().debug(f'Sources of the {cls.__qualname__} module:\n{src_list}')
+        # Sort and filter kallsyms so that we have a stable content usable as a
+        # cache key
+        kallsyms = '\n'.join(
+            f'{addr:x}\t{symtype}\t{name}{sym_mod(module)}'
+            for (addr, name, symtype, module) in kallsyms
+            if module != mod_name
+        ) + '\n'
+        kallsyms = kallsyms.encode('utf-8')
+        extra['kallsyms'] = kallsyms
+
+        logger = cls.get_logger()
+        if logger.isEnabledFor(logging.DEBUG):
+            extra_checksum = ', '.join(
+                f'{name}={checksum(io.BytesIO(content), method="md5")}'
+                for name, content in sorted(extra.items())
+            )
+            logger.debug(f'Variable sources checksum of the {cls.__qualname__} module: {extra_checksum}')
+
+        src = KmodSrc.from_path(path, extra=extra, name=mod_name)
         return cls(
             target=target,
             src=src,
