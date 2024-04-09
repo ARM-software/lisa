@@ -43,6 +43,9 @@ struct feature {
 	bool __internal;
 };
 
+int __enable_feature(struct feature* feature);
+int __disable_feature(struct feature* feature);
+
 /* Start and stop address of the ELF section containing the struct feature
  *instances
  */
@@ -158,7 +161,6 @@ int __placeholder_deinit(struct feature *feature);
  * ENABLE_FEATURE() failed.
  */
 #define ENABLE_FEATURE(feature_name) ({					\
-		int __enable_feature(struct feature* feature);		\
 		__enable_feature(FEATURE(feature_name));		\
 	})
 /**
@@ -169,7 +171,6 @@ int __placeholder_deinit(struct feature *feature);
  * ENABLE_FEATURE() to maintain a correct feature reference count.
  */
 #define DISABLE_FEATURE(feature_name) ({				\
-		int __disable_feature(struct feature* feature);		\
 		__disable_feature(FEATURE(feature_name));		\
 	})
 
