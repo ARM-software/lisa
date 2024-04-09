@@ -3851,6 +3851,9 @@ class DirCache(Loggable):
         base = self._base
         path = self.has_key(key)
 
+        token = self.get_key_token(key)
+        logger.debug(f'Looking up key in {self._category} cache: key={key}, token={token}')
+
         def log_found():
             logger.debug(f'Found {self._category} cache at: {base}')
 
