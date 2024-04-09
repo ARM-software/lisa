@@ -2175,6 +2175,8 @@ class KmodSrc(Loggable):
         }
         self._mod_name = name
 
+        self.logger.debug(f'Created {self.__class__.__qualname__} with name {self._mod_name} and sources: {", ".join(self.src.keys())}')
+
     @property
     def code_files(self):
         return {
@@ -2826,10 +2828,14 @@ class LISADynamicKmod(FtraceDynamicKmod):
         else:
             extra['kallsyms'] = kallsyms.encode('utf-8')
 
+        extra_checksum = ', '.join(
+            f'{name}={checksum(io.BytesIO(content), method="md5")}'
+            for name, content in sorted(extra.items())
+        )
+
+        cls.get_logger().debug(f'Variable sources checksum of the {cls.__qualname__} module: {extra_checksum}')
 
         src = KmodSrc.from_path(path, extra=extra, name='lisa')
-        src_list = "\n".join(sorted(src.src.keys()))
-        cls.get_logger().debug(f'Sources of the {cls.__qualname__} module:\n{src_list}')
         return cls(
             target=target,
             src=src,
