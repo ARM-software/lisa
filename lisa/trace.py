@@ -870,15 +870,8 @@ class TraceDumpTraceParser(TraceParserBase):
                 # the trace but we had problems parsing it out
                 raise TraceDumpError(errors, event=event)
             else:
-                #  if event == 'task_newtask':
                 if (path := desc.get('path')) is None:
                     raise FileNotFoundError(f'No parquet file for event "{event}"')
-                # TODO: For now, we cannot know if the event was selected or not when
-                # trace-cmd was invoked so we just assume that if no occurence
-                # exist, the event is missing. This might get fixed one day
-                # (e.g. if trace-cmd records its CLI parameters to trace.dat).
-                elif desc.get('nr-rows', 0) < 1:
-                    raise MissingTraceEventError([event])
                 else:
                     df = pl.scan_parquet(temp_dir / path)
                     df = self._fixup_df(
@@ -3557,27 +3550,29 @@ class _AvailableTraceEventsSet:
     @property
     def _available_events(self):
         trace = self._trace
-        # Ideally the parser can report the available events, so the set is
-        # stable.
+
+        # Prime the trace metadata with what the events the parser reports.
+        # This will not include meta events.
         try:
             available = trace.get_metadata('available-events')
         except MissingMetadataError:
-            # In case the parser does not implement this metadata, we fall back
-            # on listing all the events we have succesfully parsed in the past.
-            # This will be updated in various places, so the result will not be
-            # stable.
-            try:
-                parseable = trace._cache.get_metadata('parseable-events')
-            except MissingMetadataError:
-                return set()
-            else:
-                return {
-                    _event
-                    for _event, _parseable in parseable.items()
-                    if _parseable
-                }
+            available = []
+
+        available = set(available)
+
+        # List all the events we have succesfully parsed in the past. This will
+        # be updated in various places, so the result will not be stable.
+        try:
+            parseable = trace._cache.get_metadata('parseable-events')
+        except MissingMetadataError:
+            # This won't include meta-events, but better than nothing
+            return available
         else:
-            return set(available)
+            return {
+                _event
+                for _event, _parseable in parseable.items()
+                if _parseable
+            }
 
     def __iter__(self):
         return iter(self._available_events)
@@ -4871,7 +4866,7 @@ class _Trace(Loggable, _InternalTraceBase):
             # Make a shallow copy so we can update it
             plat_info = copy.copy(plat_info)
 
-        self._available_events_known = False
+        self._source_events_known = False
 
         if plots_dir:
             _deprecated_warn('Trace(plots_dir=...) parameter is deprecated', stacklevel=2)
@@ -5068,7 +5063,8 @@ class _Trace(Loggable, _InternalTraceBase):
                         event: True
                         for event in value
                     })
-                    self._available_events_known = True
+                    # Note that this will not take into account meta-events.
+                    self._source_events_known = True
 
             elif key == 'time-range':
                 start, end = value
@@ -5335,7 +5331,7 @@ class _Trace(Loggable, _InternalTraceBase):
             for event in list(events_to_load):
                 # If we have discovered all the available events, there is no
                 # point in trying again.
-                default = not self._available_events_known
+                default = (not self._source_events_known) or self._is_meta_event(event)
                 if not self._parseable_events.get(event, default):
                     if allow_missing_events:
                         events_to_load.remove(event)
