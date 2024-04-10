@@ -185,7 +185,9 @@ def _logical_plan_resolve_paths(cache, plan, kind):
             # Remove the "hardlinks" part of the path so we point at the file
             # in the cache
             if path.parts[0] == 'hardlinks':
-                path = swap_dir / path.name
+                path = Path(path.name)
+
+            assert not path.is_absolute()
             return path
         elif kind == 'load':
             assert not path.is_absolute()
@@ -5329,9 +5331,10 @@ class _Trace(Loggable, _InternalTraceBase):
         def try_from_cache(event):
             cache_desc = self._make_raw_cache_desc(event)
             try:
-                return self._cache.fetch(cache_desc, insert=False)
+                return self._cache.fetch(cache_desc, insert=True)
             except KeyError:
                 return None
+
         from_cache = {
             event: try_from_cache(event)
             for event in events
