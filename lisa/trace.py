@@ -50,6 +50,7 @@ import weakref
 import atexit
 import threading
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import pandas as pd
@@ -3933,6 +3934,9 @@ class _TraceCache(Loggable):
         self._trace_id = trace_id
         self._unique_id = uuid.uuid4().hex
 
+        # Limit to one worker, as we will likely take the self._lock anyway
+        self._thread_executor = ThreadPoolExecutor(max_workers=1)
+
     @property
     def swap_dir(self):
         if (swap_dir := self._swap_dir) is None:
@@ -3977,6 +3981,11 @@ class _TraceCache(Loggable):
         except Exception:
             pass
 
+        # Ensure we block until all workers are finished. Otherwise, e.g.
+        # removing the swap area might fail because an worker is still creating
+        # the metadata file in there.
+        self._thread_executor.shutdown()
+
     def _parser_temp_path(self):
         try:
             swap_dir = self.swap_dir
@@ -3988,7 +3997,7 @@ class _TraceCache(Loggable):
 
         return tempfile.TemporaryDirectory(dir=path)
 
-    def update_metadata(self, metadata):
+    def update_metadata(self, metadata, blocking=True):
         """
         Update the metadata mapping with the given ``metadata`` mapping and
         write it back to the swap area.
@@ -3996,7 +4005,7 @@ class _TraceCache(Loggable):
         if metadata:
             with self._lock:
                 self._metadata.update(metadata)
-            self.to_swap_dir()
+            self.to_swap_dir(blocking=blocking)
 
     def get_metadata(self, key):
         """
@@ -4012,31 +4021,39 @@ class _TraceCache(Loggable):
         """
         Returns a dictionary suitable for JSON serialization.
         """
-        trace_path = self.trace_path
+        with self._lock:
+            trace_path = self.trace_path
 
-        if trace_path:
-            try:
-                swap_dir = self.swap_dir
-            except ValueError:
-                trace_path = os.path.abspath(trace_path)
-            else:
-                trace_path = os.path.relpath(trace_path, swap_dir)
+            if trace_path:
+                try:
+                    swap_dir = self.swap_dir
+                except ValueError:
+                    trace_path = os.path.abspath(trace_path)
+                else:
+                    trace_path = os.path.relpath(trace_path, swap_dir)
 
-        return {
-            'version-token': VERSION_TOKEN,
-            'metadata': self._metadata,
-            'trace-path': trace_path,
-            'trace-id': self._trace_id,
-        }
+            return ({
+                'version-token': VERSION_TOKEN,
+                'metadata': self._metadata,
+                'trace-path': trace_path,
+                'trace-id': self._trace_id,
+            })
 
-    def to_path(self, path):
+    def to_path(self, path, blocking=True):
         """
         Write the persistent state to the given ``path``.
         """
-        mapping = self.to_json_map()
-        with open(path, 'w') as f:
-            json.dump(mapping, f)
-            f.write('\n')
+        def f():
+            mapping = self.to_json_map()
+            with open(path, 'w') as f:
+                json.dump(mapping, f)
+                f.write('\n')
+
+        with measure_time() as m:
+            if blocking:
+                f()
+            else:
+                self._thread_executor.submit(f)
 
     @classmethod
     def _from_swap_dir(cls, swap_dir, trace_id, trace_path=None, metadata=None, **kwargs):
@@ -4090,7 +4107,7 @@ class _TraceCache(Loggable):
 
         return cls(swap_content=swap_content, swap_dir=swap_dir, metadata=metadata, trace_path=trace_path, trace_id=trace_id, **kwargs)
 
-    def to_swap_dir(self):
+    def to_swap_dir(self, blocking=True):
         """
         Write the persistent state to the swap area if any, no-op otherwise.
         """
@@ -4100,7 +4117,7 @@ class _TraceCache(Loggable):
             pass
         else:
             path = os.path.join(swap_dir, self.TRACE_META_FILENAME)
-            self.to_path(path)
+            self.to_path(path, blocking=blocking)
 
     @classmethod
     def from_swap_dir(cls, swap_dir, **kwargs):
@@ -4889,7 +4906,7 @@ class _Trace(Loggable, _InternalTraceBase):
         # Initial scrub of the swap to discard unwanted data, honoring the
         # max_swap_size right from the beginning
         self._cache.scrub_swap()
-        self._cache.to_swap_dir()
+        self._cache.to_swap_dir(blocking=False)
 
         try:
             self._parseable_events = self._cache.get_metadata('parseable-events')
@@ -5089,7 +5106,7 @@ class _Trace(Loggable, _InternalTraceBase):
                 value = self._cache.get_metadata(key)
             except MissingMetadataError:
                 value = _get(key)
-                self._cache.update_metadata({key: value})
+                self._cache.update_metadata({key: value}, blocking=False)
             return value
 
         if cache and key in self._CACHEABLE_METADATA:
@@ -5225,9 +5242,12 @@ class _Trace(Loggable, _InternalTraceBase):
             }
             if update:
                 self._parseable_events.update(update)
-                self._cache.update_metadata({
-                    'parseable-events': self._parseable_events,
-                })
+                self._cache.update_metadata(
+                    {
+                        'parseable-events': self._parseable_events,
+                    },
+                    blocking=False,
+                )
             return self._parseable_events
 
     @property
