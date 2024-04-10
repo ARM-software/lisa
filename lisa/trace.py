@@ -633,14 +633,17 @@ class TraceDumpError(Exception):
     """
     Exception containing errors forwarded from the trace-dump parser
     """
-    def __init__(self, errors, event=None):
+    def __init__(self, errors, event=None, cmd=None):
         self.errors = sorted(set(errors))
         self.event = event
+        self.cmd = cmd
 
     def __str__(self):
         event = self.event
         errors = self.errors
         nr_errors = len(errors)
+        cmd = self.cmd
+        cmd = ' '.join(map(shlex.quote, map(str, cmd))) if cmd else ''
 
         try:
             errors, = errors
@@ -653,9 +656,9 @@ class TraceDumpError(Exception):
             if nr_errors > 1:
                 sep = '\n  '
                 errors = errors.replace('\n', sep)
-                return f'{event}:{sep}{errors}'
+                return f'{cmd}{event}:{sep}{errors}'
             else:
-                return f'{event}: {errors}'
+                return f'{cmd}{event}: {errors}'
         else:
             return errors
 
@@ -755,7 +758,7 @@ class TraceDumpTraceParser(TraceParserBase):
                 # Die on general errors that are not associated with a specific
                 # event
                 if errors := errors['errors']:
-                    raise TraceDumpError(errors)
+                    raise TraceDumpError(errors, cmd=cmd)
 
     @classmethod
     def _process_metadata(cls, meta):
@@ -3312,13 +3315,14 @@ class _PreloadEventsTraceView(_TraceViewBase):
             events = set(events or [])
             events = AndTraceEventChecker.from_events(events)
 
-        preloaded = trace._preload_events(events)
+        if events or events is _ALL_EVENTS:
+            preloaded = trace._preload_events(events)
 
-        if events is _ALL_EVENTS:
-            events = AndTraceEventChecker.from_events(set(trace.available_events))
+            if events is _ALL_EVENTS:
+                events = AndTraceEventChecker.from_events(set(trace.available_events))
 
-        if strict_events:
-            events.check_events(preloaded)
+            if strict_events:
+                events.check_events(preloaded)
 
         self._events = events
 
@@ -3345,29 +3349,34 @@ class _NamespaceTraceView(_TraceViewBase):
         self._preload_events(self.base_trace.events)
 
     def _preload_events(self, events):
-        if events is _ALL_EVENTS:
-            return super()._preload_events(events)
         # It is critical to not enter that path if we don't have any actual
         # namespaces, otherwise the overhead of the loop will get multiplicated
         # at every layer and we end up with large overheads.
-        elif self._events_namespaces:
-            mapping = {
-                _event: event
-                for event in events
-                for _event in self._expand_namespaces(event)
-            }
+        if self._events_namespaces:
+            if events is _ALL_EVENTS:
+                preloaded = super()._preload_events(events)
+                if None in self._events_namespaces:
+                    return preloaded
+                else:
+                    return set()
+            else:
+                mapping = {
+                    _event: event
+                    for event in events
+                    for _event in self._expand_namespaces(event)
+                }
 
-            # Preload the events in a single batch. This is critical for
-            # performance, otherwise we will spin up the parser multiple times.
-            preloaded = self.base_trace._preload_events(mapping.keys())
+                # Preload the events in a single batch. This is critical for
+                # performance, otherwise we will spin up the parser multiple times.
+                preloaded = self.base_trace._preload_events(mapping.keys())
 
-            return {
-                # Return the requested name instead of the actual event
-                # preloaded so that _PreloadEventsTraceView() can check for
-                # what it actually asked for
-                mapping.get(_event, _event)
-                for _event in preloaded
-            }
+                return {
+                    # Return the requested name instead of the actual event
+                    # preloaded so that _PreloadEventsTraceView() can check for
+                    # what it actually asked for
+                    mapping.get(_event, _event)
+                    for _event in preloaded
+                }
         else:
             return super()._preload_events(events)
 
@@ -4449,12 +4458,19 @@ class _TraceCache(Loggable):
                 self._scrub_swap(swap_dir)
 
     def _scrub_swap(self, swap_dir):
-        stats = {
-            dir_entry.name: dir_entry.stat()
-            for dir_entry in os.scandir(swap_dir)
-        }
-
         with self._lock:
+            def get_stat(dir_entry):
+                try:
+                    return dir_entry.stat()
+                except FileNotFoundError:
+                    return None
+
+            stats = {
+                dir_entry.name: stat
+                for dir_entry in os.scandir(swap_dir)
+                if (stat := get_stat(dir_entry)) is not None
+            }
+
             swap_content = list(self._swap_content.values())
 
         data_files = {
@@ -4524,7 +4540,7 @@ class _TraceCache(Loggable):
             pass
         else:
             with self._lock:
-                self._swap_content.pop(swap_entry.cache_desc_nf)
+                self._swap_content.pop(swap_entry.cache_desc_nf, None)
 
             for filename in (swap_entry.meta_filename, swap_entry.data_filename):
                 path = os.path.join(swap_dir, filename)
@@ -4915,7 +4931,7 @@ class _Trace(Loggable, _InternalTraceBase):
         # Preload metadata from the cache, to trigger any side effect when
         # processing them. For example, this can help avoiding spinning the
         # parser if the set of available events is already known.
-        self._preload_metadata()
+        self._preload_metadata_cache()
 
         # Register what we currently have
         self.plat_info = plat_info
@@ -4923,22 +4939,25 @@ class _Trace(Loggable, _InternalTraceBase):
         # the Trace is almost fully initialized
         self.plat_info = plat_info.add_trace_src(self)
 
-    def _preload_metadata(self):
+    def _preload_metadata_cache(self):
         def fail():
             raise ValueError('Fake metadata value')
 
         def load(key):
             try:
-                self._process_metadata(key=key, get=fail)
+                return self._process_metadata(key=key, get=fail)
             except ValueError:
-                pass
+                return None
 
-        for key in TraceParserBase.METADATA_KEYS:
-            load(key)
+        return {
+            key: value
+            for key in TraceParserBase.METADATA_KEYS
+            if (value := load(key)) is not None
+        }
 
     def _preload_events(self, events):
         if events is _ALL_EVENTS:
-            meta, df_map = self._parse_all()
+            return self._preload_all_events()
         else:
             events = OptionalTraceEventChecker.from_events(events)
 
@@ -4949,10 +4968,14 @@ class _Trace(Loggable, _InternalTraceBase):
                 allow_missing_events=True,
             )
 
+            return set(df_map.keys())
+
+    @memoized
+    def _preload_all_events(self):
+        meta, df_map = self._parse_all()
         return set(df_map.keys())
 
     def _parse_all(self):
-        needed_metadata = set(TraceParserBase.METADATA_KEYS)
 
         def convert(parser, df_map):
             return {
@@ -4964,36 +4987,103 @@ class _Trace(Loggable, _InternalTraceBase):
                 for event, df in df_map.items()
             }
 
-        def finalize(parser, df_map):
-            df_map = convert(parser, df_map)
-            meta = parser.get_all_metadata()
+        def finalize(preloaded_df_map, preloaded_meta, parser, df_map):
+            parsed_df_map = convert(parser, df_map)
+            self._insert_events({
+                event: df
+                for event, df in parsed_df_map.items()
+                if event not in preloaded_df_map
+            })
+            df_map = {
+                **preloaded_df_map,
+                **parsed_df_map,
+            }
+
+            if set(preloaded_meta.keys()) < set(TraceParserBase.METADATA_KEYS):
+                parsed_meta = parser.get_all_metadata()
+                parsed_meta = {
+                    k: self._process_metadata(key=k, get=lambda: v)
+                    for k, v in parsed_meta.items()
+                    if k not in preloaded_meta.keys()
+                }
+            else:
+                parsed_meta = {}
+
+            meta = {
+                **preloaded_meta,
+                **parsed_meta
+            }
             return (meta, df_map)
 
-        def get():
-            with self._get_parser(events=_ALL_EVENTS, needed_metadata=needed_metadata) as parser:
-                try:
-                    return finalize(parser, parser.parse_all_events())
-                except NotImplementedError:
-                    events = parser.get_metadata('available-events')
-                    try:
-                        return finalize(parser, parser.parse_events(events))
-                    except Exception:
-                        meta = parser.get_all_metadata()
+        def load_from_cache(event):
+            cache_desc = self._make_raw_cache_desc(event)
+            try:
+                return self._cache.fetch(cache_desc, insert=True)
+            except KeyError:
+                return None
 
-            with self._get_parser(events=events, needed_metadata=needed_metadata) as parser:
-                df_map = convert(parser, parser.parse_events(events))
+        def parse(preloaded_df_map, preloaded_meta, events):
+            needed_metadata = set(TraceParserBase.METADATA_KEYS) - set(preloaded_meta.keys())
 
-            return (meta, df_map)
+            if (needed_metadata or events or events is _ALL_EVENTS):
+                _finalize = functools.partial(
+                    finalize,
+                    preloaded_df_map=preloaded_df_map,
+                    preloaded_meta=preloaded_meta,
+                )
 
+                if events is _ALL_EVENTS:
+                    with self._get_parser(events=events, needed_metadata=needed_metadata) as parser:
+                        try:
+                            return _finalize(parser=parser, df_map=parser.parse_all_events())
+                        except NotImplementedError:
+                            events = parser.get_metadata('available-events')
 
-        meta, df_map = get()
+                with self._get_parser(events=events, needed_metadata=needed_metadata) as parser:
 
-        self._insert_events(df_map)
-        meta = {
-            k: self._process_metadata(key=k, get=lambda: v, cache=True)
-            for k, v in meta.items()
-        }
+                    # Use custom best-effort implementation that allows
+                    # filtering out _all_ exceptions. We are here to parse as
+                    # many events as we can, regardless of any error.
+                    def parse_best_effort(event):
+                        try:
+                            return parser.parse_event(event)
+                        except Exception:
+                            return None
 
+                    return _finalize(
+                        parser=parser,
+                        df_map={
+                            event: df
+                            for event in events
+                            if (df := parse_best_effort(event)) is not None
+                        }
+                    )
+            else:
+                return (
+                    preloaded_meta,
+                    preloaded_df_map,
+                )
+
+        preloaded_meta = self._preload_metadata_cache()
+
+        try:
+            events = preloaded_meta['available-events']
+        except KeyError:
+            events = _ALL_EVENTS
+            preloaded_df_map = {}
+        else:
+            preloaded_df_map = {
+                event: df
+                for event in events
+                if (df := load_from_cache(event)) is not None
+            }
+            events = {
+                event
+                for event in events
+                if event not in preloaded_df_map
+            }
+
+        meta, df_map = parse(preloaded_df_map, preloaded_meta, events)
         return (meta, df_map)
 
     _CACHEABLE_METADATA = {
@@ -5017,7 +5107,7 @@ class _Trace(Loggable, _InternalTraceBase):
         """
         return self._get_metadata(key=key)
 
-    def _get_metadata(self, key, parser=None, cache=True, try_hard=False):
+    def _get_metadata(self, key, parser=None, try_hard=False):
         def get():
             if parser is None:
                 @contextlib.contextmanager
@@ -5036,9 +5126,9 @@ class _Trace(Loggable, _InternalTraceBase):
 
             return value
 
-        return self._process_metadata(get=get, key=key, cache=cache)
+        return self._process_metadata(get=get, key=key)
 
-    def _process_metadata(self, key, get, cache=True):
+    def _process_metadata(self, key, get):
 
         def process_raw(key, value):
             """
@@ -5209,6 +5299,7 @@ class _Trace(Loggable, _InternalTraceBase):
         @contextlib.contextmanager
         def cm():
             with pl.StringCache(), self._cache._parser_temp_path() as temp_dir:
+                self.logger.debug(f'Spinning up trace parser {self._parser}: path={path}, events={events}, needed_metadata={needed_metadata}')
                 parser = self._parser(
                     path=path,
                     events=events,
@@ -5278,9 +5369,17 @@ class _Trace(Loggable, _InternalTraceBase):
             if (path := self.trace_path):
                 with open(path, 'rb') as f:
                     md5 = checksum(f, 'md5')
-                return f'md5sum-{md5}'
+                id_ = f'md5sum-{md5}'
             else:
-                return None
+                id_ = None
+
+            self._cache.update_metadata(
+                {
+                    'trace-id': id_,
+                },
+                blocking=False,
+            )
+            return id_
         else:
             return f'parser-trace-id-{trace_id}'
 
