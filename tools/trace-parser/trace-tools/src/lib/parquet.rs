@@ -553,13 +553,18 @@ where
         events.into_iter().map(&mut push_global_err).for_each(drop);
         eprintln!("Found {count} event records in this trace");
 
+        // TODO: We can do that the day we can know what event was asked to be recorded in the
+        // trace-cmd invocation. Then we can legitimately say that there was no occurence of an
+        // event. Until then, we consider that if we did not hit any occurence, the event was not
+        // specified on trace-cmd CLI and was never enabled in the first place.
+        //
         // Ensure we have a file for each event that was asked for as long as that event is
         // actually available in the trace header.
-        if let Some(only_events) = only_events {
-            for event in only_events {
-                header.event_desc_by_name(event).map(|event_desc| make_ctx(header, event_desc));
-            }
-        }
+        // if let Some(only_events) = only_events {
+            // for event in only_events {
+                // header.event_desc_by_name(event).map(|event_desc| make_ctx(header, event_desc));
+            // }
+        // }
 
         let mut handles = Vec::new();
         let mut events_info = Vec::new();
