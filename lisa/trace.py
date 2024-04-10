@@ -910,15 +910,12 @@ class TraceDumpTraceParser(TraceParserBase):
         else:
             df = df.sort('Time')
 
-        # Turn all "comm" columns into categorical columns
+        # Turn all string columns into categorical columns, since strings are
+        # typically extremely repetitive
         categorical_cols = [
             col
             for col, dtype in df.schema.items()
-            if isinstance(dtype, pl.String) and (
-                col in ('comm', 'oldcomm', 'newcomm') or
-                col.startswith('comm_') or
-                col.endswith('_comm')
-            )
+            if isinstance(dtype, pl.String)
         ]
 
         if categorical_cols:
@@ -4781,8 +4778,8 @@ class _Trace(Loggable, _InternalTraceBase):
         # writing to: /sys/kernel/debug/tracing/trace_marker
         # That said, it's not the end of the world if we don't filter on that
         # as the meta event name is supposed to be unique anyway
-        if isinstance(df.schema['ip'], pl.String):
-            df = df.filter(pl.col('ip').str.starts_with('tracing_mark_write'))
+        if isinstance(df.schema['ip'], (pl.String, pl.Categorical)):
+            df = df.filter(pl.col('ip').cast(pl.String).str.starts_with('tracing_mark_write'))
         return (df, 'buf')
 
     def _select_trace_printk(self, source_event, meta_event, df):
@@ -5468,12 +5465,12 @@ class _Trace(Loggable, _InternalTraceBase):
                         # If the lines are in a dtype we won't be able to
                         # handle, we won't add an entry to df_map, leading to a
                         # missing event
-                        if source_df.schema[line_field] not in (pl.String, pl.Binary):
+                        if source_df.schema[line_field] not in (pl.String, pl.Categorical, pl.Binary):
                             continue
 
                         # Ensure we have bytes and not str
                         source_df = source_df.with_columns(
-                            pl.col(line_field).cast(pl.Binary)
+                            pl.col(line_field).cast(pl.String).cast(pl.Binary)
                         )
                         source_df = source_df.select(('Time', line_field))
                         pandas_df = _df_to_pandas(source_df)
