@@ -61,7 +61,7 @@ import polars as pl
 
 import devlib
 
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, unzip_into
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to_polars, _df_to_pandas, _df_to, _polars_df_in_memory, Timestamp
 from lisa.version import VERSION_TOKEN
@@ -773,6 +773,13 @@ class TraceDumpTraceParser(TraceParserBase):
 
         try:
             meta['pid-comms'] = dict(meta['pid-comms'])
+        except KeyError:
+            pass
+
+        # symbols-address is stored as a list of items in JSON, since JSON
+        # objects can only have string keys.
+        try:
+            meta['symbols-address'] = dict(meta['symbols-address'])
         except KeyError:
             pass
 
@@ -5086,19 +5093,6 @@ class _Trace(Loggable, _InternalTraceBase):
         meta, df_map = parse(preloaded_df_map, preloaded_meta, events)
         return (meta, df_map)
 
-    _CACHEABLE_METADATA = {
-        'time-range',
-        'cpus-count',
-        'available-events',
-        'trace-id',
-        # Do not cache symbols-address as JSON is unable to store integer keys
-        # in objects, so the data will wrongly have string keys when reloaded.
-    }
-    """
-    Parser metadata that can safely be cached, i.e. that are serializable in
-    the trace cache.
-    """
-
     def get_metadata(self, key):
         """
         Get metadata from the underlying trace parser.
@@ -5128,12 +5122,9 @@ class _Trace(Loggable, _InternalTraceBase):
 
         return self._process_metadata(get=get, key=key)
 
-    def _process_metadata(self, key, get):
-
-        def process_raw(key, value):
-            """
-            Prepare metadata value to be stored in the cache
-            """
+    @staticmethod
+    def _meta_to_json(meta):
+        def process(key, value):
             if key == 'available-events':
                 # Ensure we have a list so that it can be dumped to JSON
                 value = sorted(set(value))
@@ -5155,23 +5146,31 @@ class _Trace(Loggable, _InternalTraceBase):
                 # imprecise.
                 value = (start.as_nanoseconds, end.as_nanoseconds)
 
+            elif key == 'symbols-address':
+                # Unzip the dict into a list of keys and list of values, since
+                # that will be cheaper to deserialize and serialize to JSON
+                value = tuple(unzip_into(
+                    2,
+                    # Turn to a list to allow JSON caching, since JSON cannot
+                    # have non-string keys
+                    dict(value).items()
+                ))
+
             return value
 
+        return {
+            key: process(key, value)
+            for key, value in meta.items()
+        }
+
+    @staticmethod
+    def _meta_from_json(meta):
         def process(key, value):
             """
-            Process a value prepared with ``process_raw``
+            Process a value prepared with :meth:`_meta_to_json`
             """
             if key == 'available-events':
-                with self._lock:
-                    # Populate the list of available events, and inform the
-                    # rest of the code that this list is definitive.
-                    self._update_parseable_events({
-                        event: True
-                        for event in value
-                    })
-                    # Note that this will not take into account meta-events.
-                    self._source_events_known = True
-
+                value = set(value)
             elif key == 'time-range':
                 start, end = value
                 assert isinstance(start, int)
@@ -5185,10 +5184,44 @@ class _Trace(Loggable, _InternalTraceBase):
                 end = Timestamp(end, unit='ns', rounding='up')
                 value = (start, end)
 
+            elif key == 'symbols-address':
+                # Turn the list of items (to allow JSON storage) back to a dict.
+                addr, names = value
+                value = dict(zip(
+                    map(int, addr),
+                    names
+                ))
+
+            return value
+
+        return {
+            key: process(key, value)
+            for key, value in meta.items()
+        }
+
+    def _process_metadata(self, key, get):
+        def process(key, value):
+            """
+            Process a value prepared with :meth:`_meta_to_json`
+            """
+            value = self._meta_from_json({key: value})[key]
+
+            if key == 'available-events':
+                with self._lock:
+                    # Populate the list of available events, and inform the
+                    # rest of the code that this list is definitive.
+                    self._update_parseable_events({
+                        event: True
+                        for event in value
+                    })
+                    # Note that this will not take into account meta-events.
+                    self._source_events_known = True
+
             return value
 
         def _get(key):
-            return process_raw(key, get())
+            value = get()
+            return self._meta_to_json({key: value})[key]
 
         def get_cacheable(key):
             try:
@@ -5198,11 +5231,7 @@ class _Trace(Loggable, _InternalTraceBase):
                 self._cache.update_metadata({key: value}, blocking=False)
             return value
 
-        if cache and key in self._CACHEABLE_METADATA:
-            value = get_cacheable(key)
-        else:
-            value = _get(key)
-
+        value = get_cacheable(key)
         return process(key, value)
 
     @classmethod
