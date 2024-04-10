@@ -1419,21 +1419,6 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             else:
                 return conf
 
-        logger = self.logger
-        if logger.isEnabledFor(logging.DEBUG):
-            caller, filename, lineno = get_call_site(1, exclude_caller_module=True)
-            logger.debug('{caller} ({filename}:{lineno}) has set source "{src}":\n{conf}'.format(
-                src=src,
-                conf=pprint.pformat(
-                    format_conf(conf),
-                    indent=4,
-                    compact=True,
-                ),
-                caller=caller if caller else '<unknown>',
-                filename=filename if filename else '<unknown>',
-                lineno=lineno if lineno else '<unknown>',
-            ))
-
         self = self if inplace else copy.copy(self)
         return self._add_src(
             src, conf,
@@ -1810,18 +1795,6 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                         continue
 
                 break
-
-        logger = self.logger
-        if not quiet and logger.isEnabledFor(logging.DEBUG):
-            caller, filename, lineno = get_call_site(2, exclude_caller_module=True)
-            logger.debug('{caller} ({filename}:{lineno}) has used key {key} from source "{src}": {val}'.format(
-                key=key_desc.qualname,
-                src=src,
-                val=key_desc.pretty_format(val),
-                caller=caller if caller else '<unknown>',
-                filename=filename if filename else '<unknown>',
-                lineno=lineno if lineno else '<unknown>',
-            ))
 
         if isinstance(val, DeferredValue):
             return val
