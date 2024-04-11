@@ -54,14 +54,13 @@ from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import pandas as pd
-from pandas.api.types import is_numeric_dtype
 import pyarrow.lib
 import pyarrow.parquet
 import polars as pl
 
 import devlib
 
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, unzip_into
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, unzip_into, order_as
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to_polars, _df_to_pandas, _df_to, _polars_df_in_memory, Timestamp
 from lisa.version import VERSION_TOKEN
@@ -925,7 +924,7 @@ class TraceDumpTraceParser(TraceParserBase):
         categorical_cols = [
             col
             for col, dtype in df.schema.items()
-            if isinstance(dtype, pl.String)
+            if isinstance(dtype, (pl.String, pl.Binary))
         ]
 
         if categorical_cols:
@@ -1069,7 +1068,7 @@ class TxtEventParser(EventParserBase):
                     # The non-capturing group with positive lookahead is
                     # necessary to be able to correctly collect spaces in the
                     # values of fields
-                    return r'{field}=(?P<{field}>.+?)(?:{blank}(?={identifier}=)|$)'.format(
+                    return r'{field}=(?P<{field}>.+?)(?:{blank}|$)'.format(
                         field=re.escape(field),
                         **cls.PARSER_REGEX_TERMINALS
                     )
@@ -1079,7 +1078,7 @@ class TxtEventParser(EventParserBase):
             # Catch-all field that will consume any unknown field, allowing for
             # partial parsing (both for performance/memory consumption and
             # forward compatibility)
-            fields_regexes.append(r'{identifier}=.*?(?=(?:{other_fields})=)'.format(
+            fields_regexes.append(r'{identifier}=\S+?(?:{blank}|$)'.format(
                 other_fields='|'.join(fields),
                 **cls.PARSER_REGEX_TERMINALS
             ))
@@ -1349,7 +1348,7 @@ class TxtTraceParserBase(TraceParserBase):
             # We only needed the fields to infer the descriptors, so let's drop
             # them to lower peak memory usage
             with contextlib.suppress(KeyError):
-                del self._skeleton_df['__fields']
+                self._skeleton_df = self._skeleton_df.drop(['__fields'])
 
             event_parsers = {
                 **{
@@ -1465,14 +1464,27 @@ class TxtTraceParserBase(TraceParserBase):
         ]
         columns += extra_cols
 
-        index = '__timestamp' if data and '__timestamp' in columns else None
-        return pd.DataFrame.from_records(
+        df = pl.DataFrame(
             data,
-            columns=columns,
-            index=index,
+            orient='row',
+            schema=columns,
+            # Scan the entire dataset to figure out the best dtype
+            infer_schema_length=None,
+        ).lazy()
+
+        df = df.with_columns(
+            pl.col(col).cast(pl.String)
+            for col, dtype in df.schema.items()
+            if isinstance(dtype, pl.Binary)
         )
 
-    def _eagerly_parse_lines(self, lines, skeleton_regex, event_parsers, events, time=None):
+        # Put the timestamp first so it's recognized as the index
+        df = df.select(
+            order_as(columns, ['__timestamp'])
+        )
+        return df
+
+    def _eagerly_parse_lines(self, lines, skeleton_regex, event_parsers, events, time=None, time_unit='s'):
         """
         Filter the lines to select the ones with events.
 
@@ -1556,7 +1568,9 @@ class TxtTraceParserBase(TraceParserBase):
                     continue
             else:
                 if not time_is_provided:
-                    line_time = Timestamp(group(match, '__timestamp').decode('utf-8'))
+                    line_time = Timestamp(
+                        group(match, '__timestamp').decode('utf-8')
+                    )
                     # Do a global deduplication of timestamps, across all
                     # events regardless of the one we will parse. This ensures
                     # stable results and joinable dataframes from multiple
@@ -1597,9 +1611,14 @@ class TxtTraceParserBase(TraceParserBase):
         if begin_time is None and events:
             raise ValueError('No lines containing events have been found')
 
+        available_events = {
+            event.decode('ascii')
+            for event in available_events
+        }
+
         end_time = line_time
         available_events.update(
-            event
+            event.decode('ascii')
             for event, (search, data) in events_data.items()
             if data
         )
@@ -1629,49 +1648,43 @@ class TxtTraceParserBase(TraceParserBase):
         # parsed already. It contains the event name, the time, and potentially
         # the fields if they are needed
         skeleton_df = self._make_df_from_data(skeleton_regex, skeleton_data, ['__timestamp', 'line'])
+        skeleton_df = skeleton_df.with_columns(
+            pl.col('__event').cast(pl.Categorical)
+        )
+
         # Drop unnecessary columns that might have been parsed by the regex
-        to_keep = {'__event', '__fields', 'line'}
-        skeleton_df = skeleton_df[sorted(to_keep & set(skeleton_df.columns))]
-        # Make the event column more compact
-        skeleton_df['__event'] = skeleton_df['__event'].astype('category', copy=False)
+        to_keep = {'__timestamp', '__event', '__fields', 'line'}
+        skeleton_df = skeleton_df.select(sorted(to_keep & set(skeleton_df.columns)))
         # This is very fast on a category dtype
-        available_events.update(skeleton_df['__event'].unique())
+        available_events.update(
+            skeleton_df.select(
+                pl.col('__event').unique()
+            ).collect()['__event']
+        )
 
-        available_events = {event.decode('ascii') for event in available_events}
-
-        # If time was provided, we assume it's coming from a finalized pandas
-        # dataframe that uses float for index.
         if time_is_provided:
-            assert isinstance(begin_time, float)
-            assert isinstance(end_time, float)
-            begin_time = Timestamp(begin_time, unit='s')
-            end_time = Timestamp(end_time, unit='s')
+            begin_time = Timestamp(begin_time, unit=time_unit)
+            end_time = Timestamp(end_time, unit=time_unit)
         else:
             begin_time = Timestamp(begin_time, unit='ns')
             end_time = Timestamp(end_time, unit='ns')
 
         return (events_df, skeleton_df, (begin_time, end_time), available_events)
 
-    def _lazyily_parse_event(self, event, parser, df):
+    def _lazily_parse_event(self, event, parser, df):
         # Only parse the lines that have a chance to match
-        df = df[df['__event'] == event.encode('ascii')]
-        index = df.index
-        regex = parser.bytes_regex
+        df = df.filter(
+            pl.col('__event') == event
+        )
 
-        # Resolve names outside of the comprehension
-        search = regex.search
-        groups = self._RE_MATCH_CLS.groups
-        # Parse the lines with the regex.
-        # note: we cannot use Series.str.extract(expand=True) since it does
-        # not work on bytes
-        data = [
-            groups(search(line))
-            for line in df['line']
-        ]
-        df = self._make_df_from_data(regex, data)
-        df.index = index
-        df = self._postprocess_df(event, parser, df)
-        return df
+        pattern = parser.bytes_regex.pattern.decode('utf-8')
+
+        new_df = df.select((
+            pl.col('__timestamp'),
+            pl.col('line').str.strip_chars().str.extract_groups(pattern),
+        )).unnest('line')
+        new_df = self._postprocess_df(event, parser, new_df)
+        return new_df
 
     @staticmethod
     def _get_event_descs(df, events, event_parsers):
@@ -1684,64 +1697,54 @@ class TxtTraceParserBase(TraceParserBase):
             def encode(string):
                 return string.encode('ascii')
 
-            user_supplied = set(map(encode, user_supplied))
-            events = set(map(encode, events))
-
-            # Since we make a shallow copy:
-            # DO NOT MODIFY ANY EXISTING COLUMN
-            df = df.copy(deep=False)
-
             # Find the field names only for the events we don't already know about,
             # since the inference is relatively expensive
             if all_events:
-                df = df[~df['__event'].isin(user_supplied)]
+                df = df.filter(
+                    pl.col('__event').is_in(user_supplied).not_()
+                )
             else:
                 events = set(events) - user_supplied
-                df = df[df['__event'].isin(events)]
+                df = df.filter(
+                    pl.col('__event').is_in(events)
+                )
 
-            def apply_regex(series, func, regex):
-                regex = encode(regex.format(**TxtEventParser.PARSER_REGEX_TERMINALS))
-                regex = re.compile(regex, flags=re.ASCII)
-                return [
-                    func(regex, x)
-                    for x in series
-                ]
+            fields_regex = r'({identifier})='.format(
+                **TxtEventParser.PARSER_REGEX_TERMINALS
+            )
 
-            def is_match(pat, x):
-                return bool(pat.search(x))
+            df = df.with_columns(
+                pl.col('__fields')
+                .cast(pl.String)
+                .str.extract_all(fields_regex)
+                # We can't match groups and extract all occurences at the
+                # moment, so we postprocess the field name instead:
+                # https://github.com/pola-rs/polars/issues/11857
+                .list.eval(
+                    pl.element()
+                    .str.strip_chars_end('=')
+                )
+            )
 
-            # We cannot use Series.str.(count|finall) since they don't work
-            # with bytes
-            df['split_fields'] = apply_regex(df['__fields'], re.findall, r'({identifier})=')
-            # Look for any value before the first named field
-            df['pos_fields'] = apply_regex(df['__fields'], is_match, r'(?:^ *(?:[^ =]+ [^ =]+)+=)|(?:^[^=]*$)')
+            df = df.group_by('__event').agg(
+                pl.col('__fields')
+                .list.explode()
+                .unique()
+            )
 
-            def infer_fields(x):
-                field_alternatives = x.transform(tuple).unique()
-                if len(field_alternatives) == 1:
-                    fields = field_alternatives[0]
-                else:
-                    # Use the union of all the fields, and the order of appearance is not guaranteed
-                    fields = sorted(set(itertools.chain.from_iterable(field_alternatives)))
-
-                return fields
-
-            # For each event we don't already know, get the list of all fields available
-            inferred = df.groupby('__event', observed=True, group_keys=False)['split_fields'].apply(infer_fields).to_frame()
-
-            def update_desc(desc):
+            def make_desc(event, fields):
                 new = dict(
                     positional_field=None,
-                    fields={
-                        field.decode('ascii'): None
-                        for field in desc['split_fields']
-                    },
+                    fields=dict.fromkeys(fields, None)
                 )
                 return new
 
             dct = {
-                event.decode('ascii'): update_desc(desc)
-                for event, desc in inferred.T.to_dict().items()
+                event: make_desc(event, fields)
+                for event, fields in df.select((
+                    pl.col('__event').cast(pl.String),
+                    pl.col('__fields'),
+                )).collect().iter_rows()
             }
             return dct
 
@@ -1755,141 +1758,129 @@ class TxtTraceParserBase(TraceParserBase):
         try:
             df = self._events_df[event]
         except KeyError:
-            df = self._lazyily_parse_event(event, parser, self._skeleton_df)
+            df = self._lazily_parse_event(event, parser, self._skeleton_df)
+
+        # Everything resides in memory anyway, so make that clear to the _Trace
+        # infrastructure so it does not accidentally tries to serialize a
+        # LazyFrame as a huge JSON.
+        df = df.collect()
 
         # Since there is no way to distinguish between no event entry and
         # non-collected events in text traces, map empty dataframe to missing
         # event
-        if df.empty:
-            raise MissingTraceEventError([event])
-        else:
+        if len(df):
             return df
+        else:
+            raise MissingTraceEventError([event])
 
     @classmethod
     def _postprocess_df(cls, event, parser, df):
-        """
-        ALL THE PROCESSING MUST HAPPEN INPLACE on the dataframe
-        """
-        # pylint: disable=unused-argument
+        assert isinstance(df, pl.LazyFrame)
 
-        # Convert fields from extracted strings to appropriate dtype
-        all_fields = {
-            **parser.fields,
-            **cls.HEADER_FIELDS,
-        }
+        def get_representative(df, col):
+            df = (
+                df
+                .select(col)
+                .filter(
+                    pl.col(col).is_null().not_()
+                )
+                .head(1)
+                .collect()
+            )
+            try:
+                return df.item()
+            except ValueError:
+                return None
 
-        def default_converter(x):
-            first_success = None
+        def infer_schema(df):
+            # Select a subset of the dataframe that has no null value in it, so
+            # we can accurately infer the dtype.
+            df = pl.DataFrame({
+                col: [get_representative(df, col)]
+                for col in df.columns
+            })
 
-            for dtype in cls.DTYPE_INFERENCE_ORDER:
-                convert = make_converter(dtype)
-                with contextlib.suppress(ValueError, TypeError):
-                    converted = convert(x)
-                    # If we got the dtype we wanted, use it immediately.
-                    # Otherwise, record the first conversion (i.e. the most
-                    # specific) that did no completely fail so we can reuse it
-                    # instead of "string"
-                    if converted.dtype == dtype:
-                        return converted
-                    elif first_success is None:
-                        first_success = converted
+            # Ugly hack: dump the first row to CSV to infer the schema of the
+            # dataframe based on text data, since that's what we have.
+            bytes_io = io.BytesIO()
+            df.write_csv(bytes_io)
+            df = pl.read_csv(bytes_io)
+            schema = df.schema
 
-            # If we got no perfect conversion, return the most specific one
-            # that gave a result, otherwise bailout to just strings
-            if first_success is None:
-                try:
-                    return make_converter('string')(x)
-                except (ValueError, TypeError):
-                    return x
-            else:
-                return first_success
+            schema = {
+                # Cast all strings as categorical since they are typically very
+                # repetitive
+                col: pl.Categorical if isinstance(dtype, (pl.String, pl.Binary)) else dtype
+                for col, dtype in schema.items()
+            }
 
-        def make_converter(dtype):
-            # If the dtype is already known, just use that
-            if dtype:
-                return lambda x: series_convert(x, dtype)
-            else:
-                # Otherwise, infer it from the data we have
-                return default_converter
+            return schema
 
-        converters = {
-            field: make_converter(dtype)
-            for field, dtype in all_fields.items()
-            if field in df.columns
-        }
-        # DataFrame.apply() can lead to recursion error when a conversion
-        # fails, so use an explicit loop instead
-        for col in set(df.columns) & converters.keys():
-            df[col] = converters[col](df[col])
+        # Polars will fail to convert strings with trailing spaces (e.g. "42  "
+        # into 42), so ensure we clean that up before conversion
+        df = df.with_columns(
+            pl.col(col).str.strip_chars()
+            for col, dtype in df.schema.items()
+            if isinstance(dtype, pl.String)
+        )
+
+        df = df.with_columns(
+            pl.col(name).cast(dtype)
+            for name, dtype in infer_schema(df).items()
+        )
+        df = df.rename({'__timestamp': 'Time'})
 
         if event == 'sched_switch':
-            copied = False
-            def copy_once(x):
-                nonlocal copied
-                if copied:
-                    return x
-                else:
-                    copied = True
-                    return x.copy(deep=False)
-
-            if df['prev_state'].dtype.name == 'string':
+            if isinstance(df.schema['prev_state'], (pl.String, pl.Categorical)):
                 # Avoid circular dependency issue by importing at the last moment
                 # pylint: disable=import-outside-toplevel
                 from lisa.analysis.tasks import TaskState
-                df = copy_once(df)
-                df['prev_state'] = df['prev_state'].apply(TaskState.from_sched_switch_str).astype('uint16', copy=False)
+                df = df.with_columns(
+                    pl.col('prev_state').map_elements(
+                        TaskState.from_sched_switch_str,
+                        return_dtype=pl.UInt64,
+                    ).cast(pl.UInt16)
+                )
 
-            # Save a lot of memory by using category for strings
-            df = copy_once(df)
-            for col in ('next_comm', 'prev_comm'):
-                df[col] = df[col].astype('category', copy=False)
+        elif event in ('sched_overutilized', 'lisa__sched_overutilized'):
+            df = df.with_columns(
+                pl.col('overutilized').cast(pl.Boolean)
+            )
 
-        elif event == 'lisa__sched_overutilized':
-            copied = False
-            def copy_once(x):
-                nonlocal copied
-                if copied:
-                    return x
-                else:
-                    copied = True
-                    return x.copy(deep=False)
-
-            if not df['overutilized'].dtype.name == 'bool':
-                df = copy_once(df)
-                df['overutilized'] = df['overutilized'].astype(bool, copy=False)
-
-            if 'span' in df.columns and df['span'].dtype.name == 'string':
-                df = copy_once(df)
-                df['span'] = df['span'].apply(lambda x: x if pd.isna(x) else int(x, base=16))
+            if isinstance(df.schema.get('span'), (pl.String, pl.Binary, pl.Categorical)):
+                df = df.with_columns(
+                    pl.col('span')
+                    .cast(pl.String)
+                    .str.strip_chars()
+                    .str.strip_prefix('0x')
+                    .str.to_integer(base=16)
+                )
 
         elif event in ('thermal_power_cpu_limit', 'thermal_power_cpu_get_power'):
-            def parse_load(array):
-                # Parse b'{2 3 2 8}'
-                return tuple(map(int, array[1:-1].split()))
 
             # In-kernel name is "cpumask", "cpus" is just an artifact of the pretty
             # printing format string of ftrace, that happens to be used by a
             # specific parser.
-            df = df.rename(columns={'cpus': 'cpumask'}, copy=False)
-            df = df.copy(deep=False)
+            df = df.rename({'cpus': 'cpumask'})
 
             if event == 'thermal_power_cpu_get_power':
-                if df['load'].dtype.name == 'object':
-                    df['load'] = df['load'].apply(parse_load)
+                if isinstance(df.schema['load'], (pl.String, pl.Binary, pl.Categorical)):
+                    df = df.with_columns(
+                        # Parse b'{2 3 2 8}'
+                        pl.col('load')
+                        .cast(pl.String)
+                        .str.strip_chars('{}')
+                        .str.split(' ')
+                        .list.eval(
+                            pl.element()
+                            .str.to_integer()
+                        )
+                    )
 
         elif event in ('ipi_entry', 'ipi_exit'):
-            df = df.copy(deep=False)
-            df['reason'] = df['reason'].str.strip('()')
-
-        elif event in ('print', 'bprint', 'bputs'):
-            df = df.copy(deep=False)
-
-            # Only process string "ip" (function name), not if it is a numeric
-            # address
-            if not is_numeric_dtype(df['ip'].dtype):
-                # Reduce memory usage and speedup selection based on function
-                with contextlib.suppress(KeyError):
-                    df['ip'] = df['ip'].astype('category', copy=False)
+            df = df.with_columns(
+                pl.col('reason').str.strip_chars('()')
+            )
 
         return df
 
@@ -2542,14 +2533,15 @@ class MetaTxtTraceParser(SimpleTxtTraceParser):
     }
 
     @kwargs_forwarded_to(SimpleTxtTraceParser.__init__)
-    def __init__(self, *args, time, **kwargs):
+    def __init__(self, *args, time, time_unit='s', **kwargs):
         self._time = time
+        self._time_unit = time_unit
         super().__init__(*args, **kwargs)
 
     def _eagerly_parse_lines(self, *args, **kwargs):
         # Use the iloc as "time", and we fix it up manually afterwards
         return super()._eagerly_parse_lines(
-            *args, **kwargs, time=self._time,
+            *args, **kwargs, time=self._time, time_unit=self._time_unit,
         )
 
 
@@ -4801,7 +4793,7 @@ class _Trace(Loggable, _InternalTraceBase):
         # writing to: /sys/kernel/debug/tracing/trace_marker
         # That said, it's not the end of the world if we don't filter on that
         # as the meta event name is supposed to be unique anyway
-        if isinstance(df.schema['ip'], (pl.String, pl.Categorical)):
+        if isinstance(df.schema['ip'], (pl.String, pl.Binary, pl.Categorical)):
             df = df.filter(pl.col('ip').cast(pl.String).str.starts_with('tracing_mark_write'))
         return (df, 'buf')
 
@@ -5593,21 +5585,27 @@ class _Trace(Loggable, _InternalTraceBase):
                         # If the lines are in a dtype we won't be able to
                         # handle, we won't add an entry to df_map, leading to a
                         # missing event
-                        if source_df.schema[line_field] not in (pl.String, pl.Categorical, pl.Binary):
+                        if not isinstance(source_df.schema[line_field], (pl.String, pl.Categorical, pl.Binary)):
                             continue
 
                         # Ensure we have bytes and not str
                         source_df = source_df.with_columns(
                             pl.col(line_field).cast(pl.String).cast(pl.Binary)
                         )
-                        source_df = source_df.select(('Time', line_field))
-                        pandas_df = _df_to_pandas(source_df)
-                        source_series = pandas_df[line_field]
+
+                        source_df = source_df.select((
+                            # Use nanoseconds, so that we don't end up with
+                            # timedelta() values that are only accurate down to
+                            # the microsecond.
+                            pl.col('Time').dt.total_nanoseconds(),
+                            pl.col(line_field),
+                        )).collect()
 
                         try:
                             parser = MetaTxtTraceParser(
-                                lines=source_series,
-                                time=source_series.index,
+                                lines=source_df[line_field],
+                                time=source_df['Time'],
+                                time_unit='ns',
                                 events=[event],
                                 temp_dir=temp_dir,
                             )
@@ -5635,30 +5633,36 @@ class _Trace(Loggable, _InternalTraceBase):
                                     parser=parser,
                                     cache=self._cache,
                                 )
+
                                 _df = _df.join(
                                     extra_df,
                                     on='Time',
                                     how='left',
                                 )
+
+                                _df = _df.select(
+                                    order_as(
+                                        sorted(
+                                            _df.columns,
+                                            key=lambda col: 0 if col.startswith('__') else 1
+                                        ),
+                                        ['Time']
+                                    )
+                                )
+
                                 df_map.setdefault(event, []).append(_df)
 
                         if not get_missing(df_map):
                             break
 
         def concat(df_list):
-            if len(df_list) > 1:
-                # As of pandas == 1.0.3, concatenating dataframe with nullable
-                # columns will give an object dtype and both NaN and <NA> if
-                # that column does not exist in all dataframes. This is quite
-                # annoying but there is no straightforward way of working
-                # around that.
-                df = pd.concat(df_list, copy=False)
-                df.sort_index(inplace=True)
-                return df
-            # Avoid creating a new dataframe and sorting the index
-            # unnecessarily if there is only one
-            else:
-                return df_list[0]
+            try:
+                df, = df_list
+            except ValueError:
+                df = pl.concat(df_list, how='diagonal_relaxed')
+                df = df.sort('Time')
+
+            return df
 
         df_map = {
             event: concat(df_list)
