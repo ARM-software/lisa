@@ -384,7 +384,7 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
     Possible metadata keys
     """
 
-    def __init__(self, events, temp_dir, needed_metadata=None):
+    def __init__(self, events, temp_dir, needed_metadata=None, path=None):
         # pylint: disable=unused-argument
         self._requested_metadata = set(needed_metadata or [])
         self._requested_events = events if events is _ALL_EVENTS else set(events)
