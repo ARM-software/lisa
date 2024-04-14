@@ -4857,7 +4857,7 @@ class _Trace(Loggable, _InternalTraceBase):
         trace_path = str(trace_path) if trace_path else None
 
         if enable_swap:
-            if trace_path:
+            if trace_path and os.path.exists(trace_path):
                 if swap_dir is None:
                     basename = os.path.basename(trace_path)
                     swap_dir = os.path.join(
