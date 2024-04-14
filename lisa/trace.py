@@ -228,7 +228,6 @@ def _logical_plan_update_paths(plan, update_path):
 
 
 def _convert_df_from_parser(df, parser, cache):
-    cache = cache if parser._STEAL_FILES else None
 
     def to_polars(df):
         if isinstance(df, pd.DataFrame):
@@ -266,8 +265,16 @@ def _convert_df_from_parser(df, parser, cache):
             return hardlink_path
 
         def fixup(df):
-            if isinstance(df, pl.LazyFrame):
-                if cache is not None and cache.swap_dir:
+            if isinstance(df, pl.LazyFrame) and parser._STEAL_FILES:
+                # We can only steal files if we have a swap to put it into
+                try:
+                    cache.swap_dir
+                except (AttributeError, ValueError):
+                    # If we cannot move the backing data to the swap folder, we
+                    # are forced to just load the data eagerly as backing
+                    # storage (e.g.  tmp folder) will probably disappear
+                    df = df.collect()
+                else:
                     hardlinks = set()
                     df = _lazyframe_rewrite(
                         df=df,
@@ -288,12 +295,6 @@ def _convert_df_from_parser(df, parser, cache):
                     # end up with 2 layers of "map_batches(identity)" on
                     # LazyFrames reloaded from the cache.
                     df = _LazyFrameOnDelete.attach_file_cleanup(df, hardlinks)
-
-                # If we cannot move the backing data to the swap folder, we are
-                # forced to just load the data eagerly as backing storage (e.g.
-                # tmp folder) will probably disappear
-                else:
-                    df = df.collect()
 
             return to_polars(df)
         return fixup(df)
