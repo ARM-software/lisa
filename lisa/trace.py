@@ -52,6 +52,7 @@ import threading
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
+import types
 
 import numpy as np
 import pandas as pd
@@ -421,6 +422,26 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
         self._requested_metadata = set(needed_metadata or [])
         self._requested_events = events if events is _ALL_EVENTS else set(events)
         self._temp_dir = Path(temp_dir)
+
+    def get_parser_id(self):
+        """
+        Get the unique ID of that parser. Any parameter affecting the output
+        dataframes or metadata must be somehow part of that ID, so that the
+        cache is not accidentally hit with stale data.
+        """
+        # We rely on having a PartialInit object here, since TraceParserBase
+        # inherits from it.
+        assert isinstance(self, PartialInit)
+
+        cls = type(self)
+        id_ = '+'.join(
+            f'{attr}={val!r}'
+            for attr, val in sorted(self.__dict__['_kwargs'].items())
+        )
+
+        id_ = id_.encode('utf-8')
+        id_ = checksum(io.BytesIO(id_), 'md5')
+        return f'{cls.__module__}.{cls.__qualname__}-{id_}'
 
     def get_metadata(self, key):
         """
@@ -5296,18 +5317,26 @@ class _Trace(Loggable, _InternalTraceBase):
         # The parser type will potentially change the exact content in raw
         # dataframes
         def get_name(parser):
-            return f'{parser.__module__}.{parser.__qualname__}'
-
-        try:
-            parser_name = get_name(parser)
-        # If the parser is an instance of something, we cannot safely track its
-        # state so just make a unique name for it
-        except AttributeError:
-            parser_name = f'{get_name(parser.__class__)}-instance:{uuid.uuid4().hex}'
+            if isinstance(parser, TraceParserBase):
+                return parser.get_parser_id()
+            else:
+                # If the parser is an instance of something, we cannot safely track its
+                # state so just make a unique name for it
+                if (
+                    isinstance(parser, (type, types.MethodType)) and
+                    not any(
+                        x in parser.__qualname__
+                        for x in ('<locals>', '<lambda>')
+                    )
+                ):
+                    return f'{parser.__module__}.{parser.__qualname__}'
+                else:
+                    cls = type(parser)
+                    return f'{cls.__module__}.{cls.__qualname__}-instance:{uuid.uuid4().hex}'
 
         return (
             self.__class__.__qualname__,
-            parser_name,
+            get_name(parser),
         )
 
     @property
