@@ -5393,14 +5393,14 @@ class _Trace(Loggable, _InternalTraceBase):
     @memoized
     def _get_trace_id(self):
         try:
-            trace_id = self._get_metadata('trace-id', try_hard=True)
+            return self._get_metadata('trace-id', try_hard=True)
         except MissingMetadataError:
             if (path := self.trace_path):
                 with open(path, 'rb') as f:
                     md5 = checksum(f, 'md5')
                 id_ = f'md5sum-{md5}'
             else:
-                id_ = None
+                id_ = '<unknown>'
 
             self._cache.update_metadata(
                 {
@@ -5409,8 +5409,6 @@ class _Trace(Loggable, _InternalTraceBase):
                 blocking=False,
             )
             return id_
-        else:
-            return f'parser-trace-id-{trace_id}'
 
     @memoized
     def _make_raw_cache_desc(self, event):
