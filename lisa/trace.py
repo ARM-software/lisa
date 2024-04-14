@@ -51,6 +51,7 @@ import atexit
 import threading
 import warnings
 from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlparse
 
 import numpy as np
 import pandas as pd
@@ -178,28 +179,34 @@ def _logical_plan_resolve_paths(cache, plan, kind):
     hardlinks_base = Path(uuid.uuid4().hex)
     hardlinks = set()
     def update_path(path):
-        path = Path(path)
-        if kind == 'dump':
-            path = path.relative_to(swap_dir)
-            # Remove the "hardlinks" part of the path so we point at the file
-            # in the cache
-            if path.parts[0] == 'hardlinks':
-                path = Path(path.name)
-
-            assert not path.is_absolute()
+        # If we have a URL, we don't want to touch it
+        url = urlparse(str(path))
+        assert url.scheme != 'file'
+        if url.scheme:
             return path
-        elif kind == 'load':
-            assert not path.is_absolute()
-
-            # Create a hardlink to the data so that the data backing the
-            # LazyFrame we are reloading is guaranteed to stay around long
-            # enough and will not be scrubbed away.
-            hardlink_base, hardlink_path = cache._hardlink_path(hardlinks_base, path.name)
-            _make_hardlink(swap_dir / path, hardlink_path)
-            hardlinks.add(hardlink_base)
-            return hardlink_path
         else:
-            raise ValueError(f'Unknown kind {kind}')
+            path = Path(path)
+            if kind == 'dump':
+                path = path.relative_to(swap_dir)
+                # Remove the "hardlinks" part of the path so we point at the file
+                # in the cache
+                if path.parts[0] == 'hardlinks':
+                    path = Path(path.name)
+
+                assert not path.is_absolute()
+                return path
+            elif kind == 'load':
+                assert not path.is_absolute()
+
+                # Create a hardlink to the data so that the data backing the
+                # LazyFrame we are reloading is guaranteed to stay around long
+                # enough and will not be scrubbed away.
+                hardlink_base, hardlink_path = cache._hardlink_path(hardlinks_base, path.name)
+                _make_hardlink(swap_dir / path, hardlink_path)
+                hardlinks.add(hardlink_base)
+                return hardlink_path
+            else:
+                raise ValueError(f'Unknown kind {kind}')
     plan = _logical_plan_update_paths(plan, update_path=update_path)
     return (plan, hardlinks)
 
