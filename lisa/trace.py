@@ -176,37 +176,62 @@ def _make_hardlink(src, dst):
 def _logical_plan_resolve_paths(cache, plan, kind):
     swap_dir = Path(cache.swap_dir).resolve()
 
+    def normalize(url):
+        url = str(url)
+        _url = urlparse(url)
+        scheme = _url.scheme or 'file'
+        if scheme == 'file':
+            url = _url.path
+
+        return (scheme, url)
+
     hardlinks_base = Path(uuid.uuid4().hex)
     hardlinks = set()
     def update_path(path):
-        # If we have a URL, we don't want to touch it
-        url = urlparse(str(path))
-        assert url.scheme != 'file'
-        if url.scheme:
-            return path
-        else:
-            path = Path(path)
-            if kind == 'dump':
-                path = path.relative_to(swap_dir)
-                # Remove the "hardlinks" part of the path so we point at the file
-                # in the cache
-                if path.parts[0] == 'hardlinks':
+        if kind == 'dump':
+            scheme, path = normalize(path)
+            if scheme == 'file':
+                path = Path(path)
+                try:
+                    path = path.relative_to(swap_dir)
+                except ValueError:
+                    return path
+                else:
+                    # Remove the "hardlinks" part of the path so we point at the file
+                    # in the cache
+                    if path.parts[0] == 'hardlinks':
+                        path = Path(path.name)
+
+                    assert not path.is_absolute()
+                    path = 'PATH_IN_LISA_CACHE' / path
+                    return path
+            else:
+                return path
+        elif kind == 'load':
+            scheme, path = normalize(path)
+            if scheme == 'file':
+                path = Path(path)
+                if path.parent.name == 'PATH_IN_LISA_CACHE':
                     path = Path(path.name)
 
-                assert not path.is_absolute()
-                return path
-            elif kind == 'load':
-                assert not path.is_absolute()
-
-                # Create a hardlink to the data so that the data backing the
-                # LazyFrame we are reloading is guaranteed to stay around long
-                # enough and will not be scrubbed away.
-                hardlink_base, hardlink_path = cache._hardlink_path(hardlinks_base, path.name)
-                _make_hardlink(swap_dir / path, hardlink_path)
-                hardlinks.add(hardlink_base)
-                return hardlink_path
+                    # Create a hardlink to the data so that the data backing the
+                    # LazyFrame we are reloading is guaranteed to stay around long
+                    # enough and will not be scrubbed away.
+                    hardlink_base, hardlink_path = cache._hardlink_path(
+                        hardlinks_base,
+                        path.name,
+                    )
+                    _make_hardlink(swap_dir / path, hardlink_path)
+                    hardlinks.add(hardlink_base)
+                    return hardlink_path
+                # This path comes from somewhere else on the system so do not
+                # rewrite it
+                else:
+                    return path
             else:
-                raise ValueError(f'Unknown kind {kind}')
+                return path
+        else:
+            raise ValueError(f'Unknown kind {kind}')
     plan = _logical_plan_update_paths(plan, update_path=update_path)
     return (plan, hardlinks)
 
