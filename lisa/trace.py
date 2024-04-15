@@ -261,7 +261,6 @@ def _logical_plan_update_paths(plan, update_path):
 
 
 def _convert_df_from_parser(df, parser, cache):
-
     def to_polars(df):
         if isinstance(df, pd.DataFrame):
             df.index.name = 'Time'
@@ -331,7 +330,11 @@ def _convert_df_from_parser(df, parser, cache):
 
             return to_polars(df)
         return fixup(df)
-    return move_to_cache(df, cache=cache)
+
+    df = _ParsedDataFrame.from_df(df)
+    return df.with_df(
+        move_to_cache(df.df, cache=cache)
+    )
 
 
 def _lazyframe_rewrite(df, update_plan):
@@ -377,6 +380,33 @@ class _AllEvents(Iterable):
         return iter([])
 
 _ALL_EVENTS = _AllEvents()
+
+
+class _ParsedDataFrame:
+    def __init__(self, df, **meta):
+        self.df = df
+        self.meta = {
+            'mem_cacheable': True,
+            'swap_cacheable': True,
+            **meta,
+        }
+
+    def with_df(self, df):
+        return self.__class__(
+            df=df,
+            **self.meta,
+        )
+
+    @classmethod
+    def from_df(cls, df, **meta):
+        if isinstance(df, cls):
+            meta = {
+                **df.meta,
+                **meta,
+            }
+            df = df.df
+
+        return cls(df, **meta)
 
 
 class TraceParserBase(abc.ABC, Loggable, PartialInit):
@@ -945,7 +975,12 @@ class TraceDumpTraceParser(TraceParserBase):
                         df=df,
                         pid_comms=pid_comms,
                     )
-                    return df
+                    return _ParsedDataFrame.from_df(
+                        df=df,
+                        swap_cacheable=True,
+                        mem_cacheable=True,
+                        nr_rows=desc['nr-rows'],
+                    )
 
     def _fixup_df(self, event, df, pid_comms):
         df = df.rename({
@@ -3512,8 +3547,9 @@ class _NamespaceTraceView(_TraceViewBase):
             # Preload all the events as we likely will only get one match
             # anyway, so we can avoid spinning up a parser several times for
             # nothing.
-            trace._preload_events(events)
+            events = sorted(trace._preload_events(events))
 
+            last_excep = MissingTraceEventError([event])
             for _event in events:
                 try:
                     return trace._internal_df_event(_event, **kwargs)
@@ -3979,6 +4015,7 @@ class _TraceCache(Loggable):
     def __init__(self, max_mem_size=None, trace_path=None, trace_id=None, swap_dir=None, max_swap_size=None, swap_content=None, metadata=None):
         self._lock = threading.RLock()
         self._cache = {}
+        self._swappable = {}
         self._data_cost = {}
         self._swap_content = swap_content or {}
         self._cache_desc_swap_filename = {}
@@ -4248,7 +4285,7 @@ class _TraceCache(Loggable):
                 data=None,
                 compute_cost=None,
                 write_swap=True,
-                force_write_swap=True,
+                ignore_cost=True,
                 # We do not write the swap_entry meta file, so that the
                 # user can write the data file before the swap entry is
                 # added. This way, another process will not be tricked into
@@ -4640,7 +4677,7 @@ class _TraceCache(Loggable):
 
                 return data
 
-    def insert(self, cache_desc, data, compute_cost=None, write_swap=False, force_write_swap=False, write_meta=True):
+    def insert(self, cache_desc, data, compute_cost=None, write_swap=False, ignore_cost=False, write_meta=True, swappable=None):
         """
         Insert an entry in the cache.
 
@@ -4659,25 +4696,32 @@ class _TraceCache(Loggable):
             written.
         :type write_swap: bool
 
-        :param force_write_swap: If ``True``, bypass the computation vs swap
+        :param ignore_cost: If ``True``, bypass the computation vs swap
             cost comparison.
-        :type force_write_swap: bool
+        :type ignore_cost: bool
 
         :param write_meta: If ``True``, the swap entry metadata will be written
             on disk if the data are. Otherwise, no swap entry is written to disk.
         :type write_meta: bool
+
+        :param swappable: If ``False``, the data will never be written to the
+            swap and will only be kept in memory. If ``None``, the swappability
+            will not change if it was already set, otherwise it will be set to
+            ``True``.
+        :type swappable: bool or None
         """
         with self._lock:
             self._cache[cache_desc] = data
+            if swappable is not None:
+                self._swappable[cache_desc] = swappable
             if compute_cost is not None:
                 self._data_cost[cache_desc] = compute_cost
 
-        if write_swap:
-            self.write_swap(
-                cache_desc,
-                force=force_write_swap,
-                write_meta=write_meta
-            )
+        self.write_swap(
+            cache_desc,
+            ignore_cost=ignore_cost,
+            write_meta=write_meta
+        )
 
         self._scrub_mem()
 
@@ -4761,7 +4805,7 @@ class _TraceCache(Loggable):
         except KeyError:
             pass
 
-    def write_swap(self, cache_desc, force=False, write_meta=True):
+    def write_swap(self, cache_desc, ignore_cost=False, write_meta=True):
         """
         Write the given descriptor to the swap area if that would be faster to
         reload the data rather than recomputing it. If the descriptor is not in
@@ -4770,8 +4814,8 @@ class _TraceCache(Loggable):
         :param cache_desc: Descriptor of the data to write to swap.
         :type cache_desc: _CacheDataDesc
 
-        :param force: If ``True``, bypass the compute vs swap cost comparison.
-        :type force: bool
+        :param ignore_cost: If ``True``, bypass the compute vs swap cost comparison.
+        :type ignore_cost: bool
 
         :param write_meta: If ``True``, the swap entry metadata will be written
             on disk if the data are. Otherwise, no swap entry is written to disk.
@@ -4780,10 +4824,17 @@ class _TraceCache(Loggable):
         try:
             with self._lock:
                 data = self._cache[cache_desc]
+                swappable = self._swappable.get(cache_desc, True)
         except KeyError:
             pass
         else:
-            if force or self._should_evict_to_swap(cache_desc, data):
+            if (
+                swappable and
+                (
+                    ignore_cost or
+                    self._should_evict_to_swap(cache_desc, data)
+                )
+            ):
                 self._write_swap(cache_desc, data, write_meta)
 
     def write_swap_all(self, **kwargs):
@@ -5071,9 +5122,11 @@ class _Trace(Loggable, _InternalTraceBase):
         def load_from_cache(event):
             cache_desc = self._make_raw_cache_desc(event)
             try:
-                return self._cache.fetch(cache_desc, insert=True)
+                df = self._cache.fetch(cache_desc, insert=True)
             except KeyError:
                 return None
+            else:
+                return _ParsedDataFrame.from_df(df)
 
         def parse(preloaded_df_map, preloaded_meta, events):
             needed_metadata = set(TraceParserBase.METADATA_KEYS) - set(preloaded_meta.keys())
@@ -5137,6 +5190,11 @@ class _Trace(Loggable, _InternalTraceBase):
             }
 
         meta, df_map = parse(preloaded_df_map, preloaded_meta, events)
+
+        df_map = {
+            event: df
+            for event, df in df_map.items()
+        }
         return (meta, df_map)
 
     def get_metadata(self, key):
@@ -5491,10 +5549,14 @@ class _Trace(Loggable, _InternalTraceBase):
                 df = self._cache.fetch(cache_desc, insert=True)
             except KeyError:
                 df = self._load_cache_raw_df(TraceEventChecker(event))[event]
+            else:
+                df = _ParsedDataFrame.from_df(df)
         except MissingTraceEventError as e:
             e.available_events = self.available_events
             raise e
         else:
+            assert isinstance(df, _ParsedDataFrame)
+            df = df.df
             # TODO: If and when this is solved, attach the name of the event to
             # the LazyFrames:
             # https://github.com/pola-rs/polars/issues/5117
@@ -5508,9 +5570,11 @@ class _Trace(Loggable, _InternalTraceBase):
         def try_from_cache(event):
             cache_desc = self._make_raw_cache_desc(event)
             try:
-                return self._cache.fetch(cache_desc, insert=True)
+                df = self._cache.fetch(cache_desc, insert=True)
             except KeyError:
                 return None
+            else:
+                return _ParsedDataFrame.from_df(df)
 
         from_cache = {
             event: try_from_cache(event)
@@ -5555,15 +5619,18 @@ class _Trace(Loggable, _InternalTraceBase):
 
     def _insert_events(self, df_map):
         for event, df in df_map.items():
-            cache_desc = self._make_raw_cache_desc(event)
-            self._cache.insert(
-                cache_desc,
-                df,
-                write_swap=True,
-                # For raw dataframe, always write in the swap area if asked for
-                # since parsing cost is known to be high
-                force_write_swap=True,
-            )
+            assert isinstance(df, _ParsedDataFrame)
+            if df.meta['mem_cacheable']:
+                cache_desc = self._make_raw_cache_desc(event)
+                self._cache.insert(
+                    cache_desc,
+                    df.df,
+                    write_swap=True,
+                    swappable=df.meta['swap_cacheable'],
+                    # For raw dataframe, always write in the swap area if asked for
+                    # since parsing cost is known to be high
+                    ignore_cost=True,
+                )
 
     def _parse_raw_events(self, events):
         if not events:
@@ -5693,6 +5760,7 @@ class _Trace(Loggable, _InternalTraceBase):
                                     parser=parser,
                                     cache=self._cache,
                                 )
+                                _df = _df.df
 
                                 _df = _df.join(
                                     extra_df,
@@ -5737,7 +5805,7 @@ class _Trace(Loggable, _InternalTraceBase):
                 df_map[event] = df
 
         return {
-            events_map[event]: df
+            events_map[event]: _ParsedDataFrame.from_df(df)
             for event, df in df_map.items()
         }
 
