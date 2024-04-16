@@ -495,9 +495,6 @@ def _hv_twinx(fig, display=True, y_range=None):
     return fig.options(
         backend='bokeh',
         hooks=[_hv_backend_twinx('bokeh', **kwargs)],
-    ).options(
-        backend='matplotlib',
-        hooks=[_hv_backend_twinx('matplotlib', **kwargs)],
     )
 
 def _hv_multi_line_title_hook(plot, element):
