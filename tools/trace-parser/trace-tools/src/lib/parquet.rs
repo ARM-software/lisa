@@ -215,13 +215,18 @@ pub fn dump_events<R, FTimestamp>(
     reader: R,
     mut modify_timestamps: FTimestamp,
     only_events: Option<Vec<String>>,
-    chunk_size: usize,
+    row_group_size: usize,
     compression: Compression,
 ) -> Result<Metadata, DynMultiError>
 where
     FTimestamp: FnMut(Timestamp) -> Timestamp,
     R: BorrowingRead + Send,
 {
+
+    // Size of a chunk accumulated in memory before handing it over to the parquet-writing thread.
+    // This is independent from the row group size, which may be bigger.
+    let chunk_size: usize = 64 * 1024;
+
     let only_events = &only_events;
     // TODO: EventId might not be enough if we extend the API to deal with buffers from multiple
     // traces
@@ -293,7 +298,7 @@ where
             .set_statistics_enabled(EnabledStatistics::Page)
             .set_created_by(creator.clone())
             .set_writer_version(WriterVersion::PARQUET_2_0)
-            .set_max_row_group_size(chunk_size)
+            .set_max_row_group_size(row_group_size)
             // TODO: Revisit enabling bloom filters. As of March 2024, polars cannot make use of it
             // anyway so not really worth it. Also, we already use dictionary encoding for strings,
             // which allows to quickly check if page contains a given string. It's not much of a

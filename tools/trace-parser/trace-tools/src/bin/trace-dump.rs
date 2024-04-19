@@ -57,13 +57,14 @@ enum Command {
         #[arg(long, default_value = "snappy")]
         compression: Compression,
 
-        // This size is a sweet spot. If in doubt, it's best to have chunks that are too big than
-        // too small, as smaller chunks can wreak performances and might also mean more work when
-        // consuming the file. In my experiments, 16 * 1024 was a transition point between good and
-        // horrible performance.  Note that this chunk size is expressed in terms of number of
-        // rows, independently from the size of the rows themselves.
-        #[arg(long, default_value_t=64 * 1024)]
-        chunk_size: usize,
+        // Large row group:
+        //     * Good for disk I/O.
+        //     * Bad for network I/O if only a small part of the row group is needed.
+        //     * Good for metadata size, as the total groups metadata can be quite large on really
+        //       large files, and is loaded eagerly by polars and datafusion, leading to really bad
+        //       memory consumption.
+        #[arg(long, default_value_t=1024 * 1024)]
+        row_group_size: usize,
     },
     CheckHeader {
         #[arg(long, value_name = "TRACE")]
@@ -111,7 +112,7 @@ fn _main() -> Result<(), Box<dyn Error>> {
             event,
             unique_timestamps,
             compression,
-            chunk_size,
+            row_group_size,
         } => {
             let (header, reader) = open_trace(trace)?;
             let make_ts: Box<dyn FnMut(_) -> _> = if unique_timestamps {
@@ -130,7 +131,7 @@ fn _main() -> Result<(), Box<dyn Error>> {
                 Compression::Lz4 => ParquetCompression::LZ4_RAW,
                 Compression::Uncompressed => ParquetCompression::UNCOMPRESSED,
             };
-            match dump_events(&header, reader, make_ts, event, chunk_size, compression) {
+            match dump_events(&header, reader, make_ts, event, row_group_size, compression) {
                 Ok(metadata) => Ok(metadata.dump(File::create("meta.json")?)?),
                 Err(err) => Err(err),
             }
