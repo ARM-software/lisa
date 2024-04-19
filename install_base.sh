@@ -67,7 +67,8 @@ install_android_sdk_manager() {
     # Used to be "https://dl.google.com/android/repository/commandlinetools-linux-7302050_latest.zip"
     # Used to be "https://dl.google.com/android/repository/commandlinetools-linux-8092744_latest.zip"
     # Used to be "https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip"
-    local url="https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip"
+    # Used to be "https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip"
+    local url="https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
     local archive="$ANDROID_HOME/android-sdk-manager.zip"
     rm "$archive" &>/dev/null
 
