@@ -2841,7 +2841,10 @@ class LISADynamicKmod(FtraceDynamicKmod):
         kallsyms = '\n'.join(
             f'{addr:x}\t{symtype}\t{name}{sym_mod(module)}'
             for (addr, name, symtype, module) in kallsyms
-            if module != mod_name
+            # If the symbol is part of a module, it must be ignored, as some
+            # symbols are duplicated in each module (e.g. __this_module), and
+            # would conflict with the ones defined for the LISA module.
+            if not module
         ) + '\n'
         kallsyms = kallsyms.encode('utf-8')
         extra['kallsyms'] = kallsyms
