@@ -54,7 +54,7 @@ Test:
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   parallel:
     matrix:
-      - PYVERSION: [8, 11]
+      - PYVERSION: [9, 11]
   before_script:
     # Make the test a no-op so we can run any step depending on successful tests
     - if [[ "$CI_PIPELINE_SOURCE" == "web" && "$WEB_SKIP_TEST" == "True" ]]; then exit 0; fi
