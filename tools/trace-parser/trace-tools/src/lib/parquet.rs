@@ -44,7 +44,7 @@ use traceevent::{
     cinterp::{EvalEnv, EvalError, Value},
     cparser::{identifier, ArrayKind, Type},
     header::{Address, EventDesc, EventId, FieldFmt, Header, HeaderError, LongSize, Timestamp},
-    io::BorrowingRead,
+    io::BorrowingReadCore,
     print::{PrintArg, PrintAtom, PrintFmtError, PrintFmtStr, VBinSpecifier},
 };
 
@@ -212,7 +212,7 @@ impl<'scope, 'scopeenv> SharedState<'scope, 'scopeenv> {
 
 pub fn dump_events<R, FTimestamp>(
     header: &Header,
-    reader: R,
+    reader: Box<R>,
     mut modify_timestamps: FTimestamp,
     only_events: Option<Vec<String>>,
     row_group_size: usize,
@@ -220,9 +220,8 @@ pub fn dump_events<R, FTimestamp>(
 ) -> Result<Metadata, DynMultiError>
 where
     FTimestamp: FnMut(Timestamp) -> Timestamp,
-    R: BorrowingRead + Send,
+    R: BorrowingReadCore + Send,
 {
-
     // Size of a chunk accumulated in memory before handing it over to the parquet-writing thread.
     // This is independent from the row group size, which may be bigger.
     let chunk_size: usize = 64 * 1024;
@@ -299,11 +298,11 @@ where
             .set_created_by(creator.clone())
             .set_writer_version(WriterVersion::PARQUET_2_0)
             .set_max_row_group_size(row_group_size)
-            // TODO: Revisit enabling bloom filters. As of March 2024, polars cannot make use of it
-            // anyway so not really worth it. Also, we already use dictionary encoding for strings,
-            // which allows to quickly check if page contains a given string. It's not much of a
-            // use for smaller scalar types.
-            // .set_bloom_filter_enabled(true)
+        // TODO: Revisit enabling bloom filters. As of March 2024, polars cannot make use of it
+        // anyway so not really worth it. Also, we already use dictionary encoding for strings,
+        // which allows to quickly check if page contains a given string. It's not much of a
+        // use for smaller scalar types.
+        // .set_bloom_filter_enabled(true)
     };
 
     scope(move |scope| {
@@ -680,13 +679,13 @@ where
 
 pub fn dump_metadata<R, W>(
     header: &Header,
-    reader: R,
+    reader: Box<R>,
     writer: W,
     keys: Option<Vec<String>>,
 ) -> Result<(), DynMultiError>
 where
     W: Write,
-    R: BorrowingRead + Send,
+    R: BorrowingReadCore + Send,
 {
     let scan_trace = match keys {
         Some(keys) => keys

@@ -723,11 +723,15 @@ impl<'i, 'h> Buffer<'i, 'h> {
 }
 
 impl HeaderV7 {
-    pub(crate) fn buffers<'i, 'h, 'a: 'i + 'h, I: BorrowingRead + Send + 'i>(
+    pub(crate) fn buffers<'i, 'h, 'a, I>(
         &'a self,
         header: &'h Header,
-        input: I,
-    ) -> Result<Vec<Buffer<'i, 'h>>, BufferError> {
+        input: Box<I>,
+    ) -> Result<Vec<Buffer<'i, 'h>>, BufferError>
+    where
+        'a: 'i + 'h,
+        I: BorrowingRead + Send + 'i,
+    {
         self.options
             .iter()
             .filter_map(|option| match option {
@@ -762,7 +766,7 @@ impl HeaderV7 {
                                 decomp,
                                 reader,
                             )?),
-                            None => Box::new(reader),
+                            None => reader,
                         };
                         Ok(Buffer {
                             id: BufferId {
@@ -786,7 +790,7 @@ impl HeaderV6 {
     pub(crate) fn buffers<'i, 'h, 'a: 'i + 'h, I: BorrowingRead + Send + 'i>(
         &'a self,
         header: &'h Header,
-        input: I,
+        input: Box<I>,
     ) -> Result<Vec<Buffer<'i, 'h>>, BufferError> {
         let nr_cpus = self.nr_cpus;
         let abi = &self.kernel_abi;
@@ -826,17 +830,17 @@ impl HeaderV6 {
                         name: "".into(),
                     },
                     page_size,
-                    reader: Box::new(reader),
+                    reader,
                     header,
                 }]),
                 LocId::Instance(name) => {
                     let data_kind = reader.read_null_terminated()?.to_owned();
-                    buffer_locations(&data_kind, nr_cpus, abi, &name, &mut reader)?
+                    buffer_locations(&data_kind, nr_cpus, abi, &name, reader.deref_mut())?
                         .into_iter()
                         .map(|loc| {
                             Ok(Buffer {
                                 id: loc.id,
-                                reader: Box::new(input.clone_and_seek(loc.offset, Some(loc.size))?),
+                                reader: input.clone_and_seek(loc.offset, Some(loc.size))?,
                                 page_size,
                                 header,
                             })
@@ -1060,7 +1064,7 @@ where
 
 struct DecompBorrowingReader<'a, I, D> {
     abi: &'a Abi,
-    inner: I,
+    inner: Box<I>,
     decomp: &'a D,
     remaining_chunks: u32,
 
@@ -1078,7 +1082,7 @@ where
     D: Decompressor + 'a,
     I: BorrowingRead,
 {
-    fn new(abi: &'a Abi, decomp: &'a D, mut reader: I) -> io::Result<Self> {
+    fn new(abi: &'a Abi, decomp: &'a D, mut reader: Box<I>) -> io::Result<Self> {
         let nr_chunks: u32 = reader.read_int(abi.endianness)?;
 
         Ok(DecompBorrowingReader {

@@ -11,6 +11,7 @@ use std::{
     collections::BTreeMap,
     io,
     io::Error as IoError,
+    ops::DerefMut as _,
     rc::Rc,
     string::String as StdString,
     sync::{Arc, RwLock},
@@ -418,7 +419,7 @@ impl Header {
 
     pub fn buffers<'i, 'h, 'a: 'i + 'h, I: BorrowingRead + Send + 'i>(
         &'a self,
-        input: I,
+        input: Box<I>,
     ) -> Result<Vec<Buffer<'i, 'h>>, BufferError> {
         match &self.inner {
             VersionedHeader::V6(header) => header.buffers(self, input),
@@ -1812,8 +1813,8 @@ where
 fn v7_parse_options<I>(
     abi: &Abi,
     decomp: &mut Option<DynDecompressor>,
-    mut input: I,
-) -> Result<(I, Vec<Options>), HeaderError>
+    mut input: Box<I>,
+) -> Result<(Box<I>, Vec<Options>), HeaderError>
 where
     I: BorrowingRead,
 {
@@ -1822,7 +1823,7 @@ where
 
     loop {
         let section = {
-            let (id, options) = v7_section(abi, &mut section_decomp, &mut input)?;
+            let (id, options) = v7_section(abi, &mut section_decomp, input.deref_mut())?;
             if id != 0 {
                 Err(HeaderError::UnexpectedSection {
                     expected: 0,
@@ -2050,7 +2051,7 @@ where
         ($expected_id:expr, $offset:expr) => {{
             let expected = $expected_id;
             input = input.abs_seek($offset, None)?;
-            let (found, section) = v7_section(&abi, &mut decomp, &mut input)?;
+            let (found, section) = v7_section(&abi, &mut decomp, input.deref_mut())?;
 
             if expected != found {
                 Err(HeaderError::UnexpectedSection { expected, found })

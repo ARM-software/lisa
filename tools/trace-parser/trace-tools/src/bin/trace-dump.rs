@@ -1,4 +1,6 @@
-use std::{error::Error, fs::File, io::Write, path::PathBuf, process::ExitCode};
+use std::{
+    error::Error, fs::File, io::Write, ops::DerefMut as _, path::PathBuf, process::ExitCode,
+};
 
 #[cfg(target_arch = "x86_64")]
 use mimalloc::MiMalloc;
@@ -15,6 +17,7 @@ use lib::{
     print::print_events,
 };
 use parquet::basic::{Compression as ParquetCompression, ZstdLevel};
+use traceevent::header::Header;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -82,10 +85,11 @@ enum Command {
 fn _main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
 
-    let open_trace = |path| -> Result<_, Box<dyn Error>> {
+    let open_trace = |path| -> Result<(Header, Box<_>), Box<dyn Error>> {
         let file = std::fs::File::open(path)?;
-        let mut reader = unsafe { traceevent::io::MmapFile::new(file) }?;
-        let header = header::header(&mut reader)?;
+        let reader = unsafe { traceevent::io::MmapFile::new(file) }?;
+        let mut reader = Box::new(reader);
+        let header = header::header(reader.deref_mut())?;
         Ok((header, reader))
     };
 
