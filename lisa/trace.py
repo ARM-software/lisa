@@ -4242,6 +4242,10 @@ class _TraceCache(Loggable):
                     pass
                 raise
             else:
+                # Ensure we actually trigger a file read, in case we are trying
+                # to interpret as parquet something that is not parquet
+                df.clear().collect()
+
                 df = _LazyFrameOnDelete.attach_file_cleanup(df, [hardlink_base])
                 return df
 
