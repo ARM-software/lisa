@@ -31,7 +31,7 @@ class PerfInstrument(Instrument):
 
     name = 'perf'
     description = """
-    Perf is a Linux profiling with performance counters.
+    Perf is a Linux profiling tool with performance counters.
     Simpleperf is an Android profiling tool with performance counters.
 
     It is highly recomended to use perf_type = simpleperf when using this instrument
@@ -109,6 +109,10 @@ class PerfInstrument(Instrument):
                   description="""
                   always install perf binary even if perf is already present on the device.
                   """),
+        Parameter('validate_pmu_events', kind=bool, default=True,
+                  description="""
+                  Query the hardware capabilities to verify the specified PMU events.
+                  """),
     ]
 
     def __init__(self, target, **kwargs):
@@ -137,7 +141,8 @@ class PerfInstrument(Instrument):
                                        self.run_report_sample,
                                        self.report_sample_options,
                                        self.labels,
-                                       self.force_install)
+                                       self.force_install,
+                                       self.validate_pmu_events)
 
     def setup(self, context):
         self.outdir = os.path.join(context.output_directory, self.perf_type)

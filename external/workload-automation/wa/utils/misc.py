@@ -55,7 +55,7 @@ from devlib.utils.misc import (ABI_MAP, check_output, walk_modules,
                                normalize, convert_new_lines, get_cpu_mask, unique,
                                isiterable, getch, as_relative, ranges_to_list, memoized,
                                list_to_ranges, list_to_mask, mask_to_list, which,
-                               to_identifier, safe_extract)
+                               to_identifier, safe_extract, LoadSyntaxError)
 
 check_output_logger = logging.getLogger('check_output')
 
@@ -297,21 +297,6 @@ def get_random_string(length):
     return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(length))
 
 
-class LoadSyntaxError(Exception):
-
-    def __init__(self, message, filepath, lineno):
-        super(LoadSyntaxError, self).__init__(message)
-        self.filepath = filepath
-        self.lineno = lineno
-
-    def __str__(self):
-        message = 'Syntax Error in {}, line {}:\n\t{}'
-        return message.format(self.filepath, self.lineno, self.message)
-
-
-RAND_MOD_NAME_LEN = 30
-
-
 def import_path(filepath, module_name=None):
     """
     Programmatically import the given Python source file under the name
@@ -358,44 +343,6 @@ def load_struct_from_python(filepath):
             for k, v in inspect.getmembers(mod)
             if not k.startswith('_')
         }
-
-
-def load_struct_from_yaml(filepath=None, text=None):
-    """Parses a config structure from a .yaml file. The structure should be composed
-    of basic Python types (strings, ints, lists, dicts, etc.)."""
-    # Import here to avoid circular imports
-    # pylint: disable=wrong-import-position,cyclic-import, import-outside-toplevel
-    from wa.utils.serializer import yaml
-
-    if not (filepath or text) or (filepath and text):
-        raise ValueError('Exactly one of filepath or text must be specified.')
-    try:
-        if filepath:
-            with open(filepath) as fh:
-                return yaml.load(fh)
-        else:
-            return yaml.load(text)
-    except yaml.YAMLError as e:
-        lineno = None
-        if hasattr(e, 'problem_mark'):
-            lineno = e.problem_mark.line  # pylint: disable=no-member
-        raise LoadSyntaxError(e.message, filepath=filepath, lineno=lineno)
-
-
-def load_struct_from_file(filepath):
-    """
-    Attempts to parse a Python structure consisting of basic types from the specified file.
-    Raises a ``ValueError`` if the specified file is of unkown format; ``LoadSyntaxError`` if
-    there is an issue parsing the file.
-
-    """
-    extn = os.path.splitext(filepath)[1].lower()
-    if extn in ('.py', '.pyc', '.pyo'):
-        return load_struct_from_python(filepath)
-    elif extn == '.yaml':
-        return load_struct_from_yaml(filepath)
-    else:
-        raise ValueError('Unknown format "{}": {}'.format(extn, filepath))
 
 
 def open_file(filepath):
