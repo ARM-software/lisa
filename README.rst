@@ -1,119 +1,47 @@
+devlib
+======
 
-⚠️ ``lisa_tests`` package will be moved to another repository in
-January 2024. When more details are available, this pull request will be
-updated: https://github.com/ARM-software/lisa/pull/2140 ⚠️
+``devlib`` exposes an interface for interacting with and collecting
+measurements from a variety of devices (such as mobile phones, tablets and
+development boards) running a Linux-based operating system.
 
 
-Introduction |CI status| |Documentation Status|
-===================================================
+Installation
+------------
 
-The LISA project provides a toolkit that supports regression testing and
-interactive analysis of Linux kernel behavior. LISA stands for Linux
-Integrated/Interactive System Analysis. LISA's goal is to help Linux
-kernel developers to measure the impact of modifications in core parts
-of the kernel. The focus is on the scheduler (e.g. EAS), power
-management and thermal frameworks. However LISA is generic and can be
-used for other purposes too.
+::
 
-LISA has a *host*/*target* model. LISA itself runs on a *host* machine,
-and uses the `devlib <https://github.com/ARM-software/devlib>`__ toolkit
-to interact with the *target* via SSH, ADB or telnet. LISA is flexible
-with regard to the target OS; its only expectation is a Linux
-kernel-based system. Android, GNU/Linux and busybox style systems have
-all been used.
+        sudo -H pip install devlib
 
-LISA provides features to describe workloads (notably using `rt-app
-<https://github.com/scheduler-tools/rt-app>`__) and run them on targets. It can
-collect trace files from the target OS (e.g. systrace and ftrace traces). These
-traces can then be parsed and analysed in order to examine detailed target
-behaviour during the workload's execution.
 
-Some LISA features may require modifying the target OS. For example, in
-order to collect ftrace files the target kernel must have
-CONFIG_DYNAMIC_FTRACE enabled.
+Dependencies
+------------
 
-There are two "entry points" for running LISA:
+``devlib`` should install all dependencies automatically, however if you run
+into issues please ensure you are using that latest version of pip.
 
--  Via the `Jupyter/IPython notebook framework <http://jupyter.org/>`__.
-   This allows LISA to be used interactively and supports visualisation
-   of trace data. Some notebooks are provided with example and
-   ready-made LISA use-cases.
+On some systems there may additional steps required to install the dependency
+``paramiko`` please consult the `module documentation <http://www.paramiko.org/installing.html>`_
+for more information.
 
--  Via the automated test framework. This framework allows the
-   development of automated pass/fail regression tests for kernel behaviour.
-   LISA provides some ready-made automated tests under the ``lisa/tests/``
-   directory.
+Usage
+-----
 
-Motivations
-===========
+Please refer  to the "Overview" section of the `documentation <http://devlib.readthedocs.io/en/latest/>`_.
 
-The main goals of LISA are:
-
--  Support study of existing behaviours (i.e. *"how does PELT work?"*)
--  Support analysis of new code being developed (i.e. *"what is the
-   impact on existing code?"*)
--  Get insights on what's not working and possibly chase down why
--  Share reproducible experiments by means of a **common language**
-   that:
-
-   -  is **flexible enough** to reproduce the same experiment on
-      different targets
-   -  **simplifies** generation and execution of well defined workloads
-   -  **defines** a set of metrics to evaluate kernel behaviours
-   -  **enables** kernel developers to easily post process data to
-      produce statistics and plots
-
-Documentation
-=============
-
-You should find everything on
-`ReadTheDocs <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/>`__.
-Here are some noteworthy sections:
-
-   * `Installation <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/setup.html>`__
-   * `Kernel tests <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/kernel_tests.html>`__
-
-How to reach us
-===============
-
-Bug reports should be raised against the `GitHub issue tracker <https://github.com/ARM-software/lisa/issues>`__.
-
-External Links
-==============
-
--  Linux Integrated System Analysis (LISA) & Friends
-   `Slides <http://events17.linuxfoundation.org/sites/events/files/slides/ELC16_LISA_20160326.pdf>`__
-   and `Video <https://www.youtube.com/watch?v=zRlqwurYq5Y>`__
-
-   ..
-     video title: LAS16-TR04: Using Tracing to tune and optimize EAS English
-
-   Note: the LISA classes referred by the slides are outdated, but all
-   the other concepts and the overall architecture stays the same.
-
--  Some insights on what it takes to have reliable tests:
-   `Video <https://www.youtube.com/watch?v=I_MZ9XS3_zc>`__
-
-    ..
-      video title: Scheduler behavioural testing
 
 License
-=======
+-------
 
-This project is licensed under Apache-2.0.
+This package is distributed under `Apache v2.0 License <http://www.apache.org/licenses/LICENSE-2.0>`_. 
 
-This project includes some third-party code under other open source
-licenses. For more information, see ``lisa/_assets/binaries/*/README.*``.
 
-Contributions / Pull Requests
-=============================
+Feedback, Contrubutions and Support
+-----------------------------------
 
-Contributions are accepted under Apache-2.0. Only submit contributions
-where you have authored all of the code. If you do this on work time
-make sure your employer is cool with this. We also have a `Contributor Guide
-<https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/contributors_guide.html>`__
+- Please use the GitHub Issue Tracker associated with this repository for
+  feedback.
+- ARM licensees may contact ARM directly via their partner managers.
+- We welcome code contributions via GitHub Pull requests. Please try to
+  stick to the style in the rest of the code for your contributions.
 
-.. |CI status| image:: https://github.com/ARM-software/lisa/workflows/test/badge.svg?branch=main
-   :target: https://github.com/ARM-software/lisa/actions
-.. |Documentation Status| image:: https://readthedocs.org/projects/lisa-linux-integrated-system-analysis/badge/?version=main
-   :target: https://lisa-linux-integrated-system-analysis.readthedocs.io/en/main/

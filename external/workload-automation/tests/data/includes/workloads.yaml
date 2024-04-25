@@ -1,5 +1,0 @@
-workloads:
-    - dhrystone
-    - name: memcpy
-      classifiers:
-          memcpy: True
