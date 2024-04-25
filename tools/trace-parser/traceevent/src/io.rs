@@ -32,26 +32,30 @@ fn file2mem(x: FileOffset) -> MemOffset {
         .expect("Could not convert FileOffset to MemOffset")
 }
 
+// This trait unfortunately is not (yet) object-safe, but since it does not require Self to be
+// Sized we are probably not too far away from it:
+// https://github.com/rust-lang/rust/issues/47649
 pub trait BorrowingReadCore {
     fn clear_buffer(&mut self);
     fn read(&mut self, count: MemSize) -> io::Result<&[u8]>;
     fn read_null_terminated(&mut self) -> io::Result<&[u8]>;
 
-    fn try_clone(&self) -> io::Result<Self>
-    where
-        Self: Sized;
-    fn abs_seek(self, offset: FileOffset, len: Option<FileSize>) -> io::Result<Self>
-    where
-        Self: Sized;
+    fn try_clone(&self) -> io::Result<Box<Self>>;
+    fn abs_seek(
+        self: Box<Self>,
+        offset: FileOffset,
+        len: Option<FileSize>,
+    ) -> io::Result<Box<Self>>;
 
     #[inline]
-    fn clone_and_seek(&self, offset: FileOffset, len: Option<FileSize>) -> io::Result<Self>
-    where
-        Self: Sized,
-    {
+    fn clone_and_seek(&self, offset: FileOffset, len: Option<FileSize>) -> io::Result<Box<Self>> {
         self.try_clone()?.abs_seek(offset, len)
     }
 }
+
+// It is not possible to make that trait object-safe as methods take generic parameters, but since
+// they all have default implementation, it would be possible to implement that trait for "dyn
+// BorrowingReadCore".
 pub trait BorrowingRead: BorrowingReadCore {
     #[inline]
     fn parse<P, O, E>(&mut self, count: MemSize, mut parser: P) -> io::Result<Result<O, E>>
@@ -254,11 +258,15 @@ where
     }
 
     #[inline]
-    fn try_clone(&self) -> io::Result<Self> {
-        Ok(self.clone())
+    fn try_clone(&self) -> io::Result<Box<Self>> {
+        Ok(Box::new(self.clone()))
     }
 
-    fn abs_seek(self, offset: FileOffset, len: Option<FileSize>) -> io::Result<Self> {
+    fn abs_seek(
+        mut self: Box<Self>,
+        offset: FileOffset,
+        len: Option<FileSize>,
+    ) -> io::Result<Box<Self>> {
         #[inline]
         fn convert(x: FileOffset) -> io::Result<MemOffset> {
             x.try_into().map_err(|_| ErrorKind::UnexpectedEof.into())
@@ -273,11 +281,9 @@ where
         if offset + len > self.buf().len() {
             Err(ErrorKind::UnexpectedEof.into())
         } else {
-            Ok(BorrowingCursor {
-                inner: self.inner,
-                offset,
-                len,
-            })
+            self.offset = offset;
+            self.len = len;
+            Ok(self)
         }
     }
 }
@@ -625,30 +631,36 @@ where
     }
 
     #[inline]
-    fn clone_and_seek(&self, offset: FileOffset, len: Option<FileSize>) -> io::Result<Self> {
-        unsafe {
+    fn clone_and_seek(&self, offset: FileOffset, len: Option<FileSize>) -> io::Result<Box<Self>> {
+        let new = unsafe {
             Self::from_cell(
                 Arc::clone(&self.inner.file),
                 offset,
                 len,
                 self.inner.file_len,
             )
-        }
+        };
+        new.map(Box::new)
     }
 
     #[inline]
-    fn try_clone(&self) -> io::Result<Self> {
-        unsafe {
+    fn try_clone(&self) -> io::Result<Box<Self>> {
+        let new = unsafe {
             Self::from_cell(
                 Arc::clone(&self.inner.file),
                 self.inner.curr_offset(),
                 None,
                 self.inner.file_len,
             )
-        }
+        };
+        new.map(Box::new)
     }
 
-    fn abs_seek(mut self, offset: FileOffset, len: Option<FileSize>) -> io::Result<Self> {
+    fn abs_seek(
+        mut self: Box<Self>,
+        offset: FileOffset,
+        len: Option<FileSize>,
+    ) -> io::Result<Box<Self>> {
         let file_len = self.inner.file_len;
         let len = len.unwrap_or(file_len - offset);
 
@@ -661,7 +673,10 @@ where
                 self.inner.len = len;
                 Ok(self)
             }
-            None => unsafe { Self::from_cell(self.inner.file, offset, Some(len), file_len) },
+            None => {
+                let new = unsafe { Self::from_cell(self.inner.file, offset, Some(len), file_len) };
+                new.map(Box::new)
+            }
         }
     }
 }
@@ -795,7 +810,7 @@ where
         }
     }
 
-    fn try_clone(&self) -> io::Result<Self> {
+    fn try_clone(&self) -> io::Result<Box<Self>> {
         let mut reader = self.inner.get_ref().clone();
         // We need to make sure the CursorReader<T> inside the BufReader is
         // pointing at the current offset, not the offset that we were advanced
@@ -807,16 +822,20 @@ where
         reader.offset -= mem2file(self.inner.buffer().len() - self.consume);
 
         let inner = BufReader::with_capacity(self.inner.capacity(), reader);
-        Ok(BorrowingBufReader {
+        Ok(Box::new(BorrowingBufReader {
             inner,
             consume: 0,
             len: self.len,
             max_len: self.max_len,
             scratch: ScratchAlloc::new(),
-        })
+        }))
     }
 
-    fn abs_seek(mut self, offset: FileOffset, len: Option<FileSize>) -> io::Result<Self> {
+    fn abs_seek(
+        mut self: Box<Self>,
+        offset: FileOffset,
+        len: Option<FileSize>,
+    ) -> io::Result<Box<Self>> {
         self.consume();
 
         let capacity = self.inner.capacity();
@@ -830,13 +849,13 @@ where
         self.inner.stream_position()?;
         let reader = self.inner.into_inner().inner;
 
-        Ok(BorrowingBufReader::new_with(
+        Ok(Box::new(BorrowingBufReader::new_with(
             reader,
             Some(capacity),
             offset,
             len,
             self.max_len,
-        ))
+        )))
     }
 }
 

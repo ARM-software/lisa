@@ -50,17 +50,19 @@ import weakref
 import atexit
 import threading
 import warnings
+from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlparse
+import types
 
 import numpy as np
 import pandas as pd
-from pandas.api.types import is_numeric_dtype
 import pyarrow.lib
 import pyarrow.parquet
 import polars as pl
 
 import devlib
 
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, unzip_into, order_as
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to_polars, _df_to_pandas, _df_to, _polars_df_in_memory, Timestamp
 from lisa.version import VERSION_TOKEN
@@ -175,27 +177,60 @@ def _make_hardlink(src, dst):
 def _logical_plan_resolve_paths(cache, plan, kind):
     swap_dir = Path(cache.swap_dir).resolve()
 
+    def normalize(url):
+        url = str(url)
+        _url = urlparse(url)
+        scheme = _url.scheme or 'file'
+        if scheme == 'file':
+            url = _url.path
+
+        return (scheme, url)
+
     hardlinks_base = Path(uuid.uuid4().hex)
     hardlinks = set()
     def update_path(path):
-        path = Path(path)
         if kind == 'dump':
-            path = path.relative_to(swap_dir)
-            # Remove the "hardlinks" part of the path so we point at the file
-            # in the cache
-            if path.parts[0] == 'hardlinks':
-                path = swap_dir / path.name
-            return path
-        elif kind == 'load':
-            assert not path.is_absolute()
+            scheme, path = normalize(path)
+            if scheme == 'file':
+                path = Path(path)
+                try:
+                    path = path.relative_to(swap_dir)
+                except ValueError:
+                    return path
+                else:
+                    # Remove the "hardlinks" part of the path so we point at the file
+                    # in the cache
+                    if path.parts[0] == 'hardlinks':
+                        path = Path(path.name)
 
-            # Create a hardlink to the data so that the data backing the
-            # LazyFrame we are reloading is guaranteed to stay around long
-            # enough and will not be scrubbed away.
-            hardlink_base, hardlink_path = cache._hardlink_path(hardlinks_base, path.name)
-            _make_hardlink(swap_dir / path, hardlink_path)
-            hardlinks.add(hardlink_base)
-            return hardlink_path
+                    assert not path.is_absolute()
+                    path = 'PATH_IN_LISA_CACHE' / path
+                    return path
+            else:
+                return path
+        elif kind == 'load':
+            scheme, path = normalize(path)
+            if scheme == 'file':
+                path = Path(path)
+                if path.parent.name == 'PATH_IN_LISA_CACHE':
+                    path = Path(path.name)
+
+                    # Create a hardlink to the data so that the data backing the
+                    # LazyFrame we are reloading is guaranteed to stay around long
+                    # enough and will not be scrubbed away.
+                    hardlink_base, hardlink_path = cache._hardlink_path(
+                        hardlinks_base,
+                        path.name,
+                    )
+                    _make_hardlink(swap_dir / path, hardlink_path)
+                    hardlinks.add(hardlink_base)
+                    return hardlink_path
+                # This path comes from somewhere else on the system so do not
+                # rewrite it
+                else:
+                    return path
+            else:
+                return path
         else:
             raise ValueError(f'Unknown kind {kind}')
     plan = _logical_plan_update_paths(plan, update_path=update_path)
@@ -225,7 +260,7 @@ def _logical_plan_update_paths(plan, update_path):
     return plan
 
 
-def _convert_df_from_parser(df, cache):
+def _convert_df_from_parser(df, parser, cache):
     def to_polars(df):
         if isinstance(df, pd.DataFrame):
             df.index.name = 'Time'
@@ -262,8 +297,16 @@ def _convert_df_from_parser(df, cache):
             return hardlink_path
 
         def fixup(df):
-            if isinstance(df, pl.LazyFrame):
-                if cache is not None and cache.swap_dir:
+            if isinstance(df, pl.LazyFrame) and parser._STEAL_FILES:
+                # We can only steal files if we have a swap to put it into
+                try:
+                    cache.swap_dir
+                except (AttributeError, ValueError):
+                    # If we cannot move the backing data to the swap folder, we
+                    # are forced to just load the data eagerly as backing
+                    # storage (e.g.  tmp folder) will probably disappear
+                    df = df.collect()
+                else:
                     hardlinks = set()
                     df = _lazyframe_rewrite(
                         df=df,
@@ -285,15 +328,13 @@ def _convert_df_from_parser(df, cache):
                     # LazyFrames reloaded from the cache.
                     df = _LazyFrameOnDelete.attach_file_cleanup(df, hardlinks)
 
-                # If we cannot move the backing data to the swap folder, we are
-                # forced to just load the data eagerly as backing storage (e.g.
-                # tmp folder) will probably disappear
-                else:
-                    df = df.collect()
-
             return to_polars(df)
         return fixup(df)
-    return move_to_cache(df, cache=cache)
+
+    df = _ParsedDataFrame.from_df(df)
+    return df.with_df(
+        move_to_cache(df.df, cache=cache)
+    )
 
 
 def _lazyframe_rewrite(df, update_plan):
@@ -334,12 +375,48 @@ class MissingMetadataError(KeyError):
         return f'Missing metadata: {self.metadata}'
 
 
+class _AllEvents(Iterable):
+    def __iter__(self):
+        return iter([])
+
+_ALL_EVENTS = _AllEvents()
+
+
+class _ParsedDataFrame:
+    def __init__(self, df, **meta):
+        self.df = df
+        self.meta = {
+            'mem_cacheable': True,
+            'swap_cacheable': True,
+            **meta,
+        }
+
+    def with_df(self, df):
+        return self.__class__(
+            df=df,
+            **self.meta,
+        )
+
+    @classmethod
+    def from_df(cls, df, **meta):
+        if isinstance(df, cls):
+            meta = {
+                **df.meta,
+                **meta,
+            }
+            df = df.df
+
+        return cls(df, **meta)
+
+
 class TraceParserBase(abc.ABC, Loggable, PartialInit):
     """
     Abstract Base Class for trace parsers.
 
     :param events: Iterable of events to parse. An empty iterable can be
-        passed, in which case some metadata may still be available.
+        passed, in which case some metadata may still be available. If
+        ``_ALL_EVENTS`` is passed, the caller may subsequently call
+        :meth:`parse_all_events`.
     :param events: collections.abc.Iterable(str)
 
     :param needed_metadata: Set of metadata name to gather in the parser.
@@ -370,11 +447,31 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
     Possible metadata keys
     """
 
-    def __init__(self, events, temp_dir, needed_metadata=None):
+    def __init__(self, events, temp_dir, needed_metadata=None, path=None):
         # pylint: disable=unused-argument
         self._requested_metadata = set(needed_metadata or [])
-        self._requested_events = set(events or [])
+        self._requested_events = events if events is _ALL_EVENTS else set(events)
         self._temp_dir = Path(temp_dir)
+
+    def get_parser_id(self):
+        """
+        Get the unique ID of that parser. Any parameter affecting the output
+        dataframes or metadata must be somehow part of that ID, so that the
+        cache is not accidentally hit with stale data.
+        """
+        # We rely on having a PartialInit object here, since TraceParserBase
+        # inherits from it.
+        assert isinstance(self, PartialInit)
+
+        cls = type(self)
+        id_ = '+'.join(
+            f'{attr}={val!r}'
+            for attr, val in sorted(self.__dict__['_kwargs'].items())
+        )
+
+        id_ = id_.encode('utf-8')
+        id_ = checksum(io.BytesIO(id_), 'md5')
+        return f'{cls.__module__}.{cls.__qualname__}-{id_}'
 
     def get_metadata(self, key):
         """
@@ -460,6 +557,21 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
         .. note:: The caller is free to modify the index of the data, and it
             must not affect other dataframes.
         """
+
+    def parse_all_events(self):
+        """
+        Parse all available events.
+
+        .. note:: A parser that does not support querying the
+            ``available-events`` metadata may raise an exception. This might
+            also lead to multilple scans of the trace in some implementations.
+        """
+        try:
+            events = self.get_metadata('available-events')
+            return self.parse_events(events)
+        except Exception:
+            raise NotImplementedError(f'{self.__class__.__qualname__} parser does not support parsing all events')
+
 
     def parse_events(self, events, best_effort=False, **kwargs):
         """
@@ -604,14 +716,17 @@ class TraceDumpError(Exception):
     """
     Exception containing errors forwarded from the trace-dump parser
     """
-    def __init__(self, errors, event=None):
+    def __init__(self, errors, event=None, cmd=None):
         self.errors = sorted(set(errors))
         self.event = event
+        self.cmd = cmd
 
     def __str__(self):
         event = self.event
         errors = self.errors
         nr_errors = len(errors)
+        cmd = self.cmd
+        cmd = ' '.join(map(shlex.quote, map(str, cmd))) if cmd else ''
 
         try:
             errors, = errors
@@ -624,9 +739,9 @@ class TraceDumpError(Exception):
             if nr_errors > 1:
                 sep = '\n  '
                 errors = errors.replace('\n', sep)
-                return f'{event}:{sep}{errors}'
+                return f'{cmd}{event}:{sep}{errors}'
             else:
-                return f'{event}: {errors}'
+                return f'{cmd}{event}: {errors}'
         else:
             return errors
 
@@ -656,7 +771,7 @@ class TraceDumpTraceParser(TraceParserBase):
 
         # time-range will not be available in the basic metadata, this requires
         # a full parse
-        if events or ('time-range' in needed_metadata):
+        if events or events is _ALL_EVENTS:
             meta = self._make_parquets(
                 path=path,
                 events=events,
@@ -672,6 +787,7 @@ class TraceDumpTraceParser(TraceParserBase):
             meta = self._make_metadata(
                 path=path,
                 temp_dir=temp_dir,
+                needed_metadata=needed_metadata,
             )
 
         self._metadata.update(meta)
@@ -725,7 +841,7 @@ class TraceDumpTraceParser(TraceParserBase):
                 # Die on general errors that are not associated with a specific
                 # event
                 if errors := errors['errors']:
-                    raise TraceDumpError(errors)
+                    raise TraceDumpError(errors, cmd=cmd)
 
     @classmethod
     def _process_metadata(cls, meta):
@@ -743,14 +859,39 @@ class TraceDumpTraceParser(TraceParserBase):
         except KeyError:
             pass
 
+        # symbols-address is stored as a list of items in JSON, since JSON
+        # objects can only have string keys.
+        try:
+            meta['symbols-address'] = dict(meta['symbols-address'])
+        except KeyError:
+            pass
+
+        try:
+            events_info = meta['events-info']
+        except KeyError:
+            pass
+        else:
+            # The parser reports all the events that appeared in the trace even
+            # if they were not collected.
+            meta['available-events'] = {
+                desc['event']
+                for desc in events_info
+                if not desc.get('errors')
+            }
+
         return meta
 
     @classmethod
-    def _make_metadata(cls, path, temp_dir):
+    def _make_metadata(cls, path, temp_dir, needed_metadata):
         stdout = cls._run(
             cli_args=(
-                '--trace', path,
                 'metadata',
+                '--trace', path,
+                *(
+                    arg
+                    for key in sorted(set(needed_metadata or []))
+                    for arg in ('--key', key)
+                )
             ),
             temp_dir=temp_dir,
         )
@@ -758,20 +899,27 @@ class TraceDumpTraceParser(TraceParserBase):
 
     @classmethod
     def _make_parquets(cls, events, path, temp_dir):
+        # Let the parser parse all available events
+        if events is _ALL_EVENTS:
+            events = []
+        else:
+            events = [
+                arg
+                for event in sorted(set(events))
+                # If we don't enable the source of the meta event, the
+                # parser will reject the source and we will never get a
+                # chance to get the meta event itself, so we need both.
+                for _event in Trace.get_event_sources(event)
+                for arg in ('--event', _event)
+            ]
+
         cls._run(
             cli_args=(
-                '--trace', path,
                 'parquet',
+                '--trace', path,
+                '--compression', 'lz4',
                 '--unique-timestamps',
-                *(
-                    arg
-                    for event in sorted(set(events))
-                    # If we don't enable the source of the meta event, the
-                    # parser will reject the source and we will never get a
-                    # chance to get the meta event itself, so we need both.
-                    for _event in Trace.get_event_sources(event)
-                    for arg in ('--events', _event)
-                )
+                *events,
             ),
             temp_dir=temp_dir,
         )
@@ -813,19 +961,13 @@ class TraceDumpTraceParser(TraceParserBase):
             pid_comms = self._pid_comms
             temp_dir = Path(self._temp_dir)
 
-            if errors := desc['errors']:
+            if errors := desc.get('errors', []):
                 # Only raise a TraceDumpError if the event is contained within
                 # the trace but we had problems parsing it out
                 raise TraceDumpError(errors, event=event)
             else:
                 if (path := desc.get('path')) is None:
                     raise FileNotFoundError(f'No parquet file for event "{event}"')
-                # TODO: For now, we cannot know if the event was selected or not when
-                # trace-cmd was invoked so we just assume that if no occurence
-                # exist, the event is missing. This might get fixed one day
-                # (e.g. if trace-cmd records its CLI parameters to trace.dat).
-                elif desc['nr-rows'] < 1:
-                    raise MissingTraceEventError([event])
                 else:
                     df = pl.scan_parquet(temp_dir / path)
                     df = self._fixup_df(
@@ -833,7 +975,12 @@ class TraceDumpTraceParser(TraceParserBase):
                         df=df,
                         pid_comms=pid_comms,
                     )
-                    return df
+                    return _ParsedDataFrame.from_df(
+                        df=df,
+                        swap_cacheable=True,
+                        mem_cacheable=True,
+                        nr_rows=desc['nr-rows'],
+                    )
 
     def _fixup_df(self, event, df, pid_comms):
         df = df.rename({
@@ -861,15 +1008,12 @@ class TraceDumpTraceParser(TraceParserBase):
         else:
             df = df.sort('Time')
 
-        # Turn all "comm" columns into categorical columns
+        # Turn all string columns into categorical columns, since strings are
+        # typically extremely repetitive
         categorical_cols = [
             col
             for col, dtype in df.schema.items()
-            if isinstance(dtype, pl.String) and (
-                col in ('comm', 'oldcomm', 'newcomm') or
-                col.startswith('comm_') or
-                col.endswith('_comm')
-            )
+            if isinstance(dtype, (pl.String, pl.Binary))
         ]
 
         if categorical_cols:
@@ -1013,7 +1157,7 @@ class TxtEventParser(EventParserBase):
                     # The non-capturing group with positive lookahead is
                     # necessary to be able to correctly collect spaces in the
                     # values of fields
-                    return r'{field}=(?P<{field}>.+?)(?:{blank}(?={identifier}=)|$)'.format(
+                    return r'{field}=(?P<{field}>.+?)(?:{blank}|$)'.format(
                         field=re.escape(field),
                         **cls.PARSER_REGEX_TERMINALS
                     )
@@ -1023,7 +1167,7 @@ class TxtEventParser(EventParserBase):
             # Catch-all field that will consume any unknown field, allowing for
             # partial parsing (both for performance/memory consumption and
             # forward compatibility)
-            fields_regexes.append(r'{identifier}=.*?(?=(?:{other_fields})=)'.format(
+            fields_regexes.append(r'{identifier}=\S+?(?:{blank}|$)'.format(
                 other_fields='|'.join(fields),
                 **cls.PARSER_REGEX_TERMINALS
             ))
@@ -1293,7 +1437,7 @@ class TxtTraceParserBase(TraceParserBase):
             # We only needed the fields to infer the descriptors, so let's drop
             # them to lower peak memory usage
             with contextlib.suppress(KeyError):
-                del self._skeleton_df['__fields']
+                self._skeleton_df = self._skeleton_df.drop(['__fields'])
 
             event_parsers = {
                 **{
@@ -1409,14 +1553,27 @@ class TxtTraceParserBase(TraceParserBase):
         ]
         columns += extra_cols
 
-        index = '__timestamp' if data and '__timestamp' in columns else None
-        return pd.DataFrame.from_records(
+        df = pl.DataFrame(
             data,
-            columns=columns,
-            index=index,
+            orient='row',
+            schema=columns,
+            # Scan the entire dataset to figure out the best dtype
+            infer_schema_length=None,
+        ).lazy()
+
+        df = df.with_columns(
+            pl.col(col).cast(pl.String)
+            for col, dtype in df.schema.items()
+            if isinstance(dtype, pl.Binary)
         )
 
-    def _eagerly_parse_lines(self, lines, skeleton_regex, event_parsers, events, time=None):
+        # Put the timestamp first so it's recognized as the index
+        df = df.select(
+            order_as(columns, ['__timestamp'])
+        )
+        return df
+
+    def _eagerly_parse_lines(self, lines, skeleton_regex, event_parsers, events, time=None, time_unit='s'):
         """
         Filter the lines to select the ones with events.
 
@@ -1500,7 +1657,9 @@ class TxtTraceParserBase(TraceParserBase):
                     continue
             else:
                 if not time_is_provided:
-                    line_time = Timestamp(group(match, '__timestamp').decode('utf-8'))
+                    line_time = Timestamp(
+                        group(match, '__timestamp').decode('utf-8')
+                    )
                     # Do a global deduplication of timestamps, across all
                     # events regardless of the one we will parse. This ensures
                     # stable results and joinable dataframes from multiple
@@ -1541,9 +1700,14 @@ class TxtTraceParserBase(TraceParserBase):
         if begin_time is None and events:
             raise ValueError('No lines containing events have been found')
 
+        available_events = {
+            event.decode('ascii')
+            for event in available_events
+        }
+
         end_time = line_time
         available_events.update(
-            event
+            event.decode('ascii')
             for event, (search, data) in events_data.items()
             if data
         )
@@ -1573,49 +1737,43 @@ class TxtTraceParserBase(TraceParserBase):
         # parsed already. It contains the event name, the time, and potentially
         # the fields if they are needed
         skeleton_df = self._make_df_from_data(skeleton_regex, skeleton_data, ['__timestamp', 'line'])
+        skeleton_df = skeleton_df.with_columns(
+            pl.col('__event').cast(pl.Categorical)
+        )
+
         # Drop unnecessary columns that might have been parsed by the regex
-        to_keep = {'__event', '__fields', 'line'}
-        skeleton_df = skeleton_df[sorted(to_keep & set(skeleton_df.columns))]
-        # Make the event column more compact
-        skeleton_df['__event'] = skeleton_df['__event'].astype('category', copy=False)
+        to_keep = {'__timestamp', '__event', '__fields', 'line'}
+        skeleton_df = skeleton_df.select(sorted(to_keep & set(skeleton_df.columns)))
         # This is very fast on a category dtype
-        available_events.update(skeleton_df['__event'].unique())
+        available_events.update(
+            skeleton_df.select(
+                pl.col('__event').unique()
+            ).collect()['__event']
+        )
 
-        available_events = {event.decode('ascii') for event in available_events}
-
-        # If time was provided, we assume it's coming from a finalized pandas
-        # dataframe that uses float for index.
         if time_is_provided:
-            assert isinstance(begin_time, float)
-            assert isinstance(end_time, float)
-            begin_time = Timestamp(begin_time, unit='s')
-            end_time = Timestamp(end_time, unit='s')
+            begin_time = Timestamp(begin_time, unit=time_unit)
+            end_time = Timestamp(end_time, unit=time_unit)
         else:
             begin_time = Timestamp(begin_time, unit='ns')
             end_time = Timestamp(end_time, unit='ns')
 
         return (events_df, skeleton_df, (begin_time, end_time), available_events)
 
-    def _lazyily_parse_event(self, event, parser, df):
+    def _lazily_parse_event(self, event, parser, df):
         # Only parse the lines that have a chance to match
-        df = df[df['__event'] == event.encode('ascii')]
-        index = df.index
-        regex = parser.bytes_regex
+        df = df.filter(
+            pl.col('__event') == event
+        )
 
-        # Resolve names outside of the comprehension
-        search = regex.search
-        groups = self._RE_MATCH_CLS.groups
-        # Parse the lines with the regex.
-        # note: we cannot use Series.str.extract(expand=True) since it does
-        # not work on bytes
-        data = [
-            groups(search(line))
-            for line in df['line']
-        ]
-        df = self._make_df_from_data(regex, data)
-        df.index = index
-        df = self._postprocess_df(event, parser, df)
-        return df
+        pattern = parser.bytes_regex.pattern.decode('utf-8')
+
+        new_df = df.select((
+            pl.col('__timestamp'),
+            pl.col('line').str.strip_chars().str.extract_groups(pattern),
+        )).unnest('line')
+        new_df = self._postprocess_df(event, parser, new_df)
+        return new_df
 
     @staticmethod
     def _get_event_descs(df, events, event_parsers):
@@ -1628,64 +1786,54 @@ class TxtTraceParserBase(TraceParserBase):
             def encode(string):
                 return string.encode('ascii')
 
-            user_supplied = set(map(encode, user_supplied))
-            events = set(map(encode, events))
-
-            # Since we make a shallow copy:
-            # DO NOT MODIFY ANY EXISTING COLUMN
-            df = df.copy(deep=False)
-
             # Find the field names only for the events we don't already know about,
             # since the inference is relatively expensive
             if all_events:
-                df = df[~df['__event'].isin(user_supplied)]
+                df = df.filter(
+                    pl.col('__event').is_in(user_supplied).not_()
+                )
             else:
                 events = set(events) - user_supplied
-                df = df[df['__event'].isin(events)]
+                df = df.filter(
+                    pl.col('__event').is_in(events)
+                )
 
-            def apply_regex(series, func, regex):
-                regex = encode(regex.format(**TxtEventParser.PARSER_REGEX_TERMINALS))
-                regex = re.compile(regex, flags=re.ASCII)
-                return [
-                    func(regex, x)
-                    for x in series
-                ]
+            fields_regex = r'({identifier})='.format(
+                **TxtEventParser.PARSER_REGEX_TERMINALS
+            )
 
-            def is_match(pat, x):
-                return bool(pat.search(x))
+            df = df.with_columns(
+                pl.col('__fields')
+                .cast(pl.String)
+                .str.extract_all(fields_regex)
+                # We can't match groups and extract all occurences at the
+                # moment, so we postprocess the field name instead:
+                # https://github.com/pola-rs/polars/issues/11857
+                .list.eval(
+                    pl.element()
+                    .str.strip_chars_end('=')
+                )
+            )
 
-            # We cannot use Series.str.(count|finall) since they don't work
-            # with bytes
-            df['split_fields'] = apply_regex(df['__fields'], re.findall, r'({identifier})=')
-            # Look for any value before the first named field
-            df['pos_fields'] = apply_regex(df['__fields'], is_match, r'(?:^ *(?:[^ =]+ [^ =]+)+=)|(?:^[^=]*$)')
+            df = df.group_by('__event').agg(
+                pl.col('__fields')
+                .list.explode()
+                .unique()
+            )
 
-            def infer_fields(x):
-                field_alternatives = x.transform(tuple).unique()
-                if len(field_alternatives) == 1:
-                    fields = field_alternatives[0]
-                else:
-                    # Use the union of all the fields, and the order of appearance is not guaranteed
-                    fields = sorted(set(itertools.chain.from_iterable(field_alternatives)))
-
-                return fields
-
-            # For each event we don't already know, get the list of all fields available
-            inferred = df.groupby('__event', observed=True, group_keys=False)['split_fields'].apply(infer_fields).to_frame()
-
-            def update_desc(desc):
+            def make_desc(event, fields):
                 new = dict(
                     positional_field=None,
-                    fields={
-                        field.decode('ascii'): None
-                        for field in desc['split_fields']
-                    },
+                    fields=dict.fromkeys(fields, None)
                 )
                 return new
 
             dct = {
-                event.decode('ascii'): update_desc(desc)
-                for event, desc in inferred.T.to_dict().items()
+                event: make_desc(event, fields)
+                for event, fields in df.select((
+                    pl.col('__event').cast(pl.String),
+                    pl.col('__fields'),
+                )).collect().iter_rows()
             }
             return dct
 
@@ -1699,141 +1847,129 @@ class TxtTraceParserBase(TraceParserBase):
         try:
             df = self._events_df[event]
         except KeyError:
-            df = self._lazyily_parse_event(event, parser, self._skeleton_df)
+            df = self._lazily_parse_event(event, parser, self._skeleton_df)
+
+        # Everything resides in memory anyway, so make that clear to the _Trace
+        # infrastructure so it does not accidentally tries to serialize a
+        # LazyFrame as a huge JSON.
+        df = df.collect()
 
         # Since there is no way to distinguish between no event entry and
         # non-collected events in text traces, map empty dataframe to missing
         # event
-        if df.empty:
-            raise MissingTraceEventError([event])
-        else:
+        if len(df):
             return df
+        else:
+            raise MissingTraceEventError([event])
 
     @classmethod
     def _postprocess_df(cls, event, parser, df):
-        """
-        ALL THE PROCESSING MUST HAPPEN INPLACE on the dataframe
-        """
-        # pylint: disable=unused-argument
+        assert isinstance(df, pl.LazyFrame)
 
-        # Convert fields from extracted strings to appropriate dtype
-        all_fields = {
-            **parser.fields,
-            **cls.HEADER_FIELDS,
-        }
+        def get_representative(df, col):
+            df = (
+                df
+                .select(col)
+                .filter(
+                    pl.col(col).is_null().not_()
+                )
+                .head(1)
+                .collect()
+            )
+            try:
+                return df.item()
+            except ValueError:
+                return None
 
-        def default_converter(x):
-            first_success = None
+        def infer_schema(df):
+            # Select a subset of the dataframe that has no null value in it, so
+            # we can accurately infer the dtype.
+            df = pl.DataFrame({
+                col: [get_representative(df, col)]
+                for col in df.columns
+            })
 
-            for dtype in cls.DTYPE_INFERENCE_ORDER:
-                convert = make_converter(dtype)
-                with contextlib.suppress(ValueError, TypeError):
-                    converted = convert(x)
-                    # If we got the dtype we wanted, use it immediately.
-                    # Otherwise, record the first conversion (i.e. the most
-                    # specific) that did no completely fail so we can reuse it
-                    # instead of "string"
-                    if converted.dtype == dtype:
-                        return converted
-                    elif first_success is None:
-                        first_success = converted
+            # Ugly hack: dump the first row to CSV to infer the schema of the
+            # dataframe based on text data, since that's what we have.
+            bytes_io = io.BytesIO()
+            df.write_csv(bytes_io)
+            df = pl.read_csv(bytes_io)
+            schema = df.schema
 
-            # If we got no perfect conversion, return the most specific one
-            # that gave a result, otherwise bailout to just strings
-            if first_success is None:
-                try:
-                    return make_converter('string')(x)
-                except (ValueError, TypeError):
-                    return x
-            else:
-                return first_success
+            schema = {
+                # Cast all strings as categorical since they are typically very
+                # repetitive
+                col: pl.Categorical if isinstance(dtype, (pl.String, pl.Binary)) else dtype
+                for col, dtype in schema.items()
+            }
 
-        def make_converter(dtype):
-            # If the dtype is already known, just use that
-            if dtype:
-                return lambda x: series_convert(x, dtype)
-            else:
-                # Otherwise, infer it from the data we have
-                return default_converter
+            return schema
 
-        converters = {
-            field: make_converter(dtype)
-            for field, dtype in all_fields.items()
-            if field in df.columns
-        }
-        # DataFrame.apply() can lead to recursion error when a conversion
-        # fails, so use an explicit loop instead
-        for col in set(df.columns) & converters.keys():
-            df[col] = converters[col](df[col])
+        # Polars will fail to convert strings with trailing spaces (e.g. "42  "
+        # into 42), so ensure we clean that up before conversion
+        df = df.with_columns(
+            pl.col(col).str.strip_chars()
+            for col, dtype in df.schema.items()
+            if isinstance(dtype, pl.String)
+        )
+
+        df = df.with_columns(
+            pl.col(name).cast(dtype)
+            for name, dtype in infer_schema(df).items()
+        )
+        df = df.rename({'__timestamp': 'Time'})
 
         if event == 'sched_switch':
-            copied = False
-            def copy_once(x):
-                nonlocal copied
-                if copied:
-                    return x
-                else:
-                    copied = True
-                    return x.copy(deep=False)
-
-            if df['prev_state'].dtype.name == 'string':
+            if isinstance(df.schema['prev_state'], (pl.String, pl.Categorical)):
                 # Avoid circular dependency issue by importing at the last moment
                 # pylint: disable=import-outside-toplevel
                 from lisa.analysis.tasks import TaskState
-                df = copy_once(df)
-                df['prev_state'] = df['prev_state'].apply(TaskState.from_sched_switch_str).astype('uint16', copy=False)
+                df = df.with_columns(
+                    pl.col('prev_state').map_elements(
+                        TaskState.from_sched_switch_str,
+                        return_dtype=pl.UInt64,
+                    ).cast(pl.UInt16)
+                )
 
-            # Save a lot of memory by using category for strings
-            df = copy_once(df)
-            for col in ('next_comm', 'prev_comm'):
-                df[col] = df[col].astype('category', copy=False)
+        elif event in ('sched_overutilized', 'lisa__sched_overutilized'):
+            df = df.with_columns(
+                pl.col('overutilized').cast(pl.Boolean)
+            )
 
-        elif event == 'lisa__sched_overutilized':
-            copied = False
-            def copy_once(x):
-                nonlocal copied
-                if copied:
-                    return x
-                else:
-                    copied = True
-                    return x.copy(deep=False)
-
-            if not df['overutilized'].dtype.name == 'bool':
-                df = copy_once(df)
-                df['overutilized'] = df['overutilized'].astype(bool, copy=False)
-
-            if 'span' in df.columns and df['span'].dtype.name == 'string':
-                df = copy_once(df)
-                df['span'] = df['span'].apply(lambda x: x if pd.isna(x) else int(x, base=16))
+            if isinstance(df.schema.get('span'), (pl.String, pl.Binary, pl.Categorical)):
+                df = df.with_columns(
+                    pl.col('span')
+                    .cast(pl.String)
+                    .str.strip_chars()
+                    .str.strip_prefix('0x')
+                    .str.to_integer(base=16)
+                )
 
         elif event in ('thermal_power_cpu_limit', 'thermal_power_cpu_get_power'):
-            def parse_load(array):
-                # Parse b'{2 3 2 8}'
-                return tuple(map(int, array[1:-1].split()))
 
             # In-kernel name is "cpumask", "cpus" is just an artifact of the pretty
             # printing format string of ftrace, that happens to be used by a
             # specific parser.
-            df = df.rename(columns={'cpus': 'cpumask'}, copy=False)
-            df = df.copy(deep=False)
+            df = df.rename({'cpus': 'cpumask'})
 
             if event == 'thermal_power_cpu_get_power':
-                if df['load'].dtype.name == 'object':
-                    df['load'] = df['load'].apply(parse_load)
+                if isinstance(df.schema['load'], (pl.String, pl.Binary, pl.Categorical)):
+                    df = df.with_columns(
+                        # Parse b'{2 3 2 8}'
+                        pl.col('load')
+                        .cast(pl.String)
+                        .str.strip_chars('{}')
+                        .str.split(' ')
+                        .list.eval(
+                            pl.element()
+                            .str.to_integer()
+                        )
+                    )
 
         elif event in ('ipi_entry', 'ipi_exit'):
-            df = df.copy(deep=False)
-            df['reason'] = df['reason'].str.strip('()')
-
-        elif event in ('print', 'bprint', 'bputs'):
-            df = df.copy(deep=False)
-
-            # Only process string "ip" (function name), not if it is a numeric
-            # address
-            if not is_numeric_dtype(df['ip'].dtype):
-                # Reduce memory usage and speedup selection based on function
-                with contextlib.suppress(KeyError):
-                    df['ip'] = df['ip'].astype('category', copy=False)
+            df = df.with_columns(
+                pl.col('reason').str.strip_chars('()')
+            )
 
         return df
 
@@ -2486,14 +2622,15 @@ class MetaTxtTraceParser(SimpleTxtTraceParser):
     }
 
     @kwargs_forwarded_to(SimpleTxtTraceParser.__init__)
-    def __init__(self, *args, time, **kwargs):
+    def __init__(self, *args, time, time_unit='s', **kwargs):
         self._time = time
+        self._time_unit = time_unit
         super().__init__(*args, **kwargs)
 
     def _eagerly_parse_lines(self, *args, **kwargs):
         # Use the iloc as "time", and we fix it up manually afterwards
         return super()._eagerly_parse_lines(
-            *args, **kwargs, time=self._time,
+            *args, **kwargs, time=self._time, time_unit=self._time_unit,
         )
 
 
@@ -3256,18 +3393,26 @@ class _ProcessTraceView(_TraceViewBase):
 class _PreloadEventsTraceView(_TraceViewBase):
     def __init__(self, trace, events=None, strict_events=False):
         super().__init__(trace)
+        trace = self.base_trace
 
         if isinstance(events, str):
             raise ValueError('Events passed to Trace(events=...) must be a list of strings, not a string.')
+        elif events is _ALL_EVENTS:
+            pass
         else:
             events = set(events or [])
+            events = AndTraceEventChecker.from_events(events)
 
-        events = AndTraceEventChecker.from_events(events)
+        if events or events is _ALL_EVENTS:
+            preloaded = trace._preload_events(events)
+
+            if events is _ALL_EVENTS:
+                events = AndTraceEventChecker.from_events(set(trace.available_events))
+
+            if strict_events:
+                events.check_events(preloaded)
+
         self._events = events
-
-        preloaded = self.base_trace._preload_events(events)
-        if strict_events:
-            events.check_events(preloaded)
 
     @property
     def events(self):
@@ -3296,23 +3441,30 @@ class _NamespaceTraceView(_TraceViewBase):
         # namespaces, otherwise the overhead of the loop will get multiplicated
         # at every layer and we end up with large overheads.
         if self._events_namespaces:
-            mapping = {
-                _event: event
-                for event in events
-                for _event in self._expand_namespaces(event)
-            }
+            if events is _ALL_EVENTS:
+                preloaded = super()._preload_events(events)
+                if None in self._events_namespaces:
+                    return preloaded
+                else:
+                    return set()
+            else:
+                mapping = {
+                    _event: event
+                    for event in events
+                    for _event in self._expand_namespaces(event)
+                }
 
-            # Preload the events in a single batch. This is critical for
-            # performance, otherwise we will spin up the parser multiple times.
-            preloaded = self.base_trace._preload_events(mapping.keys())
+                # Preload the events in a single batch. This is critical for
+                # performance, otherwise we will spin up the parser multiple times.
+                preloaded = self.base_trace._preload_events(mapping.keys())
 
-            return {
-                # Return the requested name instead of the actual event
-                # preloaded so that _PreloadEventsTraceView() can check for
-                # what it actually asked for
-                mapping.get(_event, _event)
-                for _event in preloaded
-            }
+                return {
+                    # Return the requested name instead of the actual event
+                    # preloaded so that _PreloadEventsTraceView() can check for
+                    # what it actually asked for
+                    mapping.get(_event, _event)
+                    for _event in preloaded
+                }
         else:
             return super()._preload_events(events)
 
@@ -3395,8 +3547,9 @@ class _NamespaceTraceView(_TraceViewBase):
             # Preload all the events as we likely will only get one match
             # anyway, so we can avoid spinning up a parser several times for
             # nothing.
-            trace._preload_events(events)
+            events = sorted(trace._preload_events(events))
 
+            last_excep = MissingTraceEventError([event])
             for _event in events:
                 try:
                     return trace._internal_df_event(_event, **kwargs)
@@ -3495,27 +3648,29 @@ class _AvailableTraceEventsSet:
     @property
     def _available_events(self):
         trace = self._trace
-        # Ideally the parser can report the available events, so the set is
-        # stable.
+
+        # Prime the trace metadata with what the events the parser reports.
+        # This will not include meta events.
         try:
             available = trace.get_metadata('available-events')
         except MissingMetadataError:
-            # In case the parser does not implement this metadata, we fall back
-            # on listing all the events we have succesfully parsed in the past.
-            # This will be updated in various places, so the result will not be
-            # stable.
-            try:
-                parseable = trace._cache.get_metadata('parseable-events')
-            except MissingMetadataError:
-                return set()
-            else:
-                return {
-                    _event
-                    for _event, _parseable in parseable.items()
-                    if _parseable
-                }
+            available = []
+
+        available = set(available)
+
+        # List all the events we have succesfully parsed in the past. This will
+        # be updated in various places, so the result will not be stable.
+        try:
+            parseable = trace._cache.get_metadata('parseable-events')
+        except MissingMetadataError:
+            # This won't include meta-events, but better than nothing
+            return available
         else:
-            return set(available)
+            return {
+                _event
+                for _event, _parseable in parseable.items()
+                if _parseable
+            }
 
     def __iter__(self):
         return iter(self._available_events)
@@ -3860,6 +4015,7 @@ class _TraceCache(Loggable):
     def __init__(self, max_mem_size=None, trace_path=None, trace_id=None, swap_dir=None, max_swap_size=None, swap_content=None, metadata=None):
         self._lock = threading.RLock()
         self._cache = {}
+        self._swappable = {}
         self._data_cost = {}
         self._swap_content = swap_content or {}
         self._cache_desc_swap_filename = {}
@@ -3875,6 +4031,9 @@ class _TraceCache(Loggable):
         self.trace_path = os.path.abspath(trace_path) if trace_path else trace_path
         self._trace_id = trace_id
         self._unique_id = uuid.uuid4().hex
+
+        # Limit to one worker, as we will likely take the self._lock anyway
+        self._thread_executor = ThreadPoolExecutor(max_workers=1)
 
     @property
     def swap_dir(self):
@@ -3920,6 +4079,11 @@ class _TraceCache(Loggable):
         except Exception:
             pass
 
+        # Ensure we block until all workers are finished. Otherwise, e.g.
+        # removing the swap area might fail because an worker is still creating
+        # the metadata file in there.
+        self._thread_executor.shutdown()
+
     def _parser_temp_path(self):
         try:
             swap_dir = self.swap_dir
@@ -3931,7 +4095,7 @@ class _TraceCache(Loggable):
 
         return tempfile.TemporaryDirectory(dir=path)
 
-    def update_metadata(self, metadata):
+    def update_metadata(self, metadata, blocking=True):
         """
         Update the metadata mapping with the given ``metadata`` mapping and
         write it back to the swap area.
@@ -3939,7 +4103,7 @@ class _TraceCache(Loggable):
         if metadata:
             with self._lock:
                 self._metadata.update(metadata)
-            self.to_swap_dir()
+            self.to_swap_dir(blocking=blocking)
 
     def get_metadata(self, key):
         """
@@ -3955,31 +4119,39 @@ class _TraceCache(Loggable):
         """
         Returns a dictionary suitable for JSON serialization.
         """
-        trace_path = self.trace_path
+        with self._lock:
+            trace_path = self.trace_path
 
-        if trace_path:
-            try:
-                swap_dir = self.swap_dir
-            except ValueError:
-                trace_path = os.path.abspath(trace_path)
-            else:
-                trace_path = os.path.relpath(trace_path, swap_dir)
+            if trace_path:
+                try:
+                    swap_dir = self.swap_dir
+                except ValueError:
+                    trace_path = os.path.abspath(trace_path)
+                else:
+                    trace_path = os.path.relpath(trace_path, swap_dir)
 
-        return {
-            'version-token': VERSION_TOKEN,
-            'metadata': self._metadata,
-            'trace-path': trace_path,
-            'trace-id': self._trace_id,
-        }
+            return ({
+                'version-token': VERSION_TOKEN,
+                'metadata': self._metadata,
+                'trace-path': trace_path,
+                'trace-id': self._trace_id,
+            })
 
-    def to_path(self, path):
+    def to_path(self, path, blocking=True):
         """
         Write the persistent state to the given ``path``.
         """
-        mapping = self.to_json_map()
-        with open(path, 'w') as f:
-            json.dump(mapping, f)
-            f.write('\n')
+        def f():
+            mapping = self.to_json_map()
+            with open(path, 'w') as f:
+                json.dump(mapping, f)
+                f.write('\n')
+
+        with measure_time() as m:
+            if blocking:
+                f()
+            else:
+                self._thread_executor.submit(f)
 
     @classmethod
     def _from_swap_dir(cls, swap_dir, trace_id, trace_path=None, metadata=None, **kwargs):
@@ -4033,7 +4205,7 @@ class _TraceCache(Loggable):
 
         return cls(swap_content=swap_content, swap_dir=swap_dir, metadata=metadata, trace_path=trace_path, trace_id=trace_id, **kwargs)
 
-    def to_swap_dir(self):
+    def to_swap_dir(self, blocking=True):
         """
         Write the persistent state to the swap area if any, no-op otherwise.
         """
@@ -4043,7 +4215,7 @@ class _TraceCache(Loggable):
             pass
         else:
             path = os.path.join(swap_dir, self.TRACE_META_FILENAME)
-            self.to_path(path)
+            self.to_path(path, blocking=blocking)
 
     @classmethod
     def from_swap_dir(cls, swap_dir, **kwargs):
@@ -4113,7 +4285,7 @@ class _TraceCache(Loggable):
                 data=None,
                 compute_cost=None,
                 write_swap=True,
-                force_write_swap=True,
+                ignore_cost=True,
                 # We do not write the swap_entry meta file, so that the
                 # user can write the data file before the swap entry is
                 # added. This way, another process will not be tricked into
@@ -4150,7 +4322,8 @@ class _TraceCache(Loggable):
             return swap_entry.written
 
     @staticmethod
-    def _data_to_parquet(data, path, compression='snappy', **kwargs):
+    def _data_to_parquet(data, path, compression='lz4', **kwargs):
+        kwargs['compression'] = compression
         if isinstance(data, pd.DataFrame):
             # Data must be convertible to bytes so we dump them as JSON
             attrs = json.dumps(data.attrs)
@@ -4177,7 +4350,6 @@ class _TraceCache(Loggable):
         if fmt == 'disk-only':
             return
         elif fmt == 'parquet':
-            # Snappy compression seems very fast
             self._data_to_parquet(data, path)
         elif fmt == 'polars-lazyframe':
             assert isinstance(data, pl.LazyFrame)
@@ -4376,12 +4548,19 @@ class _TraceCache(Loggable):
                 self._scrub_swap(swap_dir)
 
     def _scrub_swap(self, swap_dir):
-        stats = {
-            dir_entry.name: dir_entry.stat()
-            for dir_entry in os.scandir(swap_dir)
-        }
-
         with self._lock:
+            def get_stat(dir_entry):
+                try:
+                    return dir_entry.stat()
+                except FileNotFoundError:
+                    return None
+
+            stats = {
+                dir_entry.name: stat
+                for dir_entry in os.scandir(swap_dir)
+                if (stat := get_stat(dir_entry)) is not None
+            }
+
             swap_content = list(self._swap_content.values())
 
         data_files = {
@@ -4451,7 +4630,7 @@ class _TraceCache(Loggable):
             pass
         else:
             with self._lock:
-                self._swap_content.pop(swap_entry.cache_desc_nf)
+                self._swap_content.pop(swap_entry.cache_desc_nf, None)
 
             for filename in (swap_entry.meta_filename, swap_entry.data_filename):
                 path = os.path.join(swap_dir, filename)
@@ -4498,7 +4677,7 @@ class _TraceCache(Loggable):
 
                 return data
 
-    def insert(self, cache_desc, data, compute_cost=None, write_swap=False, force_write_swap=False, write_meta=True):
+    def insert(self, cache_desc, data, compute_cost=None, write_swap=False, ignore_cost=False, write_meta=True, swappable=None):
         """
         Insert an entry in the cache.
 
@@ -4517,25 +4696,32 @@ class _TraceCache(Loggable):
             written.
         :type write_swap: bool
 
-        :param force_write_swap: If ``True``, bypass the computation vs swap
+        :param ignore_cost: If ``True``, bypass the computation vs swap
             cost comparison.
-        :type force_write_swap: bool
+        :type ignore_cost: bool
 
         :param write_meta: If ``True``, the swap entry metadata will be written
             on disk if the data are. Otherwise, no swap entry is written to disk.
         :type write_meta: bool
+
+        :param swappable: If ``False``, the data will never be written to the
+            swap and will only be kept in memory. If ``None``, the swappability
+            will not change if it was already set, otherwise it will be set to
+            ``True``.
+        :type swappable: bool or None
         """
         with self._lock:
             self._cache[cache_desc] = data
+            if swappable is not None:
+                self._swappable[cache_desc] = swappable
             if compute_cost is not None:
                 self._data_cost[cache_desc] = compute_cost
 
-        if write_swap:
-            self.write_swap(
-                cache_desc,
-                force=force_write_swap,
-                write_meta=write_meta
-            )
+        self.write_swap(
+            cache_desc,
+            ignore_cost=ignore_cost,
+            write_meta=write_meta
+        )
 
         self._scrub_mem()
 
@@ -4619,7 +4805,7 @@ class _TraceCache(Loggable):
         except KeyError:
             pass
 
-    def write_swap(self, cache_desc, force=False, write_meta=True):
+    def write_swap(self, cache_desc, ignore_cost=False, write_meta=True):
         """
         Write the given descriptor to the swap area if that would be faster to
         reload the data rather than recomputing it. If the descriptor is not in
@@ -4628,8 +4814,8 @@ class _TraceCache(Loggable):
         :param cache_desc: Descriptor of the data to write to swap.
         :type cache_desc: _CacheDataDesc
 
-        :param force: If ``True``, bypass the compute vs swap cost comparison.
-        :type force: bool
+        :param ignore_cost: If ``True``, bypass the compute vs swap cost comparison.
+        :type ignore_cost: bool
 
         :param write_meta: If ``True``, the swap entry metadata will be written
             on disk if the data are. Otherwise, no swap entry is written to disk.
@@ -4638,10 +4824,17 @@ class _TraceCache(Loggable):
         try:
             with self._lock:
                 data = self._cache[cache_desc]
+                swappable = self._swappable.get(cache_desc, True)
         except KeyError:
             pass
         else:
-            if force or self._should_evict_to_swap(cache_desc, data):
+            if (
+                swappable and
+                (
+                    ignore_cost or
+                    self._should_evict_to_swap(cache_desc, data)
+                )
+            ):
                 self._write_swap(cache_desc, data, write_meta)
 
     def write_swap_all(self, **kwargs):
@@ -4705,8 +4898,8 @@ class _Trace(Loggable, _InternalTraceBase):
         # writing to: /sys/kernel/debug/tracing/trace_marker
         # That said, it's not the end of the world if we don't filter on that
         # as the meta event name is supposed to be unique anyway
-        if isinstance(df.schema['ip'], pl.String):
-            df = df.filter(pl.col('ip').str.starts_with('tracing_mark_write'))
+        if isinstance(df.schema['ip'], (pl.String, pl.Binary, pl.Categorical)):
+            df = df.filter(pl.col('ip').cast(pl.String).str.starts_with('tracing_mark_write'))
         return (df, 'buf')
 
     def _select_trace_printk(self, source_event, meta_event, df):
@@ -4761,7 +4954,7 @@ class _Trace(Loggable, _InternalTraceBase):
         trace_path = str(trace_path) if trace_path else None
 
         if enable_swap:
-            if trace_path:
+            if trace_path and os.path.exists(trace_path):
                 if swap_dir is None:
                     basename = os.path.basename(trace_path)
                     swap_dir = os.path.join(
@@ -4785,7 +4978,6 @@ class _Trace(Loggable, _InternalTraceBase):
 
         self.trace_path = trace_path
         self._parseable_events = {}
-        self._unavailable_metadata = set()
 
         if parser is None:
             if not trace_path:
@@ -4810,7 +5002,7 @@ class _Trace(Loggable, _InternalTraceBase):
             # Make a shallow copy so we can update it
             plat_info = copy.copy(plat_info)
 
-        self._strict_events = False
+        self._source_events_known = False
 
         if plots_dir:
             _deprecated_warn('Trace(plots_dir=...) parameter is deprecated', stacklevel=2)
@@ -4833,12 +5025,17 @@ class _Trace(Loggable, _InternalTraceBase):
         # Initial scrub of the swap to discard unwanted data, honoring the
         # max_swap_size right from the beginning
         self._cache.scrub_swap()
-        self._cache.to_swap_dir()
+        self._cache.to_swap_dir(blocking=False)
 
         try:
             self._parseable_events = self._cache.get_metadata('parseable-events')
         except MissingMetadataError:
             pass
+
+        # Preload metadata from the cache, to trigger any side effect when
+        # processing them. For example, this can help avoiding spinning the
+        # parser if the set of available events is already known.
+        self._preload_metadata_cache()
 
         # Register what we currently have
         self.plat_info = plat_info
@@ -4846,30 +5043,159 @@ class _Trace(Loggable, _InternalTraceBase):
         # the Trace is almost fully initialized
         self.plat_info = plat_info.add_trace_src(self)
 
-    def _preload_events(self, events):
-        events = OptionalTraceEventChecker.from_events(events)
+    def _preload_metadata_cache(self):
+        def fail():
+            raise ValueError('Fake metadata value')
 
-        # This creates a polars LazyFrame from the cache if available, so it's
-        # cheap since we always cache the data coming from the parser.
-        df_map = self._load_cache_raw_df(
-            events,
-            allow_missing_events=True,
-        )
+        def load(key):
+            try:
+                return self._process_metadata(key=key, get=fail)
+            except ValueError:
+                return None
+
+        return {
+            key: value
+            for key in TraceParserBase.METADATA_KEYS
+            if (value := load(key)) is not None
+        }
+
+    def _preload_events(self, events):
+        if events is _ALL_EVENTS:
+            return self._preload_all_events()
+        else:
+            events = OptionalTraceEventChecker.from_events(events)
+
+            # This creates a polars LazyFrame from the cache if available, so it's
+            # cheap since we always cache the data coming from the parser.
+            df_map = self._load_cache_raw_df(
+                events,
+                allow_missing_events=True,
+            )
+
+            return set(df_map.keys())
+
+    @memoized
+    def _preload_all_events(self):
+        meta, df_map = self._parse_all()
         return set(df_map.keys())
 
+    def _parse_all(self):
 
-    _CACHEABLE_METADATA = {
-        'time-range',
-        'cpus-count',
-        'available-events',
-        'trace-id',
-        # Do not cache symbols-address as JSON is unable to store integer keys
-        # in objects, so the data will wrongly have string keys when reloaded.
-    }
-    """
-    Parser metadata that can safely be cached, i.e. that are serializable in
-    the trace cache.
-    """
+        def convert(parser, df_map):
+            return {
+                event: _convert_df_from_parser(
+                    df,
+                    parser=parser,
+                    cache=self._cache,
+                )
+                for event, df in df_map.items()
+            }
+
+        def finalize(preloaded_df_map, preloaded_meta, parser, df_map):
+            parsed_df_map = convert(parser, df_map)
+            self._insert_events({
+                event: df
+                for event, df in parsed_df_map.items()
+                if event not in preloaded_df_map
+            })
+            df_map = {
+                **preloaded_df_map,
+                **parsed_df_map,
+            }
+
+            if set(preloaded_meta.keys()) < set(TraceParserBase.METADATA_KEYS):
+                parsed_meta = parser.get_all_metadata()
+                parsed_meta = {
+                    k: self._process_metadata(key=k, get=lambda: v)
+                    for k, v in parsed_meta.items()
+                    if k not in preloaded_meta.keys()
+                }
+            else:
+                parsed_meta = {}
+
+            meta = {
+                **preloaded_meta,
+                **parsed_meta
+            }
+            return (meta, df_map)
+
+        def load_from_cache(event):
+            cache_desc = self._make_raw_cache_desc(event)
+            try:
+                df = self._cache.fetch(cache_desc, insert=True)
+            except KeyError:
+                return None
+            else:
+                return _ParsedDataFrame.from_df(df)
+
+        def parse(preloaded_df_map, preloaded_meta, events):
+            needed_metadata = set(TraceParserBase.METADATA_KEYS) - set(preloaded_meta.keys())
+
+            if (needed_metadata or events or events is _ALL_EVENTS):
+                _finalize = functools.partial(
+                    finalize,
+                    preloaded_df_map=preloaded_df_map,
+                    preloaded_meta=preloaded_meta,
+                )
+
+                if events is _ALL_EVENTS:
+                    with self._get_parser(events=events, needed_metadata=needed_metadata) as parser:
+                        try:
+                            return _finalize(parser=parser, df_map=parser.parse_all_events())
+                        except NotImplementedError:
+                            events = parser.get_metadata('available-events')
+
+                with self._get_parser(events=events, needed_metadata=needed_metadata) as parser:
+
+                    # Use custom best-effort implementation that allows
+                    # filtering out _all_ exceptions. We are here to parse as
+                    # many events as we can, regardless of any error.
+                    def parse_best_effort(event):
+                        try:
+                            return parser.parse_event(event)
+                        except Exception:
+                            return None
+
+                    return _finalize(
+                        parser=parser,
+                        df_map={
+                            event: df
+                            for event in events
+                            if (df := parse_best_effort(event)) is not None
+                        }
+                    )
+            else:
+                return (
+                    preloaded_meta,
+                    preloaded_df_map,
+                )
+
+        preloaded_meta = self._preload_metadata_cache()
+
+        try:
+            events = preloaded_meta['available-events']
+        except KeyError:
+            events = _ALL_EVENTS
+            preloaded_df_map = {}
+        else:
+            preloaded_df_map = {
+                event: df
+                for event in events
+                if (df := load_from_cache(event)) is not None
+            }
+            events = {
+                event
+                for event in events
+                if event not in preloaded_df_map
+            }
+
+        meta, df_map = parse(preloaded_df_map, preloaded_meta, events)
+
+        df_map = {
+            event: df
+            for event, df in df_map.items()
+        }
+        return (meta, df_map)
 
     def get_metadata(self, key):
         """
@@ -4879,24 +5205,33 @@ class _Trace(Loggable, _InternalTraceBase):
         """
         return self._get_metadata(key=key)
 
-    def _get_metadata(self, key, parser=None, cache=True, try_hard=False):
-        with self._lock:
-            if key in self._unavailable_metadata:
-                raise MissingMetadataError(key)
+    def _get_metadata(self, key, parser=None, try_hard=False):
+        def get():
+            if parser is None:
+                @contextlib.contextmanager
+                def _cm():
+                    with self._get_parser(needed_metadata={key}) as parser:
+                        yield parser
 
+                cm = _cm()
+            else:
+                # If we got passed a parser, we leave the decision to use it as a
+                # context manager or not to the caller.
+                cm = parser if try_hard else nullcontext(parser)
+
+            with cm as _parser:
+                value = _parser.get_metadata(key)
+
+            return value
+
+        return self._process_metadata(get=get, key=key)
+
+    @staticmethod
+    def _meta_to_json(meta):
         def process(key, value):
             if key == 'available-events':
                 # Ensure we have a list so that it can be dumped to JSON
                 value = sorted(set(value))
-
-                with self._lock:
-                    # Populate the list of available events, and inform the
-                    # rest of the code that this list is definitive.
-                    self._update_parseable_events({
-                        event: True
-                        for event in value
-                    })
-                    self._strict_events = True
 
             elif key == 'trace-id':
                 value = str(value)
@@ -4915,46 +5250,93 @@ class _Trace(Loggable, _InternalTraceBase):
                 # imprecise.
                 value = (start.as_nanoseconds, end.as_nanoseconds)
 
+            elif key == 'symbols-address':
+                # Unzip the dict into a list of keys and list of values, since
+                # that will be cheaper to deserialize and serialize to JSON
+                value = tuple(unzip_into(
+                    2,
+                    # Turn to a list to allow JSON caching, since JSON cannot
+                    # have non-string keys
+                    dict(value).items()
+                ))
+
             return value
 
-        def get(key, parser):
-            if parser is None:
-                @contextlib.contextmanager
-                def _cm():
-                    with self._get_parser(needed_metadata={key}) as parser:
-                        try:
-                            yield parser
-                        # We explicitly asked for a bit of metadata and could
-                        # not obtain it, so we remember that to avoid wasting
-                        # time spinning up a parser again in the future
-                        except MissingMetadataError:
-                            with self._lock:
-                                self._unavailable_metadata.add(key)
-                            raise
+        return {
+            key: process(key, value)
+            for key, value in meta.items()
+        }
 
-                cm = _cm()
-            else:
-                # If we got passed a parser, we leave the decision to use it as a
-                # context manager or not to the caller.
-                cm = parser if try_hard else nullcontext(parser)
+    @staticmethod
+    def _meta_from_json(meta):
+        def process(key, value):
+            """
+            Process a value prepared with :meth:`_meta_to_json`
+            """
+            if key == 'available-events':
+                value = set(value)
+            elif key == 'time-range':
+                start, end = value
+                assert isinstance(start, int)
+                assert isinstance(end, int)
 
-            with cm as parser:
-                value = parser.get_metadata(key)
+                # Ensure we round the float value of the window boundaries
+                # correctly so that all events are within that window.
+                # Otherwise we could have the first/last event out of that
+                # window due to wrong rounding.
+                start = Timestamp(start, unit='ns', rounding='down')
+                end = Timestamp(end, unit='ns', rounding='up')
+                value = (start, end)
 
-            return process(key, value)
+            elif key == 'symbols-address':
+                # Turn the list of items (to allow JSON storage) back to a dict.
+                addr, names = value
+                value = dict(zip(
+                    map(int, addr),
+                    names
+                ))
 
-        def get_cacheable(key, parser):
+            return value
+
+        return {
+            key: process(key, value)
+            for key, value in meta.items()
+        }
+
+    def _process_metadata(self, key, get):
+        def process(key, value):
+            """
+            Process a value prepared with :meth:`_meta_to_json`
+            """
+            value = self._meta_from_json({key: value})[key]
+
+            if key == 'available-events':
+                with self._lock:
+                    # Populate the list of available events, and inform the
+                    # rest of the code that this list is definitive.
+                    self._update_parseable_events({
+                        event: True
+                        for event in value
+                    })
+                    # Note that this will not take into account meta-events.
+                    self._source_events_known = True
+
+            return value
+
+        def _get(key):
+            value = get()
+            return self._meta_to_json({key: value})[key]
+
+        def get_cacheable(key):
             try:
                 value = self._cache.get_metadata(key)
             except MissingMetadataError:
-                value = get(key, parser=parser)
-                self._cache.update_metadata({key: value})
+                value = _get(key)
+                self._cache.update_metadata({key: value}, blocking=False)
             return value
 
-        if cache and key in self._CACHEABLE_METADATA:
-            return get_cacheable(key, parser=parser)
-        else:
-            return get(key, parser=parser)
+        value = get_cacheable(key)
+        return process(key, value)
 
     @classmethod
     def _is_meta_event(cls, event):
@@ -4993,18 +5375,26 @@ class _Trace(Loggable, _InternalTraceBase):
         # The parser type will potentially change the exact content in raw
         # dataframes
         def get_name(parser):
-            return f'{parser.__module__}.{parser.__qualname__}'
-
-        try:
-            parser_name = get_name(parser)
-        # If the parser is an instance of something, we cannot safely track its
-        # state so just make a unique name for it
-        except AttributeError:
-            parser_name = f'{get_name(parser.__class__)}-instance:{uuid.uuid4().hex}'
+            if isinstance(parser, TraceParserBase):
+                return parser.get_parser_id()
+            else:
+                # If the parser is an instance of something, we cannot safely track its
+                # state so just make a unique name for it
+                if (
+                    isinstance(parser, (type, types.MethodType)) and
+                    not any(
+                        x in parser.__qualname__
+                        for x in ('<locals>', '<lambda>')
+                    )
+                ):
+                    return f'{parser.__module__}.{parser.__qualname__}'
+                else:
+                    cls = type(parser)
+                    return f'{cls.__module__}.{cls.__qualname__}-instance:{uuid.uuid4().hex}'
 
         return (
             self.__class__.__qualname__,
-            parser_name,
+            get_name(parser),
         )
 
     @property
@@ -5039,15 +5429,18 @@ class _Trace(Loggable, _InternalTraceBase):
 
             return count
 
+
+
     def _get_parser(self, events=tuple(), needed_metadata=None):
         cache = self._cache
         path = self.trace_path
-        events = set(events)
+        events = events if events is _ALL_EVENTS else set(events)
         needed_metadata = set(needed_metadata or [])
 
         @contextlib.contextmanager
         def cm():
             with pl.StringCache(), self._cache._parser_temp_path() as temp_dir:
+                self.logger.debug(f'Spinning up trace parser {self._parser}: path={path}, events={events}, needed_metadata={needed_metadata}')
                 parser = self._parser(
                     path=path,
                     events=events,
@@ -5055,13 +5448,13 @@ class _Trace(Loggable, _InternalTraceBase):
                     temp_dir=temp_dir,
                 )
 
+                with parser as parser:
+                    yield parser
+
                 # While we are at it, gather a bunch of metadata. Since we did not
                 # explicitly asked for it, the parser will only give
                 # it if it was a cheap byproduct.
                 self._update_metadata(parser)
-
-                with parser as parser:
-                    yield parser
 
         return cm()
 
@@ -5073,10 +5466,19 @@ class _Trace(Loggable, _InternalTraceBase):
 
     def _update_parseable_events(self, mapping):
         with self._lock:
-            self._parseable_events.update(mapping)
-            self._cache.update_metadata({
-                'parseable-events': self._parseable_events,
-            })
+            update = {
+                k: v
+                for k, v in mapping.items()
+                if v != self._parseable_events.get(k)
+            }
+            if update:
+                self._parseable_events.update(update)
+                self._cache.update_metadata(
+                    {
+                        'parseable-events': self._parseable_events,
+                    },
+                    blocking=False,
+                )
             return self._parseable_events
 
     @property
@@ -5098,28 +5500,27 @@ class _Trace(Loggable, _InternalTraceBase):
 
     @memoized
     def _get_time_range(self, parser=None):
-        (start, end) = self._get_metadata('time-range', parser=parser)
-
-        # We get a number of nanoseconds (so it could be cached without loss of
-        # precision), so we turn it back into a Timestamp.
-        return (
-            Timestamp(start, unit='ns', rounding='down'),
-            Timestamp(end, unit='ns', rounding='up'),
-        )
+        return self._get_metadata('time-range', parser=parser)
 
     @memoized
     def _get_trace_id(self):
         try:
-            trace_id = self._get_metadata('trace-id', try_hard=True)
+            return self._get_metadata('trace-id', try_hard=True)
         except MissingMetadataError:
             if (path := self.trace_path):
                 with open(path, 'rb') as f:
                     md5 = checksum(f, 'md5')
-                return f'md5sum-{md5}'
+                id_ = f'md5sum-{md5}'
             else:
-                return None
-        else:
-            return f'parser-trace-id-{trace_id}'
+                id_ = '<unknown>'
+
+            self._cache.update_metadata(
+                {
+                    'trace-id': id_,
+                },
+                blocking=False,
+            )
+            return id_
 
     @memoized
     def _make_raw_cache_desc(self, event):
@@ -5148,10 +5549,14 @@ class _Trace(Loggable, _InternalTraceBase):
                 df = self._cache.fetch(cache_desc, insert=True)
             except KeyError:
                 df = self._load_cache_raw_df(TraceEventChecker(event))[event]
+            else:
+                df = _ParsedDataFrame.from_df(df)
         except MissingTraceEventError as e:
             e.available_events = self.available_events
             raise e
         else:
+            assert isinstance(df, _ParsedDataFrame)
+            df = df.df
             # TODO: If and when this is solved, attach the name of the event to
             # the LazyFrames:
             # https://github.com/pola-rs/polars/issues/5117
@@ -5160,24 +5565,16 @@ class _Trace(Loggable, _InternalTraceBase):
 
     def _load_cache_raw_df(self, event_checker, allow_missing_events=False):
         events = event_checker.get_all_events()
-        insert_kwargs = dict(
-            write_swap=True,
-            # For raw dataframe, always write in the swap area if asked for
-            # since parsing cost is known to be high
-            force_write_swap=True,
-        )
 
         # Get the raw dataframe from the cache if possible
         def try_from_cache(event):
             cache_desc = self._make_raw_cache_desc(event)
             try:
-                # We re-insert based on parameters coming from the caller
-                df = self._cache.fetch(cache_desc, insert=False)
+                df = self._cache.fetch(cache_desc, insert=True)
             except KeyError:
                 return None
             else:
-                self._cache.insert(cache_desc, df, **insert_kwargs)
-                return df
+                return _ParsedDataFrame.from_df(df)
 
         from_cache = {
             event: try_from_cache(event)
@@ -5196,17 +5593,17 @@ class _Trace(Loggable, _InternalTraceBase):
         # Cheap check to avoid spinning up the parser for nothing
         with self._lock:
             for event in list(events_to_load):
-                if not self._parseable_events.get(event, True):
+                # If we have discovered all the available events, there is no
+                # point in trying again.
+                default = (not self._source_events_known) or self._is_meta_event(event)
+                if not self._parseable_events.get(event, default):
                     if allow_missing_events:
                         events_to_load.remove(event)
                     else:
                         raise MissingTraceEventError([event])
 
         df_from_trace = self._load_raw_df(events_to_load)
-
-        for event, df in df_from_trace.items():
-            cache_desc = self._make_raw_cache_desc(event)
-            self._cache.insert(cache_desc, df, **insert_kwargs)
+        self._insert_events(df_from_trace)
 
         df_map = {**from_cache, **df_from_trace}
         try:
@@ -5219,6 +5616,21 @@ class _Trace(Loggable, _InternalTraceBase):
                 ) from e
 
         return df_map
+
+    def _insert_events(self, df_map):
+        for event, df in df_map.items():
+            assert isinstance(df, _ParsedDataFrame)
+            if df.meta['mem_cacheable']:
+                cache_desc = self._make_raw_cache_desc(event)
+                self._cache.insert(
+                    cache_desc,
+                    df.df,
+                    write_swap=True,
+                    swappable=df.meta['swap_cacheable'],
+                    # For raw dataframe, always write in the swap area if asked for
+                    # since parsing cost is known to be high
+                    ignore_cost=True,
+                )
 
     def _parse_raw_events(self, events):
         if not events:
@@ -5241,15 +5653,12 @@ class _Trace(Loggable, _InternalTraceBase):
             df_map = {
                 event: _convert_df_from_parser(
                     df=df,
-                    cache=self._cache if parser._STEAL_FILES else None,
+                    parser=parser,
+                    cache=self._cache,
                 )
                 for event in events
                 if (df := parse(parser, event)) is not None
             }
-
-            # Gather the metadata that might have been made available when
-            # entering the context manager
-            self._update_metadata(parser)
 
         return df_map
 
@@ -5303,21 +5712,27 @@ class _Trace(Loggable, _InternalTraceBase):
                         # If the lines are in a dtype we won't be able to
                         # handle, we won't add an entry to df_map, leading to a
                         # missing event
-                        if source_df.schema[line_field] not in (pl.String, pl.Binary):
+                        if not isinstance(source_df.schema[line_field], (pl.String, pl.Categorical, pl.Binary)):
                             continue
 
                         # Ensure we have bytes and not str
                         source_df = source_df.with_columns(
-                            pl.col(line_field).cast(pl.Binary)
+                            pl.col(line_field).cast(pl.String).cast(pl.Binary)
                         )
-                        source_df = source_df.select(('Time', line_field))
-                        pandas_df = _df_to_pandas(source_df)
-                        source_series = pandas_df[line_field]
+
+                        source_df = source_df.select((
+                            # Use nanoseconds, so that we don't end up with
+                            # timedelta() values that are only accurate down to
+                            # the microsecond.
+                            pl.col('Time').dt.total_nanoseconds(),
+                            pl.col(line_field),
+                        )).collect()
 
                         try:
                             parser = MetaTxtTraceParser(
-                                lines=source_series,
-                                time=source_series.index,
+                                lines=source_df[line_field],
+                                time=source_df['Time'],
+                                time_unit='ns',
                                 events=[event],
                                 temp_dir=temp_dir,
                             )
@@ -5342,32 +5757,40 @@ class _Trace(Loggable, _InternalTraceBase):
                             else:
                                 _df = _convert_df_from_parser(
                                     _df,
-                                    cache=self._cache if parser._STEAL_FILES else None,
+                                    parser=parser,
+                                    cache=self._cache,
                                 )
+                                _df = _df.df
+
                                 _df = _df.join(
                                     extra_df,
                                     on='Time',
                                     how='left',
                                 )
+
+                                _df = _df.select(
+                                    order_as(
+                                        sorted(
+                                            _df.columns,
+                                            key=lambda col: 0 if col.startswith('__') else 1
+                                        ),
+                                        ['Time']
+                                    )
+                                )
+
                                 df_map.setdefault(event, []).append(_df)
 
                         if not get_missing(df_map):
                             break
 
         def concat(df_list):
-            if len(df_list) > 1:
-                # As of pandas == 1.0.3, concatenating dataframe with nullable
-                # columns will give an object dtype and both NaN and <NA> if
-                # that column does not exist in all dataframes. This is quite
-                # annoying but there is no straightforward way of working
-                # around that.
-                df = pd.concat(df_list, copy=False)
-                df.sort_index(inplace=True)
-                return df
-            # Avoid creating a new dataframe and sorting the index
-            # unnecessarily if there is only one
-            else:
-                return df_list[0]
+            try:
+                df, = df_list
+            except ValueError:
+                df = pl.concat(df_list, how='diagonal_relaxed')
+                df = df.sort('Time')
+
+            return df
 
         df_map = {
             event: concat(df_list)
@@ -5382,7 +5805,7 @@ class _Trace(Loggable, _InternalTraceBase):
                 df_map[event] = df
 
         return {
-            events_map[event]: df
+            events_map[event]: _ParsedDataFrame.from_df(df)
             for event, df in df_map.items()
         }
 

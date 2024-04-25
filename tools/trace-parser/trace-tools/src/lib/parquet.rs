@@ -12,53 +12,53 @@ use std::{
     sync::Arc,
 };
 
-use arrow2::{
-    array::{
-        Array, MutableArray, MutableBinaryArray, MutableBooleanArray, MutableListArray,
-        MutablePrimitiveArray, MutableUtf8Array, TryPush as _,
+use arrow::datatypes::{DataType, Field, Fields, Schema};
+use arrow_array::{
+    array::Array,
+    builder::{
+        ArrayBuilder, BinaryBuilder, BooleanBuilder, Int16Builder, Int32Builder, Int64Builder,
+        Int8Builder, ListBuilder, StringBuilder, UInt16Builder, UInt32Builder, UInt64Builder,
+        UInt8Builder,
     },
-    chunk::Chunk,
-    datatypes::{DataType, Field, Schema},
-    error::Error as ArrowError,
-    io::parquet::write::{
-        CompressionOptions, Encoding, FileWriter, RowGroupIterator, Version, WriteOptions,
-    },
+    RecordBatch,
 };
+use arrow_schema::ArrowError;
 use crossbeam::{
     channel::{bounded, Sender},
     thread::{scope, Scope, ScopedJoinHandle},
 };
 use nom::{Finish as _, Parser as _};
+use parquet::{
+    arrow::arrow_writer::{ArrowWriter, ArrowWriterOptions},
+    basic::{Compression, Encoding},
+    errors::ParquetError,
+    file::properties::{
+        EnabledStatistics, WriterProperties, WriterPropertiesBuilder, WriterVersion,
+    },
+    format::{KeyValue, SortingColumn},
+    schema::types::ColumnPath,
+};
+use serde::Serialize;
 use traceevent::{
-    self,
     buffer::{BufferError, EventVisitor},
     cinterp::{EvalEnv, EvalError, Value},
     cparser::{identifier, ArrayKind, Type},
-    header::{
-        Address, Cpu, EventDesc, EventId, FieldFmt, Header, HeaderError, LongSize, Options,
-        Timestamp,
-    },
-    io::BorrowingRead,
+    header::{Address, EventDesc, EventId, FieldFmt, Header, HeaderError, LongSize, Timestamp},
+    io::BorrowingReadCore,
     print::{PrintArg, PrintAtom, PrintFmtError, PrintFmtStr, VBinSpecifier},
 };
 
 use crate::error::DynMultiError;
 
-// This size is a sweet spot. If in doubt, it's best to have chunks that are too big than too
-// small, as smaller chunks can wreak performances and might also mean more work when consuming the
-// file. In my experiments, 16 * 1024 was a transition point between good and horrible performance.
-// Note that this chunk size is expressed in terms of number of rows, independently from the size
-// of the rows themselves.
-const CHUNK_SIZE: usize = 64 * 1024;
-
-type ArrayChunk = Chunk<Arc<dyn Array>>;
-
 #[allow(clippy::enum_variant_names)]
 #[derive(thiserror::Error, Debug)]
 #[non_exhaustive]
-enum MainError {
+pub enum MainError {
     #[error("Error while loading data: {0}")]
     IoError(#[from] std::io::Error),
+
+    #[error("Error while creating JSON: {0}")]
+    JsonError(#[from] serde_json::Error),
 
     #[error("Error while parsing header: {0}")]
     HeaderError(#[from] HeaderError),
@@ -74,6 +74,9 @@ enum MainError {
 
     #[error("Arrow error: {0}")]
     ArrowError(#[from] ArrowError),
+
+    #[error("Parquet error: {0}")]
+    ParquetError(#[from] ParquetError),
 
     #[error("Type not handled: {0:?}")]
     TypeNotHandled(Box<Type>),
@@ -98,10 +101,13 @@ enum MainError {
 
     #[error("Error while processing {} field {}: {}", .0.field_name, .0.event_name.as_deref().unwrap_or("<unknown event>"), .0.error)]
     FieldError(Box<FieldError>),
+
+    #[error("Writer thread error")]
+    WriterThreadError,
 }
 
 #[derive(Debug)]
-struct FieldError {
+pub struct FieldError {
     event_name: Option<String>,
     field_name: String,
     error: MainError,
@@ -114,6 +120,63 @@ impl MainError {
             field_name: field_name.into(),
             error: self,
         }))
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct EventMetadata {
+    event: String,
+    errors: Vec<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    nr_rows: Option<u64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    path: Option<PathBuf>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    format: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Metadata<'h> {
+    header: &'h Header,
+    events_info: Option<Vec<EventMetadata>>,
+    time_range: Option<(Timestamp, Timestamp)>,
+}
+
+impl<'h> Metadata<'h> {
+    pub fn dump<W: Write>(self, mut writer: W) -> Result<(), MainError> {
+        let header = self.header;
+        let events_info = self.events_info;
+        let time_range = self.time_range;
+
+        let mut json_value = serde_json::json!({
+            "pid-comms": header.pid_comms().into_iter().collect::<Vec<_>>(),
+            "cpus-count": header.nr_cpus(),
+            "symbols-address": header.kallsyms().into_iter().collect::<Vec<_>>(),
+            // We cannot provide all events the kernel support here, as most of them
+            // were not enabled during the trace.
+            // "available-events": header.event_descs().into_iter().map(|desc| desc.name.deref()).collect::<Vec<&str>>(),
+        });
+
+        if let Some(events_info) = events_info {
+            json_value["events-info"] = serde_json::to_value(events_info)?;
+        }
+
+        if let Some(time_range) = time_range {
+            json_value["time-range"] = vec![time_range.0, time_range.1].into();
+        }
+
+        if let Some(id) = header.trace_id() {
+            json_value["trace-id"] = id.into();
+        }
+        if let Some(clock) = header.clock() {
+            json_value["trace-clock"] = clock.into();
+        }
+
+        Ok(writer.write_all(json_value.to_string().as_bytes())?)
     }
 }
 
@@ -149,22 +212,21 @@ impl<'scope, 'scopeenv> SharedState<'scope, 'scopeenv> {
 
 pub fn dump_events<R, FTimestamp>(
     header: &Header,
-    reader: R,
+    reader: Box<R>,
     mut modify_timestamps: FTimestamp,
     only_events: Option<Vec<String>>,
-) -> Result<(), DynMultiError>
+    row_group_size: usize,
+    compression: Compression,
+) -> Result<Metadata, DynMultiError>
 where
     FTimestamp: FnMut(Timestamp) -> Timestamp,
-    R: BorrowingRead + Send,
+    R: BorrowingReadCore + Send,
 {
-    let only_events = &only_events;
-    let options = WriteOptions {
-        write_statistics: true,
-        compression: CompressionOptions::Zstd(None),
-        version: Version::V2,
-        data_pagesize_limit: None,
-    };
+    // Size of a chunk accumulated in memory before handing it over to the parquet-writing thread.
+    // This is independent from the row group size, which may be bigger.
+    let chunk_size: usize = 64 * 1024;
 
+    let only_events = &only_events;
     // TODO: EventId might not be enough if we extend the API to deal with buffers from multiple
     // traces
     //
@@ -211,7 +273,7 @@ where
                         match x {
                             $val_ctor(x) => {
                                 #[allow(clippy::redundant_closure_call)]
-                                xs.push(Some($f(x)));
+                                xs.append_value($f(x));
                                 break Ok(xs.len());
                             }
                             x => {
@@ -226,7 +288,24 @@ where
         };
     }
 
-    scope(move |scope| -> Result<_, _> {
+    let creator = format!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+
+    let make_props_builder = || {
+        WriterProperties::builder()
+            .set_encoding(Encoding::PLAIN)
+            .set_compression(compression)
+            .set_statistics_enabled(EnabledStatistics::Page)
+            .set_created_by(creator.clone())
+            .set_writer_version(WriterVersion::PARQUET_2_0)
+            .set_max_row_group_size(row_group_size)
+        // TODO: Revisit enabling bloom filters. As of March 2024, polars cannot make use of it
+        // anyway so not really worth it. Also, we already use dictionary encoding for strings,
+        // which allows to quickly check if page contains a given string. It's not much of a
+        // use for smaller scalar types.
+        // .set_bloom_filter_enabled(true)
+    };
+
+    scope(move |scope| {
         let mut count: u64 = 0;
         let buffers = header.buffers(reader)?;
         let mut state_map = StateMap::new();
@@ -242,17 +321,18 @@ where
                             event_desc.name.deref() == selected.deref()
                         })
                     };
-                    if select {
+                    let state = if select {
                         let state = {
-                            ReadState::new(header, event_desc, options, &event_desc.name, scope)
+                            ReadState::new(header, event_desc, chunk_size, &event_desc.name, make_props_builder(), scope)
                         };
 
                         let state = EventCtx::Selected(SharedState::new(state));
-                        entry.insert(state.clone());
                         state
                     } else {
                         EventCtx::NotSelected
-                    }
+                    };
+                    entry.insert(state.clone());
+                    state
                 }
                 Entry::Occupied(entry) => entry.get().clone(),
             }
@@ -330,112 +410,112 @@ where
                                                         integer!(FieldArray::U64, Value::U64Scalar, identity),
 
                                                         basic!((FieldArray::Str(xs), x) => {
-                                                            xs.push(x.deref_ptr(&visitor.buffer_env())?.to_str());
+                                                            xs.append_option(x.deref_ptr(&visitor.buffer_env())?.to_str());
                                                             xs
                                                         }),
 
                                                         basic!((FieldArray::Bool(xs), Value::I64Scalar(x)) => {
-                                                            xs.push(Some(x != 0));
+                                                            xs.append_option(Some(x != 0));
                                                             xs
                                                         }),
                                                         basic!((FieldArray::Bool(xs), Value::U64Scalar(x)) => {
-                                                            xs.push(Some(x != 0));
+                                                            xs.append_option(Some(x != 0));
                                                             xs
                                                         }),
 
                                                         // Binary
                                                         basic!((FieldArray::Binary(xs), Value::U8Array(x)) => {
-                                                            xs.push(Some(x));
+                                                            xs.append_value(x);
                                                             xs
                                                         }),
                                                         basic!((FieldArray::Binary(xs), Value::I8Array(x)) => {
-                                                            xs.push(Some(bytemuck::cast_slice(&x)));
+                                                            xs.append_value(bytemuck::cast_slice(&x));
                                                             xs
                                                         }),
                                                         basic!((FieldArray::Binary(xs), Value::U16Array(x)) => {
-                                                            xs.push(Some(bytemuck::cast_slice(&x)));
+                                                            xs.append_value(bytemuck::cast_slice(&x));
                                                             xs
                                                         }),
                                                         basic!((FieldArray::Binary(xs), Value::I16Array(x)) => {
-                                                            xs.push(Some(bytemuck::cast_slice(&x)));
+                                                            xs.append_value(bytemuck::cast_slice(&x));
                                                             xs
                                                         }),
                                                         basic!((FieldArray::Binary(xs), Value::U32Array(x)) => {
-                                                            xs.push(Some(bytemuck::cast_slice(&x)));
+                                                            xs.append_value(bytemuck::cast_slice(&x));
                                                             xs
                                                         }),
                                                         basic!((FieldArray::Binary(xs), Value::I32Array(x)) => {
-                                                            xs.push(Some(bytemuck::cast_slice(&x)));
+                                                            xs.append_value(bytemuck::cast_slice(&x));
                                                             xs
                                                         }),
                                                         basic!((FieldArray::Binary(xs), Value::U64Array(x)) => {
-                                                            xs.push(Some(bytemuck::cast_slice(&x)));
+                                                            xs.append_value(bytemuck::cast_slice(&x));
                                                             xs
                                                         }),
                                                         basic!((FieldArray::Binary(xs), Value::I64Array(x)) => {
-                                                            xs.push(Some(bytemuck::cast_slice(&x)));
+                                                            xs.append_value(bytemuck::cast_slice(&x));
                                                             xs
                                                         }),
 
 
                                                         // Lists
                                                         basic!((FieldArray::ListBool(xs), Value::U8Array(x)) => {
-                                                            xs.try_push(Some(x.iter().map(|x| Some(*x != 0))))?;
+                                                            xs.append_value(x.iter().map(|x| Some(*x != 0)));
                                                             xs
                                                         }),
                                                         basic!((FieldArray::ListBool(xs), Value::I8Array(x)) => {
-                                                            xs.try_push(Some(x.iter().map(|x| Some(*x != 0))))?;
+                                                            xs.append_value(x.iter().map(|x| Some(*x != 0)));
                                                             xs
                                                         }),
                                                         basic!((FieldArray::ListU8(xs), Value::U8Array(x)) => {
-                                                            xs.try_push(Some(x.iter().copied().map(Some)))?;
+                                                            xs.append_value(x.iter().copied().map(Some));
                                                             xs
                                                         }),
                                                         basic!((FieldArray::ListI8(xs), Value::I8Array(x)) => {
-                                                            xs.try_push(Some(x.iter().copied().map(Some)))?;
+                                                            xs.append_value(x.iter().copied().map(Some));
                                                             xs
                                                         }),
 
                                                         basic!((FieldArray::ListU16(xs), Value::U16Array(x)) => {
-                                                            xs.try_push(Some(x.iter().copied().map(Some)))?;
+                                                            xs.append_value(x.iter().copied().map(Some));
                                                             xs
                                                         }),
                                                         basic!((FieldArray::ListI16(xs), Value::I16Array(x)) => {
-                                                            xs.try_push(Some(x.iter().copied().map(Some)))?;
+                                                            xs.append_value(x.iter().copied().map(Some));
                                                             xs
                                                         }),
 
                                                         basic!((FieldArray::ListU32(xs), Value::U32Array(x)) => {
-                                                            xs.try_push(Some(x.iter().copied().map(Some)))?;
+                                                            xs.append_value(x.iter().copied().map(Some));
                                                             xs
                                                         }),
                                                         basic!((FieldArray::ListI32(xs), Value::I32Array(x)) => {
-                                                            xs.try_push(Some(x.iter().copied().map(Some)))?;
+                                                            xs.append_value(x.iter().copied().map(Some));
                                                             xs
                                                         }),
 
                                                         basic!((FieldArray::ListU64(xs), Value::U64Array(x)) => {
-                                                            xs.try_push(Some(x.iter().copied().map(Some)))?;
+                                                            xs.append_value(x.iter().copied().map(Some));
                                                             xs
                                                         }),
                                                         basic!((FieldArray::ListI64(xs), Value::I64Array(x)) => {
-                                                            xs.try_push(Some(x.iter().copied().map(Some)))?;
+                                                            xs.append_value(x.iter().copied().map(Some));
                                                             xs
                                                         }),
 
                                                         // Bitmap
                                                         basic!((FieldArray::ListU8(xs), Value::Bitmap(x)) => {
-                                                            xs.try_push(Some(x.into_iter().as_bytes().map(Some)))?;
+                                                            xs.append_value(x.into_iter().as_bytes().map(Some));
                                                             xs
                                                         }),
                                                         basic!((FieldArray::Binary(xs), Value::Bitmap(x)) => {
                                                             slice_scratch.clear();
                                                             slice_scratch.extend(x.into_iter().as_bytes());
-                                                            xs.try_push(Some(&slice_scratch))?;
+                                                            xs.append_value(&slice_scratch);
                                                             xs
                                                         }),
                                                         basic!((FieldArray::ListBool(xs), Value::Bitmap(x)) => {
-                                                            xs.try_push(Some(x.into_iter().as_bits().map(Some)))?;
+                                                            xs.append_value(x.into_iter().as_bits().map(Some));
                                                             xs
                                                         })
 
@@ -445,13 +525,13 @@ where
                                                 only_events,
                                             )?;
 
-                                            table_state.fixed_cols.time.push(Some(ts));
-                                            table_state.fixed_cols.cpu.push(Some(cpu));
+                                            table_state.fixed_cols.time.append_value(ts);
+                                            table_state.fixed_cols.cpu.append_value(cpu);
                                             table_state.nr_rows += 1;
 
-                                            if len.get() >= CHUNK_SIZE {
-                                                let chunk = table_state.extract_chunk()?;
-                                                table_state.sender.send(chunk).unwrap();
+                                            if len.get() >= chunk_size {
+                                                let chunk = table_state.extract_batch()?;
+                                                table_state.sender.send(chunk).map_err(|_| MainError::WriterThreadError)?;
                                             }
                                             Ok(())
                                         }
@@ -477,76 +557,99 @@ where
         events.into_iter().map(&mut push_global_err).for_each(drop);
         eprintln!("Found {count} event records in this trace");
 
+        // TODO: We can do that the day we can know what event was asked to be recorded in the
+        // trace-cmd invocation. Then we can legitimately say that there was no occurence of an
+        // event. Until then, we consider that if we did not hit any occurence, the event was not
+        // specified on trace-cmd CLI and was never enabled in the first place.
+        //
         // Ensure we have a file for each event that was asked for as long as that event is
         // actually available in the trace header.
-        if let Some(only_events) = only_events {
-            for event in only_events {
-                header.event_desc_by_name(event).map(|event_desc| make_ctx(header, event_desc));
-            }
-        }
+        // if let Some(only_events) = only_events {
+            // for event in only_events {
+                // header.event_desc_by_name(event).map(|event_desc| make_ctx(header, event_desc));
+            // }
+        // }
 
         let mut handles = Vec::new();
         let mut events_info = Vec::new();
 
         while let Some((id, ctx)) = state_map.pop_first() {
-            if let EventCtx::Selected(read_state) = ctx {
-                // There shouldn't be any other clone of the Rc<> at this point so we can
-                // safely unwrap.
-                push_global_err(match read_state.into_inner().unwrap() {
-                    Ok(read_state) => {
-                        for mut read_state in read_state.drain_states() {
-                            let res = match read_state.extract_chunk() {
-                                Ok(chunk) => {
-                                    read_state.sender.send(chunk).unwrap();
-                                    // Drop the sender which will close the channel so that the writer thread will
-                                    // know it's time to finish.
-                                    drop(read_state.sender);
-                                    handles.push(read_state.handle);
-                                    eprintln!("File written successfully {}", read_state.name);
-                                    Ok(())
+            push_global_err(match ctx {
+                EventCtx::Selected(read_state) => {
+                    // There shouldn't be any other clone of the Rc<> at this point so we can
+                    // safely unwrap.
+                    match read_state.into_inner().unwrap() {
+                        Ok(read_state) => {
+                            for mut read_state in read_state.drain_states() {
+                                let res = match read_state.extract_batch() {
+                                    Ok(chunk) => {
+                                        read_state.sender.send(chunk).unwrap();
+                                        // Drop the sender which will close the channel so that the writer thread will
+                                        // know it's time to finish.
+                                        drop(read_state.sender);
+                                        handles.push(read_state.handle);
+                                        eprintln!("File written successfully {}", read_state.name);
+                                        Ok(())
+                                    }
+                                    Err(err) => Err(err),
+                                };
+                                read_state.errors.extend_errors([res]);
+
+                                let errors = read_state.errors.errors;
+                                if !errors.is_empty() {
+                                    eprintln!("Errors encountered while dumping event {}, see meta.json for details", read_state.name);
                                 }
-                                Err(err) => Err(err),
-                            };
-                            let path = match res {
-                                Ok(_) => read_state.path.to_str().expect("Unable to convert PathBuf to String").into(),
-                                Err(_) => serde_json::Value::Null,
-                            };
-                            read_state.errors.extend_errors([res]);
 
-                            let errors = read_state.errors.errors;
-                            if !errors.is_empty() {
-                                eprintln!("Errors encountered while dumping event {}, see meta.json for details", read_state.name);
+                                events_info.push(EventMetadata {
+                                    event: read_state.name.to_string(),
+                                    nr_rows: Some(read_state.nr_rows),
+                                    path: Some(read_state.path),
+                                    format: Some("parquet".into()),
+                                    errors: errors.into_iter().map(|err| err.to_string()).collect::<Vec<_>>(),
+                                });
                             }
-
-                            events_info.push(serde_json::json!({
-                                "event": read_state.name,
-                                "nr-rows": read_state.nr_rows,
-                                "path": path,
-                                "format": "parquet",
-                                "errors": errors.into_iter().map(|err| err.to_string()).collect::<Vec<_>>(),
-                            }));
+                            Ok(())
                         }
-                        Ok(())
-                    }
-                    Err(err) => {
-                        match header.event_desc_by_id(id) {
-                            Some(desc) => {
-                                events_info.push(serde_json::json!({
-                                    "event": desc.name,
-                                    "nr-rows": 0,
-                                    "path": None::<&str>,
-                                    "format": "parquet",
-                                    "errors": [err.to_string()],
-                                }));
-                                Ok(())
-                            },
-                            // If we cannot get the associated event name, we just turn it into
-                            // a global error.
-                            _ => Err(err)
+                        Err(err) => {
+                            match header.event_desc_by_id(id) {
+                                Some(desc) => {
+                                    events_info.push(EventMetadata {
+                                        event: desc.name.to_string(),
+                                        nr_rows: None,
+                                        path: None,
+                                        format: Some("parquet".into()),
+                                        errors: vec![err.to_string()],
+                                    });
+                                    Ok(())
+                                },
+                                // If we cannot get the associated event name, we just turn it into
+                                // a global error.
+                                _ => Err(err)
+                            }
                         }
                     }
-                });
-            }
+                }
+                // Still register the events that we did not select, as they indicate what event is
+                // available in that trace.
+                EventCtx::NotSelected => {
+                    match header.event_desc_by_id(id) {
+                        Some(desc) => {
+                            events_info.push(EventMetadata {
+                                event: desc.name.to_string(),
+                                nr_rows: None,
+                                path: None,
+                                format: None,
+                                errors: vec![],
+                            });
+                            Ok(())
+                        },
+                        // This is not an event anyone requested, and we can't find its name, so
+                        // that means no-one can request it. Since this is in-effect unselectable,
+                        // we just ignore it.
+                        None => Ok(())
+                    }
+                }
+            })
         }
 
         for handle in handles {
@@ -560,186 +663,162 @@ where
             (None, Some(end)) => panic!("Time time_range has an end ({end}) but not a start"),
         };
 
-        push_global_err((|| {
-            dump_metadata(
-                File::create("meta.json")?,
-                header,
-                Some(events_info),
-                Some(time_range),
-            )
-        })());
+        let metadata = Metadata {
+            header,
+            events_info: Some(events_info),
+            time_range: Some(time_range),
+        };
 
         if errors.is_empty() {
-            Ok(())
+            Ok(metadata)
         } else {
             Err(DynMultiError::new(errors))
         }
     }).unwrap()
 }
 
-fn dump_metadata<W: Write>(
-    mut writer: W,
+pub fn dump_metadata<R, W>(
     header: &Header,
-    events_info: Option<Vec<serde_json::Value>>,
-    time_range: Option<(Timestamp, Timestamp)>,
-) -> Result<(), MainError> {
-    let mut json_value = serde_json::json!({
-        "pid-comms": header.pid_comms().into_iter().collect::<Vec<_>>(),
-        "cpus-count": header.nr_cpus(),
-        "symbols-address": header.kallsyms().into_iter().collect::<Vec<_>>(),
-        // We cannot provide all events the kernel support here, as most of them
-        // were not enabled during the trace.
-        // "available-events": header.event_descs().into_iter().map(|desc| desc.name.deref()).collect::<Vec<&str>>(),
-    });
+    reader: Box<R>,
+    writer: W,
+    keys: Option<Vec<String>>,
+) -> Result<(), DynMultiError>
+where
+    W: Write,
+    R: BorrowingReadCore + Send,
+{
+    let scan_trace = match keys {
+        Some(keys) => keys
+            .iter()
+            .any(|item| item == "available-events" || item == "time-range"),
+        None => false,
+    };
 
-    if let Some(events_info) = events_info {
-        json_value["events-info"] = events_info.into();
-    }
-
-    if let Some(time_range) = time_range {
-        json_value["time-range"] = vec![time_range.0, time_range.1].into();
-    }
-
-    let mut trace_id = None;
-    let mut trace_clock = None;
-    for opt in header.options() {
-        match opt {
-            Options::TraceId(id) => { trace_id = Some(*id); },
-            Options::TraceClock(clock) => { trace_clock = Some(clock.deref()); },
-            _ => {},
+    // Some metadata require a full scan of the trace
+    let metadata = if scan_trace {
+        dump_events(
+            header,
+            reader,
+            |ts| ts,
+            // Do not create any parquet file.
+            Some(vec![]),
+            0,
+            Compression::UNCOMPRESSED,
+        )?
+    } else {
+        Metadata {
+            header,
+            time_range: None,
+            events_info: None,
         }
-    }
+    };
 
-    if let Some(id) = trace_id {
-        json_value["trace-id"] = id.into();
-    }
-    if let Some(clock) = trace_clock {
-        let mut parser = nom::sequence::preceded(
-            nom::bytes::complete::take_till(|c| c == '['),
-            nom::sequence::delimited(
-                nom::character::complete::char('['),
-                nom::bytes::complete::take_till(|c| c == ']'),
-                nom::character::complete::char(']'),
-            )
-        );
-        match parser.parse(clock).finish() {
-            Ok((_, clock)) => {
-                json_value["trace-clock"] = clock.into();
-            }
-            Err(()) => {},
-        }
-    }
-
-    Ok(writer.write_all(json_value.to_string().as_bytes())?)
-}
-
-pub fn dump_header_metadata<W: Write>(header: &Header, writer: W) -> Result<(), DynMultiError> {
-    Ok(dump_metadata(writer, header, None, None)?)
+    Ok(metadata.dump(writer)?)
 }
 
 #[derive(Debug)]
 enum FieldArray {
-    U8(MutablePrimitiveArray<u8>),
-    U16(MutablePrimitiveArray<u16>),
-    U32(MutablePrimitiveArray<u32>),
-    U64(MutablePrimitiveArray<u64>),
+    U8(UInt8Builder),
+    U16(UInt16Builder),
+    U32(UInt32Builder),
+    U64(UInt64Builder),
 
-    I8(MutablePrimitiveArray<i8>),
-    I16(MutablePrimitiveArray<i16>),
-    I32(MutablePrimitiveArray<i32>),
-    I64(MutablePrimitiveArray<i64>),
+    I8(Int8Builder),
+    I16(Int16Builder),
+    I32(Int32Builder),
+    I64(Int64Builder),
 
-    Bool(MutableBooleanArray),
+    Bool(BooleanBuilder),
     // Using i32 means strings and binary blobs have to be smaller than 2GB, which should be fine
-    Binary(MutableBinaryArray<i32>),
-    Str(MutableUtf8Array<i32>),
+    Binary(BinaryBuilder),
+    Str(StringBuilder),
 
-    ListBool(MutableListArray<i32, MutableBooleanArray>),
+    ListBool(ListBuilder<BooleanBuilder>),
 
-    ListU8(MutableListArray<i32, MutablePrimitiveArray<u8>>),
-    ListU16(MutableListArray<i32, MutablePrimitiveArray<u16>>),
-    ListU32(MutableListArray<i32, MutablePrimitiveArray<u32>>),
-    ListU64(MutableListArray<i32, MutablePrimitiveArray<u64>>),
+    ListU8(ListBuilder<UInt8Builder>),
+    ListU16(ListBuilder<UInt16Builder>),
+    ListU32(ListBuilder<UInt32Builder>),
+    ListU64(ListBuilder<UInt64Builder>),
 
-    ListI8(MutableListArray<i32, MutablePrimitiveArray<i8>>),
-    ListI16(MutableListArray<i32, MutablePrimitiveArray<i16>>),
-    ListI32(MutableListArray<i32, MutablePrimitiveArray<i32>>),
-    ListI64(MutableListArray<i32, MutablePrimitiveArray<i64>>),
+    ListI8(ListBuilder<Int8Builder>),
+    ListI16(ListBuilder<Int16Builder>),
+    ListI32(ListBuilder<Int32Builder>),
+    ListI64(ListBuilder<Int64Builder>),
 }
 
 impl FieldArray {
-    fn into_arc(self) -> Arc<dyn Array> {
-        match self {
-            FieldArray::U8(xs) => xs.into_arc(),
-            FieldArray::U16(xs) => xs.into_arc(),
-            FieldArray::U32(xs) => xs.into_arc(),
-            FieldArray::U64(xs) => xs.into_arc(),
+    fn finish(mut self) -> Arc<dyn Array> {
+        match &mut self {
+            FieldArray::U8(xs) => ArrayBuilder::finish(xs),
+            FieldArray::U16(xs) => ArrayBuilder::finish(xs),
+            FieldArray::U32(xs) => ArrayBuilder::finish(xs),
+            FieldArray::U64(xs) => ArrayBuilder::finish(xs),
 
-            FieldArray::I8(xs) => xs.into_arc(),
-            FieldArray::I16(xs) => xs.into_arc(),
-            FieldArray::I32(xs) => xs.into_arc(),
-            FieldArray::I64(xs) => xs.into_arc(),
+            FieldArray::I8(xs) => ArrayBuilder::finish(xs),
+            FieldArray::I16(xs) => ArrayBuilder::finish(xs),
+            FieldArray::I32(xs) => ArrayBuilder::finish(xs),
+            FieldArray::I64(xs) => ArrayBuilder::finish(xs),
 
-            FieldArray::Bool(xs) => xs.into_arc(),
-            FieldArray::Str(xs) => xs.into_arc(),
-            FieldArray::Binary(xs) => xs.into_arc(),
+            FieldArray::Bool(xs) => ArrayBuilder::finish(xs),
+            FieldArray::Str(xs) => ArrayBuilder::finish(xs),
+            FieldArray::Binary(xs) => ArrayBuilder::finish(xs),
 
-            FieldArray::ListBool(xs) => xs.into_arc(),
+            FieldArray::ListBool(xs) => ArrayBuilder::finish(xs),
 
-            FieldArray::ListU8(xs) => xs.into_arc(),
-            FieldArray::ListU16(xs) => xs.into_arc(),
-            FieldArray::ListU32(xs) => xs.into_arc(),
-            FieldArray::ListU64(xs) => xs.into_arc(),
+            FieldArray::ListU8(xs) => ArrayBuilder::finish(xs),
+            FieldArray::ListU16(xs) => ArrayBuilder::finish(xs),
+            FieldArray::ListU32(xs) => ArrayBuilder::finish(xs),
+            FieldArray::ListU64(xs) => ArrayBuilder::finish(xs),
 
-            FieldArray::ListI8(xs) => xs.into_arc(),
-            FieldArray::ListI16(xs) => xs.into_arc(),
-            FieldArray::ListI32(xs) => xs.into_arc(),
-            FieldArray::ListI64(xs) => xs.into_arc(),
+            FieldArray::ListI8(xs) => ArrayBuilder::finish(xs),
+            FieldArray::ListI16(xs) => ArrayBuilder::finish(xs),
+            FieldArray::ListI32(xs) => ArrayBuilder::finish(xs),
+            FieldArray::ListI64(xs) => ArrayBuilder::finish(xs),
         }
     }
 
-    fn push_null(&mut self) {
+    fn append_null(&mut self) {
         match self {
-            FieldArray::U8(xs) => xs.push_null(),
-            FieldArray::U16(xs) => xs.push_null(),
-            FieldArray::U32(xs) => xs.push_null(),
-            FieldArray::U64(xs) => xs.push_null(),
+            FieldArray::U8(xs) => xs.append_null(),
+            FieldArray::U16(xs) => xs.append_null(),
+            FieldArray::U32(xs) => xs.append_null(),
+            FieldArray::U64(xs) => xs.append_null(),
 
-            FieldArray::I8(xs) => xs.push_null(),
-            FieldArray::I16(xs) => xs.push_null(),
-            FieldArray::I32(xs) => xs.push_null(),
-            FieldArray::I64(xs) => xs.push_null(),
+            FieldArray::I8(xs) => xs.append_null(),
+            FieldArray::I16(xs) => xs.append_null(),
+            FieldArray::I32(xs) => xs.append_null(),
+            FieldArray::I64(xs) => xs.append_null(),
 
-            FieldArray::Bool(xs) => xs.push_null(),
-            FieldArray::Str(xs) => xs.push_null(),
-            FieldArray::Binary(xs) => xs.push_null(),
+            FieldArray::Bool(xs) => xs.append_null(),
+            FieldArray::Str(xs) => xs.append_null(),
+            FieldArray::Binary(xs) => xs.append_null(),
 
-            FieldArray::ListBool(xs) => xs.push_null(),
+            FieldArray::ListBool(xs) => xs.append_null(),
 
-            FieldArray::ListU8(xs) => xs.push_null(),
-            FieldArray::ListU16(xs) => xs.push_null(),
-            FieldArray::ListU32(xs) => xs.push_null(),
-            FieldArray::ListU64(xs) => xs.push_null(),
+            FieldArray::ListU8(xs) => xs.append_null(),
+            FieldArray::ListU16(xs) => xs.append_null(),
+            FieldArray::ListU32(xs) => xs.append_null(),
+            FieldArray::ListU64(xs) => xs.append_null(),
 
-            FieldArray::ListI8(xs) => xs.push_null(),
-            FieldArray::ListI16(xs) => xs.push_null(),
-            FieldArray::ListI32(xs) => xs.push_null(),
-            FieldArray::ListI64(xs) => xs.push_null(),
+            FieldArray::ListI8(xs) => xs.append_null(),
+            FieldArray::ListI16(xs) => xs.append_null(),
+            FieldArray::ListI32(xs) => xs.append_null(),
+            FieldArray::ListI64(xs) => xs.append_null(),
         }
     }
 }
 
 #[derive(Debug)]
 struct FixedCols {
-    time: MutablePrimitiveArray<Timestamp>,
-    cpu: MutablePrimitiveArray<Cpu>,
+    time: UInt64Builder,
+    cpu: UInt32Builder,
 }
 
 impl FixedCols {
-    fn new() -> Self {
+    fn new(chunk_size: usize) -> Self {
         FixedCols {
-            time: MutablePrimitiveArray::with_capacity(CHUNK_SIZE),
-            cpu: MutablePrimitiveArray::with_capacity(CHUNK_SIZE),
+            time: UInt64Builder::with_capacity(chunk_size),
+            cpu: UInt32Builder::with_capacity(chunk_size),
         }
     }
 
@@ -751,15 +830,19 @@ impl FixedCols {
         .into_iter()
     }
 
-    fn into_arcs(self) -> impl Iterator<Item = Arc<dyn Array>> {
-        [self.time.into_arc(), self.cpu.into_arc()].into_iter()
+    fn into_finished(mut self) -> impl Iterator<Item = Arc<dyn Array>> {
+        [
+            ArrayBuilder::finish(&mut self.time),
+            ArrayBuilder::finish(&mut self.cpu),
+        ]
+        .into_iter()
     }
 }
 
 #[derive(Debug)]
 struct ReadState<'scope, 'scopeenv> {
     variant: ReadStateVariant<'scope>,
-    options: WriteOptions,
+    chunk_size: usize,
     scope: &'scope Scope<'scopeenv>,
 }
 
@@ -792,12 +875,69 @@ where
     fn new(
         header: &Header,
         event_desc: &EventDesc,
-        options: WriteOptions,
+        chunk_size: usize,
         name: &str,
+        props_builder: WriterPropertiesBuilder,
         scope: &'scope Scope<'scopeenv>,
     ) -> Result<Self, MainError> {
         let (full_schema, fields_schema) = Self::make_event_desc_schemas(header, event_desc)?;
-        let state = TableState::new(full_schema, fields_schema, options, name, scope)?;
+        let clock = header.clock();
+
+        let props_builder = props_builder.set_key_value_metadata(Some(vec![
+            // FIXME: this is not correct for meta events like the ones extracted from BPrint
+            KeyValue::new("FTRACE:event".to_string(), event_desc.name.to_string()),
+            KeyValue::new(
+                "FTRACE:event_format".to_string(),
+                match event_desc.raw_fmt() {
+                    Ok(s) => std::str::from_utf8(s).map(Into::into).ok(),
+                    Err(_) => None,
+                },
+            ),
+            KeyValue::new("FTRACE:clock".to_string(), clock.map(ToString::to_string)),
+            KeyValue::new("FTRACE:trace_id".to_string(), header.trace_id()),
+        ]));
+
+        let monotonic_clocks = [
+            "local", "global", "uptime", "x86-tsc", "mono", "mono_raw", "counter",
+        ];
+
+        // Some clocks guarantee that the timestamps will monotonically increase
+        let sorted_ts = match clock {
+            Some(clock) => monotonic_clocks.contains(&clock),
+            None => false,
+        };
+
+        // If the timestamps are monotonic, we declare the common_ts column as being sorted in
+        // ascending order. This hint can be used by parquet readers to speed up
+        // selection/filtering (e.g. using binary search)
+        let mut props_builder = if sorted_ts {
+            match full_schema.index_of("common_ts") {
+                Ok(idx) => props_builder.set_sorting_columns(Some(vec![SortingColumn {
+                    column_idx: idx.try_into().unwrap(),
+                    descending: false,
+                    nulls_first: false,
+                }])),
+                Err(_) => props_builder,
+            }
+        } else {
+            props_builder
+        };
+
+        // Set dictionary encoding for all string fields, as the text data logged in ftrace is
+        // typically _very_ repetitive (e.g. task name, cgroup name etc).
+        for field in &full_schema.fields {
+            if field.data_type() == &DataType::Utf8 {
+                props_builder = props_builder.set_column_dictionary_enabled(
+                    ColumnPath::new(vec![field.name().to_string()]),
+                    true,
+                );
+            }
+        }
+
+        // TODO: figure out if it's worth setting set_data_page_size_limit()
+        let options = ArrowWriterOptions::new().with_properties(props_builder.build());
+
+        let state = TableState::new(full_schema, fields_schema, options, chunk_size, name, scope)?;
 
         let variant = match event_desc.name.deref() {
             event_name @ "bprint" => {
@@ -829,8 +969,8 @@ where
         };
         Ok(ReadState {
             variant,
-            options,
             scope,
+            chunk_size,
         })
     }
 
@@ -876,7 +1016,7 @@ where
                 let res = f(name, col, val);
                 match res {
                     Err(err) => {
-                        col.push_null();
+                        col.append_null();
                         Err(err.with_field(visitor.event_name().ok(), name))
                     }
                     _ => Ok(()),
@@ -1018,7 +1158,10 @@ where
                                         match TableState::new(
                                             full_schema,
                                             fields_schema,
-                                            self.options,
+                                            // FIXME: the key/value metadata will have the source
+                                            // event name "bprint" instead of the meta event name
+                                            generic.options.clone(),
+                                            self.chunk_size,
                                             &meta_event_name,
                                             self.scope,
                                         ) {
@@ -1222,24 +1365,14 @@ where
                     Type::Array(inner, _) | Type::Pointer(inner) if matches!(
                         inner.resolve_wrapper(),
                         Type::Bool | Type::U8 | Type::I8 | Type::U16 | Type::I16 | Type::U32 | Type::I32 | Type::U64 | Type::I64
-                    ) => Ok(DataType::List(Box::new(Field::new(
-                        "",
-                        recurse(inner)?,
-                        true,
-                    )))),
+                    ) => Ok(DataType::new_list(recurse(inner)?, true)),
 
                     Type::Pointer(..) => match long_size {
                         LongSize::Bits32 => Ok(DataType::UInt32),
                         LongSize::Bits64 => Ok(DataType::UInt64),
                     },
 
-                    Type::Typedef(_, id) if id.deref() == "cpumask_t" => Ok(DataType::List(Box::new(
-                        Field::new(
-                            "cpumask_t",
-                            DataType::Boolean,
-                            false,
-                        )
-                    ))),
+                    Type::Typedef(_, id) if id.deref() == "cpumask_t" => Ok(DataType::new_list(DataType::Boolean, true)),
 
                     // TODO: try to do symbolic resolution of enums somehow, maybe with BTF
                     // Do we want that always ? What about conversion from other formats where the
@@ -1256,12 +1389,12 @@ where
         let field_cols: Result<Vec<_>, MainError> = field_cols.collect();
         let field_cols = field_cols?;
 
-        let fields_schema = Schema::from(field_cols.clone());
-        let full_schema = Schema::from(
+        let fields_schema = Schema::new(Fields::from(field_cols.clone()));
+        let full_schema = Schema::new(Fields::from(
             FixedCols::arrow_fields()
                 .chain(field_cols)
                 .collect::<Vec<_>>(),
-        );
+        ));
         Ok((full_schema, fields_schema))
     }
 }
@@ -1270,49 +1403,43 @@ where
 struct TableState<'scope> {
     name: String,
     path: PathBuf,
+    chunk_size: usize,
     fields_schema: Schema,
     fixed_cols: FixedCols,
     field_cols: Vec<FieldArray>,
     nr_rows: u64,
 
-    sender: Sender<ArrayChunk>,
+    sender: Sender<RecordBatch>,
     handle: ScopedJoinHandle<'scope, Result<(), MainError>>,
     errors: TableErrors,
-}
 
-struct EventWriteState {
-    full_schema: Schema,
-    options: WriteOptions,
-    writer: FileWriter<File>,
-    count: u64,
+    full_schema: Arc<Schema>,
+    options: ArrowWriterOptions,
 }
 
 impl<'scope> TableState<'scope> {
     fn new(
         full_schema: Schema,
         fields_schema: Schema,
-        options: WriteOptions,
+        options: ArrowWriterOptions,
+        chunk_size: usize,
         name: &str,
         scope: &'scope Scope,
     ) -> Result<Self, MainError> {
-        let (fixed_cols, field_cols) = Self::make_cols(name, &fields_schema)?;
+        let full_schema = Arc::new(full_schema);
+        let (fixed_cols, field_cols) = Self::make_cols(name, &fields_schema, chunk_size)?;
 
         let path = PathBuf::from(format!("{}.parquet", name));
         let file = File::create(&path)?;
-        let writer = FileWriter::try_new(file, full_schema.clone(), options)?;
         let (sender, receiver) = bounded(128);
 
-        let mut write_state = EventWriteState {
-            full_schema,
-            options,
-            writer,
-            count: 0,
-        };
-        let write_thread = move |_: &_| -> Result<_, MainError> {
-            for chunk in receiver.iter() {
-                write_state.dump_to_file(chunk)?;
+        let mut writer =
+            ArrowWriter::try_new_with_options(file, full_schema.clone(), options.clone())?;
+        let write_thread = move |_: &_| -> Result<(), MainError> {
+            for batch in receiver.iter() {
+                writer.write(&batch)?;
             }
-            write_state.writer.end(None)?;
+            writer.close()?;
             Ok(())
         };
 
@@ -1328,181 +1455,98 @@ impl<'scope> TableState<'scope> {
             path,
             errors: TableErrors::new(),
             nr_rows: 0,
+            chunk_size,
+
+            full_schema,
+            options,
         })
     }
 
-    fn make_cols(name: &str, schema: &Schema) -> Result<(FixedCols, Vec<FieldArray>), MainError> {
-        macro_rules! make_array {
-            ($variant:path) => {
-                Ok($variant(MutablePrimitiveArray::with_capacity(CHUNK_SIZE)))
-            };
-        }
-        let make_col = |field: &Field| match &field.data_type {
-            DataType::Int8 => make_array!(FieldArray::I8),
-            DataType::Int16 => make_array!(FieldArray::I16),
-            DataType::Int32 => make_array!(FieldArray::I32),
-            DataType::Int64 => make_array!(FieldArray::I64),
+    fn make_cols(
+        name: &str,
+        schema: &Schema,
+        chunk_size: usize,
+    ) -> Result<(FixedCols, Vec<FieldArray>), MainError> {
+        let make_col = |field: &Field| match &field.data_type() {
+            DataType::Int8 => Ok(FieldArray::I8(Int8Builder::with_capacity(chunk_size))),
+            DataType::Int16 => Ok(FieldArray::I16(Int16Builder::with_capacity(chunk_size))),
+            DataType::Int32 => Ok(FieldArray::I32(Int32Builder::with_capacity(chunk_size))),
+            DataType::Int64 => Ok(FieldArray::I64(Int64Builder::with_capacity(chunk_size))),
 
-            DataType::UInt8 => make_array!(FieldArray::U8),
-            DataType::UInt16 => make_array!(FieldArray::U16),
-            DataType::UInt32 => make_array!(FieldArray::U32),
-            DataType::UInt64 => make_array!(FieldArray::U64),
+            DataType::UInt8 => Ok(FieldArray::U8(UInt8Builder::with_capacity(chunk_size))),
+            DataType::UInt16 => Ok(FieldArray::U16(UInt16Builder::with_capacity(chunk_size))),
+            DataType::UInt32 => Ok(FieldArray::U32(UInt32Builder::with_capacity(chunk_size))),
+            DataType::UInt64 => Ok(FieldArray::U64(UInt64Builder::with_capacity(chunk_size))),
 
-            DataType::Boolean => Ok(FieldArray::Bool(MutableBooleanArray::with_capacity(
-                CHUNK_SIZE,
+            DataType::Boolean => Ok(FieldArray::Bool(BooleanBuilder::with_capacity(chunk_size))),
+            DataType::Utf8 => Ok(FieldArray::Str(StringBuilder::with_capacity(
+                chunk_size,
+                chunk_size * 16,
             ))),
-            DataType::Utf8 => Ok(FieldArray::Str(MutableUtf8Array::with_capacity(CHUNK_SIZE))),
-            DataType::Binary => Ok(FieldArray::Binary(MutableBinaryArray::with_capacity(
-                CHUNK_SIZE,
+            DataType::Binary => Ok(FieldArray::Binary(BinaryBuilder::with_capacity(
+                chunk_size,
+                chunk_size * 16,
             ))),
 
-            DataType::List(field)
-                if matches!(
-                    field.deref(),
-                    Field {
-                        data_type: DataType::Boolean,
-                        ..
-                    }
-                ) =>
-            {
-                Ok(FieldArray::ListBool(MutableListArray::with_capacity(
-                    CHUNK_SIZE,
-                )))
-            }
+            DataType::List(field) if field.data_type() == &DataType::Boolean => Ok(
+                FieldArray::ListBool(ListBuilder::new(BooleanBuilder::with_capacity(chunk_size))),
+            ),
 
-            DataType::List(field)
-                if matches!(
-                    field.deref(),
-                    Field {
-                        data_type: DataType::UInt8,
-                        ..
-                    }
-                ) =>
-            {
-                Ok(FieldArray::ListU8(MutableListArray::with_capacity(
-                    CHUNK_SIZE,
-                )))
-            }
-            DataType::List(field)
-                if matches!(
-                    field.deref(),
-                    Field {
-                        data_type: DataType::UInt16,
-                        ..
-                    }
-                ) =>
-            {
-                Ok(FieldArray::ListU16(MutableListArray::with_capacity(
-                    CHUNK_SIZE,
-                )))
-            }
-            DataType::List(field)
-                if matches!(
-                    field.deref(),
-                    Field {
-                        data_type: DataType::UInt32,
-                        ..
-                    }
-                ) =>
-            {
-                Ok(FieldArray::ListU32(MutableListArray::with_capacity(
-                    CHUNK_SIZE,
-                )))
-            }
-            DataType::List(field)
-                if matches!(
-                    field.deref(),
-                    Field {
-                        data_type: DataType::UInt64,
-                        ..
-                    }
-                ) =>
-            {
-                Ok(FieldArray::ListU64(MutableListArray::with_capacity(
-                    CHUNK_SIZE,
-                )))
-            }
+            DataType::List(field) if field.data_type() == &DataType::UInt8 => Ok(
+                FieldArray::ListU8(ListBuilder::new(UInt8Builder::with_capacity(chunk_size))),
+            ),
+            DataType::List(field) if field.data_type() == &DataType::UInt16 => Ok(
+                FieldArray::ListU16(ListBuilder::new(UInt16Builder::with_capacity(chunk_size))),
+            ),
+            DataType::List(field) if field.data_type() == &DataType::UInt32 => Ok(
+                FieldArray::ListU32(ListBuilder::new(UInt32Builder::with_capacity(chunk_size))),
+            ),
+            DataType::List(field) if field.data_type() == &DataType::UInt64 => Ok(
+                FieldArray::ListU64(ListBuilder::new(UInt64Builder::with_capacity(chunk_size))),
+            ),
 
-            DataType::List(field)
-                if matches!(
-                    field.deref(),
-                    Field {
-                        data_type: DataType::Int8,
-                        ..
-                    }
-                ) =>
-            {
-                Ok(FieldArray::ListI8(MutableListArray::with_capacity(
-                    CHUNK_SIZE,
-                )))
-            }
-            DataType::List(field)
-                if matches!(
-                    field.deref(),
-                    Field {
-                        data_type: DataType::Int16,
-                        ..
-                    }
-                ) =>
-            {
-                Ok(FieldArray::ListI16(MutableListArray::with_capacity(
-                    CHUNK_SIZE,
-                )))
-            }
-            DataType::List(field)
-                if matches!(
-                    field.deref(),
-                    Field {
-                        data_type: DataType::Int32,
-                        ..
-                    }
-                ) =>
-            {
-                Ok(FieldArray::ListI32(MutableListArray::with_capacity(
-                    CHUNK_SIZE,
-                )))
-            }
-            DataType::List(field)
-                if matches!(
-                    field.deref(),
-                    Field {
-                        data_type: DataType::Int64,
-                        ..
-                    }
-                ) =>
-            {
-                Ok(FieldArray::ListI64(MutableListArray::with_capacity(
-                    CHUNK_SIZE,
-                )))
-            }
+            DataType::List(field) if field.data_type() == &DataType::Int8 => Ok(
+                FieldArray::ListI8(ListBuilder::new(Int8Builder::with_capacity(chunk_size))),
+            ),
+            DataType::List(field) if field.data_type() == &DataType::Int16 => Ok(
+                FieldArray::ListI16(ListBuilder::new(Int16Builder::with_capacity(chunk_size))),
+            ),
+            DataType::List(field) if field.data_type() == &DataType::Int32 => Ok(
+                FieldArray::ListI32(ListBuilder::new(Int32Builder::with_capacity(chunk_size))),
+            ),
+            DataType::List(field) if field.data_type() == &DataType::Int64 => Ok(
+                FieldArray::ListI64(ListBuilder::new(Int64Builder::with_capacity(chunk_size))),
+            ),
 
-            typ => Err(MainError::ArrowDataTypeNotHandled(Box::new(typ.clone()))),
+            typ => Err(MainError::ArrowDataTypeNotHandled(Box::new((*typ).clone()))),
         };
 
         let fields: Result<Vec<_>, MainError> = schema
             .fields
             .iter()
-            .map(|field| make_col(field).map_err(|err| err.with_field(Some(name), &field.name)))
+            .map(|field| make_col(field).map_err(|err| err.with_field(Some(name), field.name())))
             .collect();
         let fields = fields?;
 
-        let fixed = FixedCols::new();
+        let fixed = FixedCols::new(chunk_size);
         Ok((fixed, fields))
     }
 
-    fn extract_chunk(&mut self) -> Result<ArrayChunk, MainError> {
-        let (mut fixed_cols, mut field_cols) = Self::make_cols(&self.name, &self.fields_schema)?;
+    fn extract_batch(&mut self) -> Result<RecordBatch, MainError> {
+        let (mut fixed_cols, mut field_cols) =
+            Self::make_cols(&self.name, &self.fields_schema, self.chunk_size)?;
 
         assert_eq!(field_cols.len(), self.field_cols.len());
         core::mem::swap(&mut self.field_cols, &mut field_cols);
         core::mem::swap(&mut self.fixed_cols, &mut fixed_cols);
 
-        Ok(Chunk::new(
+        Ok(RecordBatch::try_new(
+            Arc::clone(&self.full_schema),
             fixed_cols
-                .into_arcs()
-                .chain(field_cols.into_iter().map(|col| col.into_arc()))
+                .into_finished()
+                .chain(field_cols.into_iter().map(|col| col.finish()))
                 .collect(),
-        ))
+        )?)
     }
 }
 
@@ -1531,68 +1575,3 @@ impl TableErrors {
         }
     }
 }
-
-impl EventWriteState {
-    fn dump_to_file(&mut self, chunk: ArrayChunk) -> Result<(), MainError> {
-        self.count += 1;
-
-        let row_groups = RowGroupIterator::try_new(
-            [Ok(chunk)].into_iter(),
-            &self.full_schema,
-            self.options,
-            self.full_schema
-                .fields
-                .iter()
-                .map(|_| vec![Encoding::Plain])
-                .collect(),
-        )?;
-
-        for group in row_groups {
-            let group = group?;
-            self.writer.write(group)?;
-        }
-        Ok(())
-    }
-}
-
-// fn main2() -> Result<(), ArrowError> {
-// // declare arrays
-// let a = Int8Array::from(&[Some(1), None, Some(3)]);
-// let b = Int32Array::from(&[Some(2), None, Some(6)]);
-
-// // declare a schema with fields
-// let schema = Schema::from(vec![
-// Field::new("c2", DataType::Int32, true),
-// Field::new("c1", DataType::Int8, true),
-// ]);
-
-// // declare chunk
-// let chunk = Chunk::new(vec![a.arced(), b.arced()]);
-
-// // write to parquet (probably the fastest implementation of writing to parquet out there)
-// let options = WriteOptions {
-// write_statistics: false,
-// compression: CompressionOptions::Snappy,
-// version: Version::V1,
-// data_pagesize_limit: None,
-// };
-
-// let row_groups = RowGroupIterator::try_new(
-// vec![Ok(chunk)].into_iter(),
-// &schema,
-// options,
-// vec![vec![Encoding::Plain], vec![Encoding::Plain]],
-// )?;
-
-// // anything implementing `std::io::Write` works
-// // let mut file = vec![];
-// let file = File::create("hello.pq").unwrap();
-// let mut writer = FileWriter::try_new(file, schema, options)?;
-
-// // Write the file.
-// for group in row_groups {
-// writer.write(group?)?;
-// }
-// let _ = writer.end(None)?;
-// Ok(())
-// }

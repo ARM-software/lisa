@@ -4,11 +4,7 @@ use core::{
     ops::Deref,
     str::from_utf8,
 };
-use std::{
-    rc::Rc,
-    string::{String as StdString, ToString},
-    sync::Arc,
-};
+use std::{rc::Rc, string::String as StdString, sync::Arc};
 
 use bytemuck::cast_slice;
 use itertools::Itertools as _;
@@ -3141,11 +3137,7 @@ grammar! {
 mod tests {
     use super::*;
     use crate::{
-        cinterp::{CompileEnv, CompileError},
-        closure::closure,
-        cparser,
-        grammar::PackratGrammar,
-        header::{Abi, Endianness, Signedness},
+        closure::closure, cparser, grammar::PackratGrammar, header::Signedness,
         parser::tests::test_parser,
     };
 

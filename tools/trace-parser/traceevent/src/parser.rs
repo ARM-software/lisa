@@ -397,35 +397,35 @@ where
 //     )
 // }
 
-pub trait DisplayErr {
-    fn display_err(&self) -> StdString;
-}
-pub trait DisplayErrViaDisplay {}
-
-impl DisplayErrViaDisplay for crate::cparser::CParseError {}
-impl DisplayErrViaDisplay for crate::header::HeaderError {}
-impl DisplayErrViaDisplay for crate::print::PrintFmtError {}
-
-impl<T> DisplayErr for T
-where
-    T: DisplayErrViaDisplay + Display,
-{
-    fn display_err(&self) -> StdString {
-        format!("{}", self)
-    }
-}
-
-impl DisplayErr for () {
-    fn display_err(&self) -> StdString {
-        "".into()
-    }
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
     use nom::{error::VerboseError, Finish as _};
 
     use super::*;
+
+    pub trait DisplayErr {
+        fn display_err(&self) -> StdString;
+    }
+    pub trait DisplayErrViaDisplay {}
+
+    impl DisplayErrViaDisplay for crate::cparser::CParseError {}
+    impl DisplayErrViaDisplay for crate::header::HeaderError {}
+    impl DisplayErrViaDisplay for crate::print::PrintFmtError {}
+
+    impl<T> DisplayErr for T
+    where
+        T: DisplayErrViaDisplay + Display,
+    {
+        fn display_err(&self) -> StdString {
+            format!("{}", self)
+        }
+    }
+
+    impl DisplayErr for () {
+        fn display_err(&self) -> StdString {
+            "".into()
+        }
+    }
 
     // Work-around this issue:
     // https://github.com/rust-bakery/nom/issues/1619

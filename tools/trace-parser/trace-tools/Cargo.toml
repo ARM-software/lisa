@@ -14,9 +14,14 @@ traceevent = { path = "../traceevent" }
 
 thiserror = "1.0"
 smartstring = {version = "1.0", features = ["serde"]}
-arrow2 = { version = "0.18.0", features = ["io_parquet", "io_parquet_compression"] }
+arrow = { version = "51.0", default-features = false }
+arrow-schema = { version = "51.0", default-features = false }
+arrow-array = { version = "51.0" }
+parquet = { version = "51.0", default-features = false, features = ["arrow", "lz4", "zstd", "snap" ] }
+
 crossbeam = "0.8"
 serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
 nom = "7.1"
 bytemuck = "1.13"
 clap = { version = "4.4", features = ["derive"] }

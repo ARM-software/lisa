@@ -1,4 +1,6 @@
-use std::{error::Error, fs::File, io::Write, path::PathBuf, process::ExitCode};
+use std::{
+    error::Error, fs::File, io::Write, ops::DerefMut as _, path::PathBuf, process::ExitCode,
+};
 
 #[cfg(target_arch = "x86_64")]
 use mimalloc::MiMalloc;
@@ -7,19 +9,19 @@ use traceevent::{header, header::Timestamp};
 #[cfg(target_arch = "x86_64")]
 static GLOBAL: MiMalloc = MiMalloc;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use lib::{
     check::check_header,
-    parquet::{dump_events, dump_header_metadata},
+    error::DynMultiError,
+    parquet::{dump_events, dump_metadata},
     print::print_events,
 };
+use parquet::basic::{Compression as ParquetCompression, ZstdLevel};
+use traceevent::header::Header;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
-    #[arg(long, value_name = "TRACE")]
-    trace: PathBuf,
-
     #[arg(long, value_name = "ERRORS_JSON")]
     errors_json: Option<PathBuf>,
 
@@ -27,29 +29,69 @@ struct Cli {
     command: Command,
 }
 
+#[derive(Clone, Debug, ValueEnum)]
+#[clap(rename_all = "lower")]
+enum Compression {
+    Snappy,
+    Lz4,
+    Zstd,
+    Uncompressed,
+}
+
 #[derive(Subcommand)]
 enum Command {
     HumanReadable {
+        #[arg(long, value_name = "TRACE")]
+        trace: PathBuf,
+
         #[arg(long, value_name = "RAW")]
         raw: bool,
     },
     Parquet {
-        #[arg(long, value_name = "EVENTS")]
-        events: Option<Vec<String>>,
+        #[arg(long, value_name = "TRACE")]
+        trace: PathBuf,
+
+        #[arg(long, value_name = "EVENT")]
+        event: Option<Vec<String>>,
+
         #[arg(long)]
         unique_timestamps: bool,
+
+        #[arg(long, default_value = "snappy")]
+        compression: Compression,
+
+        // Large row group:
+        //     * Good for disk I/O.
+        //     * Bad for network I/O if only a small part of the row group is needed.
+        //     * Good for metadata size, as the total groups metadata can be quite large on really
+        //       large files, and is loaded eagerly by polars and datafusion, leading to really bad
+        //       memory consumption.
+        #[arg(long, default_value_t=1024 * 1024)]
+        row_group_size: usize,
     },
-    CheckHeader,
-    Metadata,
+    CheckHeader {
+        #[arg(long, value_name = "TRACE")]
+        trace: PathBuf,
+    },
+    Metadata {
+        #[arg(long, value_name = "TRACE")]
+        trace: PathBuf,
+
+        #[arg(long, value_name = "KEY")]
+        key: Option<Vec<String>>,
+    },
 }
 
 fn _main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
 
-    let path = cli.trace;
-    let file = std::fs::File::open(path)?;
-    let mut reader = unsafe { traceevent::io::MmapFile::new(file) }?;
-    let header = header::header(&mut reader)?;
+    let open_trace = |path| -> Result<(Header, Box<_>), Box<dyn Error>> {
+        let file = std::fs::File::open(path)?;
+        let reader = unsafe { traceevent::io::MmapFile::new(file) }?;
+        let mut reader = Box::new(reader);
+        let header = header::header(reader.deref_mut())?;
+        Ok((header, reader))
+    };
 
     let make_unique_timestamps = {
         let mut prev = 0;
@@ -64,22 +106,48 @@ fn _main() -> Result<(), Box<dyn Error>> {
     let stdout = std::io::stdout().lock();
     let mut out = std::io::BufWriter::with_capacity(1024 * 1024, stdout);
 
-    let res = match cli.command {
-        Command::HumanReadable { raw } => print_events(&header, reader, &mut out, raw),
+    let res: Result<_, DynMultiError> = match cli.command {
+        Command::HumanReadable { trace, raw } => {
+            let (header, reader) = open_trace(trace)?;
+            print_events(&header, reader, &mut out, raw)
+        }
         Command::Parquet {
-            events,
+            trace,
+            event,
             unique_timestamps,
+            compression,
+            row_group_size,
         } => {
+            let (header, reader) = open_trace(trace)?;
             let make_ts: Box<dyn FnMut(_) -> _> = if unique_timestamps {
                 Box::new(make_unique_timestamps)
             } else {
                 Box::new(|ts| ts)
             };
 
-            dump_events(&header, reader, make_ts, events)
+            let compression = match compression {
+                Compression::Snappy => ParquetCompression::SNAPPY,
+                Compression::Zstd => ParquetCompression::ZSTD(
+                    ZstdLevel::try_new(3).expect("Invalid zstd compression level"),
+                ),
+                // LZ4 codec is deprecated, so use LZ4_RAW instead:
+                // https://parquet.apache.org/docs/file-format/data-pages/compression/
+                Compression::Lz4 => ParquetCompression::LZ4_RAW,
+                Compression::Uncompressed => ParquetCompression::UNCOMPRESSED,
+            };
+            match dump_events(&header, reader, make_ts, event, row_group_size, compression) {
+                Ok(metadata) => Ok(metadata.dump(File::create("meta.json")?)?),
+                Err(err) => Err(err),
+            }
         }
-        Command::CheckHeader => check_header(&header, &mut out),
-        Command::Metadata => dump_header_metadata(&header, &mut out),
+        Command::CheckHeader { trace } => {
+            let (header, _) = open_trace(trace)?;
+            check_header(&header, &mut out)
+        }
+        Command::Metadata { trace, key } => {
+            let (header, reader) = open_trace(trace)?;
+            dump_metadata(&header, reader, &mut out, key)
+        }
     };
     out.flush()?;
 

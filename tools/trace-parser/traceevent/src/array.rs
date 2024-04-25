@@ -1,7 +1,6 @@
 use core::{
     borrow::Borrow,
     cmp::Ordering,
-    convert::AsRef,
     fmt,
     hash::{Hash, Hasher},
     ops::Deref,
@@ -63,10 +62,10 @@ impl<'r, 'a: 'r, T> From<&'r Array<'a, T>> for &'r [T] {
     }
 }
 
-impl<'a, T> From<&Array<'a, T>> for Vec<T> {
+impl<'a, T: Clone> From<&Array<'a, T>> for Vec<T> {
     #[inline]
     fn from(arr: &Array<'a, T>) -> Vec<T> {
-        arr.into()
+        arr.to_vec()
     }
 }
 

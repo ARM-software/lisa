@@ -1847,9 +1847,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        cparser::{CGrammar, CGrammarCtx, DynamicKind, Type},
+        cparser::{CGrammar, CGrammarCtx, DynamicKind},
         grammar::PackratGrammar as _,
-        header::{Abi, Endianness, LongSize},
         parser::tests::{run_parser, zero_copy_to_str},
     };
 

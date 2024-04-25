@@ -378,6 +378,16 @@ class TestTrace(TraceTestCase):
         # Proxy check for detecting delta computation changes
         assert df.delta.sum() == pytest.approx(134.568219)
 
+    def test_meta_event(self):
+        trace = self.get_trace('doc')
+        df = trace.df_event('userspace@rtapp_stats')
+        assert 'userspace@rtapp_stats' in trace.available_events
+        assert len(df) == 465
+
+    def test_meta_event_available(self):
+        trace = self.get_trace('doc')
+        assert 'userspace@rtapp_stats' in trace.available_events
+
 
 class TestTraceView(TraceTestCase):
 

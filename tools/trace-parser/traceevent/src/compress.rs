@@ -107,23 +107,23 @@ impl Decompressor for ZstdDecompressor {
 
 // #[cfg(not(target_arch = "x86_64"))]
 // impl ZstdDecompressor {
-    // pub fn new() -> Self {
-        // ZstdDecompressor
-    // }
+// pub fn new() -> Self {
+// ZstdDecompressor
+// }
 // }
 
 // #[cfg(not(target_arch = "x86_64"))]
 // impl Decompressor for ZstdDecompressor {
-    // #[inline]
-    // fn to_dyn(&self) -> Box<dyn Decompressor> {
-        // Box::new(Self::new())
-    // }
+// #[inline]
+// fn to_dyn(&self) -> Box<dyn Decompressor> {
+// Box::new(Self::new())
+// }
 
-    // fn decompress_into(&self, src: &[u8], dst: &mut [u8]) -> io::Result<()> {
-        // use std::io::Read as _;
-        // let mut decoder = ruzstd::StreamingDecoder::new(src).map_err(io::Error::other)?;
-        // decoder.read_exact(dst)
-    // }
+// fn decompress_into(&self, src: &[u8], dst: &mut [u8]) -> io::Result<()> {
+// use std::io::Read as _;
+// let mut decoder = ruzstd::StreamingDecoder::new(src).map_err(io::Error::other)?;
+// decoder.read_exact(dst)
+// }
 // }
 
 pub(crate) struct ZlibDecompressor {

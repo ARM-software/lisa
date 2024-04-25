@@ -4,7 +4,7 @@ use traceevent::{
     buffer::{flyrecord, BufferError, EventVisitor},
     cinterp::{BufferEnv, CompileError, Value},
     header::{EventDesc, FieldFmt, Header, HeaderError},
-    io::BorrowingRead,
+    io::BorrowingReadCore,
     print::{PrintError, StringWriter},
     scratch::ScratchAlloc,
 };
@@ -34,9 +34,9 @@ pub enum MainError {
     UnexpectedPidType(Option<Value<'static>>),
 }
 
-pub fn print_events<R: BorrowingRead + Send, W: Write>(
+pub fn print_events<R: BorrowingReadCore + Send, W: Write>(
     header: &Header,
-    reader: R,
+    reader: Box<R>,
     mut out: W,
     raw: bool,
 ) -> Result<(), DynMultiError> {
