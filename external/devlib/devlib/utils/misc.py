@@ -1,4 +1,4 @@
-#    Copyright 2013-2018 ARM Limited
+#    Copyright 2013-2024 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,23 +22,22 @@ from contextlib import contextmanager
 from functools import partial, reduce, wraps
 from itertools import groupby
 from operator import itemgetter
-from weakref import WeakKeyDictionary, WeakSet
+from weakref import WeakSet
+from ruamel.yaml import YAML
 
 import ctypes
-import functools
 import logging
 import os
 import pkgutil
 import random
 import re
-import signal
 import string
 import subprocess
 import sys
 import threading
 import types
-import wrapt
 import warnings
+import wrapt
 
 
 try:
@@ -592,6 +591,30 @@ class LoadSyntaxError(Exception):
         return message.format(self.filepath, self.lineno, self.message)
 
 
+def load_struct_from_yaml(filepath):
+    """
+    Parses a config structure from a YAML file.
+    The structure should be composed of basic Python types.
+
+    :param filepath: Input file which contains YAML data.
+    :type filepath: str
+
+    :raises LoadSyntaxError: if there is a syntax error in YAML data.
+
+    :return: A dictionary which contains parsed YAML data
+    :rtype: Dict
+    """
+
+    try:
+        yaml = YAML(typ='safe', pure=True)
+        with open(filepath, 'r', encoding='utf-8') as file_handler:
+            return yaml.load(file_handler)
+    except yaml.YAMLError as ex:
+        message = ex.message if hasattr(ex, 'message') else ''
+        lineno = ex.problem_mark.line if hasattr(ex, 'problem_mark') else None
+        raise LoadSyntaxError(message, filepath=filepath, lineno=lineno) from ex
+
+
 RAND_MOD_NAME_LEN = 30
 BAD_CHARS = string.punctuation + string.whitespace
 TRANS_TABLE = str.maketrans(BAD_CHARS, '_' * len(BAD_CHARS))
@@ -632,6 +655,7 @@ def ranges_to_list(ranges_string):
 
 def list_to_ranges(values):
     """Converts a list, e.g ``[0,2,3,4]``, into a sysfs-style ranges string, e.g. ``"0,2-4"``"""
+    values = sorted(values)
     range_groups = []
     for _, g in groupby(enumerate(values), lambda i_x: i_x[0] - i_x[1]):
         range_groups.append(list(map(itemgetter(1), g)))

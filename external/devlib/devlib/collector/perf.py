@@ -59,7 +59,7 @@ class PerfCollector(CollectorBase):
     mispredicted. They form a basis for profiling applications to trace dynamic
     control flow and identify hotspots.
 
-    pref accepts options and events. If no option is given the default '-a' is
+    Perf accepts options and events. If no option is given the default '-a' is
     used. For events, the default events are migrations and cs for perf and raw-cpu-cycles,
     raw-l1-dcache, raw-l1-dcache-refill, raw-instructions-retired. They both can
     be specified in the config file.
@@ -94,7 +94,8 @@ class PerfCollector(CollectorBase):
                  run_report_sample=False,
                  report_sample_options=None,
                  labels=None,
-                 force_install=False):
+                 force_install=False,
+                 validate_events=True):
         super(PerfCollector, self).__init__(target)
         self.force_install = force_install
         self.labels = labels
@@ -102,6 +103,7 @@ class PerfCollector(CollectorBase):
         self.run_report_sample = run_report_sample
         self.report_sample_options = report_sample_options
         self.output_path = None
+        self.validate_events = validate_events
 
         # Validate parameters
         if isinstance(optionstring, list):
@@ -135,7 +137,8 @@ class PerfCollector(CollectorBase):
         if self.force_install or not self.binary:
             self.binary = self._deploy_perf()
 
-        self._validate_events(self.events)
+        if self.validate_events:
+            self._validate_events(self.events)
 
         self.commands = self._build_commands()
 

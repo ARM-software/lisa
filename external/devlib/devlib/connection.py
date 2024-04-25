@@ -1,4 +1,4 @@
-#    Copyright 2019 ARM Limited
+#    Copyright 2024 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,13 +15,9 @@
 
 from abc import ABC, abstractmethod
 from contextlib import contextmanager, nullcontext
-from datetime import datetime
-from functools import partial
-from weakref import WeakSet
 from shlex import quote
 import os
 import signal
-import socket
 import subprocess
 import threading
 import time

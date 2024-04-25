@@ -1,4 +1,4 @@
-#    Copyright 2018 ARM Limited
+#    Copyright 2024 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,9 +13,27 @@
 # limitations under the License.
 #
 
-from devlib.target import Target, LinuxTarget, AndroidTarget, LocalLinuxTarget, ChromeOsTarget
-from devlib.host import PACKAGE_BIN_DIRECTORY
-from devlib.exception import DevlibError, DevlibTransientError, DevlibStableError, TargetError, TargetTransientError, TargetStableError, TargetNotRespondingError, HostError
+'''
+Initializations for devlib module
+'''
+
+from devlib.target import (
+        Target, LinuxTarget, AndroidTarget, LocalLinuxTarget,
+        ChromeOsTarget,
+)
+
+from devlib.target_runner import QEMUTargetRunner
+
+from devlib.host import (
+        PACKAGE_BIN_DIRECTORY,
+        LocalConnection,
+)
+
+from devlib.exception import (
+        DevlibError, DevlibTransientError, DevlibStableError,
+        TargetError, TargetTransientError, TargetStableError,
+        TargetNotRespondingError, HostError,
+)
 
 from devlib.module import Module, HardRestModule, BootModule, FlashModule
 from devlib.module import get_module, register_module
@@ -52,10 +70,8 @@ from devlib.collector.serial_trace import SerialTraceCollector
 from devlib.collector.dmesg import DmesgCollector
 from devlib.collector.logcat import LogcatCollector
 
-from devlib.host import LocalConnection
 from devlib.utils.android import AdbConnection
 from devlib.utils.ssh import SshConnection, TelnetConnection, Gem5Connection
-
 from devlib.utils.version import (get_devlib_version as __get_devlib_version,
                                   get_commit as __get_commit)
 
@@ -64,6 +80,6 @@ __version__ = __get_devlib_version()
 
 __commit = __get_commit()
 if __commit:
-    __full_version__ = '{}+{}'.format(__version__, __commit)
+    __full_version__ = f'{__version__}+{__commit}'
 else:
     __full_version__ = __version__

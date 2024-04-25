@@ -93,7 +93,7 @@ class Speedometer(Workload):
     # This regex finds a single XML tag where property 1 and 2 are true:
     #  1. contains the attribute text="XXX" or content-desc="XXX"
     #  2. and exclusively either 2a or 2b is true:
-    #   2a. there exists a resource-id="result-number" to that attribute's left
+    #   2a. there exists a index="3" or resource-id="result-number" to that attribute's left
     #   2b. there exists a resource-id="result-number" to that attribute's right
     # The regex stores the XXX value of that attribute in the named group 'value'.
     #
@@ -101,10 +101,11 @@ class Speedometer(Workload):
     #  If you use (?P<tag>regex)? to match 'regex', and then afterwards you
     #  have (?(tag)A|B), then regex A will be used if the 'tag' group captured
     #  something and B will be used if nothing was captured. This is how we
-    #  search for 'resource-id="result-number"' after the text/content-desc
+    #  search for only 'resource-id="result-number"' after the text/content-desc
     #  _only_ in the case we didn't see it before.
+    #  Since 'index="3"' is always on the left side of the value.
     regex = re.compile(
-        '<[^>]*(?P<Z>resource-id="result-number")?[^>]*'
+        '<[^>]*(?P<Z>index="3"|resource-id="result-number")?[^>]*'
         '(?:text|content-desc)="(?P<value>\d+.\d+)"[^>]*'
         '(?(Z)|resource-id="result-number")[^>]*\/>'
     )

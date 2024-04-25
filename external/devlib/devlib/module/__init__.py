@@ -15,16 +15,30 @@
 import logging
 from inspect import isclass
 
-from past.builtins import basestring
-
-from devlib.utils.misc import walk_modules
+from devlib.exception import TargetStableError
 from devlib.utils.types import identifier
+from devlib.utils.misc import walk_modules
+
+_module_registry = {}
+
+def register_module(mod):
+    if not issubclass(mod, Module):
+        raise ValueError('A module must subclass devlib.Module')
+
+    if mod.name is None:
+        raise ValueError('A module must define a name')
+
+    try:
+        existing = _module_registry[mod.name]
+    except KeyError:
+        pass
+    else:
+        if existing is not mod:
+            raise ValueError(f'Module "{mod.name}" already exists')
+    _module_registry[mod.name] = mod
 
 
-__module_cache = {}
-
-
-class Module(object):
+class Module:
 
     name = None
     kind = None
@@ -48,20 +62,46 @@ class Module(object):
 
     @classmethod
     def install(cls, target, **params):
-        if cls.kind is not None:
-            attr_name = identifier(cls.kind)
+        attr_name = cls.attr_name
+        installed = target._installed_modules
+
+        try:
+            mod = installed[attr_name]
+        except KeyError:
+            mod = cls(target, **params)
+            mod.logger.debug(f'Installing module {cls.name}')
+
+            if mod.probe(target):
+                for name in (
+                    attr_name,
+                    identifier(cls.name),
+                    identifier(cls.kind) if cls.kind else None,
+                ):
+                    if name is not None:
+                        installed[name] = mod
+
+                target._modules[cls.name] = params
+                return mod
+            else:
+                raise TargetStableError(f'Module "{cls.name}" is not supported by the target')
         else:
-            attr_name = identifier(cls.name)
-        if hasattr(target, attr_name):
-            existing_module = getattr(target, attr_name)
-            existing_name = getattr(existing_module, 'name', str(existing_module))
-            message = 'Attempting to install module "{}" which already exists (new: {}, existing: {})'
-            raise ValueError(message.format(attr_name, cls.name, existing_name))
-        setattr(target, attr_name, cls(target, **params))
+            raise ValueError(
+                f'Attempting to install module "{cls.name}" but a module is already installed as attribute "{attr_name}": {mod}'
+            )
 
     def __init__(self, target):
         self.target = target
         self.logger = logging.getLogger(self.name)
+
+
+    def __init_subclass__(cls, *args, **kwargs):
+        super().__init_subclass__(*args, **kwargs)
+
+        attr_name = cls.kind or cls.name
+        cls.attr_name = identifier(attr_name) if attr_name else None
+
+        if cls.name is not None:
+            register_module(cls)
 
 
 class HardRestModule(Module):
@@ -96,32 +136,25 @@ class FlashModule(Module):
 
 
 def get_module(mod):
-    if not __module_cache:
-        __load_cache()
-
-    if isinstance(mod, basestring):
+    def from_registry(mod):
         try:
-            return __module_cache[mod]
+            return _module_registry[mod]
         except KeyError:
             raise ValueError('Module "{}" does not exist'.format(mod))
+
+    if isinstance(mod, str):
+        try:
+            return from_registry(mod)
+        except ValueError:
+            # If the lookup failed, we may have simply not imported Modules
+            # from the devlib.module package. The former module loading
+            # implementation was also pre-importing modules, so we need to
+            # replicate that behavior since users are currently not expected to
+            # have imported the module prior to trying to use it.
+            walk_modules('devlib.module')
+            return from_registry(mod)
+
     elif issubclass(mod, Module):
         return mod
     else:
         raise ValueError('Not a valid module: {}'.format(mod))
-
-
-def register_module(mod):
-    if not issubclass(mod, Module):
-        raise ValueError('A module must subclass devlib.Module')
-    if mod.name is None:
-        raise ValueError('A module must define a name')
-    if mod.name in __module_cache:
-        raise ValueError('Module {} already exists'.format(mod.name))
-    __module_cache[mod.name] = mod
-
-
-def __load_cache():
-    for module in walk_modules('devlib.module'):
-        for obj in vars(module).values():
-            if isclass(obj) and issubclass(obj, Module) and obj.name:
-                register_module(obj)
