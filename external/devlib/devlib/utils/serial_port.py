@@ -1,4 +1,4 @@
-#    Copyright 2013-2018 ARM Limited
+#    Copyright 2013-2024 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,16 +13,13 @@
 # limitations under the License.
 #
 
-
 import time
 from contextlib import contextmanager
 from logging import Logger
 
 import serial
 
-# pylint: disable=import-error,wrong-import-position,ungrouped-imports,wrong-import-order
-import pexpect
-
+# pylint: disable=ungrouped-imports
 try:
     from pexpect import fdpexpect
 # pexpect < 4.0.0 does not have fdpexpect module

@@ -1,4 +1,4 @@
-#    Copyright 2014-2018 ARM Limited
+#    Copyright 2014-2024 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,6 @@
 #
 
 
-import glob
 import os
 import stat
 import logging
@@ -22,17 +21,17 @@ import subprocess
 import re
 import threading
 import tempfile
-import shutil
 import socket
 import sys
 import time
 import atexit
 import contextlib
-import weakref
 import select
 import copy
 import functools
+import shutil
 from shlex import quote
+from weakref import WeakMethod
 
 from paramiko.client import SSHClient, AutoAddPolicy, RejectPolicy
 import paramiko.ssh_exception
@@ -60,8 +59,7 @@ from devlib.exception import (HostError, TargetStableError, TargetNotRespondingE
 from devlib.utils.misc import (which, strip_bash_colors, check_output,
                                sanitize_cmd_template, memoized, redirect_streams)
 from devlib.utils.types import boolean
-from devlib.connection import (ConnectionBase, ParamikoBackgroundCommand, PopenBackgroundCommand,
-                               SSHTransferHandle)
+from devlib.connection import ConnectionBase, ParamikoBackgroundCommand, SSHTransferHandle
 
 
 DEFAULT_SSH_SUDO_COMMAND = "sudo -k -p ' ' -S -- sh -c {}"
@@ -371,25 +369,33 @@ class SshConnection(SshConnectionBase):
         else:
             logger.debug('Using SFTP for file transfer')
 
-        self.client = self._make_client()
-        atexit.register(self.close)
+        self.client = None
+        try:
+            self.client = self._make_client()
+            weak_close = WeakMethod(self.close, atexit.unregister)
+            atexit.register(weak_close)
 
-        # Use a marker in the output so that we will be able to differentiate
-        # target connection issues with "password needed".
-        # Also, sudo might not be installed at all on the target (but
-        # everything will work as long as we login as root). If sudo is still
-        # needed, it will explode when someone tries to use it. After all, the
-        # user might not be interested in being root at all.
-        self._sudo_needs_password = (
-            'NEED_PASSWORD' in
-            self.execute(
-                # sudo -n is broken on some versions on MacOSX, revisit that if
-                # someone ever cares
-                'sudo -n true || echo NEED_PASSWORD',
-                as_root=False,
-                check_exit_code=False,
+            # Use a marker in the output so that we will be able to differentiate
+            # target connection issues with "password needed".
+            # Also, sudo might not be installed at all on the target (but
+            # everything will work as long as we login as root). If sudo is still
+            # needed, it will explode when someone tries to use it. After all, the
+            # user might not be interested in being root at all.
+            self._sudo_needs_password = (
+                'NEED_PASSWORD' in
+                self.execute(
+                    # sudo -n is broken on some versions on MacOSX, revisit that if
+                    # someone ever cares
+                    'sudo -n true || echo NEED_PASSWORD',
+                    as_root=False,
+                    check_exit_code=False,
+                )
             )
-        )
+
+        except BaseException:
+            if self.client is not None:
+                self.client.close()
+            raise
 
     def _make_client(self):
         if self.strict_host_check:
@@ -401,7 +407,8 @@ class SshConnection(SshConnectionBase):
 
         with _handle_paramiko_exceptions():
             client = SSHClient()
-            client.load_system_host_keys()
+            if self.strict_host_check:
+                client.load_system_host_keys()
             client.set_missing_host_key_policy(policy)
             client.connect(
                 hostname=self.host,
@@ -807,7 +814,9 @@ class TelnetConnection(SshConnectionBase):
         timeout = timeout if timeout is not None else self.default_timeout
 
         self.conn = telnet_get_shell(host, username, password, port, timeout, original_prompt)
-        atexit.register(self.close)
+
+        weak_close = WeakMethod(self.close, atexit.unregister)
+        atexit.register(weak_close)
 
     def fmt_remote_path(self, path):
         return '{}@{}:{}'.format(self.username, self.host, path)

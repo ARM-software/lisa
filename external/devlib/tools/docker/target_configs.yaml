@@ -1,0 +1,43 @@
+AndroidTarget:
+  # Android-12, Pixel-6
+  entry-0:
+    timeout: 60
+    connection_settings:
+      device: 'emulator-5554'
+
+  # Android-14, Pixel-6
+  entry-1:
+    connection_settings:
+      device: 'emulator-5556'
+
+  # Android-13, Pixel tablet
+  entry-2:
+    connection_settings:
+      device: 'emulator-5558'
+
+LocalLinuxTarget:
+  entry-0:
+    connection_settings:
+      unrooted: True
+
+QEMUTargetRunner:
+  entry-0:
+    qemu_settings:
+      kernel_image: '/devlib/tools/buildroot/buildroot-v2023.11.1-aarch64/output/images/Image'
+
+    ChromeOsTarget:
+      connection_settings:
+        device: 'emulator-5558'
+
+  entry-1:
+    connection_settings:
+      port: 8023
+
+    qemu_settings:
+      kernel_image: '/devlib/tools/buildroot/buildroot-v2023.11.1-x86_64/output/images/bzImage'
+      arch: 'x86_64'
+      cmdline: 'console=ttyS0'
+
+    ChromeOsTarget:
+      connection_settings:
+        device: 'emulator-5558'

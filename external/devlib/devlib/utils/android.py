@@ -294,6 +294,10 @@ class AdbConnection(ConnectionBase):
             total_transfer_timeout=total_transfer_timeout,
             transfer_poll_period=transfer_poll_period,
         )
+
+        self.logger.debug('server=%s port=%s device=%s as_root=%s',
+                          adb_server, adb_port, device, adb_as_root)
+
         self.timeout = timeout if timeout is not None else self.default_timeout
         if device is None:
             device = adb_get_device(timeout=timeout, adb_server=adb_server, adb_port=adb_port)
@@ -545,9 +549,9 @@ def adb_connect(device, timeout=None, attempts=MAX_ATTEMPTS, adb_server=None, ad
             break
         time.sleep(10)
     else:  # did not connect to the device
-        message = 'Could not connect to {}'.format(device or 'a device')
+        message = f'Could not connect to {device or "a device"} at {adb_server}:{adb_port}'
         if output:
-            message += '; got: "{}"'.format(output)
+            message += f'; got: {output}'
         raise HostError(message)
 
 
