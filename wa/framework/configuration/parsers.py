@@ -238,20 +238,47 @@ def _load_file(filepath, error_name):
     return raw, includes
 
 
+def _config_values_from_includes(filepath, include_path, error_name):
+    source_dir = os.path.dirname(filepath)
+    included_files = []
+
+    if isinstance(include_path, str):
+        include_path = os.path.expanduser(os.path.join(source_dir, include_path))
+
+        replace_value, includes = _load_file(include_path, error_name)
+
+        included_files.append(include_path)
+        included_files.extend(includes)
+    elif isinstance(include_path, list):
+        replace_value = {}
+
+        for path in include_path:
+            include_path = os.path.expanduser(os.path.join(source_dir, path))
+
+            sub_replace_value, includes = _load_file(include_path, error_name)
+            for key, val in sub_replace_value.items():
+                replace_value[key] = merge_config_values(val, replace_value.get(key, None))
+
+            included_files.append(include_path)
+            included_files.extend(includes)
+    else:
+        message = "{} does not contain a valid {} structure; value for 'include#' must be a string or a list"
+        raise ConfigError(message.format(filepath, error_name))
+
+    return replace_value, included_files
+
+
 def _process_includes(raw, filepath, error_name):
     if not raw:
         return []
 
-    source_dir = os.path.dirname(filepath)
     included_files = []
     replace_value = None
 
     if hasattr(raw, 'items'):
         for key, value in raw.items():
             if key == 'include#':
-                include_path = os.path.expanduser(os.path.join(source_dir, value))
-                included_files.append(include_path)
-                replace_value, includes = _load_file(include_path, error_name)
+                replace_value, includes = _config_values_from_includes(filepath, value, error_name)
                 included_files.extend(includes)
             elif hasattr(value, 'items') or isiterable(value):
                 includes = _process_includes(value, filepath, error_name)
