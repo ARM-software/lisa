@@ -28,15 +28,9 @@ from uuid import uuid4
 from itertools import starmap
 
 import pandas as pd
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
-from matplotlib.backend_bases import MouseButton
 import holoviews as hv
 import bokeh.models
 import panel as pn
-
-from cycler import cycler as make_cycler
 
 from ipywidgets import widgets, Layout, interact
 from IPython.display import display
@@ -55,8 +49,6 @@ COLOR_CYCLE = [
 Colorblind-friendly cycle, see https://gist.github.com/thriveth/8560036
 """
 
-plt.rcParams['axes.prop_cycle'] = make_cycler(color=COLOR_CYCLE)
-
 
 class WrappingHBox(widgets.HBox):
     """
@@ -73,11 +65,6 @@ class WrappingHBox(widgets.HBox):
         super().__init__(*args, layout=layout, **kwargs)
 
 
-# Make a subclass so we can integrate better with mplcursors
-class _DataframeLinkMarker(mpl.lines.Line2D):
-    pass
-
-
 # mplcursors is not a dependency anymore as interactive plots are now done with
 # bokeh, but keep this around for compatibility in case someone needs
 # matplotlib to get a better fixed output and wants a bit of interactivity for
@@ -87,6 +74,12 @@ try:
 except ImportError:
     pass
 else:
+    import matplotlib as mpl
+
+    # Make a subclass so we can integrate better with mplcursors
+    class _DataframeLinkMarker(mpl.lines.Line2D):
+        pass
+
     # Tell mplcursors that we are never selecting the marker line, so that it
     # will still show the coordinates of the data that were plotted, rather
     # than useless coordinates of the marker
@@ -96,9 +89,15 @@ else:
 
 
 def _make_vline(axis, *args, **kwargs):
+    import matplotlib as mpl
     vline = axis.axvline(*args, **kwargs)
     assert type(vline) is mpl.lines.Line2D # pylint: disable=unidiomatic-typecheck
-    vline.__class__ = _DataframeLinkMarker
+    try:
+        cls = _DataframeLinkMarker
+    except NameError:
+        pass
+    else:
+        vline.__class__ = _DataframeLinkMarker
     vline.set_visible(False)
     return vline
 
@@ -200,7 +199,7 @@ def axis_link_dataframes(axis, df_list, before=1, after=5, cursor_color='red', f
     display(hbox)
 
 
-def axis_cursor_delta(axis, colors=('blue', 'green'), buttons=(MouseButton.LEFT, MouseButton.RIGHT)):
+def axis_cursor_delta(axis, colors=('blue', 'green'), buttons=None):
     """
     Display the time delta between two vertical lines drawn on clicks.
 
@@ -211,11 +210,14 @@ def axis_cursor_delta(axis, colors=('blue', 'green'), buttons=(MouseButton.LEFT,
     :type colors: list(str)
 
     :param buttons: Mouse buttons to use for each vertical line.
-    :type buttons: list(matplotlib.backend_bases.MouseButton)
+    :type buttons: tuple(matplotlib.backend_bases.MouseButton) or None
 
     .. note:: This requires the matplotlib widget enabled using
         ``%matplotlib widget`` magic.
     """
+    from matplotlib.backend_bases import MouseButton
+
+    buttons = buttons or (MouseButton.LEFT, MouseButton.RIGHT)
     delta_widget = widgets.Text(
         value='0',
         placeholder='0',
@@ -333,6 +335,7 @@ def make_figure(width, height, nrows, ncols, interactive=None, **kwargs):
         * :class:`matplotlib.figure.Figure`
         * :class:`matplotlib.axes.Axes` as a scalar, an iterable (1D) or iterable of iterable matrix (2D)
     """
+    import matplotlib as mpl
     if interactive is None:
         interactive = is_running_ipython()
 
@@ -344,6 +347,7 @@ def make_figure(width, height, nrows, ncols, interactive=None, **kwargs):
     height *= nrows
 
     if interactive:
+        import matplotlib.pyplot as plt
         figure, axes = plt.subplots(
             figsize=(width, height),
             nrows=nrows,
@@ -351,6 +355,7 @@ def make_figure(width, height, nrows, ncols, interactive=None, **kwargs):
             **kwargs,
         )
     else:
+        from matplotlib.figure import Figure
         figure = Figure(figsize=(width, height))
         axes = figure.subplots(ncols=ncols, nrows=nrows, **kwargs)
 
@@ -490,9 +495,6 @@ def _hv_twinx(fig, display=True, y_range=None):
     return fig.options(
         backend='bokeh',
         hooks=[_hv_backend_twinx('bokeh', **kwargs)],
-    ).options(
-        backend='matplotlib',
-        hooks=[_hv_backend_twinx('matplotlib', **kwargs)],
     )
 
 def _hv_multi_line_title_hook(plot, element):

@@ -193,9 +193,6 @@ class LatencyAnalysis(TraceAnalysisBase):
         ).options(
             color=self.LATENCY_THRESHOLD_COLOR
         ).options(
-            backend='matplotlib',
-            linestyle='--',
-        ).options(
             backend='bokeh',
             line_dash='dashed',
         )
@@ -204,9 +201,6 @@ class LatencyAnalysis(TraceAnalysisBase):
         return hv.Scatter(df, label=label).options(marker='+').options(
             backend='bokeh',
             size=5,
-        ).options(
-            backend='matplotlib',
-            s=30,
         )
 
     def _plot_overutilized(self):

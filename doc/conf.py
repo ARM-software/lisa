@@ -519,6 +519,9 @@ def setup(app):
     # to deadlocks:
     # https://github.com/sphinx-doc/sphinx/issues/12201
     if int(os.environ.get('LISA_DOC_BUILD_PLOT', '1')):
+        import holoviews as hv
+        hv.extension('bokeh')
+
         plot_conf_path = os.path.join(HOME, 'doc', 'plot_conf.yml')
         plot_conf = DocPlotConf.from_yaml_map(plot_conf_path)
         plots = autodoc_pre_make_plots(plot_conf)

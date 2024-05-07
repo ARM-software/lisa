@@ -127,10 +127,6 @@ if __name__ == "__main__":
         python_requires=python_requires,
         install_requires=[
             "psutil >= 4.4.2",
-            # Figure.savefig() (without pyplot) does not work in matplotlib <
-            # 3.1.0, and that is used for non-interactive plots when building the
-            # doc.
-            "matplotlib >= 3.1.0",
             "bokeh",
             # For bokeh static image exports
             "selenium",

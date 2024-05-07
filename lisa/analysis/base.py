@@ -31,12 +31,8 @@ from operator import itemgetter, attrgetter
 import typing
 
 import numpy
-import matplotlib
-import matplotlib.pyplot as plt
 # Avoid ambiguity between function name and usual variable name
-from cycler import cycler as make_cycler
 import holoviews as hv
-import holoviews.plotting.mpl
 import bokeh
 import bokeh.layouts
 import bokeh.models.widgets
@@ -156,6 +152,9 @@ class AnalysisHelpers(Loggable, abc.ABC):
             of them. This way of merging allows decoupling the length of all
             keys.
         """
+        import matplotlib.pyplot as plt
+        from cycler import cycler as make_cycler
+
         orig_cycler = plt.rcParams['axes.prop_cycle']
 
         # Get the maximum value length among all cyclers involved
@@ -219,6 +218,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
         Context manager to set ``matplotlib.rcParams`` while plotting, and then
         restore the default parameters.
         """
+        import matplotlib
         orig = matplotlib.rcParams.copy()
         matplotlib.rcParams.update(rc_params)
 
@@ -249,6 +249,9 @@ class AnalysisHelpers(Loggable, abc.ABC):
           color defined in the color cycle.
 
         """
+        import matplotlib.pyplot as plt
+        from cycler import cycler as make_cycler
+
         if nr_cycles < 1:
             return
 
@@ -329,6 +332,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
             current backend enabled with ``hv.extension()`` will be used.
         :type backend: str or None
         """
+        import matplotlib
 
         img_format = img_format or guess_format(filepath) or 'png'
 
@@ -859,6 +863,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                     if backend == 'matplotlib':
                         # Make sure to use an interactive renderer for notebooks,
                         # otherwise the plot will not be displayed
+                        import holoviews.plotting.mpl
                         renderer = hv.plotting.mpl.MPLRenderer.instance(
                             interactive=interactive
                         )

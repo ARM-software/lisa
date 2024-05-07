@@ -1105,9 +1105,6 @@ class TasksAnalysis(TraceAnalysisBase):
         return hv.Scatter(df, label=label).options(marker='+').options(
             backend='bokeh',
             size=5,
-        ).options(
-            backend='matplotlib',
-            s=30,
         )
 
     def _plot_overutilized(self):
@@ -1539,9 +1536,6 @@ class TasksAnalysis(TraceAnalysisBase):
                 alpha=alpha,
                 **opts,
             ).options(
-                backend='matplotlib',
-                linewidth=0,
-            ).options(
                 backend='bokeh',
                 line_width=0,
                 tools=[self._BOKEH_TASK_HOVERTOOL],
@@ -1735,9 +1729,6 @@ class TasksAnalysis(TraceAnalysisBase):
                 ).options(
                     backend='bokeh',
                     line_width=0.5,
-                ).options(
-                    backend='matplotlib',
-                    linewidth=0.5,
                 )
                 for y in range(trace.cpus_count + 1)
                 for offset in ((0.5, -0.5) if y == 0 else (0.5,))
