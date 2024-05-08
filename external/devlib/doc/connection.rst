@@ -199,9 +199,9 @@ Connection Types
                             timeout=None, password_prompt=None,\
                             original_prompt=None)
 
-    A connection to a device on the network over Telenet.
+    A connection to a device on the network over Telnet.
 
-    .. note:: Since Telenet protocol is does not support file transfer, scp is
+    .. note:: Since Telnet protocol is does not support file transfer, scp is
               used for that purpose.
 
     :param host: SSH host to which to connect
@@ -220,7 +220,7 @@ Connection Types
     :param password_prompt: A string with the password prompt used by
                             ``sshpass``. Set this if your version of ``sshpass``
                             uses something other than ``"[sudo] password"``.
-    :param original_prompt: A regex for the shell prompted presented in the Telenet
+    :param original_prompt: A regex for the shell prompted presented in the Telnet
                             connection (the prompt will be reset to a
                             randomly-generated pattern for the duration of the
                             connection to reduce the possibility of clashes).

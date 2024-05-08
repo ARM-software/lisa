@@ -101,9 +101,6 @@ class CpusAnalysis(TraceAnalysisBase):
             orig_capacities[cpu],
             label='orig capacity'
         ).options(
-            backend='matplotlib',
-            linestyle='--',
-        ).options(
             backend='bokeh',
             line_dash='dashed',
         )

@@ -25,6 +25,7 @@ Contents:
    derived_measurements
    platform
    connection
+   tools
 
 Indices and tables
 ==================

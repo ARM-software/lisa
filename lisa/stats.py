@@ -954,10 +954,6 @@ class Stats(Loggable):
             backend='bokeh',
             toolbar='left',
         ).options(
-            backend='matplotlib',
-            hspace=1.5,
-            vspace=0.7,
-        ).options(
             # All plots are wrapped in an Overlay, either because they are true
             # overlays or because NdLayout needs to deal with a single element
             # type.
@@ -1371,10 +1367,6 @@ class Stats(Loggable):
                     backend='bokeh',
                     marker='circle',
                     size=10,
-                ).options(
-                    backend='matplotlib',
-                    marker='o',
-                    s=100,
                 )
             )
 

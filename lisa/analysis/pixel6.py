@@ -89,7 +89,7 @@ class Pixel6Analysis(TraceAnalysisBase):
         """
         df = self.df_power_meter()
 
-        channels = channels if channels is not None else list(df['channel'].cat.categories)
+        channels = list(channels or df['channel'].unique())
         if any(channel not in df['channel'].cat.categories for channel in channels):
             raise ValueError('Specified channel not found')
 

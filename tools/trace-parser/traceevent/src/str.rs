@@ -1,7 +1,6 @@
 use core::{
     borrow::Borrow,
     cmp::Ordering,
-    convert::{AsMut, AsRef},
     fmt,
     hash::{Hash, Hasher},
     ops::{Deref, DerefMut},

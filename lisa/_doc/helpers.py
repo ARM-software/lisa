@@ -308,7 +308,6 @@ class DocPlotConf(SimpleMultiSrcConf):
     ))
 
 def autodoc_pre_make_plots(conf):
-
     def spec_of_meth(conf, meth_name):
         plot_conf = conf['plots']
         default_spec = plot_conf.get('default', {})

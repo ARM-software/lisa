@@ -102,9 +102,11 @@ params = dict(
         'wrapt',  # Basic for construction of decorator functions
         'numpy',
         'pandas',
+        'pytest',
         'lxml', # More robust xml parsing
         'nest_asyncio', # Allows running nested asyncio loops
         'future', # for the "past" Python package
+        'ruamel.yaml >= 0.15.72', # YAML formatted config parsing
     ],
     extras_require={
         'daq': ['daqpower>=2'],

@@ -1,4 +1,4 @@
-#    Copyright 2018 ARM Limited
+#    Copyright 2024 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,18 +14,19 @@
 #
 
 import asyncio
+from contextlib import contextmanager
 import io
 import base64
 import functools
 import gzip
 import glob
 import os
+from operator import itemgetter
 import re
 import time
 import logging
 import posixpath
 import subprocess
-import sys
 import tarfile
 import tempfile
 import threading
@@ -35,7 +36,6 @@ import copy
 import inspect
 import itertools
 from collections import namedtuple, defaultdict
-from contextlib import contextmanager
 from past.builtins import long
 from past.types import basestring
 from numbers import Number
@@ -49,20 +49,19 @@ from enum import Enum
 from concurrent.futures import ThreadPoolExecutor
 
 from devlib.host import LocalConnection, PACKAGE_BIN_DIRECTORY
-from devlib.module import get_module
+from devlib.module import get_module, Module
 from devlib.platform import Platform
 from devlib.exception import (DevlibTransientError, TargetStableError,
                               TargetNotRespondingError, TimeoutError,
                               TargetTransientError, KernelConfigKeyError,
-                              TargetError, HostError, TargetCalledProcessError,
-                              TargetStableCalledProcessError)  # pylint: disable=redefined-builtin
+                              TargetError, HostError, TargetCalledProcessError)
 from devlib.utils.ssh import SshConnection
-from devlib.utils.android import AdbConnection, AndroidProperties, LogcatMonitor, adb_command, adb_disconnect, INTENT_FLAGS
+from devlib.utils.android import AdbConnection, AndroidProperties, LogcatMonitor, adb_command, INTENT_FLAGS
 from devlib.utils.misc import memoized, isiterable, convert_new_lines, groupby_value
 from devlib.utils.misc import commonprefix, merge_lists
 from devlib.utils.misc import ABI_MAP, get_cpu_name, ranges_to_list
 from devlib.utils.misc import batch_contextmanager, tls_property, _BoundTLSProperty, nullcontext
-from devlib.utils.misc import strip_bash_colors, safe_extract
+from devlib.utils.misc import safe_extract
 from devlib.utils.types import integer, boolean, bitmask, identifier, caseless_string, bytes_regex
 import devlib.utils.asyn as asyn
 
@@ -131,13 +130,7 @@ class Target(object):
     os = None
     system_id = None
 
-    default_modules = [
-        'hotplug',
-        'cpufreq',
-        'cpuidle',
-        'cgroups',
-        'hwmon',
-    ]
+    default_modules = []
 
     @property
     def core_names(self):
@@ -340,7 +333,6 @@ class Target(object):
         self.connection_settings['platform'] = self.platform
         self.working_directory = working_directory
         self.executables_directory = executables_directory
-        self.modules = modules or []
         self.load_default_modules = load_default_modules
         self.shell_prompt = bytes_regex(shell_prompt)
         self.conn_cls = conn_cls
@@ -354,12 +346,73 @@ class Target(object):
         self._max_async = max_async
         self.busybox = None
 
-        if load_default_modules:
-            module_lists = [self.default_modules]
-        else:
-            module_lists = []
-        module_lists += [self.modules, self.platform.modules]
-        self.modules = merge_lists(*module_lists, duplicates='first')
+        def normalize_mod_spec(spec):
+            if isinstance(spec, str):
+                return (spec, {})
+            else:
+                [(name, params)] = spec.items()
+                return (name, params)
+
+        modules = sorted(
+            map(
+                normalize_mod_spec,
+                itertools.chain(
+                    self.default_modules if load_default_modules else [],
+                    modules or [],
+                    self.platform.modules or [],
+                )
+            ),
+            key=itemgetter(0),
+        )
+
+        # Ensure that we did not ask for the same module but different
+        # configurations. Empty configurations are ignored, so any
+        # user-provided conf will win against an empty conf.
+        def elect(name, specs):
+            specs = list(specs)
+
+            confs = set(
+                tuple(sorted(params.items()))
+                for _, params in specs
+                if params
+            )
+            if len(confs) > 1:
+                raise ValueError(f'Attempted to load the module "{name}" with multiple different configuration')
+            else:
+                if any(
+                    params is None
+                    for _, params in specs
+                ):
+                    params = None
+                else:
+                    params = dict(confs.pop()) if confs else {}
+
+                return (name, params)
+
+        modules = dict(itertools.starmap(
+            elect,
+            itertools.groupby(modules, key=itemgetter(0))
+        ))
+
+        def get_kind(name):
+            return get_module(name).kind or ''
+
+        def kind_conflict(kind, names):
+            if kind:
+                raise ValueError(f'Cannot enable multiple modules sharing the same kind "{kind}": {sorted(names)}')
+
+        list(itertools.starmap(
+            kind_conflict,
+            itertools.groupby(
+                sorted(
+                    modules.keys(),
+                    key=get_kind
+                ),
+                key=get_kind
+            )
+        ))
+        self._modules = modules
+
         self._update_modules('early')
         if connect:
             self.connect(max_async=max_async)
@@ -411,8 +464,6 @@ class Target(object):
         self._detect_max_async(max_async or self._max_async)
         self.platform.update_from_target(self)
         self._update_modules('connected')
-        if self.platform.big_core and self.load_default_modules:
-            self._install_module(get_module('bl'))
 
     def _detect_max_async(self, max_async):
         self.logger.debug('Detecting max number of async commands ...')
@@ -496,7 +547,7 @@ class Target(object):
         # Check for platform dependent setup procedures
         self.platform.setup(self)
 
-        # Initialize modules which requires Buxybox (e.g. shutil dependent tasks)
+        # Initialize modules which requires Busybox (e.g. shutil dependent tasks)
         self._update_modules('setup')
 
         await self.execute.asyn('mkdir -p {}'.format(quote(self._file_transfer_cache)))
@@ -508,7 +559,7 @@ class Target(object):
             self.hard_reset()  # pylint: disable=no-member
         else:
             if not self.is_connected:
-                message = 'Cannot reboot target becuase it is disconnected. ' +\
+                message = 'Cannot reboot target because it is disconnected. ' +\
                           'Either connect() first, or specify hard=True ' +\
                           '(in which case, a hard_reset module must be installed)'
                 raise TargetTransientError(message)
@@ -1018,19 +1069,19 @@ class Target(object):
         return await self.read_value.asyn(path, kind=boolean)
 
     @asyn.asynccontextmanager
-    async def revertable_write_value(self, path, value, verify=True):
+    async def revertable_write_value(self, path, value, verify=True, as_root=True):
         orig_value = self.read_value(path)
         try:
-            await self.write_value.asyn(path, value, verify)
+            await self.write_value.asyn(path, value, verify=verify, as_root=as_root)
             yield
         finally:
-            await self.write_value.asyn(path, orig_value, verify)
+            await self.write_value.asyn(path, orig_value, verify=verify, as_root=as_root)
 
     def batch_revertable_write_value(self, kwargs_list):
         return batch_contextmanager(self.revertable_write_value, kwargs_list)
 
     @asyn.asyncf
-    async def write_value(self, path, value, verify=True):
+    async def write_value(self, path, value, verify=True, as_root=True):
         self.async_manager.track_access(
             asyn.PathAccess(namespace='target', path=path, mode='w')
         )
@@ -1062,7 +1113,7 @@ fi
         cmd = cmd.format(busybox=quote(self.busybox), path=quote(path), value=quote(value))
 
         try:
-            await self.execute.asyn(cmd, check_exit_code=True, as_root=True)
+            await self.execute.asyn(cmd, check_exit_code=True, as_root=as_root)
         except TargetCalledProcessError as e:
             if e.returncode == 10:
                 raise TargetStableError('Could not write "{value}" to {path}: {e.output}'.format(
@@ -1073,6 +1124,38 @@ fi
                 raise TargetStableError(message)
             else:
                 raise
+
+    @contextmanager
+    def make_temp(self, is_directory=True, directory='', prefix='devlib-test'):
+        """
+        Creates temporary file/folder on target and deletes it once it's done.
+
+        :param is_directory: Specifies if temporary object is a directory, defaults to True.
+        :type is_directory: bool, optional
+
+        :param directory: Temp object will be created under this directory,
+            defaults to :attr:`Target.working_directory`.
+        :type directory: str, optional
+
+        :param prefix: Prefix of temp object's name, defaults to 'devlib-test'.
+        :type prefix: str, optional
+
+        :yield: Full path of temp object.
+        :rtype: str
+        """
+
+        directory = directory or self.working_directory
+        temp_obj = None
+        try:
+            cmd = f'mktemp -p {directory} {prefix}-XXXXXX'
+            if is_directory:
+                cmd += ' -d'
+
+            temp_obj = self.execute(cmd).strip()
+            yield temp_obj
+        finally:
+            if temp_obj is not None:
+                self.remove(temp_obj)
 
     def reset(self):
         try:
@@ -1260,7 +1343,13 @@ fi
         return self._installed_binaries.get(name, name)
 
     def has(self, modname):
-        return hasattr(self, identifier(modname))
+        modname = identifier(modname)
+        try:
+            self._get_module(modname, log=False)
+        except Exception:
+            return False
+        else:
+            return True
 
     @asyn.asyncf
     async def lsmod(self):
@@ -1412,14 +1501,11 @@ fi
     def install_module(self, mod, **params):
         mod = get_module(mod)
         if mod.stage == 'early':
-            msg = 'Module {} cannot be installed after device setup has already occoured.'
-            raise TargetStableError(msg)
-
-        if mod.probe(self):
-            self._install_module(mod, **params)
+            raise TargetStableError(
+                f'Module "{mod.name}" cannot be installed after device setup has already occoured'
+            )
         else:
-            msg = 'Module {} is not supported by the target'.format(mod.name)
-            raise TargetStableError(msg)
+            return self._install_module(mod, params)
 
     # internal methods
 
@@ -1470,39 +1556,82 @@ fi
                 extracted = dest
         return extracted
 
-    def _update_modules(self, stage):
-        for mod_name in copy.copy(self.modules):
-            if isinstance(mod_name, dict):
-                mod_name, params = list(mod_name.items())[0]
-            else:
-                params = {}
-            mod = get_module(mod_name)
-            if not mod.stage == stage:
-                continue
-            if mod.probe(self):
-                self._install_module(mod, **params)
-            else:
-                msg = 'Module {} is not supported by the target'.format(mod.name)
-                self.modules.remove(mod_name)
-                if self.load_default_modules:
-                    self.logger.debug(msg)
-                else:
-                    self.logger.warning(msg)
-
-    def _install_module(self, mod, **params):
+    def _install_module(self, mod, params, log=True):
+        mod = get_module(mod)
         name = mod.name
-        if name not in self._installed_modules:
-            self.logger.debug('Installing module {}'.format(name))
-            try:
-                mod.install(self, **params)
-            except Exception as e:
-                self.logger.error('Module "{}" failed to install on target: {}'.format(name, e))
-                raise
-            self._installed_modules[name] = mod
-            if name not in self.modules:
-                self.modules.append(name)
+        if params is None or self._modules.get(name, {}) is None:
+            raise TargetStableError(f'Could not load module "{name}" as it has been explicilty disabled')
         else:
-            self.logger.debug('Module {} is already installed.'.format(name))
+            try:
+                return mod.install(self, **params)
+            except Exception as e:
+                if log:
+                    self.logger.error(f'Module "{name}" failed to install on target: {e}')
+                raise
+
+    @property
+    def modules(self):
+        return sorted(self._modules.keys())
+
+    def _update_modules(self, stage):
+        to_install = [
+            (mod, params)
+            for mod, params in (
+                (get_module(name), params)
+                for name, params in self._modules.items()
+            )
+            if mod.stage == stage
+        ]
+        for mod, params in to_install:
+            try:
+                self._install_module(mod, params)
+            except Exception as e:
+                mod_name = mod.name
+                self.logger.warning(f'Module {mod.name} is not supported by the target: {e}')
+
+    def _get_module(self, modname, log=True):
+        try:
+            return self._installed_modules[modname]
+        except KeyError:
+            params = {}
+            try:
+                mod = get_module(modname)
+            # We might try to access e.g. "boot" attribute, which is ambiguous
+            # since there are multiple modules with the "boot" kind. In that
+            # case, we look into the list of modules enabled by the user and
+            # get the first "boot" module we find.
+            except ValueError:
+                for _mod, _params in self._modules.items():
+                    try:
+                        _mod = get_module(_mod)
+                    except ValueError:
+                        pass
+                    else:
+                        if _mod.attr_name == modname:
+                            mod = _mod
+                            params = _params
+                            break
+                else:
+                    raise AttributeError(
+                        f"'{self.__class__.__name__}' object has no attribute '{modname}'"
+                    )
+            else:
+                params = self._modules.get(mod.name, {})
+
+            self._install_module(mod, params, log=log)
+            return self.__getattr__(modname)
+
+    def __getattr__(self, attr):
+        # When unpickled, objects will have an empty dict so fail early
+        if attr.startswith('__') and attr.endswith('__'):
+            raise AttributeError(attr)
+
+        try:
+            return self._get_module(attr)
+        except Exception as e:
+            # Raising AttributeError is important otherwise hasattr() will not
+            # work as expected
+            raise AttributeError(str(e))
 
     def _resolve_paths(self):
         raise NotImplementedError()
@@ -2909,7 +3038,7 @@ def _get_part_name(section):
     variant = section.get('CPU variant', '0x0')
     name = get_cpu_name(*list(map(integer, [implementer, part, variant])))
     if name is None:
-        name = '{}/{}/{}'.format(implementer, part, variant)
+        name = f'{implementer}/{part}/{variant}'
     return name
 
 
@@ -2943,10 +3072,13 @@ def _build_path_tree(path_map, basepath, sep=os.path.sep, dictcls=dict):
 
 
 class ChromeOsTarget(LinuxTarget):
+    """
+    Class for interacting with ChromeOS targets.
+    """
 
     os = 'chromeos'
 
-    # pylint: disable=too-many-locals
+    # pylint: disable=too-many-locals,too-many-arguments
     def __init__(self,
                  connection_settings=None,
                  platform=None,
@@ -2973,46 +3105,49 @@ class ChromeOsTarget(LinuxTarget):
                            'total_transfer_timeout', 'poll_transfers',
                            'start_transfer_poll_delay']
         self.ssh_connection_settings = {}
-        for setting in ssh_conn_params:
-            if connection_settings.get(setting, None):
-                self.ssh_connection_settings[setting] = connection_settings[setting]
+        self.ssh_connection_settings.update(
+            (key, value)
+            for key, value in connection_settings.items()
+            if key in ssh_conn_params
+        )
 
-        super(ChromeOsTarget, self).__init__(connection_settings=self.ssh_connection_settings,
-                                             platform=platform,
-                                             working_directory=working_directory,
-                                             executables_directory=executables_directory,
-                                             connect=False,
-                                             modules=modules,
-                                             load_default_modules=load_default_modules,
-                                             shell_prompt=shell_prompt,
-                                             conn_cls=SshConnection,
-                                             is_container=is_container,
-                                             max_async=max_async)
+        super().__init__(connection_settings=self.ssh_connection_settings,
+            platform=platform,
+            working_directory=working_directory,
+            executables_directory=executables_directory,
+            connect=False,
+            modules=modules,
+            load_default_modules=load_default_modules,
+            shell_prompt=shell_prompt,
+            conn_cls=SshConnection,
+            is_container=is_container,
+            max_async=max_async)
 
         # We can't determine if the target supports android until connected to the linux host so
         # create unconditionally.
         # Pull out adb connection settings
         adb_conn_params = ['device', 'adb_server', 'timeout']
         self.android_connection_settings = {}
-        for setting in adb_conn_params:
-            if connection_settings.get(setting, None):
-                self.android_connection_settings[setting] = connection_settings[setting]
+        self.android_connection_settings.update(
+            (key, value)
+            for key, value in connection_settings.items()
+            if key in adb_conn_params
+        )
 
         # If adb device is not explicitly specified use same as ssh host
         if not connection_settings.get('device', None):
             self.android_connection_settings['device'] = connection_settings.get('host', None)
 
         self.android_container = AndroidTarget(connection_settings=self.android_connection_settings,
-                                               platform=platform,
-                                               working_directory=android_working_directory,
-                                               executables_directory=android_executables_directory,
-                                               connect=False,
-                                               modules=[], # Only use modules with linux target
-                                               load_default_modules=False,
-                                               shell_prompt=shell_prompt,
-                                               conn_cls=AdbConnection,
-                                               package_data_directory=package_data_directory,
-                                               is_container=True)
+            platform=platform,
+            working_directory=android_working_directory,
+            executables_directory=android_executables_directory,
+            connect=False,
+            load_default_modules=False,
+            shell_prompt=shell_prompt,
+            conn_cls=AdbConnection,
+            package_data_directory=package_data_directory,
+            is_container=True)
         if connect:
             self.connect()
 
@@ -3022,15 +3157,15 @@ class ChromeOsTarget(LinuxTarget):
         if not present, use android implementation if available.
         """
         try:
-            return super(ChromeOsTarget, self).__getattribute__(attr)
+            return super().__getattribute__(attr)
         except AttributeError:
             if hasattr(self.android_container, attr):
                 return getattr(self.android_container, attr)
-            else:
-                raise
+            raise
 
-    def connect(self, timeout=30, check_boot_completed=True, max_async=None):
-        super(ChromeOsTarget, self).connect(
+    @asyn.asyncf
+    async def connect(self, timeout=30, check_boot_completed=True, max_async=None):
+        super().connect(
             timeout=timeout,
             check_boot_completed=check_boot_completed,
             max_async=max_async,

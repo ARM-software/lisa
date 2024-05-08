@@ -1,4 +1,4 @@
-#    Copyright 2015-2018 ARM Limited
+#    Copyright 2015-2024 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import os
-import sys
 import tempfile
 import time
 import pexpect

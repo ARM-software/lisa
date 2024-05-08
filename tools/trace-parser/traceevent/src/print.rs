@@ -1340,7 +1340,7 @@ pub fn parse_print_fmt(header: &Header, fmt: &[u8]) -> Result<PrintFmtStr, Print
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{header::Endianness, parser::tests::test_parser};
+    use crate::parser::tests::test_parser;
 
     #[test]
     fn print_fmt_test() {

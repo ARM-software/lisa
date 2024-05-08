@@ -68,9 +68,6 @@ from operator import attrgetter
 from functools import partial
 from weakref import WeakKeyDictionary
 
-import nest_asyncio
-nest_asyncio.apply()
-
 from lisa.utils import memoized, foldr, instancemethod
 
 
@@ -1030,9 +1027,13 @@ class AsyncIO(Async):
     """
     Specialization of :class:`lisa.monad.Async` to :mod:`asyncio` event loop.
     """
-    # Note that this only works properly with nest_asyncio package. Otherwise,
-    # asyncio.run() is not re-entrant.
-    _run = staticmethod(asyncio.run)
+
+    @staticmethod
+    def _run(coro):
+        from devlib.utils.asyn import run
+        # Use devlib.utils.asyn.run() instead of asyncio.run() as it is
+        # re-entrant.
+        return run(coro)
 
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

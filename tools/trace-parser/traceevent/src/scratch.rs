@@ -1,6 +1,5 @@
 use core::{
     fmt::{Debug, Formatter},
-    iter::Extend,
     marker::PhantomData,
     mem::ManuallyDrop,
     ops::{Deref, DerefMut, RangeBounds},

@@ -386,7 +386,7 @@ Target
 
    Equivalent to ``Target.read_value(path, kind=devlib.utils.types.boolean)``
 
-.. method:: Target.write_value(path, value [, verify])
+.. method:: Target.write_value(path, value [, verify, as_root])
 
    Write the value to the specified path on the target. This is primarily
    intended for sysfs/procfs/debugfs etc.
@@ -397,8 +397,10 @@ Target
        it is written to make sure it has been written successfully. This due to
        some sysfs entries silently failing to set the written value without
        returning an error code.
+   :param as_root: specifies if writing requires being root. Its default value
+       is ``True``.
 
-.. method:: Target.revertable_write_value(path, value [, verify])
+.. method:: Target.revertable_write_value(path, value [, verify, as_root])
 
    Same as :meth:`Target.write_value`, but as a context manager that will write
    back the previous value on exit.
