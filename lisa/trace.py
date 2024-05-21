@@ -4951,6 +4951,18 @@ class _Trace(Loggable, _InternalTraceBase):
         super().__init__()
         self._lock = threading.RLock()
 
+        # Make sure that we always operate with an active StringCache when
+        # manipulating a trace object. This prevents issues with LazyFrame
+        # built out of a DataFrame containing Categorical data, in places where
+        # the user does not control the creation of the DataFrame.
+        str_cache = pl.StringCache()
+        str_cache.__enter__()
+        self.__string_cache_deallocator = _Deallocator(
+            f=lambda: str_cache.__exit__(None, None, None),
+            on_del=True,
+            at_exit=True,
+        )
+
         trace_path = str(trace_path) if trace_path else None
 
         if enable_swap:
