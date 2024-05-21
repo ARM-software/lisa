@@ -6274,7 +6274,7 @@ class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
         """
         if check_optional:
             def rewrite(checker):
-                if isinstance(checker, OptionalTraceEventChecker):
+                if isinstance(checker, _OptionalTraceEventCheckerBase):
                     return AndTraceEventChecker(checker.checkers)
                 else:
                     return checker
