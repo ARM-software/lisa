@@ -41,6 +41,7 @@ class StatusAnalysis(TraceAnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
+    @TraceAnalysisBase.df_method
     @requires_events("sched_overutilized")
     def df_overutilized(self):
         """

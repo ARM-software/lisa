@@ -46,6 +46,7 @@ class FunctionsAnalysis(TraceAnalysisBase):
 
     name = 'functions'
 
+    @TraceAnalysisBase.df_method
     def df_resolve_ksym(self, df, addr_col, name_col='func_name', addr_map=None, exact=True):
         """
         Resolve the kernel function names.
@@ -125,6 +126,7 @@ class FunctionsAnalysis(TraceAnalysisBase):
             self.logger.warning(f'Missing symbol addresses, function names will not be resolved: {e}')
             return df
 
+    @TraceAnalysisBase.df_method
     @requires_one_event_of('funcgraph_entry', 'funcgraph_exit')
     @TraceAnalysisBase.df_method
     def df_funcgraph(self, event):
@@ -197,6 +199,7 @@ class FunctionsAnalysis(TraceAnalysisBase):
             thread_root_functions=thread_root_functions
         )
 
+    @TraceAnalysisBase.df_method
     @_get_callgraph.used_events
     def df_calls(self, tag_df=None, thread_root_functions=None, normalize=True):
         """
@@ -819,6 +822,7 @@ class JSONStatsFunctionsAnalysis(AnalysisHelpers):
             **kwargs,
         )
 
+    @TraceAnalysisBase.df_method
     def df_functions_stats(self, functions=None):
         """
         Get a DataFrame of specified kernel functions profile data

@@ -129,6 +129,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             self.trace.available_events
         )
 
+    @TraceAnalysisBase.df_method
     @will_use_events_from(
         requires_one_event_of(*_SCHED_PELT_CFS_NAMES),
         'sched_util_est_cfs',
@@ -179,6 +180,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             df = df[df['cpu'].isin(cpus)]
         return df
 
+    @TraceAnalysisBase.df_method
     @deprecate(replaced_by=df_cpus_signal, deprecated_in='2.0', removed_in='4.0')
     @requires_one_event_of(*_SCHED_PELT_CFS_NAMES)
     def df_cpus_signals(self):
@@ -258,6 +260,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         df = self.df_tasks_signal(signal=signal)
         return df_filter_task_ids(df, [task_id])
 
+    @TraceAnalysisBase.df_method
     @deprecate(replaced_by=df_tasks_signal, deprecated_in='2.0', removed_in='4.0')
     @requires_one_event_of(*_SCHED_PELT_SE_NAMES)
     def df_tasks_signals(self):

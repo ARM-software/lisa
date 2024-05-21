@@ -112,6 +112,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
     # rtapp_main events related methods
     ###########################################################################
 
+    @TraceAnalysisBase.df_method
     @requires_events('userspace@rtapp_main')
     def df_rtapp_main(self):
         """
@@ -207,7 +208,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
     # rtapp_loop events related methods
     ###########################################################################
 
-    # @TraceAnalysisBase.df_method
+    @TraceAnalysisBase.df_method
     @requires_events('userspace@rtapp_loop')
     def df_rtapp_loop(self, task=None, wlgen_profile=None):
         """
@@ -289,7 +290,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         return df
 
-    # @TraceAnalysisBase.df_method
+    @TraceAnalysisBase.df_method
     @df_rtapp_loop.used_events
     def _get_rtapp_phases(self, event, task, wlgen_profile=None):
         df = self.df_rtapp_loop(task, wlgen_profile=wlgen_profile)
@@ -324,7 +325,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         return df
 
-    # @TraceAnalysisBase.df_method
+    @TraceAnalysisBase.df_method
     @df_rtapp_loop.used_events
     def df_phases(self, task, wlgen_profile=None):
         """
@@ -425,6 +426,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
                 phase.properties,
             )
 
+    @TraceAnalysisBase.df_method
     @_get_rtapp_phases.used_events
     def df_rtapp_phases_start(self, task=None, wlgen_profile=None):
         """
@@ -446,6 +448,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         """
         return self._get_rtapp_phases('start', task, wlgen_profile=wlgen_profile)
 
+    @TraceAnalysisBase.df_method
     @_get_rtapp_phases.used_events
     def df_rtapp_phases_end(self, task=None, wlgen_profile=None):
         """
@@ -488,6 +491,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         return row.Time
 
+    @TraceAnalysisBase.df_method
     @_get_task_phase.used_events
     def df_rtapp_phase_start(self, task, phase=0, wlgen_profile=None):
         """
@@ -510,6 +514,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         """
         return self._get_task_phase('start', task, phase, wlgen_profile=wlgen_profile)
 
+    @TraceAnalysisBase.df_method
     @_get_task_phase.used_events
     def df_rtapp_phase_end(self, task, phase=-1, wlgen_profile=None):
         """
@@ -623,6 +628,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
     # rtapp_phase events related methods
     ###########################################################################
 
+    @TraceAnalysisBase.df_method
     @requires_events('userspace@rtapp_event')
     def df_rtapp_event(self, task=None):
         """
@@ -664,6 +670,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         return df
 
+    @TraceAnalysisBase.df_method
     @_get_stats.used_events
     def df_rtapp_stats(self, task=None):
         """

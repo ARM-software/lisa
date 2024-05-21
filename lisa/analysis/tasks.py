@@ -957,6 +957,7 @@ class TasksAnalysis(TraceAnalysisBase):
         )
         return residency_df.fillna(0).sort_index()
 
+    @TraceAnalysisBase.df_method
     @df_task_total_residency.used_events
     def df_tasks_total_residency(self, tasks=None, ascending=False, count=None):
         """

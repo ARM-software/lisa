@@ -158,6 +158,7 @@ class IdleAnalysis(TraceAnalysisBase):
             'cpu': pd.concat(map(make_series, cpus))
         }).sort_index()
 
+    @TraceAnalysisBase.df_method
     @df_cpu_idle.used_events
     def df_cpu_idle_state_residency(self, cpu):
         """
@@ -188,6 +189,7 @@ class IdleAnalysis(TraceAnalysisBase):
         df.index.name = 'idle_state'
         return df
 
+    @TraceAnalysisBase.df_method
     @df_cpu_idle.used_events
     def df_cluster_idle_state_residency(self, cluster):
         """
