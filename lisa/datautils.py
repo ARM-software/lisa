@@ -1353,8 +1353,8 @@ def _polars_window_signals(df, window, signals, compress_init):
             if compress_init:
                 first_row = post_df.select(index).head(1).collect()
                 try:
-                    first_time = first_row[0]
-                except IndexError:
+                    first_time = first_row.item()
+                except ValueError:
                     pass
                 else:
                     pre_df.with_columns(Time=pl.lit(first_time))
