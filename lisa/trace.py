@@ -62,7 +62,7 @@ import polars as pl
 
 import devlib
 
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, unzip_into, order_as
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, unzip_into, order_as, delegate_getattr
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp
 from lisa.version import VERSION_TOKEN
@@ -3083,7 +3083,7 @@ class _TraceViewBase(_InternalTraceBase):
         super().__init__()
 
     def __getattr__(self, name):
-        return getattr(self.base_trace, name)
+        return delegate_getattr(self, 'base_trace', name)
 
     @classmethod
     def make_view(cls, trace, *, window=None, signals=None, compress_signals_init=None, normalize_time=False, events_namespaces=None, events=None, strict_events=False, process_df=None, df_fmt=None, clear_base_cache=None):
@@ -6113,7 +6113,7 @@ class Trace(TraceBase):
         )
 
     def __getattr__(self, attr):
-        return getattr(self.__view, attr)
+        return delegate_getattr(self, '_Trace__view', attr)
 
     @property
     def trace_state(self):
@@ -6201,7 +6201,7 @@ class Trace(TraceBase):
                     )
 
             def __getattr__(self, attr):
-                return getattr(self.__base_trace, attr)
+                return delegate_getattr(self, '_TraceProxy__base_trace', attr)
 
             @property
             def ana(self):
@@ -7027,7 +7027,7 @@ class CollectorBase(Loggable):
         target.install_tools(self.TOOLS)
 
     def __getattr__(self, attr):
-        return getattr(self._collector, attr)
+        return delegate_getattr(self, '_collector', attr)
 
     def __enter__(self):
         self._collector.__enter__()

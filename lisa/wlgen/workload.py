@@ -30,7 +30,7 @@ import inspect
 
 from devlib.utils.misc import list_to_mask
 
-from lisa.utils import ArtifactPath, Loggable, PartialInit, deprecate, destroyablecontextmanager, ContextManagerExit
+from lisa.utils import ArtifactPath, Loggable, PartialInit, deprecate, destroyablecontextmanager, ContextManagerExit, delegate_getattr
 
 
 class _WorkloadRunCMDecorator:
@@ -81,7 +81,7 @@ class _WorkloadRunCM(Loggable):
         """
         if attr in ('stdout', 'stderr'):
             raise AttributeError(f'Attribute "{attr}" is not available, use "output" attribute outside the "with" block to get the postprocessed output')
-        return getattr(self._bg_cmd, attr)
+        return delegate_getattr(self, '_bg_cmd', attr)
 
     @staticmethod
     def _read_streams(bg_cmd):

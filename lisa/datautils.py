@@ -392,9 +392,9 @@ class DataAccessor:
             f = self.FUNCTIONS[attr]
         except KeyError as e:
             raise AttributeError(f'Unknown method name: {attr}') from e
-
-        meth = f.__get__(self.data, self.__class__)
-        return meth
+        else:
+            meth = f.__get__(self.data, self.__class__)
+            return meth
 
     def __dir__(self):
         attrs = set(super().__dir__())

@@ -224,6 +224,7 @@ from lisa.utils import (
     PartialInit,
     destroyablecontextmanager,
     ContextManagerExit,
+    delegate_getattr,
 )
 from lisa.wlgen.workload import Workload
 from lisa.conf import DeferredValueComputationError
@@ -1635,7 +1636,7 @@ class PropertyWrapper(ContaminatingProperty):
         Be as transparent as possible, so that this sort of call would work:
         ``self.__prop.__and__(self)``
         """
-        return getattr(self.__wrapped__, attr)
+        return delegate_getattr(self, '__wrapped__', attr)
 
 
 class PlaceHolderValue:

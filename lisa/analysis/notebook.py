@@ -27,7 +27,7 @@ import __main__ as main
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.datautils import df_refit_index, df_filter, SignalDesc, df_update_duplicates
-from lisa.utils import kwargs_forwarded_to, order_as
+from lisa.utils import kwargs_forwarded_to, order_as, delegate_getattr
 from lisa.notebook import plot_signal
 
 
@@ -91,7 +91,7 @@ class NotebookAnalysis(TraceAnalysisBase):
         self.custom = _CustomProxy(self)
 
     def __getattr__(self, attr):
-        x = getattr(self.custom, attr)
+        x = delegate_getattr(self, 'custom', attr)
         warnings.warn(
             f'Calling plot methods on trace.ana.notebook.{attr}() is deprecated, please use trace.ana.notebook.custom.{attr}() instead',
             DeprecationWarning,

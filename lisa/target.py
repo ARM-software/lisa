@@ -42,7 +42,7 @@ from devlib.exception import TargetStableError
 from devlib.utils.misc import which
 from devlib.platform.gem5 import Gem5SimulationPlatform
 
-from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath, nullcontext, ExekallTaggable, memoized, destroyablecontextmanager, ContextManagerExit, update_params_from
+from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath, nullcontext, ExekallTaggable, memoized, destroyablecontextmanager, ContextManagerExit, update_params_from, delegate_getattr
 from lisa._assets import ASSETS_PATH
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, Configurable, DelegatedLevelKeyDesc, ConfigKeyError
 from lisa._kmod import _KernelBuildEnv, DynamicKmod, _KernelBuildEnvConf
@@ -543,10 +543,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         .. note:: Devlib modules are loaded on demand when accessed.
         """
-        if (
-            attr in ('_devlib_loadable_modules', 'target') or
-            (attr.startswith('__') and attr.endswith('__'))
-        ):
+        if attr in ('_devlib_loadable_modules', 'target'):
             raise AttributeError(attr)
 
         # If it was not in the loadable list, it
@@ -556,7 +553,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             raise AttributeError(f'Devlib target module {attr} was explicitly excluded, not loading it')
 
         def get():
-            return getattr(self.target, attr)
+            return delegate_getattr(self, 'target', attr)
 
         try:
             return get()

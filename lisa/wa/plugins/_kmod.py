@@ -24,7 +24,7 @@ from wa.utils.types import list_of_strings
 
 from lisa.target import Target as LISATarget
 from lisa._kmod import LISADynamicKmod
-from lisa.utils import get_nested_key
+from lisa.utils import get_nested_key, delegate_getattr
 
 
 class _Default:
@@ -71,7 +71,7 @@ class _AttrProxy:
         try:
             return self._STORE.get(self._obj, self._subkey)[attr]
         except KeyError:
-            return getattr(self._obj, attr)
+            return delegate_getattr(self, '_obj', attr)
 
     def __setattr__(self, attr, val):
         attrs = self._STORE.get(self._obj, self._subkey, setdefault={})
