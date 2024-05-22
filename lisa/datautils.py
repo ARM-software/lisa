@@ -75,6 +75,9 @@ class Timestamp(float):
         if isinstance(ts, cls):
             return cls(ts.as_nanoseconds, unit='ns', rounding=rounding)
         else:
+            if isinstance(ts, np.integer):
+                ts = int(ts)
+
             ts = decimal.Decimal(ts)
             try:
                 mul = cls._MUL[unit]
