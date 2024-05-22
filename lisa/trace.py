@@ -7171,8 +7171,6 @@ class FtraceCollector(CollectorBase, Configurable):
                 return OrTraceEventChecker.from_events(
                     Trace.get_event_sources(checker.event)
                 )
-            elif isinstance(checker, DynamicTraceEventChecker):
-                return AndTraceEventChecker(checker.checkers)
             else:
                 return checker
 
