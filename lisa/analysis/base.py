@@ -332,7 +332,11 @@ class AnalysisHelpers(Loggable, abc.ABC):
             current backend enabled with ``hv.extension()`` will be used.
         :type backend: str or None
         """
-        import matplotlib
+        try:
+            from matplotlib.figure import Figure
+        except ImportError:
+            class Figure:
+                pass
 
         img_format = img_format or guess_format(filepath) or 'png'
 
@@ -342,7 +346,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
             plot_name=inspect.stack()[1].function,
         )
 
-        if isinstance(figure, matplotlib.figure.Figure):
+        if isinstance(figure, Figure):
             # The suptitle is not taken into account by tight layout by default:
             # https://stackoverflow.com/questions/48917631/matplotlib-how-to-return-figure-suptitle
             suptitle = figure._suptitle
