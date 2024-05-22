@@ -22,7 +22,7 @@ import holoviews as hv
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.notebook import COLOR_CYCLE, _hv_neutral
 from lisa.analysis.tasks import TaskState, TasksAnalysis, TaskID
-from lisa.datautils import df_refit_index
+from lisa.datautils import df_refit_index, NO_INDEX
 from lisa.trace import MissingTraceEventError
 
 
@@ -55,7 +55,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         df = df.rename({'delta': name})
         return df
 
-    @TraceAnalysisBase.df_method
+    @TraceAnalysisBase.df_method(index=NO_INDEX)
     @_df_latency.used_events
     def df_latency_wakeup(self, task):
         """
@@ -77,7 +77,7 @@ class LatencyAnalysis(TraceAnalysisBase):
             TaskState.TASK_ACTIVE,
         )
 
-    @TraceAnalysisBase.df_method
+    @TraceAnalysisBase.df_method(index=NO_INDEX)
     @_df_latency.used_events
     def df_latency_preemption(self, task):
         """
@@ -274,7 +274,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         return series, above, below
 
 
-    @TraceAnalysisBase.df_method
+    @TraceAnalysisBase.df_method(index=NO_INDEX)
     @df_latency_wakeup.used_events
     @df_latency_preemption.used_events
     def _get_latencies_df(self, task, wakeup, preempt):

@@ -23,7 +23,7 @@ import typing
 import pandas as pd
 import holoviews as hv
 
-from lisa.datautils import df_add_delta, df_refit_index, df_split_signals
+from lisa.datautils import df_add_delta, df_refit_index, df_split_signals, NO_INDEX
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events, CPU
 from lisa.analysis.base import TraceAnalysisBase
@@ -158,7 +158,7 @@ class IdleAnalysis(TraceAnalysisBase):
             'cpu': pd.concat(map(make_series, cpus))
         }).sort_index()
 
-    @TraceAnalysisBase.df_method
+    @TraceAnalysisBase.df_method(index=NO_INDEX)
     @df_cpu_idle.used_events
     def df_cpu_idle_state_residency(self, cpu):
         """
@@ -189,7 +189,7 @@ class IdleAnalysis(TraceAnalysisBase):
         df.index.name = 'idle_state'
         return df
 
-    @TraceAnalysisBase.df_method
+    @TraceAnalysisBase.df_method(index=NO_INDEX)
     @df_cpu_idle.used_events
     def df_cluster_idle_state_residency(self, cluster):
         """

@@ -1134,8 +1134,9 @@ class TraceAnalysisBase(AnalysisHelpers):
             }
         )
 
+    @optional_kwargs
     @classmethod
-    def df_method(cls, f):
+    def df_method(cls, f, index=None):
         """
         Dataframe function decorator.
 
@@ -1178,12 +1179,20 @@ class TraceAnalysisBase(AnalysisHelpers):
             # they are collect()'ed in f(), they will be created using a common
             # StringCache so Categorical columns can be concatenated and such.
             with pl.StringCache():
-                data = cached_f(self, *args, **kwargs)
-                assert isinstance(data, (pd.DataFrame, pl.DataFrame, pl.LazyFrame))
+                df = cached_f(self, *args, **kwargs)
+                assert isinstance(df, (pd.DataFrame, pl.DataFrame, pl.LazyFrame))
 
                 df_fmt = df_fmt or 'pandas'
-                data = _df_to(data, fmt=df_fmt)
-                return data
+                df = _df_to(
+                    df,
+                    fmt=df_fmt,
+                    index=(
+                        ('Time' if 'Time' in df.columns else None)
+                        if index is None else
+                        index
+                    ),
+                )
+                return df
 
         return wrapper
 

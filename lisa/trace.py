@@ -64,7 +64,7 @@ import devlib
 
 from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, unzip_into, order_as
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
-from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to_polars, _df_to_pandas, _df_to, _polars_df_in_memory, Timestamp
+from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString
 from lisa._kmod import LISADynamicKmod
@@ -262,9 +262,10 @@ def _logical_plan_update_paths(plan, update_path):
 
 def _convert_df_from_parser(df, parser, cache):
     def to_polars(df):
+        index = 'Time'
         if isinstance(df, pd.DataFrame):
-            df.index.name = 'Time'
-        df = _df_to_polars(df)
+            df.index.name = index
+        df = _df_to(df, index=index, fmt='polars-lazyframe')
         return df
 
     def move_to_cache(df, cache):
@@ -659,7 +660,7 @@ class MockTraceParser(TraceParserBase):
     @kwargs_forwarded_to(TraceParserBase.__init__)
     def __init__(self, dfs, time_range=None, events=None, path=None, **kwargs):
         self.dfs = {
-            event: _df_to_polars(df)
+            event: _df_to(df, index='Time', fmt='polars-lazyframe')
             for event, df in dfs.items()
         }
 
@@ -6132,7 +6133,7 @@ class Trace(TraceBase):
             **kwargs
         )
 
-        df = _df_to(df, fmt=df_fmt)
+        df = _df_to(df, index='Time', fmt=df_fmt)
         return df
 
     def _internal_df_event(self, *args, **kwargs):
