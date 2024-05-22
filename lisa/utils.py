@@ -2644,10 +2644,10 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
                 sig = inspect.signature(func)
                 @functools.wraps(func)
                 def wrapper(*args, **kwargs):
-                    kwargs = sig.bind(*args, **kwargs).arguments
-                    if parameter in kwargs:
+                    bound = sig.bind(*args, **kwargs)
+                    if parameter in bound.arguments:
                         warnings.warn(make_msg(obj, parameter), DeprecationWarning, stacklevel=stacklevel)
-                    return func(**kwargs)
+                    return func(*bound.args, **bound.kwargs)
                 return wrapper
         else:
             register_deprecated_map = True

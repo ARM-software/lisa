@@ -1233,7 +1233,6 @@ class TraceAnalysisBase(AnalysisHelpers):
             # Express the arguments as kwargs-only
             params = sig.bind(self, *args, **kwargs)
             params.apply_defaults()
-            kwargs = dict(params.arguments)
 
             trace = self.trace
             spec = dict(
@@ -1246,7 +1245,7 @@ class TraceAnalysisBase(AnalysisHelpers):
                 # not modified under the hood once inserted in the cache
                 kwargs=copy.deepcopy({
                     k: v
-                    for k, v in kwargs.items()
+                    for k, v in params.arguments.items()
                     if k not in ignored_kwargs
                 }),
             )
@@ -1259,10 +1258,10 @@ class TraceAnalysisBase(AnalysisHelpers):
                         swap_path = cache._cache_desc_swap_path(cache_desc, create=True)
                     except Exception as e:
                         swap_path = None
-                    kwargs[path_param] = swap_path
+                    params.arguments[path_param] = swap_path
 
                 with measure_time() as measure:
-                    data = f(**kwargs)
+                    data = f(*params.args, **params.kwargs)
 
                 if memory_cache:
                     compute_cost = measure.exclusive_delta
