@@ -45,16 +45,19 @@ test_os_release(){
 }
 
 lower_or_equal() {
-    local x=$(printf "$1" | sed 's/\.//2g')
-    local y=$(printf "$2" | sed 's/\.//2g')
-    [[ "$(printf "$x\n$y\n" | sort -g | head -1)" == "$x" ]]
+    local x
+    local y
+
+    x=$(printf "%s" "$1" | sed 's/\.//2g')
+    y=$(printf "%s" "$2" | sed 's/\.//2g')
+    [[ "$(printf "%s\n%s\n" "$x" "$y" | sort -g | head -1)" == "$x" ]]
 }
 
 LISA_HOME=${LISA_HOME:-$(dirname "${BASH_SOURCE[0]}")}
 cd "$LISA_HOME" || (echo "LISA_HOME ($LISA_HOME) does not exists" && exit 1)
 
 # Must be kept in sync with shell/lisa_shell
-ANDROID_HOME="$LISA_HOME/tools/android-sdk-linux/"
+export ANDROID_HOME="$LISA_HOME/tools/android-sdk-linux/"
 ANDROID_SDK_ROOT="$ANDROID_HOME"
 mkdir -p "$ANDROID_HOME"
 
@@ -152,11 +155,12 @@ install_pacman() {
 }
 
 register_pip_extra_requirements() {
+    local content
     local requirements="$LISA_HOME/extra_requirements.txt"
     local devmode_requirements="$LISA_HOME/devmode_extra_requirements.txt"
 
     echo "Registering extra Python pip requirements in $requirements:"
-    local content=$(printf "%s\n" "${pip_extra_requirements[@]}")
+    content=$(printf "%s\n" "${pip_extra_requirements[@]}")
     printf "%s\n\n" "$content" | tee "$requirements"
 
     # All the requirements containing "./" are prefixed with "-e " to install
@@ -169,16 +173,11 @@ pip_extra_requirements=()
 
 # APT-based distributions like Ubuntu or Debian
 apt_packages=(
-    coreutils
     build-essential
+    coreutils
     git
-    openssh-client
-    sshpass
-    wget
-    rsync
-    unzip
-    qemu-user-static
     kernelshark
+    openssh-client
     python3
     # venv is not installed by default on Ubuntu, even though it is part of the
     # Python standard library
@@ -186,23 +185,28 @@ apt_packages=(
     python3-venv
     python3-tk
     python3-setuptools
+    qemu-user-static
+    rsync
+    sshpass
+    unzip
+    wget
 )
 
 # pacman-based distributions like Archlinux or its derivatives
 pacman_packages=(
+    base-devel
     coreutils
     git
-    rsync
+    kernelshark
     openssh
-    sshpass
-    base-devel
-    wget
-    unzip
-    qemu-user-static
     python
     python-pip
     python-setuptools
-    kernelshark
+    qemu-user-static
+    rsync
+    sshpass
+    unzip
+    wget
 )
 
 HOST_ARCH="$(uname -m)"
@@ -248,11 +252,9 @@ else
     echo "The package manager of distribution $(read_os_release NAME) is not supported, will only install distro-agnostic code"
 fi
 
-if [[ ! -z "$package_manager" ]] && ! test_os_release NAME "$expected_distro"; then
+if [[ -n "$package_manager" ]] && ! test_os_release NAME "$expected_distro"; then
     unsupported_distro=1
-    echo
-    echo "INFO: the distribution seems based on $package_manager but is not $expected_distro, some package names might not be right"
-    echo
+    echo -e "\nINFO: the distribution seems based on $package_manager but is not $expected_distro, some package names might not be right\n"
 else
     unsupported_distro=0
 fi
@@ -274,10 +276,10 @@ EOF
 }
 
 # Defaults to --install-all if no option is given
-if [[ -z "$@" ]]; then
+if [[ -z "$*" ]]; then
     args=("--install-all")
 else
-    args=($@)
+    args=("$@")
 fi
 
 # Use conditional fall-through ;;& to all matching all branches with
@@ -292,9 +294,7 @@ for arg in "${args[@]}"; do
         handled=1
         ;;&
 
-    # TODO: remove --install-android-sdk, since it is only temporarily there to
-    # give some time to migrate CI scripts
-    "--install-android-sdk" | "--install-android-tools" | "--install-all")
+    "--install-android-tools" | "--install-all")
         install_functions+=(
             find_java_home
             install_android_sdk_manager # Needed by install_android_build_tools
@@ -302,7 +302,7 @@ for arg in "${args[@]}"; do
         )
         apt_packages+=(openjdk-$ANDROID_SDK_JAVA_VERSION-jre openjdk-$ANDROID_SDK_JAVA_VERSION-jdk)
         pacman_packages+=(jre$ANDROID_SDK_JAVA_VERSION-openjdk jdk$ANDROID_SDK_JAVA_VERSION-openjdk)
-        handled=1;
+        handled=1
         ;;&
 
     # Not part of --install-all since that is already satisfied by
@@ -311,14 +311,14 @@ for arg in "${args[@]}"; do
     # it will not provide the build-tools which are needed by devlib.
     "--install-android-platform-tools")
         install_functions+=(install_android_platform_tools)
-        handled=1;
+        handled=1
         ;;&
 
     "--install-doc-extras" | "--install-all")
         apt_packages+=(plantuml graphviz pandoc)
         # plantuml can be installed from the AUR
         pacman_packages+=(graphviz pandoc)
-        handled=1;
+        handled=1
         ;;&
 
     # Requirement for LISA's self tests (in tests/ folder), not the synthetic
@@ -326,7 +326,7 @@ for arg in "${args[@]}"; do
     "--install-tests-extras" | "--install-all")
         apt_packages+=(clang)
         pacman_packages+=(clang)
-        handled=1;
+        handled=1
         ;;&
 
     "--install-toolchains" | "--install-all")
@@ -339,13 +339,13 @@ for arg in "${args[@]}"; do
         # gettext for autopoint
         pacman_packages+=(gettext autoconf libtool bison cmake)
 
-        handled=1;
+        handled=1
         ;;&
 
     "--install-vagrant" | "--install-all")
         # Only install the package if we are not already inside the VM to save
         # some install time
-        vm=$(systemd-detect-virt 2>/dev/null)
+        vm=$(systemd-detect-virt 2>/dev/null) || true
         if [[ $vm == 'oracle' ]] ; then
             echo "VirtualBox detected, not installing virtualbox apt packages" >&2
         elif [[ $HOST_ARCH == 'aarch64' ]]; then
@@ -355,12 +355,12 @@ for arg in "${args[@]}"; do
             pacman_packages+=(vagrant virtualbox virtualbox-host-dkms)
         fi
 
-        handled=1;
+        handled=1
         ;;&
 
     "--install-kernel-build-dependencies" | "--install-all")
         apt_packages+=(build-essential gcc bc bison flex libssl-dev libncurses5-dev libelf-dev)
-        handled=1;
+        handled=1
         ;;&
 
     "--install-bisector-dbus")
@@ -376,7 +376,7 @@ for arg in "${args[@]}"; do
         # plantuml can be installed from the AUR
         pacman_packages+=(gobject-introspection)
         pip_extra_requirements+=(./tools/bisector[dbus])
-        handled=1;
+        handled=1
         ;;&
 
     "--help")
@@ -412,15 +412,15 @@ ordered_functions=(
 )
 
 # Remove duplicates in the list
+# shellcheck disable=SC2207
 install_functions=($(echo "${install_functions[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
 
 # Call all the hooks in the order of available_functions
 ret=0
 for _func in "${ordered_functions[@]}"; do
     for func in "${install_functions[@]}"; do
-        if [[ $func == $_func ]]; then
-            # If one hook returns non-zero, we keep going but return an overall failure
-            # code
+        if [[ $func == "$_func" ]]; then
+            # If one hook returns non-zero, we keep going but return an overall failure code.
             $func; _ret=$?
             if [[ $_ret != 0 ]]; then
                 ret=$_ret
