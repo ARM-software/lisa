@@ -75,6 +75,9 @@ class Timestamp(float):
         if isinstance(ts, cls):
             return cls(ts.as_nanoseconds, unit='ns', rounding=rounding)
         else:
+            if isinstance(ts, np.integer):
+                ts = int(ts)
+
             ts = decimal.Decimal(ts)
             try:
                 mul = cls._MUL[unit]
@@ -225,47 +228,59 @@ def _polars_df_in_memory(df):
         return _df is df
 
 
-def _polars_index_col(df):
-    if 'Time' in df.columns:
-        return 'Time'
+class _NoIndex:
+    pass
+
+
+NO_INDEX = _NoIndex()
+
+
+def _polars_index_col(df, index=None):
+    columns = df.columns
+
+    if index is NO_INDEX:
+        return None
+    elif index in columns:
+        return index
     else:
-        return df.columns[0]
+        return columns[0]
 
 
-def _df_to_polars(df):
+def _df_to_polars(df, index):
     in_memory = _polars_df_in_memory(df)
 
     if isinstance(df, pl.LazyFrame):
-        index = _polars_index_col(df)
-        dtype = df.schema[index]
-        # This skips a useless cast, saving some time on the common path
-        if index == 'Time':
-            if dtype != pl.Duration('ns'):
-                _index = pl.col(index)
-                if dtype.is_float():
-                    # Convert to nanoseconds
-                    df = df.with_columns(_index * 1_000_000_000)
-                elif dtype.is_integer() or dtype.is_temporal():
-                    pass
-                else:
-                    raise TypeError(f'Index dtype not handled: {dtype}')
+        index = _polars_index_col(df, index)
+        if index is not None:
+            dtype = df.schema[index]
+            # This skips a useless cast, saving some time on the common path
+            if index == 'Time':
+                if dtype != pl.Duration('ns'):
+                    _index = pl.col(index)
+                    if dtype.is_float():
+                        # Convert to nanoseconds
+                        df = df.with_columns(_index * 1_000_000_000)
+                    elif dtype.is_integer() or dtype.is_temporal():
+                        pass
+                    else:
+                        raise TypeError(f'Index dtype not handled: {dtype}')
 
-                df = df.with_columns(
-                    _index.cast(pl.Duration('ns'))
-                )
+                    df = df.with_columns(
+                        _index.cast(pl.Duration('ns'))
+                    )
 
-        # Make the index column the first one
-        df = df.select(order_as(list(df.columns), [index]))
+            # Make the index column the first one
+            df = df.select(order_as(list(df.columns), [index]))
     # TODO: once this is solved, we can just inspect the plan and see if the
     # data is backed by a "DataFrameScan" instead of a "Scan" of a file:
     # https://github.com/pola-rs/polars/issues/9771
     elif isinstance(df, pl.DataFrame):
         in_memory = True
         df = df.lazy()
-        df = _df_to_polars(df)
+        df = _df_to_polars(df, index=index)
     elif isinstance(df, pd.DataFrame):
         df = pl.from_pandas(df, include_index=True)
-        df = _df_to_polars(df)
+        df = _df_to_polars(df, index=index)
     else:
         raise ValueError(f'{df.__class__} not supported')
 
@@ -275,13 +290,13 @@ def _df_to_polars(df):
     return df
 
 
-def _df_to_pandas(df):
+def _df_to_pandas(df, index):
     if isinstance(df, pd.DataFrame):
         return df
     else:
         assert isinstance(df, pl.LazyFrame)
 
-        index = _polars_index_col(df)
+        index = _polars_index_col(df, index)
         if index == 'Time' and df.schema[index].is_temporal():
             df = df.with_columns(
                 pl.col(index).dt.total_nanoseconds() * 1e-9
@@ -303,7 +318,10 @@ def _df_to_pandas(df):
             pyarrow.string(): pd.StringDtype(),
         }
         df = df.to_pandas(types_mapper=dtype_mapping.get)
-        df.set_index(index, inplace=True)
+        if index is None:
+            df.reset_index(inplace=True)
+        else:
+            df.set_index(index, inplace=True)
 
         # Nullable dtypes are still not supported everywhere, so cast back to a
         # non-nullable dtype in cases where there is no null value:
@@ -328,13 +346,13 @@ def _df_to_pandas(df):
         return df
 
 
-def _df_to(df, fmt):
+def _df_to(df, fmt, index=None):
     if fmt == 'pandas':
-        return _df_to_pandas(df)
+        return _df_to_pandas(df, index=index)
     elif fmt == 'polars-lazyframe':
         # Note that this is not always a no-op even if the input is already a
         # LazyFrame, so it's important this does not get "optimized away".
-        return _df_to_polars(df)
+        return _df_to_polars(df, index=index)
     else:
         raise ValueError(f'Unknown format {fmt}')
 
@@ -374,9 +392,9 @@ class DataAccessor:
             f = self.FUNCTIONS[attr]
         except KeyError as e:
             raise AttributeError(f'Unknown method name: {attr}') from e
-
-        meth = f.__get__(self.data, self.__class__)
-        return meth
+        else:
+            meth = f.__get__(self.data, self.__class__)
+            return meth
 
     def __dir__(self):
         attrs = set(super().__dir__())
@@ -1064,7 +1082,7 @@ def _polars_window(data, window, method):
     assert isinstance(data, pl.LazyFrame)
 
     # TODO: maybe expose that as a param
-    col = _polars_index_col(data)
+    col = _polars_index_col(data, index='Time')
 
     col = pl.col(col)
     start, stop = window
@@ -1311,7 +1329,7 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
     )
 
 def _polars_window_signals(df, window, signals, compress_init):
-    index = _polars_index_col(df)
+    index = _polars_index_col(df, index='Time')
     assert df.schema[index].is_temporal()
 
     start, stop = window
@@ -1350,8 +1368,8 @@ def _polars_window_signals(df, window, signals, compress_init):
             if compress_init:
                 first_row = post_df.select(index).head(1).collect()
                 try:
-                    first_time = first_row[0]
-                except IndexError:
+                    first_time = first_row.item()
+                except ValueError:
                     pass
                 else:
                     pre_df.with_columns(Time=pl.lit(first_time))

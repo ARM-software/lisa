@@ -283,6 +283,16 @@ function lisa-install {
     # machines at a given point in time.
     (cd "$LISA_HOME" && _lisa-python -m pip install --no-cache-dir "${pip_options[@]}" "$@")
 
+    # Workaround the inability to easily depend on a single polars
+    # implementation:
+    # https://github.com/pola-rs/polars/issues/12880
+    # HACK: we _do not_ uninstall the polars package. If this installs
+    # polars-lts-cpu, the files provided by `polars` will be overridden but the
+    # `polars` package will stay recognized as installed by pip. This means that
+    # subsequent install of `polars` (e.g. as a dependency of another tool) will
+    # do nothing and we get to keep the sources installed by `polars-lts-cpu`
+    _lisa-python -m pip install --force "$(lisa-polars-pkg)"
+
     # Make sure the shell has taken into account the new content of directories
     # listed in $PATH.
     _lisa-reload-PATH

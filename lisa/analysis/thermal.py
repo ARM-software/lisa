@@ -35,6 +35,7 @@ class ThermalAnalysis(TraceAnalysisBase):
 
     name = 'thermal'
 
+    @TraceAnalysisBase.df_method
     @requires_events("thermal_temperature")
     def df_thermal_zones_temperature(self):
         """

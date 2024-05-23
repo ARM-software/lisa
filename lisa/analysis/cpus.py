@@ -22,7 +22,7 @@ import holoviews as hv
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events, CPU
-from lisa.datautils import df_window
+from lisa.datautils import df_window, NO_INDEX
 
 
 class CpusAnalysis(TraceAnalysisBase):
@@ -36,7 +36,7 @@ class CpusAnalysis(TraceAnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    @TraceAnalysisBase.df_method
+    @TraceAnalysisBase.df_method(index=NO_INDEX)
     @requires_events('sched_switch')
     def df_context_switches(self):
         """

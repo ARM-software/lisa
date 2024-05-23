@@ -41,7 +41,7 @@ import lisa
 from lisa.utils import (
     Serializable, Loggable, get_nested_key, set_nested_key, get_call_site,
     is_running_sphinx, get_cls_name, HideExekallID, get_subclasses, groupby,
-    import_all_submodules,
+    import_all_submodules, delegate_getattr
 )
 from lisa._generic import check_type
 
