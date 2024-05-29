@@ -58,81 +58,6 @@ cd "$LISA_HOME" || (echo "LISA_HOME ($LISA_HOME) does not exists" && exit 1)
 
 # Must be kept in sync with shell/lisa_shell
 export ANDROID_HOME="$LISA_HOME/tools/android-sdk-linux/"
-ANDROID_SDK_ROOT="$ANDROID_HOME"
-mkdir -p "$ANDROID_HOME"
-
-# No need for the whole SDK for this one
-install_android_platform_tools() {
-    echo "Installing Android platform tools ..."
-
-    local url="https://dl.google.com/android/repository/platform-tools-latest-linux.zip"
-    local archive="$ANDROID_HOME/android-platform-tools.zip"
-
-    wget --no-verbose "$url" -O "$archive" &&
-    echo "Extracting $archive ..." &&
-    unzip -q -o "$archive" -d "$ANDROID_HOME"
-}
-
-cleanup_android_home() {
-    echo "Cleaning up Android SDK: $ANDROID_HOME"
-    rm -r "$ANDROID_HOME"
-    mkdir -p "$ANDROID_HOME"
-}
-
-install_android_sdk_manager() {
-    echo "Installing Android SDK manager ..."
-
-    # URL taken from "Command line tools only": https://developer.android.com/studio
-    # Used to be "https://dl.google.com/android/repository/commandlinetools-linux-7302050_latest.zip"
-    # Used to be "https://dl.google.com/android/repository/commandlinetools-linux-8092744_latest.zip"
-    # Used to be "https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip"
-    # Used to be "https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip"
-    local url="https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
-    local archive="$ANDROID_HOME/android-sdk-manager.zip"
-    rm "$archive" &>/dev/null
-
-    echo "Downloading Android SDK manager from: $url"
-    wget --no-verbose "$url" -O "$archive" &&
-    echo "Extracting $archive ..." &&
-    unzip -q -o "$archive" -d "$ANDROID_HOME"
-
-    yes | (call_android_sdkmanager --licenses || true)
-    call_android_sdkmanager --list
-}
-
-# Android SDK is picky on Java version, so we need to set JAVA_HOME manually.
-# In most distributions, Java is installed under /usr/lib/jvm so use that.
-# according to the distribution
-ANDROID_SDK_JAVA_VERSION=17
-find_java_home() {
-    _JAVA_BIN=$(find -L /usr/lib/jvm -path "*$ANDROID_SDK_JAVA_VERSION*/bin/java" -not -path '*/jre/bin/*' -print -quit)
-    _JAVA_HOME=$(dirname "$_JAVA_BIN")/../
-
-    echo "Found JAVA_HOME=$_JAVA_HOME"
-}
-
-call_android_sdk() {
-    # Used to be:
-    # local tool="$ANDROID_HOME/tools/bin/$1"
-    local tool="$ANDROID_HOME/cmdline-tools/bin/$1"
-    shift
-    echo "Using JAVA_HOME=$_JAVA_HOME for Android SDK" >&2
-    # Use grep to remove the progress bar, as there is no CLI option for the SDK
-    # manager to do that
-    JAVA_HOME=$_JAVA_HOME "$tool" "$@" | grep -v '\[='
-}
-
-call_android_sdkmanager() {
-    call_android_sdk sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "$@"
-}
-
-# Needs install_android_sdk_manager first
-install_android_tools() {
-    # We could use install_android_platform_tools here for platform-tools if the
-    # SDK starts being annoying
-    yes | call_android_sdkmanager --verbose --channel=0 --install "build-tools;34.0.0"
-    yes | call_android_sdkmanager --verbose --channel=0 --install "platform-tools"
-}
 
 install_apt() {
     echo "Installing apt packages ..."
@@ -186,10 +111,6 @@ apt_packages=(
     python3-tk
     python3-setuptools
     qemu-user-static
-    rsync
-    sshpass
-    unzip
-    wget
 )
 
 # pacman-based distributions like Archlinux or its derivatives
@@ -203,10 +124,6 @@ pacman_packages=(
     python-pip
     python-setuptools
     qemu-user-static
-    rsync
-    sshpass
-    unzip
-    wget
 )
 
 HOST_ARCH="$(uname -m)"
@@ -284,33 +201,17 @@ fi
 
 # Use conditional fall-through ;;& to all matching all branches with
 # --install-all
+devlib_params=()
 for arg in "${args[@]}"; do
     # We need this flag since *) does not play well with fall-through ;;&
     handled=0
     case "$arg" in
 
-    "--cleanup-android-sdk")
-        install_functions+=(cleanup_android_home)
-        handled=1
-        ;;&
-
-    "--install-android-tools" | "--install-all")
-        install_functions+=(
-            find_java_home
-            install_android_sdk_manager # Needed by install_android_build_tools
-            install_android_tools
-        )
-        apt_packages+=(openjdk-$ANDROID_SDK_JAVA_VERSION-jre openjdk-$ANDROID_SDK_JAVA_VERSION-jdk)
-        pacman_packages+=(jre$ANDROID_SDK_JAVA_VERSION-openjdk jdk$ANDROID_SDK_JAVA_VERSION-openjdk)
-        handled=1
-        ;;&
-
-    # Not part of --install-all since that is already satisfied by
-    # --install-android-tools The advantage of that method is that it does not
-    # require the Java JDK/JRE to be installed, and is a bit quicker. However,
-    # it will not provide the build-tools which are needed by devlib.
-    "--install-android-platform-tools")
-        install_functions+=(install_android_platform_tools)
+    "--cleanup-android-sdk" | \
+    "--install-android-tools" | \
+    "--install-android-platform-tools" | \
+    "--install-all")
+        devlib_params+=(${arg})
         handled=1
         ;;&
 
@@ -400,14 +301,6 @@ ordered_functions=(
     # pre-requisites are there
     install_apt
     install_pacman
-
-    find_java_home
-    # cleanup must be done BEFORE installing
-    cleanup_android_home
-    install_android_sdk_manager # Needed by install_android_build_tools
-    install_android_tools
-    install_android_platform_tools
-
     register_pip_extra_requirements
 )
 
@@ -431,7 +324,9 @@ for _func in "${ordered_functions[@]}"; do
         fi
     done
 done
+[[ ${ret} == 0 ]] || exit ${ret}
 
-exit $ret
+"${LISA_HOME}/external/devlib/tools/android/setup_host.sh" "${devlib_params[@]}"
+exit $?
 
 # vim: set tabstop=4 shiftwidth=4 textwidth=80 expandtab:
