@@ -20,6 +20,7 @@ import os
 from unittest import TestCase
 import copy
 import math
+from pathlib import Path
 
 import pytest
 import numpy as np
@@ -47,15 +48,15 @@ class TraceTestCase(StorageTestCase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        self.test_trace = os.path.join(self.traces_dir, 'test_trace.txt')
         self.plat_info = self._get_plat_info()
 
-        self.trace_path = os.path.join(self.traces_dir, 'trace.txt')
-        self.trace = Trace(
-            self.trace_path,
+    @property
+    def trace(self):
+        return Trace(
+            os.path.join(self.traces_dir, 'trace.txt'),
             plat_info=self.plat_info,
             events=self.events,
+            normalize_time=False,
             parser=TxtTraceParser.from_txt_file,
         )
 
@@ -63,25 +64,20 @@ class TraceTestCase(StorageTestCase):
         """
         Get a trace from an embedded string of textual trace data
         """
-        trace_path = os.path.join(self.res_dir, "test_trace.txt")
-        with open(trace_path, "w") as fout:
-            fout.write(in_data)
-
         return Trace(
-            trace_path,
+            None,
             plat_info=self.plat_info if plat_info is None else plat_info,
             events=self.events if events is None else events,
             normalize_time=False,
-            parser=TxtTraceParser.from_txt_file,
+            parser=TxtTraceParser.from_string(in_data),
         )
 
     def get_trace(self, trace_name):
         """
         Get a trace from a separate provided trace file
         """
-        trace_path = os.path.join(self.traces_dir, trace_name, 'trace.dat')
         return Trace(
-            trace_path,
+            Path(self.traces_dir, trace_name, 'trace.dat'),
             plat_info=self._get_plat_info(trace_name),
             events=self.events,
         )
@@ -163,16 +159,7 @@ class TestTrace(TraceTestCase):
         TestTrace: time_range is the duration of the trace
         """
         expected_duration = 6.676497
-
-        trace = Trace(
-            self.trace_path,
-            plat_info=self.plat_info,
-            events=self.events,
-            normalize_time=False,
-            parser=TxtTraceParser.from_txt_file,
-        )
-
-        assert trace.time_range == pytest.approx(expected_duration)
+        assert self.trace.time_range == pytest.approx(expected_duration)
 
     def test_squash_df(self):
         """
@@ -391,18 +378,6 @@ class TestTrace(TraceTestCase):
 
 class TestTraceView(TraceTestCase):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        # We don't want normalized time
-        self.trace = Trace(
-            self.trace_path,
-            plat_info=self.plat_info,
-            events=self.events,
-            normalize_time=False,
-            parser=TxtTraceParser.from_txt_file,
-        )
-
     def test_lower_slice(self):
         view = self.trace[81:]
         assert len(view.ana.status.df_overutilized()) == 2
@@ -418,44 +393,22 @@ class TestTraceView(TraceTestCase):
 
     def test_time_range(self):
         expected_duration = np.nextafter(4.0, math.inf)
-
-        trace = Trace(
-            self.trace_path,
-            plat_info=self.plat_info,
-            events=self.events,
-            normalize_time=False,
-            parser=TxtTraceParser.from_txt_file,
-        ).get_view(window=(76.402065, 80.402065))
+        trace = self.trace.get_view(window=(76.402065, 80.402065))
 
         assert trace.time_range == pytest.approx(expected_duration)
 
     def test_time_range_subscript(self):
         expected_duration = 4.0
-
-        trace = Trace(
-            self.trace_path,
-            plat_info=self.plat_info,
-            events=self.events,
-            normalize_time=False,
-            parser=TxtTraceParser.from_txt_file,
-        )[76.402065:80.402065]
+        trace = self.trace[76.402065:80.402065]
 
         assert trace.time_range == pytest.approx(expected_duration)
 
 
 class TestNestedTraceView(TestTraceView):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        trace = Trace(
-            self.trace_path,
-            plat_info=self.plat_info,
-            events=self.events,
-            normalize_time=False,
-            parser=TxtTraceParser.from_txt_file,
-        )
-
-        self.trace = trace[trace.start:trace.end]
+    @property
+    def trace(self):
+        trace = super().trace
+        return trace[trace.start:trace.end]
 
 
 class TestTraceNoClusterData(TestTrace):
