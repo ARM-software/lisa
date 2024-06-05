@@ -5779,6 +5779,7 @@ class _Trace(Loggable, _InternalTraceBase):
                                     extra_df,
                                     on='Time',
                                     how='left',
+                                    coalesce=True,
                                 )
 
                                 _df = _df.select(
