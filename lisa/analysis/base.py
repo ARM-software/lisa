@@ -1183,6 +1183,10 @@ class TraceAnalysisBase(AnalysisHelpers):
             # they are collect()'ed in f(), they will be created using a common
             # StringCache so Categorical columns can be concatenated and such.
             with pl.StringCache():
+
+                # We might get different types based on whether the content
+                # comes from the function directly (could be a pandas object)
+                # or from the cache (polars LazyFrame).
                 df = cached_f(self, *args, **kwargs)
                 assert isinstance(df, (pd.DataFrame, pl.DataFrame, pl.LazyFrame))
 

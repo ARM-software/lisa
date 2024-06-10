@@ -22,7 +22,7 @@ import holoviews as hv
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.notebook import COLOR_CYCLE, _hv_neutral
 from lisa.analysis.tasks import TaskState, TasksAnalysis, TaskID
-from lisa.datautils import df_refit_index, NO_INDEX
+from lisa.datautils import df_refit_index
 from lisa.trace import MissingTraceEventError
 
 
@@ -51,11 +51,11 @@ class LatencyAnalysis(TraceAnalysisBase):
             (pl.col('curr_state') == curr_state) &
             (pl.col('next_state') == next_state)
         )
-        df = df.select(["delta", "cpu", "target_cpu"])
+        df = df.select(['Time', 'delta', 'cpu', 'target_cpu'])
         df = df.rename({'delta': name})
         return df
 
-    @TraceAnalysisBase.df_method(index=NO_INDEX)
+    @TraceAnalysisBase.df_method
     @_df_latency.used_events
     def df_latency_wakeup(self, task):
         """
@@ -77,7 +77,7 @@ class LatencyAnalysis(TraceAnalysisBase):
             TaskState.TASK_ACTIVE,
         )
 
-    @TraceAnalysisBase.df_method(index=NO_INDEX)
+    @TraceAnalysisBase.df_method
     @_df_latency.used_events
     def df_latency_preemption(self, task):
         """
@@ -96,7 +96,7 @@ class LatencyAnalysis(TraceAnalysisBase):
             'preempt_latency',
             TaskState.TASK_RUNNING,
             TaskState.TASK_ACTIVE
-        ).select(['preempt_latency', 'cpu'])
+        ).select(['Time', 'preempt_latency', 'cpu'])
 
     @TraceAnalysisBase.df_method
     @TasksAnalysis.df_task_states.used_events
@@ -274,7 +274,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         return series, above, below
 
 
-    @TraceAnalysisBase.df_method(index=NO_INDEX)
+    @TraceAnalysisBase.df_method()
     @df_latency_wakeup.used_events
     @df_latency_preemption.used_events
     def _get_latencies_df(self, task, wakeup, preempt):

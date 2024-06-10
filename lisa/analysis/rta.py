@@ -21,7 +21,7 @@ import holoviews as hv
 import numpy as np
 
 from lisa.analysis.base import AnalysisHelpers, TraceAnalysisBase
-from lisa.datautils import df_filter_task_ids, df_window, df_split_signals, NO_INDEX
+from lisa.datautils import df_filter_task_ids, df_window, df_split_signals
 from lisa.trace import requires_events, requires_one_event_of, may_use_events, MissingTraceEventError
 from lisa.utils import memoized, order_as
 from lisa.analysis.tasks import TasksAnalysis, TaskID
@@ -325,7 +325,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         return df
 
-    @TraceAnalysisBase.df_method(index=NO_INDEX)
+    @TraceAnalysisBase.df_method
     @df_rtapp_loop.used_events
     def df_phases(self, task, wlgen_profile=None):
         """
@@ -392,9 +392,12 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         if durations:
             index, columns = zip(*durations)
-            return pd.DataFrame(columns, index=index)
+            df = pd.DataFrame(columns, index=index)
+            df.index.name = 'Time'
         else:
-            return pd.DataFrame()
+            df = pd.DataFrame()
+
+        return df
 
 
     @df_phases.used_events
