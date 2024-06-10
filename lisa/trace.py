@@ -4422,6 +4422,21 @@ class _TraceCache(Loggable):
                 df.clear().collect()
 
                 df = _LazyFrameOnDelete.attach_file_cleanup(df, [hardlink_base])
+
+                parquet_meta = pyarrow.parquet.read_metadata(hardlink_path)
+                parquet_meta = parquet_meta.metadata
+                try:
+                    pandas_meta = parquet_meta[b'pandas']
+                except KeyError:
+                    pass
+                else:
+                    # Load the pandas metadata and put the index column
+                    # first, so that _polars_index_col() detects the index
+                    # correctly.
+                    pandas_meta = json.loads(pandas_meta.decode('utf-8'))
+                    index_cols = pandas_meta['index_columns']
+                    df = df.select(order_as(df.columns, index_cols))
+
                 return df
 
         if fmt == 'disk-only':
