@@ -1005,6 +1005,10 @@ class TasksAnalysis(TraceAnalysisBase):
             res_df = res_df.head(count)
 
         res_df.index.name = 'task'
+
+        # Ensure column names are all strings, so it can be serialized to
+        # parquet
+        res_df.columns = [str(col) for col in res_df.columns]
         return res_df
 
     @TraceAnalysisBase.df_method

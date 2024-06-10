@@ -45,7 +45,7 @@ import pandas as pd
 from lisa.utils import Loggable, deprecate, get_doc_url, get_short_doc, get_subclasses, guess_format, is_running_ipython, measure_time, memoized, update_wrapper_doc, _import_all_submodules, optional_kwargs
 from lisa.trace import _CacheDataDesc
 from lisa.notebook import _hv_fig_to_pane, _hv_link_dataframes, axis_cursor_delta, axis_link_dataframes, make_figure
-from lisa.datautils import _df_to
+from lisa.datautils import _df_to, _pandas_cleanup_df
 
 # Ensure hv.extension() is called
 import lisa.notebook
@@ -1279,6 +1279,9 @@ class TraceAnalysisBase(AnalysisHelpers):
 
                 with measure_time() as measure:
                     data = f(*params.args, **params.kwargs)
+
+                if isinstance(data, pd.DataFrame):
+                    data = _pandas_cleanup_df(data)
 
                 if memory_cache:
                     compute_cost = measure.exclusive_delta

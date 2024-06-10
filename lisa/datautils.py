@@ -348,9 +348,9 @@ def _df_to_pandas(df, index):
 
 def _df_to(df, fmt, index=None):
 
-    # Ensure we only have string column names, as it is the only type that will
-    # survive library conversions and serialization to parquet
     if isinstance(df, pd.DataFrame):
+        df = _pandas_cleanup_df(df)
+
         if index is None:
             index = df.index.name
             # Default index in pandas, e.g. when using reset_index(). In that
@@ -372,6 +372,23 @@ def _df_to(df, fmt, index=None):
         return _df_to_polars(df, index=index)
     else:
         raise ValueError(f'Unknown format {fmt}')
+
+
+def _pandas_cleanup_df(df):
+    assert isinstance(df, pd.DataFrame)
+
+    # Ensure we only have string column names, as it is the only type that will
+    # survive library conversions and serialization to parquet
+    assert all(isinstance(col, str) for col in df.columns)
+
+    # We need an index name if it's not just a default RangeIndex, otherwise we
+    # cannot convert the dataframe to polars.
+    assert isinstance(df.index, pd.RangeIndex) or df.index.name is not None
+
+    # This will not survive conversion between dataframe types
+    df.columns.name = None
+
+    return df
 
 
 class DataAccessor:

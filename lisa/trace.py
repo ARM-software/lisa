@@ -64,7 +64,7 @@ import devlib
 
 from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, unzip_into, order_as, delegate_getattr
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
-from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp
+from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString
 from lisa._kmod import LISADynamicKmod
@@ -4326,6 +4326,8 @@ class _TraceCache(Loggable):
     def _data_to_parquet(data, path, compression='lz4', **kwargs):
         kwargs['compression'] = compression
         if isinstance(data, pd.DataFrame):
+            data = _pandas_cleanup_df(data)
+
             # Data must be convertible to bytes so we dump them as JSON
             attrs = json.dumps(data.attrs)
             table = pyarrow.Table.from_pandas(data)
