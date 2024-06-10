@@ -3995,14 +3995,6 @@ class _TraceCache(Loggable):
     be stored in the cache by analysis method.
     """
 
-    INIT_SWAP_COST = 1e-8
-    """
-    Somewhat arbitrary number, must be small enough so that we write at
-    least one dataset to the cache, which will allow us getting a better
-    estimation. If the value is too high from the start, we will never
-    write anything, and the value will never have a chance to re-adjust.
-    """
-
     TRACE_META_FILENAME = 'trace.meta'
     """
     Name of the trace metadata file in the swap area.
@@ -4020,13 +4012,11 @@ class _TraceCache(Loggable):
         self._data_cost = {}
         self._swap_content = swap_content or {}
         self._cache_desc_swap_filename = {}
-        self.swap_cost = self.INIT_SWAP_COST
         self._swap_dir = swap_dir
         self.max_swap_size = max_swap_size if max_swap_size is not None else math.inf
         self._swap_size = self._get_swap_size()
 
         self.max_mem_size = max_mem_size if max_mem_size is not None else math.inf
-        self._data_mem_swap_ratio = 1
         self._metadata = metadata or {}
 
         self.trace_path = os.path.abspath(trace_path) if trace_path else trace_path
@@ -4233,26 +4223,8 @@ class _TraceCache(Loggable):
 
         return cls(swap_dir=swap_dir, **kwargs)
 
-    def _estimate_data_swap_cost(self, data):
-        return self._estimate_data_swap_size(data) * self.swap_cost
-
     def _estimate_data_swap_size(self, data):
-        return self._data_mem_usage(data) * self._data_mem_swap_ratio
-
-    def _update_ewma(self, attr, new, alpha=0.25, override=False):
-        with self._lock:
-            old = getattr(self, attr)
-            if override:
-                updated = new
-            else:
-                updated = (1 - alpha) * old + alpha * new
-
-            setattr(self, attr, updated)
-
-    def _update_data_swap_size_estimation(self, data, size):
-        mem_usage = self._data_mem_usage(data)
-        if mem_usage:
-            self._update_ewma('_data_mem_swap_ratio', size / mem_usage)
+        return self._data_mem_usage(data)
 
     @staticmethod
     def _data_mem_usage(data):
@@ -4268,11 +4240,14 @@ class _TraceCache(Loggable):
             return sys.getsizeof(data)
 
     def _should_evict_to_swap(self, cache_desc, data):
-        # If we don't have any cost info, assume it is expensive to compute
         with self._lock:
-            compute_cost = self._data_cost.get(cache_desc, math.inf)
-        swap_cost = self._estimate_data_swap_cost(data)
-        return swap_cost <= compute_cost
+            compute_cost = self._data_cost.get(
+                cache_desc,
+                # If we don't have any cost info, assume it is expensive to
+                # compute
+                math.inf,
+            )
+            return compute_cost >= 100e-6
 
     def _path_of_swap_entry(self, swap_entry):
         return os.path.join(self.swap_dir, swap_entry.meta_filename)
@@ -4299,19 +4274,6 @@ class _TraceCache(Loggable):
             swap_entry = self._swap_content[cache_desc_nf]
         filename = swap_entry.data_filename
         return os.path.join(self.swap_dir, filename)
-
-    def _update_swap_cost(self, data, swap_cost, mem_usage, swap_size):
-        # Take out from the swap cost the time it took to write the overhead
-        # that comes with the file format, assuming the cost is
-        # proportional to amount of data written in the swap.
-        if not swap_size:
-            swap_cost = 0
-
-        new_cost = swap_cost / mem_usage
-
-        override = self.swap_cost == self.INIT_SWAP_COST
-        # EWMA to keep a relatively stable cost
-        self._update_ewma('swap_cost', new_cost, override=override)
 
     def _is_written_to_swap(self, cache_desc):
         try:
@@ -4498,8 +4460,7 @@ class _TraceCache(Loggable):
 
             # Write the Parquet file and update the write speed
             try:
-                with measure_time() as measure:
-                    self._write_data(cache_desc.fmt, data, data_path)
+                self._write_data(cache_desc.fmt, data, data_path)
             # PyArrow fails to save dataframes containing integers > 64bits
             except OverflowError as e:
                 log_error(e)
@@ -4523,21 +4484,14 @@ class _TraceCache(Loggable):
                 with self._lock:
                     self._swap_content[swap_entry.cache_desc_nf] = swap_entry
 
-                # Assume that reading from the swap will take as much time as
-                # writing to it. We cannot do better anyway, but that should
-                # mostly bias to keeping things in memory if possible.
-                swap_cost = measure.exclusive_delta
                 try:
                     data_swapped_size = os.stat(data_path).st_size
                 except FileNotFoundError:
                     data_swapped_size = 0
 
                 mem_usage = self._data_mem_usage(data)
-                if mem_usage:
-                    self._update_swap_cost(data, swap_cost, mem_usage, data_swapped_size)
                 with self._lock:
                     self._swap_size += data_swapped_size
-                self._update_data_swap_size_estimation(data, data_swapped_size)
                 self.scrub_swap()
 
     def _get_swap_size(self):
@@ -4776,20 +4730,6 @@ class _TraceCache(Loggable):
                     # If we don't know the computation cost, assume it can be evicted cheaply
                     compute_cost = self._data_cost.get(cache_desc, 0)
 
-                    if not compute_cost:
-                        score = 0
-                    else:
-                        swap_cost = self._estimate_data_swap_cost(data)
-                        # If it's already written back, make it cheaper to evict since
-                        # the eviction itself is going to be cheap
-                        if self._is_written_to_swap(cache_desc):
-                            swap_cost /= 2
-
-                        if swap_cost:
-                            score = compute_cost / swap_cost
-                        else:
-                            score = 0
-
                     # Assume that more references to an object implies it will
                     # stay around for longer. Therefore, it's less interesting to
                     # remove it from this cache and pay the cost of reading/writing it to
@@ -4797,7 +4737,7 @@ class _TraceCache(Loggable):
                     #
                     # Normalize to the minimum refcount, so that the _cache and other
                     # structures where references are stored are discounted for sure.
-                    return (refcounts[cache_desc] - min_refcount + 1) * score
+                    return (refcounts[cache_desc] - min_refcount + 1) * compute_cost
 
                 new_mem_usage = 0
                 for cache_desc, data in sorted(self._cache.items(), key=retention_score):

@@ -1284,7 +1284,11 @@ class TraceAnalysisBase(AnalysisHelpers):
                     data = _pandas_cleanup_df(data)
 
                 if memory_cache:
-                    compute_cost = measure.exclusive_delta
+                    # Do not use measure.exclusive_delta, otherwise a simple
+                    # function making thousands of quick calls to a child
+                    # function may appear with a low cost, even though it
+                    # actually has a high total cost.
+                    compute_cost = measure.delta
                 else:
                     compute_cost = None
 
