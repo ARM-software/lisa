@@ -1292,7 +1292,7 @@ class TraceAnalysisBase(AnalysisHelpers):
                 else:
                     compute_cost = None
 
-                cache.insert(cache_desc, data, compute_cost=compute_cost, write_swap=True)
+                cache.insert(cache_desc, data, compute_cost=compute_cost, write_swap='best-effort')
                 return data
 
             if memory_cache:

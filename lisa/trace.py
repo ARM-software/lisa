@@ -4429,7 +4429,7 @@ class _TraceCache(Loggable):
 
         return data
 
-    def _write_swap(self, cache_desc, data, write_meta=True):
+    def _write_swap(self, cache_desc, data, write_meta=True, best_effort=False):
         try:
             swap_dir = self.swap_dir
         except ValueError:
@@ -4461,9 +4461,11 @@ class _TraceCache(Loggable):
             # Write the Parquet file and update the write speed
             try:
                 self._write_data(cache_desc.fmt, data, data_path)
-            # PyArrow fails to save dataframes containing integers > 64bits
-            except OverflowError as e:
-                log_error(e)
+            except Exception as e:
+                if best_effort:
+                    log_error(e)
+                else:
+                    raise e
             else:
                 # Update the swap entry on disk
                 if write_meta:
@@ -4649,7 +4651,7 @@ class _TraceCache(Loggable):
 
                 return data
 
-    def insert(self, cache_desc, data, compute_cost=None, write_swap=False, ignore_cost=False, write_meta=True, swappable=None):
+    def insert(self, cache_desc, data, compute_cost=None, write_swap=True, ignore_cost=False, write_meta=True, swappable=None):
         """
         Insert an entry in the cache.
 
@@ -4665,8 +4667,9 @@ class _TraceCache(Loggable):
         :param write_swap: If ``True``, the data will be written to the swap as
             well so it can be quickly reloaded. Note that it will be subject to
             cost evaluation, so it might not result in anything actually
-            written.
-        :type write_swap: bool
+            written. If ``"best-effort"`` is passed, writing will be attempted
+            and any exception suppressed.
+        :type write_swap: bool or str
 
         :param ignore_cost: If ``True``, bypass the computation vs swap
             cost comparison.
@@ -4689,11 +4692,14 @@ class _TraceCache(Loggable):
             if compute_cost is not None:
                 self._data_cost[cache_desc] = compute_cost
 
-        self.write_swap(
-            cache_desc,
-            ignore_cost=ignore_cost,
-            write_meta=write_meta
-        )
+        if write_swap:
+            best_effort = (write_swap == 'best-effort')
+            self.write_swap(
+                cache_desc,
+                ignore_cost=ignore_cost,
+                write_meta=write_meta,
+                best_effort=best_effort,
+            )
 
         self._scrub_mem()
 
@@ -4755,7 +4761,7 @@ class _TraceCache(Loggable):
         If it would be cheaper to reload the data than to recompute them, they
         will be written to the swap area.
         """
-        self.write_swap(cache_desc)
+        self.write_swap(cache_desc, best_effort=True)
 
         try:
             with self._lock:
@@ -4763,7 +4769,7 @@ class _TraceCache(Loggable):
         except KeyError:
             pass
 
-    def write_swap(self, cache_desc, ignore_cost=False, write_meta=True):
+    def write_swap(self, cache_desc, ignore_cost=False, write_meta=True, best_effort=False):
         """
         Write the given descriptor to the swap area if that would be faster to
         reload the data rather than recomputing it. If the descriptor is not in
@@ -4778,6 +4784,11 @@ class _TraceCache(Loggable):
         :param write_meta: If ``True``, the swap entry metadata will be written
             on disk if the data are. Otherwise, no swap entry is written to disk.
         :type write_meta: bool
+
+        :param best_effort: If ``True``, attempt to write to the swap and
+            simply log an error rather than raising an exception in case of
+            failure.
+        :type best_effort: bool
         """
         try:
             with self._lock:
@@ -4793,7 +4804,12 @@ class _TraceCache(Loggable):
                     self._should_evict_to_swap(cache_desc, data)
                 )
             ):
-                self._write_swap(cache_desc, data, write_meta)
+                self._write_swap(
+                    cache_desc=cache_desc,
+                    data=data,
+                    write_meta=write_meta,
+                    best_effort=best_effort,
+                )
 
     def write_swap_all(self, **kwargs):
         """
