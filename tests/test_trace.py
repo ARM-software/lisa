@@ -90,6 +90,11 @@ class TraceTestCase(StorageTestCase):
         path = os.path.join(trace_dir, 'plat_info.yml')
         return PlatformInfo.from_yaml_map(path)
 
+    def test_context_manager(self):
+        trace = self.get_trace('doc')
+        with trace:
+            trace.df_event('sched_switch')
+
 
 class TestTrace(TraceTestCase):
     """Smoke tests for LISA's Trace class"""
@@ -377,6 +382,10 @@ class TestTrace(TraceTestCase):
 
 
 class TestTraceView(TraceTestCase):
+
+    def get_trace(self, *args, **kwargs):
+        trace = super().get_trace(*args, **kwargs)
+        return trace.get_view()
 
     def test_lower_slice(self):
         view = self.trace[81:]

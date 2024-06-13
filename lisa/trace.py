@@ -2819,6 +2819,14 @@ class _InternalTraceBase(abc.ABC):
     def df_all_events(self, *args, **kwargs):
         return self.ana.notebook.df_all_events(*args, **kwargs)
 
+    @abc.abstractmethod
+    def __enter__(self):
+        return self
+
+    @abc.abstractmethod
+    def __exit__(self, *args):
+        pass
+
 
 # User-facing
 class TraceBase(_InternalTraceBase):
@@ -3081,6 +3089,13 @@ class _TraceViewBase(_InternalTraceBase):
     def __init__(self, trace):
         self.base_trace = trace
         super().__init__()
+
+    def __enter__(self):
+        self.base_trace.__enter__()
+        return self
+
+    def __exit__(self, *args):
+        return self.base_trace.__exit__(*args)
 
     def __getattr__(self, name):
         return delegate_getattr(self, 'base_trace', name)
@@ -4026,6 +4041,14 @@ class _TraceCache(Loggable):
         # Limit to one worker, as we will likely take the self._lock anyway
         self._thread_executor = ThreadPoolExecutor(max_workers=1)
 
+        self.__deallocator_callbacks = [
+            # Ensure we block until all workers are finished. Otherwise, e.g.
+            # removing the swap area might fail because an worker is still creating
+            # the metadata file in there.
+            lambda: self._thread_executor.shutdown()
+        ]
+
+
     @property
     def swap_dir(self):
         if (swap_dir := self._swap_dir) is None:
@@ -4037,43 +4060,33 @@ class _TraceCache(Loggable):
     @memoized
     def _hardlinks_base(self):
         path = Path(self.swap_dir) / 'hardlinks' / str(self._unique_id)
-        return path.resolve()
-
-    @property
-    @memoized
-    def _hardlinks_base_deallocator(self):
-        path = self._hardlinks_base
-        f = functools.partial(_file_cleanup, paths=[path])
-        return _Deallocator(
-            f=f,
-            on_del=False,
-            at_exit=True,
-        )
+        path = path.resolve()
+        def cleanup():
+            # Only try with rmdir first, so that we don't sabbotage existing
+            # LazyFrame that might still be alive.
+            try:
+                os.rmdir(path)
+            except Exception:
+                pass
+        with self._lock:
+            self.__deallocator_callbacks.append(cleanup)
+        return path
 
     def _hardlink_path(self, base, name):
         path = self._hardlinks_base / base
         path.mkdir(parents=True, exist_ok=True)
 
-        # Make sure the deallocator has been created
-        self._hardlinks_base_deallocator
         return (
             path,
             path / name,
         )
 
-    def __del__(self):
-        # Only try with rmdir first, so that we don't sabbotage existing
-        # LazyFrame that might still be alive.
-        try:
-            path = self._hardlinks_base
-            os.rmdir(path)
-        except Exception:
-            pass
+    def __enter__(self):
+        return self
 
-        # Ensure we block until all workers are finished. Otherwise, e.g.
-        # removing the swap area might fail because an worker is still creating
-        # the metadata file in there.
-        self._thread_executor.shutdown()
+    def __exit__(self, *args):
+        for cb in self.__deallocator_callbacks:
+            cb()
 
     def _parser_temp_path(self):
         try:
@@ -4925,17 +4938,19 @@ class _Trace(Loggable, _InternalTraceBase):
         super().__init__()
         self._lock = threading.RLock()
 
+        stack = contextlib.ExitStack()
+        self._cm_stack = stack
+        self.__deallocator = _Deallocator(
+            f=lambda: self._cm_stack.__exit__(None, None, None),
+            on_del=True,
+            at_exit=True,
+        )
+
         # Make sure that we always operate with an active StringCache when
         # manipulating a trace object. This prevents issues with LazyFrame
         # built out of a DataFrame containing Categorical data, in places where
         # the user does not control the creation of the DataFrame.
-        str_cache = pl.StringCache()
-        str_cache.__enter__()
-        self.__string_cache_deallocator = _Deallocator(
-            f=lambda: str_cache.__exit__(None, None, None),
-            on_del=True,
-            at_exit=True,
-        )
+        stack.enter_context(pl.StringCache())
 
         trace_path = str(trace_path) if trace_path else None
 
@@ -5000,7 +5015,7 @@ class _Trace(Loggable, _InternalTraceBase):
         # over when querying the trace-id.
         self._cache = _TraceCache()
         trace_id = self._get_trace_id()
-        self._cache = _TraceCache.from_swap_dir(
+        cache = _TraceCache.from_swap_dir(
             trace_path=trace_path,
             swap_dir=swap_dir,
             max_swap_size=max_swap_size,
@@ -5008,6 +5023,9 @@ class _Trace(Loggable, _InternalTraceBase):
             trace_id=trace_id,
             metadata=self._cache._metadata,
         )
+        stack.enter_context(cache)
+        self._cache = cache
+
         # Initial scrub of the swap to discard unwanted data, honoring the
         # max_swap_size right from the beginning
         self._cache.scrub_swap()
@@ -5028,6 +5046,12 @@ class _Trace(Loggable, _InternalTraceBase):
         # Update the platform info with the data available from the trace once
         # the Trace is almost fully initialized
         self.plat_info = plat_info.add_trace_src(self)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.__deallocator.run()
 
     def _preload_metadata_cache(self):
         def fail():
@@ -5987,6 +6011,13 @@ class Trace(TraceBase):
         self.__view = view
         self._df_fmt = df_fmt or 'pandas'
 
+    def __enter__(self):
+        self.__view.__enter__()
+        return self
+
+    def __exit__(self, *args):
+        return self.__view.__exit__(*args)
+
     def __init__(self, *args, df_fmt=None, **kwargs):
         view = self._view_from_user_kwargs(*args, **kwargs)
         self._init(view, df_fmt=df_fmt)
@@ -6167,9 +6198,17 @@ class Trace(TraceBase):
             def __getattribute__(self, attr):
                 raise RuntimeError('The trace instance can only be used after the end of the "with" statement.')
 
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+
         class _TraceProxy(TraceBase):
             def __init__(self, path):
                 self.__base_trace = _TraceNotSet()
+                self.__path = path
 
                 if path is not None:
                     # Delete the file once we are done accessing it
@@ -6181,6 +6220,16 @@ class Trace(TraceBase):
 
             def __getattr__(self, attr):
                 return delegate_getattr(self, '_TraceProxy__base_trace', attr)
+
+            def __enter__(self):
+                self.__base_trace.__enter__()
+                return self
+
+            def __exit__(self, *args):
+                try:
+                    return self.__base_trace.__exit__(*args)
+                finally:
+                    self.__deallocator.run()
 
             @property
             def ana(self):
