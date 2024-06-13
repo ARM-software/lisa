@@ -16,10 +16,10 @@ Trace
 =====
 
 Our :class:`~lisa.trace.Trace` takes an Ftrace ``trace.dat`` file as input
-(Systrace ``trace.html`` are also accepted, but mileage may vary since it's an
-intrinsically ambiguous format), and provides access to both the raw trace
-events, as well as some new :class:`pandas.DataFrame` built from analysing and
-aggregating trace events.
+(other text-based formats are also accepted, but mileage may vary since they
+are ambiguous), and provides access to both the raw trace events, as well as
+some dataframes (:class:`polars.LazyFrame` and :class:`pandas.DataFrame`) built
+from analysing and aggregating trace events.
 
 You can create one like so::
 
@@ -33,6 +33,14 @@ Whereas analysis dataframes can be obtained like that::
 
   # trace.ana.<analysis name>.<analysis method>
   trace.ana.tasks.df_tasks_states()
+
+Switching to :mod:`polars` can be done with::
+
+  trace = Trace("path/to/trace.dat")
+  trace = trace.get_view(df_fmt='polars-lazyframe')
+
+Then all the dataframe APIs will return :class:`polars.LazyFrame` instances
+instead of :class:`pandas.DataFrame`.
 
 .. seealso:: See the :class:`~lisa.trace.Trace` documentation for more details.
 
@@ -68,6 +76,7 @@ Trace
 
 .. autoclass:: lisa.trace.Trace
    :members:
+   :inherited-members:
 
 .. automodule:: lisa.trace
    :members:

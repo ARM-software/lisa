@@ -5932,7 +5932,12 @@ class Trace(TraceBase):
         * ``ana``: The analysis proxy used as an entry point to run analysis
           methods on the trace. See :class:`lisa.analysis._proxy.AnalysisProxy`.
 
-    :Supporting more events:
+    :Supporting more events in text parsers:
+
+        .. note:: ``trace.dat`` parser can now fully infer the dataframe schema
+            from the binary trace.dat and does not require (nor allow) any
+            manual setting.
+
         Subclasses of :class:`TraceParserBase` can usually auto-detect the
         event format, but there may be a number of reasons to pass a custom
         event parser:
