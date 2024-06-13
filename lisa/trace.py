@@ -94,6 +94,11 @@ def _dealloc_all():
 atexit.register(_dealloc_all)
 
 def _file_cleanup(paths):
+    paths = [
+        path
+        for path in paths
+        if path is not None
+    ]
     for path in paths:
         try:
             shutil.rmtree(path)
@@ -4891,14 +4896,12 @@ class _TraceProxy(TraceBase):
     def __init__(self, path):
         self.__base_trace = self._TraceNotSet()
         self.__path = path
-
-        if path is not None:
+        self.__deallocator = _Deallocator(
             # Delete the file once we are done accessing it
-            self.__deallocator = _Deallocator(
-                f=functools.partial(_file_cleanup, paths=[path]),
-                on_del=True,
-                at_exit=True,
-            )
+            f=functools.partial(_file_cleanup, paths=[path]),
+            on_del=True,
+            at_exit=True,
+        )
 
     def __getattr__(self, attr):
         return delegate_getattr(self, '_TraceProxy__base_trace', attr)
