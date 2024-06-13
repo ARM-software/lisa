@@ -852,6 +852,11 @@ class TraceDumpTraceParser(TraceParserBase):
     @classmethod
     def _process_metadata(cls, meta):
         try:
+            meta['trace-id'] = f'trace.dat-{meta["trace-id"]}'
+        except KeyError:
+            pass
+
+        try:
             start, end = meta['time-range']
         except KeyError:
             pass
