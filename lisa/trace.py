@@ -4877,6 +4877,63 @@ class _TraceCache(Loggable):
             }
 
 
+class _TraceProxy(TraceBase):
+    class _TraceNotSet:
+        def __getattribute__(self, attr):
+            raise RuntimeError('The trace instance can only be used after the end of the "with" statement.')
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    def __init__(self, path):
+        self.__base_trace = self._TraceNotSet()
+        self.__path = path
+
+        if path is not None:
+            # Delete the file once we are done accessing it
+            self.__deallocator = _Deallocator(
+                f=functools.partial(_file_cleanup, paths=[path]),
+                on_del=True,
+                at_exit=True,
+            )
+
+    def __getattr__(self, attr):
+        return delegate_getattr(self, '_TraceProxy__base_trace', attr)
+
+    def _set_trace(self, trace):
+        self.__base_trace = trace
+
+    def __enter__(self):
+        self.__base_trace.__enter__()
+        return self
+
+    def __exit__(self, *args):
+        try:
+            return self.__base_trace.__exit__(*args)
+        finally:
+            self.__deallocator.run()
+
+    @property
+    def ana(self):
+        return self.__base_trace.ana
+
+    @property
+    def analysis(self):
+        return self.__base_trace.analysis
+
+    def df_event(self, *args, **kwargs):
+        return self.__base_trace.df_event(*args, **kwargs)
+
+    def _internal_df_event(self, *args, **kwargs):
+        return self.__base_trace._internal_df_event(*args, **kwargs)
+
+    def _preload_events(self, *args, **kwargs):
+        return self.__base_trace._preload_events(*args, **kwargs)
+
+
 class _Trace(Loggable, _InternalTraceBase):
     def _select_userspace(self, source_event, meta_event, df):
         # pylint: disable=unused-argument,no-self-use
@@ -6194,60 +6251,6 @@ class Trace(TraceBase):
         plat_info = target.plat_info
         needs_temp = filepath is None
 
-        class _TraceNotSet:
-            def __getattribute__(self, attr):
-                raise RuntimeError('The trace instance can only be used after the end of the "with" statement.')
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *args):
-                pass
-
-
-        class _TraceProxy(TraceBase):
-            def __init__(self, path):
-                self.__base_trace = _TraceNotSet()
-                self.__path = path
-
-                if path is not None:
-                    # Delete the file once we are done accessing it
-                    self.__deallocator = _Deallocator(
-                        f=functools.partial(_file_cleanup, paths=[path]),
-                        on_del=True,
-                        at_exit=True,
-                    )
-
-            def __getattr__(self, attr):
-                return delegate_getattr(self, '_TraceProxy__base_trace', attr)
-
-            def __enter__(self):
-                self.__base_trace.__enter__()
-                return self
-
-            def __exit__(self, *args):
-                try:
-                    return self.__base_trace.__exit__(*args)
-                finally:
-                    self.__deallocator.run()
-
-            @property
-            def ana(self):
-                return self.__base_trace.ana
-
-            @property
-            def analysis(self):
-                return self.__base_trace.analysis
-
-            def df_event(self, *args, **kwargs):
-                return self.__base_trace.df_event(*args, **kwargs)
-
-            def _internal_df_event(self, *args, **kwargs):
-                return self.__base_trace._internal_df_event(*args, **kwargs)
-
-            def _preload_events(self, *args, **kwargs):
-                return self.__base_trace._preload_events(*args, **kwargs)
-
         if needs_temp:
             @contextlib.contextmanager
             def cm_func():
@@ -6272,8 +6275,7 @@ class Trace(TraceBase):
                 **kwargs
             )
 
-        # pylint: disable=attribute-defined-outside-init
-        proxy._TraceProxy__base_trace = trace
+        proxy._set_trace(trace)
 
     @classmethod
     def get_event_sources(cls, *args, **kwargs):

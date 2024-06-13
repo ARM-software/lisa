@@ -28,7 +28,7 @@ import pandas as pd
 
 from devlib.target import KernelVersion
 
-from lisa.trace import Trace, TxtTraceParser, MockTraceParser
+from lisa.trace import Trace, TxtTraceParser, MockTraceParser, _TraceProxy
 from lisa.analysis.tasks import TaskID
 from lisa.datautils import df_squash
 from lisa.platforms.platinfo import PlatformInfo
@@ -390,6 +390,14 @@ class TraceTestCase(StorageTestCase):
 class TestTrace(TraceTestCase):
     """Smoke tests for LISA's Trace class"""
     pass
+
+
+class TestTraceProxy(TraceTestCase):
+    """Smoke tests for LISA's Trace class"""
+    def _wrap_trace(self, trace):
+        proxy = _TraceProxy(None)
+        proxy._set_trace(trace)
+        return proxy
 
 
 class TestTraceView(TraceTestCase):
