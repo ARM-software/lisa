@@ -269,6 +269,9 @@ pages:
       build_branch preview preview
       build_branch master master
 
+      # If the folder is empty, remove it to avoid emptying the documentation and stop here.
+      rmdir "$out" || exit 1
+
       # TODO: For now the release branch doc won't build as it lacks some necessary fixes
       # build_branch release release
       # build_branch v4.0.0 v4
@@ -294,5 +297,3 @@ pages:
     # Debug excessive sizes
     - du -hc "$out" | sort -h
 
-    # If the folder is empty, remove it to avoid emptying the documentation.
-    - rmdir "$out" || true
