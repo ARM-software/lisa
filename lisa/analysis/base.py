@@ -332,7 +332,11 @@ class AnalysisHelpers(Loggable, abc.ABC):
             current backend enabled with ``hv.extension()`` will be used.
         :type backend: str or None
         """
-        import matplotlib
+        try:
+            from matplotlib.figure import Figure
+        except ImportError:
+            class Figure:
+                pass
 
         img_format = img_format or guess_format(filepath) or 'png'
 
@@ -342,7 +346,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
             plot_name=inspect.stack()[1].function,
         )
 
-        if isinstance(figure, matplotlib.figure.Figure):
+        if isinstance(figure, Figure):
             # The suptitle is not taken into account by tight layout by default:
             # https://stackoverflow.com/questions/48917631/matplotlib-how-to-return-figure-suptitle
             suptitle = figure._suptitle
@@ -1134,8 +1138,9 @@ class TraceAnalysisBase(AnalysisHelpers):
             }
         )
 
+    @optional_kwargs
     @classmethod
-    def df_method(cls, f):
+    def df_method(cls, f, index=None):
         """
         Dataframe function decorator.
 
@@ -1178,12 +1183,20 @@ class TraceAnalysisBase(AnalysisHelpers):
             # they are collect()'ed in f(), they will be created using a common
             # StringCache so Categorical columns can be concatenated and such.
             with pl.StringCache():
-                data = cached_f(self, *args, **kwargs)
-                assert isinstance(data, (pd.DataFrame, pl.DataFrame, pl.LazyFrame))
+                df = cached_f(self, *args, **kwargs)
+                assert isinstance(df, (pd.DataFrame, pl.DataFrame, pl.LazyFrame))
 
                 df_fmt = df_fmt or 'pandas'
-                data = _df_to(data, fmt=df_fmt)
-                return data
+                df = _df_to(
+                    df,
+                    fmt=df_fmt,
+                    index=(
+                        ('Time' if 'Time' in df.columns else None)
+                        if index is None else
+                        index
+                    ),
+                )
+                return df
 
         return wrapper
 
@@ -1233,7 +1246,6 @@ class TraceAnalysisBase(AnalysisHelpers):
             # Express the arguments as kwargs-only
             params = sig.bind(self, *args, **kwargs)
             params.apply_defaults()
-            kwargs = dict(params.arguments)
 
             trace = self.trace
             spec = dict(
@@ -1246,7 +1258,7 @@ class TraceAnalysisBase(AnalysisHelpers):
                 # not modified under the hood once inserted in the cache
                 kwargs=copy.deepcopy({
                     k: v
-                    for k, v in kwargs.items()
+                    for k, v in params.arguments.items()
                     if k not in ignored_kwargs
                 }),
             )
@@ -1259,10 +1271,10 @@ class TraceAnalysisBase(AnalysisHelpers):
                         swap_path = cache._cache_desc_swap_path(cache_desc, create=True)
                     except Exception as e:
                         swap_path = None
-                    kwargs[path_param] = swap_path
+                    params.arguments[path_param] = swap_path
 
                 with measure_time() as measure:
-                    data = f(**kwargs)
+                    data = f(*params.args, **params.kwargs)
 
                 if memory_cache:
                     compute_cost = measure.exclusive_delta

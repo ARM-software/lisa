@@ -226,7 +226,7 @@ class bothmethod:
         return functools.wraps(self.f)(functools.partial(self.f, x))
 
     def __getattr__(self, attr):
-        return getattr(self.f, attr)
+        return delegate_getattr(self, 'f', attr)
 
 
 class instancemethod:
@@ -261,7 +261,7 @@ class _WrappedLogger:
         self.logger = logger
 
     def __getattr__(self, attr):
-        x = getattr(self.logger, attr)
+        x = delegate_getattr(self, 'logger', attr)
 
         if callable(x):
             @functools.wraps(x)
@@ -2644,10 +2644,10 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
                 sig = inspect.signature(func)
                 @functools.wraps(func)
                 def wrapper(*args, **kwargs):
-                    kwargs = sig.bind(*args, **kwargs).arguments
-                    if parameter in kwargs:
+                    bound = sig.bind(*args, **kwargs)
+                    if parameter in bound.arguments:
                         warnings.warn(make_msg(obj, parameter), DeprecationWarning, stacklevel=stacklevel)
-                    return func(**kwargs)
+                    return func(*bound.args, **bound.kwargs)
                 return wrapper
         else:
             register_deprecated_map = True
@@ -4137,5 +4137,27 @@ def subprocess_detailed_excep():
     except subprocess.CalledProcessError as e:
         raise _DetailedCalledProcessError._from_excep(e)
 
+
+def delegate_getattr(x, delegate_to, attr):
+    """
+    Somewhat equivalent to ``x.<delegate_to>.<attr>``.
+
+    This is used to implement `__getattr__` without leading to infinite
+    recursion when :func:`hasattr` is used.
+
+    :param x: Base object containing the attribute to delegate to.
+    :type x: object
+
+    :param delegate_to: Name of the ``x`` attribute to delegate to
+    :type delegate_to: str
+
+    :param attr: Name of the attribute to lookup.
+    :type attr: str
+    """
+
+    # Prevent infinite recursion by calling the base class __getattr__
+    # implementation
+    x = super(type(x), x).__getattribute__(delegate_to)
+    return getattr(x, attr)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

@@ -65,9 +65,9 @@ import polars as pl
 
 import devlib
 
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, unzip_into, order_as, DirCache
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, unzip_into, order_as, delegate_getattr, DirCache
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
-from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to_polars, _df_to_pandas, _df_to, _polars_df_in_memory, Timestamp
+from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString
 from lisa._kmod import LISADynamicKmod
@@ -265,9 +265,10 @@ def _logical_plan_update_paths(plan, update_path):
 
 def _convert_df_from_parser(df, parser, cache):
     def to_polars(df):
+        index = 'Time'
         if isinstance(df, pd.DataFrame):
-            df.index.name = 'Time'
-        df = _df_to_polars(df)
+            df.index.name = index
+        df = _df_to(df, index=index, fmt='polars-lazyframe')
         return df
 
     def move_to_cache(df, cache):
@@ -662,7 +663,7 @@ class MockTraceParser(TraceParserBase):
     @kwargs_forwarded_to(TraceParserBase.__init__)
     def __init__(self, dfs, time_range=None, events=None, path=None, **kwargs):
         self.dfs = {
-            event: _df_to_polars(df)
+            event: _df_to(df, index='Time', fmt='polars-lazyframe')
             for event, df in dfs.items()
         }
 
@@ -3241,7 +3242,7 @@ class _TraceViewBase(_InternalTraceBase):
         super().__init__()
 
     def __getattr__(self, name):
-        return getattr(self.base_trace, name)
+        return delegate_getattr(self, 'base_trace', name)
 
     @classmethod
     def make_view(cls, trace, *, window=None, signals=None, compress_signals_init=None, normalize_time=False, events_namespaces=None, events=None, strict_events=False, process_df=None, df_fmt=None, clear_base_cache=None):
@@ -5110,6 +5111,18 @@ class _Trace(Loggable, _InternalTraceBase):
         super().__init__()
         self._lock = threading.RLock()
 
+        # Make sure that we always operate with an active StringCache when
+        # manipulating a trace object. This prevents issues with LazyFrame
+        # built out of a DataFrame containing Categorical data, in places where
+        # the user does not control the creation of the DataFrame.
+        str_cache = pl.StringCache()
+        str_cache.__enter__()
+        self.__string_cache_deallocator = _Deallocator(
+            f=lambda: str_cache.__exit__(None, None, None),
+            on_del=True,
+            at_exit=True,
+        )
+
         trace_path = str(trace_path) if trace_path else None
 
         if enable_swap:
@@ -5927,6 +5940,7 @@ class _Trace(Loggable, _InternalTraceBase):
                                     extra_df,
                                     on='Time',
                                     how='left',
+                                    coalesce=True,
                                 )
 
                                 _df = _df.select(
@@ -6261,7 +6275,7 @@ class Trace(TraceBase):
         )
 
     def __getattr__(self, attr):
-        return getattr(self.__view, attr)
+        return delegate_getattr(self, '_Trace__view', attr)
 
     @property
     def trace_state(self):
@@ -6281,7 +6295,7 @@ class Trace(TraceBase):
             **kwargs
         )
 
-        df = _df_to(df, fmt=df_fmt)
+        df = _df_to(df, index='Time', fmt=df_fmt)
         return df
 
     def _internal_df_event(self, *args, **kwargs):
@@ -6349,7 +6363,7 @@ class Trace(TraceBase):
                     )
 
             def __getattr__(self, attr):
-                return getattr(self.__base_trace, attr)
+                return delegate_getattr(self, '_TraceProxy__base_trace', attr)
 
             @property
             def ana(self):
@@ -6435,7 +6449,7 @@ class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
         """
         if check_optional:
             def rewrite(checker):
-                if isinstance(checker, OptionalTraceEventChecker):
+                if isinstance(checker, _OptionalTraceEventCheckerBase):
                     return AndTraceEventChecker(checker.checkers)
                 else:
                     return checker
@@ -7175,7 +7189,7 @@ class CollectorBase(Loggable):
         target.install_tools(self.TOOLS)
 
     def __getattr__(self, attr):
-        return getattr(self._collector, attr)
+        return delegate_getattr(self, '_collector', attr)
 
     def __enter__(self):
         self._collector.__enter__()
@@ -7319,8 +7333,6 @@ class FtraceCollector(CollectorBase, Configurable):
                 return OrTraceEventChecker.from_events(
                     Trace.get_event_sources(checker.event)
                 )
-            elif isinstance(checker, DynamicTraceEventChecker):
-                return AndTraceEventChecker(checker.checkers)
             else:
                 return checker
 

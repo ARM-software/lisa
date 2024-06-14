@@ -15,13 +15,14 @@
 # limitations under the License.
 #
 import pandas as pd
+import polars as pl
 import numpy as np
 import holoviews as hv
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.notebook import COLOR_CYCLE, _hv_neutral
 from lisa.analysis.tasks import TaskState, TasksAnalysis, TaskID
-from lisa.datautils import df_refit_index
+from lisa.datautils import df_refit_index, NO_INDEX
 from lisa.trace import MissingTraceEventError
 
 
@@ -42,18 +43,19 @@ class LatencyAnalysis(TraceAnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    @TraceAnalysisBase.df_method
     @TasksAnalysis.df_task_states.used_events
     def _df_latency(self, task, name, curr_state, next_state):
-        df = self.ana.tasks.df_task_states(task)
-        df = df[
-            (df.curr_state == curr_state) &
-            (df.next_state == next_state)
-        ][["delta", "cpu", "target_cpu"]]
-
-        df = df.rename(columns={'delta': name}, copy=False)
+        view = self.trace.get_view(df_fmt='polars-lazyframe')
+        df = view.ana.tasks.df_task_states(task)
+        df = df.filter(
+            (pl.col('curr_state') == curr_state) &
+            (pl.col('next_state') == next_state)
+        )
+        df = df.select(["delta", "cpu", "target_cpu"])
+        df = df.rename({'delta': name})
         return df
 
+    @TraceAnalysisBase.df_method(index=NO_INDEX)
     @_df_latency.used_events
     def df_latency_wakeup(self, task):
         """
@@ -72,9 +74,10 @@ class LatencyAnalysis(TraceAnalysisBase):
             task,
             'wakeup_latency',
             TaskState.TASK_WAKING,
-            TaskState.TASK_ACTIVE
+            TaskState.TASK_ACTIVE,
         )
 
+    @TraceAnalysisBase.df_method(index=NO_INDEX)
     @_df_latency.used_events
     def df_latency_preemption(self, task):
         """
@@ -93,7 +96,7 @@ class LatencyAnalysis(TraceAnalysisBase):
             'preempt_latency',
             TaskState.TASK_RUNNING,
             TaskState.TASK_ACTIVE
-        )[['preempt_latency', 'cpu']]
+        ).select(['preempt_latency', 'cpu'])
 
     @TraceAnalysisBase.df_method
     @TasksAnalysis.df_task_states.used_events
@@ -271,26 +274,32 @@ class LatencyAnalysis(TraceAnalysisBase):
         return series, above, below
 
 
+    @TraceAnalysisBase.df_method(index=NO_INDEX)
     @df_latency_wakeup.used_events
     @df_latency_preemption.used_events
     def _get_latencies_df(self, task, wakeup, preempt):
+        view = self.trace.get_view(df_fmt='polars-lazyframe')
+        ana = view.ana.latency
+
         wkp_df = None
         prt_df = None
 
         if wakeup:
-            wkp_df = self.df_latency_wakeup(task)
-            wkp_df = wkp_df.rename(columns={'wakeup_latency': 'latency'}, copy=False)
+            wkp_df = ana.df_latency_wakeup(task)
+            wkp_df = wkp_df.rename({'wakeup_latency': 'latency'})
 
         if preempt:
-            prt_df = self.df_latency_preemption(task)
-            prt_df = prt_df.rename(columns={'preempt_latency': 'latency'}, copy=False)
+            prt_df = ana.df_latency_preemption(task)
+            prt_df = prt_df.rename({'preempt_latency': 'latency'})
 
         if wakeup and preempt:
-            df = pd.concat([wkp_df, prt_df])
+            return pl.concat([wkp_df, prt_df], how='diagonal_relaxed')
+        elif wakeup:
+            return wkp_df
+        elif preempt:
+            return prt_df
         else:
-            df = wkp_df or prt_df
-
-        return df
+            raise ValueError('wakeup or preempt must be specified')
 
     @TraceAnalysisBase.plot_method
     @_get_latencies_df.used_events

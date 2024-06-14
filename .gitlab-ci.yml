@@ -265,9 +265,20 @@ pages:
             cd ./doc && sphinx-build -b html -n --no-color -W --keep-going -T -j auto -d "$doctree" . "$out/$publish_as"
           )
       }
-      build_branch main main
-      build_branch preview preview
-      build_branch master master
+
+      function fail() {
+          if ! "$@"; then
+              # If one of the build phases failed, make sure we do not
+              # accidentally deploy a partial artifact (likely mostly empty)
+              # and exit with error
+              rm -r "$out" &>/dev/null
+              exit 1
+          fi
+      }
+
+      fail build_branch main main
+      fail build_branch preview preview
+      fail build_branch master master
 
       # TODO: For now the release branch doc won't build as it lacks some necessary fixes
       # build_branch release release
@@ -293,3 +304,4 @@ pages:
 
     # Debug excessive sizes
     - du -hc "$out" | sort -h
+

@@ -24,7 +24,7 @@ import functools
 import warnings
 
 from lisa.analysis.base import TraceAnalysisBase
-from lisa.utils import Loggable, sig_bind
+from lisa.utils import Loggable, sig_bind, delegate_getattr
 
 
 class _AnalysisPreset:
@@ -36,7 +36,7 @@ class _AnalysisPreset:
         if attr == '_instance':
             raise AttributeError
         else:
-            x = getattr(self._instance, attr)
+            x = delegate_getattr(self, '_instance', attr)
             try:
                 sig = inspect.signature(x)
             except Exception:

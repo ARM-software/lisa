@@ -22,12 +22,13 @@ import functools
 import operator
 
 import pandas as pd
+import polars as pl
 import numpy as np
 import holoviews as hv
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events, requires_one_event_of, CPU, MissingTraceEventError
-from lisa.datautils import series_integrate, df_refit_index, series_refit_index, series_deduplicate, df_add_delta, series_mean, df_window, df_merge, SignalDesc
+from lisa.datautils import series_integrate, df_refit_index, series_refit_index, series_deduplicate, df_add_delta, series_mean, df_window, df_merge, SignalDesc, NO_INDEX
 from lisa.notebook import plot_signal, _hv_neutral
 
 
@@ -41,6 +42,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     name = 'frequency'
 
+    @TraceAnalysisBase.df_method
     @requires_one_event_of('cpu_frequency', 'userspace@cpu_frequency_devlib')
     def df_cpus_frequency(self, signals_init=True):
         """
@@ -122,6 +124,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         df.index.name = 'Time'
         return check_empty(df, None)
 
+    @TraceAnalysisBase.df_method
     @df_cpus_frequency.used_events
     def df_cpu_frequency(self, cpu, **kwargs):
         """
@@ -132,8 +135,10 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         :Variable keyword arguments: Forwarded to :meth:`df_cpus_frequency`.
         """
-        df = self.df_cpus_frequency(**kwargs)
-        return df[df['cpu'] == cpu]
+        view = self.trace.get_view(df_fmt='polars-lazyframe')
+        ana = view.ana.frequency
+        df = ana.df_cpus_frequency(**kwargs)
+        return df.filter(pl.col('cpu') == cpu)
 
     @df_cpus_frequency.used_events
     def _check_freq_domain_coherency(self, cpus=None):
@@ -179,7 +184,6 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 if not (ref.equals(col) or ref[:-1].equals(col.shift()[1:])):
                     raise ValueError(f'Frequencies of CPUs in the freq domain {cpus} are not coherent')
 
-    @TraceAnalysisBase.df_method
     @df_cpus_frequency.used_events
     @requires_events('cpu_idle')
     def _get_frequency_residency(self, cpus):
@@ -234,6 +238,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         return time_df
 
 
+    @TraceAnalysisBase.df_method(index=NO_INDEX)
     @_get_frequency_residency.used_events
     def df_cpu_frequency_residency(self, cpu):
         """
@@ -248,11 +253,12 @@ class FrequencyAnalysis(TraceAnalysisBase):
           * A ``total_time`` column (the total time spent at a frequency)
           * A ``active_time`` column (the non-idle time spent at a frequency)
         """
-        if not isinstance(cpu, int):
+        if isinstance(cpu, int):
+            return self._get_frequency_residency((cpu,))
+        else:
             raise TypeError('Input CPU parameter must be an integer')
 
-        return self._get_frequency_residency((cpu,))
-
+    @TraceAnalysisBase.df_method(index=NO_INDEX)
     @_get_frequency_residency.used_events
     def df_domain_frequency_residency(self, cpu):
         """
@@ -279,7 +285,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
             domain, = domains
             return self._get_frequency_residency(tuple(domain))
 
-    @TraceAnalysisBase.df_method
+    @TraceAnalysisBase.df_method(index=NO_INDEX)
     @df_cpu_frequency.used_events
     def df_cpu_frequency_transitions(self, cpu):
         """
