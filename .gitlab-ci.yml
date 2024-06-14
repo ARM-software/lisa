@@ -270,7 +270,9 @@ pages:
       build_branch master master
 
       # If the folder is empty, remove it to avoid emptying the documentation and stop here.
-      rmdir "$out" || exit 1
+      if rmdir "$out" &>/dev/null; then
+          exit 0
+      fi
 
       # TODO: For now the release branch doc won't build as it lacks some necessary fixes
       # build_branch release release
