@@ -1013,7 +1013,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.df_method
     @df_task_states.used_events
-    def df_task_activation(self, task, cpu=None, active_value=1, sleep_value=0, preempted_value=np.NaN):
+    def df_task_activation(self, task, cpu=None, active_value=1, sleep_value=0, preempted_value=np.nan):
         """
         DataFrame of a task's active time on a given CPU
 
@@ -1057,7 +1057,7 @@ class TasksAnalysis(TraceAnalysisBase):
             elif state == TaskState.TASK_RUNNING:
                 # Return NaN regardless of preempted_value, since some below
                 # code relies on that
-                return np.NaN
+                return np.nan
             else:
                 return sleep_value
 

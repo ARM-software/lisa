@@ -2001,7 +2001,7 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, prune=T
     try:
         init_df[output_col]
     except KeyError:
-        init_df[output_col] = np.NaN
+        init_df[output_col] = np.nan
     else:
         # Restore the index that we had to remove for apply()
         df.index = index
