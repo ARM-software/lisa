@@ -711,7 +711,7 @@ class _CallGraphNode(Mapping):
     @memoized
     def __getitem__(self, key):
         if not self.valid_metrics:
-            return np.NaN
+            return np.nan
 
         delta = self.exit_time - self.entry_time
 

@@ -33,7 +33,7 @@ import polars as pl
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized, kwargs_forwarded_to, deprecate, order_as
-from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates, SignalDesc, NO_INDEX
+from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates, SignalDesc
 from lisa.trace import requires_events, will_use_events_from, may_use_events, CPU, MissingTraceEventError
 from lisa.notebook import _hv_neutral, plot_signal, _hv_twinx
 from lisa._typeclass import FromString
@@ -928,7 +928,7 @@ class TasksAnalysis(TraceAnalysisBase):
         )
         return df
 
-    @TraceAnalysisBase.df_method(index=NO_INDEX)
+    @TraceAnalysisBase.df_method
     @df_task_states.used_events
     def df_task_total_residency(self, task):
         """
@@ -957,7 +957,7 @@ class TasksAnalysis(TraceAnalysisBase):
         )
         return residency_df.fillna(0).sort_index()
 
-    @TraceAnalysisBase.df_method(index=NO_INDEX)
+    @TraceAnalysisBase.df_method(index='task')
     @df_task_total_residency.used_events
     def df_tasks_total_residency(self, tasks=None, ascending=False, count=None):
         """
@@ -1004,11 +1004,16 @@ class TasksAnalysis(TraceAnalysisBase):
         if count is not None:
             res_df = res_df.head(count)
 
+        res_df.index.name = 'task'
+
+        # Ensure column names are all strings, so it can be serialized to
+        # parquet
+        res_df.columns = [str(col) for col in res_df.columns]
         return res_df
 
     @TraceAnalysisBase.df_method
     @df_task_states.used_events
-    def df_task_activation(self, task, cpu=None, active_value=1, sleep_value=0, preempted_value=np.NaN):
+    def df_task_activation(self, task, cpu=None, active_value=1, sleep_value=0, preempted_value=np.nan):
         """
         DataFrame of a task's active time on a given CPU
 
@@ -1052,7 +1057,7 @@ class TasksAnalysis(TraceAnalysisBase):
             elif state == TaskState.TASK_RUNNING:
                 # Return NaN regardless of preempted_value, since some below
                 # code relies on that
-                return np.NaN
+                return np.nan
             else:
                 return sleep_value
 

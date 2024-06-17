@@ -279,7 +279,7 @@ def _df_to_polars(df, index):
         df = df.lazy()
         df = _df_to_polars(df, index=index)
     elif isinstance(df, pd.DataFrame):
-        df = pl.from_pandas(df, include_index=True)
+        df = pl.from_pandas(df, include_index=index is not NO_INDEX)
         df = _df_to_polars(df, index=index)
     else:
         raise ValueError(f'{df.__class__} not supported')
@@ -295,9 +295,10 @@ def _df_to_pandas(df, index):
         return df
     else:
         assert isinstance(df, pl.LazyFrame)
-
         index = _polars_index_col(df, index)
-        if index == 'Time' and df.schema[index].is_temporal():
+
+        has_time_index = index == 'Time' and df.schema[index].is_temporal()
+        if has_time_index:
             df = df.with_columns(
                 pl.col(index).dt.total_nanoseconds() * 1e-9
             )
@@ -318,9 +319,7 @@ def _df_to_pandas(df, index):
             pyarrow.string(): pd.StringDtype(),
         }
         df = df.to_pandas(types_mapper=dtype_mapping.get)
-        if index is None:
-            df.reset_index(inplace=True)
-        else:
+        if index is not None:
             df.set_index(index, inplace=True)
 
         # Nullable dtypes are still not supported everywhere, so cast back to a
@@ -337,16 +336,34 @@ def _df_to_pandas(df, index):
         }
         df = df.astype(dtypes, copy=False)
 
-        # Round trip polars -> pandas -> polars can be destructive as polars will
-        # store timestamps at nanosecond precision in an integer. This will wipe
-        # any sub-nanosecond difference in values, possibly leading to duplicate
-        # timestamps.
-        df.index = series_update_duplicates(df.index.to_series())
+        if has_time_index:
+            # Round trip polars -> pandas -> polars can be destructive as polars
+            # will store timestamps at nanosecond precision in an integer. This
+            # will wipe any sub-nanosecond difference in values, possibly leading
+            # to duplicate timestamps.
+            df.index = series_update_duplicates(df.index.to_series())
 
         return df
 
 
 def _df_to(df, fmt, index=None):
+
+    if isinstance(df, pd.DataFrame):
+        df = _pandas_cleanup_df(df)
+
+        if index is None:
+            index = df.index.name
+            # Default index in pandas, e.g. when using reset_index(). In that
+            # case, there is no reason to include that index in anything we we
+            # convert it to.
+            if index is None and isinstance(df.index, pd.RangeIndex):
+                index = NO_INDEX
+        elif index is NO_INDEX:
+            assert df.index.name is None
+            assert isinstance(df.index, pd.RangeIndex)
+        else:
+            assert index == df.index.name
+
     if fmt == 'pandas':
         return _df_to_pandas(df, index=index)
     elif fmt == 'polars-lazyframe':
@@ -355,6 +372,23 @@ def _df_to(df, fmt, index=None):
         return _df_to_polars(df, index=index)
     else:
         raise ValueError(f'Unknown format {fmt}')
+
+
+def _pandas_cleanup_df(df):
+    assert isinstance(df, pd.DataFrame)
+
+    # Ensure we only have string column names, as it is the only type that will
+    # survive library conversions and serialization to parquet
+    assert all(isinstance(col, str) for col in df.columns)
+
+    # We need an index name if it's not just a default RangeIndex, otherwise we
+    # cannot convert the dataframe to polars.
+    assert isinstance(df.index, pd.RangeIndex) or df.index.name is not None
+
+    # This will not survive conversion between dataframe types
+    df.columns.name = None
+
+    return df
 
 
 class DataAccessor:
@@ -1967,7 +2001,7 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, prune=T
     try:
         init_df[output_col]
     except KeyError:
-        init_df[output_col] = np.NaN
+        init_df[output_col] = np.nan
     else:
         # Restore the index that we had to remove for apply()
         df.index = index

@@ -28,7 +28,7 @@ import holoviews as hv
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events, requires_one_event_of, CPU, MissingTraceEventError
-from lisa.datautils import series_integrate, df_refit_index, series_refit_index, series_deduplicate, df_add_delta, series_mean, df_window, df_merge, SignalDesc, NO_INDEX
+from lisa.datautils import series_integrate, df_refit_index, series_refit_index, series_deduplicate, df_add_delta, series_mean, df_window, df_merge, SignalDesc
 from lisa.notebook import plot_signal, _hv_neutral
 
 
@@ -238,7 +238,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         return time_df
 
 
-    @TraceAnalysisBase.df_method(index=NO_INDEX)
+    @TraceAnalysisBase.df_method
     @_get_frequency_residency.used_events
     def df_cpu_frequency_residency(self, cpu):
         """
@@ -258,7 +258,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         else:
             raise TypeError('Input CPU parameter must be an integer')
 
-    @TraceAnalysisBase.df_method(index=NO_INDEX)
+    @TraceAnalysisBase.df_method
     @_get_frequency_residency.used_events
     def df_domain_frequency_residency(self, cpu):
         """
@@ -285,7 +285,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
             domain, = domains
             return self._get_frequency_residency(tuple(domain))
 
-    @TraceAnalysisBase.df_method(index=NO_INDEX)
+    @TraceAnalysisBase.df_method
     @df_cpu_frequency.used_events
     def df_cpu_frequency_transitions(self, cpu):
         """
