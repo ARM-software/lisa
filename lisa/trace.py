@@ -67,7 +67,7 @@ import devlib
 
 from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, unzip_into, order_as, delegate_getattr, DirCache
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
-from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp
+from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString
 from lisa._kmod import LISADynamicKmod
@@ -4154,14 +4154,6 @@ class _TraceCache(Loggable):
     be stored in the cache by analysis method.
     """
 
-    INIT_SWAP_COST = 1e-8
-    """
-    Somewhat arbitrary number, must be small enough so that we write at
-    least one dataset to the cache, which will allow us getting a better
-    estimation. If the value is too high from the start, we will never
-    write anything, and the value will never have a chance to re-adjust.
-    """
-
     TRACE_META_FILENAME = 'trace.meta'
     """
     Name of the trace metadata file in the swap area.
@@ -4179,13 +4171,11 @@ class _TraceCache(Loggable):
         self._data_cost = {}
         self._swap_content = swap_content or {}
         self._cache_desc_swap_filename = {}
-        self.swap_cost = self.INIT_SWAP_COST
         self._swap_dir = swap_dir
         self.max_swap_size = max_swap_size if max_swap_size is not None else math.inf
         self._swap_size = self._get_swap_size()
 
         self.max_mem_size = max_mem_size if max_mem_size is not None else math.inf
-        self._data_mem_swap_ratio = 1
         self._metadata = metadata or {}
 
         self.trace_path = os.path.abspath(trace_path) if trace_path else trace_path
@@ -4392,26 +4382,8 @@ class _TraceCache(Loggable):
 
         return cls(swap_dir=swap_dir, **kwargs)
 
-    def _estimate_data_swap_cost(self, data):
-        return self._estimate_data_swap_size(data) * self.swap_cost
-
     def _estimate_data_swap_size(self, data):
-        return self._data_mem_usage(data) * self._data_mem_swap_ratio
-
-    def _update_ewma(self, attr, new, alpha=0.25, override=False):
-        with self._lock:
-            old = getattr(self, attr)
-            if override:
-                updated = new
-            else:
-                updated = (1 - alpha) * old + alpha * new
-
-            setattr(self, attr, updated)
-
-    def _update_data_swap_size_estimation(self, data, size):
-        mem_usage = self._data_mem_usage(data)
-        if mem_usage:
-            self._update_ewma('_data_mem_swap_ratio', size / mem_usage)
+        return self._data_mem_usage(data)
 
     @staticmethod
     def _data_mem_usage(data):
@@ -4427,11 +4399,14 @@ class _TraceCache(Loggable):
             return sys.getsizeof(data)
 
     def _should_evict_to_swap(self, cache_desc, data):
-        # If we don't have any cost info, assume it is expensive to compute
         with self._lock:
-            compute_cost = self._data_cost.get(cache_desc, math.inf)
-        swap_cost = self._estimate_data_swap_cost(data)
-        return swap_cost <= compute_cost
+            compute_cost = self._data_cost.get(
+                cache_desc,
+                # If we don't have any cost info, assume it is expensive to
+                # compute
+                math.inf,
+            )
+            return compute_cost >= 100e-6
 
     def _path_of_swap_entry(self, swap_entry):
         return os.path.join(self.swap_dir, swap_entry.meta_filename)
@@ -4459,19 +4434,6 @@ class _TraceCache(Loggable):
         filename = swap_entry.data_filename
         return os.path.join(self.swap_dir, filename)
 
-    def _update_swap_cost(self, data, swap_cost, mem_usage, swap_size):
-        # Take out from the swap cost the time it took to write the overhead
-        # that comes with the file format, assuming the cost is
-        # proportional to amount of data written in the swap.
-        if not swap_size:
-            swap_cost = 0
-
-        new_cost = swap_cost / mem_usage
-
-        override = self.swap_cost == self.INIT_SWAP_COST
-        # EWMA to keep a relatively stable cost
-        self._update_ewma('swap_cost', new_cost, override=override)
-
     def _is_written_to_swap(self, cache_desc):
         try:
             with self._lock:
@@ -4485,6 +4447,8 @@ class _TraceCache(Loggable):
     def _data_to_parquet(data, path, compression='lz4', **kwargs):
         kwargs['compression'] = compression
         if isinstance(data, pd.DataFrame):
+            data = _pandas_cleanup_df(data)
+
             # Data must be convertible to bytes so we dump them as JSON
             attrs = json.dumps(data.attrs)
             table = pyarrow.Table.from_pandas(data)
@@ -4579,6 +4543,21 @@ class _TraceCache(Loggable):
                 df.clear().collect()
 
                 df = _LazyFrameOnDelete.attach_file_cleanup(df, [hardlink_base])
+
+                parquet_meta = pyarrow.parquet.read_metadata(hardlink_path)
+                parquet_meta = parquet_meta.metadata
+                try:
+                    pandas_meta = parquet_meta[b'pandas']
+                except KeyError:
+                    pass
+                else:
+                    # Load the pandas metadata and put the index column
+                    # first, so that _polars_index_col() detects the index
+                    # correctly.
+                    pandas_meta = json.loads(pandas_meta.decode('utf-8'))
+                    index_cols = pandas_meta['index_columns']
+                    df = df.select(order_as(df.columns, index_cols))
+
                 return df
 
         if fmt == 'disk-only':
@@ -4609,7 +4588,7 @@ class _TraceCache(Loggable):
 
         return data
 
-    def _write_swap(self, cache_desc, data, write_meta=True):
+    def _write_swap(self, cache_desc, data, write_meta=True, best_effort=False):
         try:
             swap_dir = self.swap_dir
         except ValueError:
@@ -4640,11 +4619,12 @@ class _TraceCache(Loggable):
 
             # Write the Parquet file and update the write speed
             try:
-                with measure_time() as measure:
-                    self._write_data(cache_desc.fmt, data, data_path)
-            # PyArrow fails to save dataframes containing integers > 64bits
-            except OverflowError as e:
-                log_error(e)
+                self._write_data(cache_desc.fmt, data, data_path)
+            except Exception as e:
+                if best_effort:
+                    log_error(e)
+                else:
+                    raise e
             else:
                 # Update the swap entry on disk
                 if write_meta:
@@ -4665,21 +4645,14 @@ class _TraceCache(Loggable):
                 with self._lock:
                     self._swap_content[swap_entry.cache_desc_nf] = swap_entry
 
-                # Assume that reading from the swap will take as much time as
-                # writing to it. We cannot do better anyway, but that should
-                # mostly bias to keeping things in memory if possible.
-                swap_cost = measure.exclusive_delta
                 try:
                     data_swapped_size = os.stat(data_path).st_size
                 except FileNotFoundError:
                     data_swapped_size = 0
 
                 mem_usage = self._data_mem_usage(data)
-                if mem_usage:
-                    self._update_swap_cost(data, swap_cost, mem_usage, data_swapped_size)
                 with self._lock:
                     self._swap_size += data_swapped_size
-                self._update_data_swap_size_estimation(data, data_swapped_size)
                 self.scrub_swap()
 
     def _get_swap_size(self):
@@ -4837,7 +4810,7 @@ class _TraceCache(Loggable):
 
                 return data
 
-    def insert(self, cache_desc, data, compute_cost=None, write_swap=False, ignore_cost=False, write_meta=True, swappable=None):
+    def insert(self, cache_desc, data, compute_cost=None, write_swap=True, ignore_cost=False, write_meta=True, swappable=None):
         """
         Insert an entry in the cache.
 
@@ -4853,8 +4826,9 @@ class _TraceCache(Loggable):
         :param write_swap: If ``True``, the data will be written to the swap as
             well so it can be quickly reloaded. Note that it will be subject to
             cost evaluation, so it might not result in anything actually
-            written.
-        :type write_swap: bool
+            written. If ``"best-effort"`` is passed, writing will be attempted
+            and any exception suppressed.
+        :type write_swap: bool or str
 
         :param ignore_cost: If ``True``, bypass the computation vs swap
             cost comparison.
@@ -4877,11 +4851,14 @@ class _TraceCache(Loggable):
             if compute_cost is not None:
                 self._data_cost[cache_desc] = compute_cost
 
-        self.write_swap(
-            cache_desc,
-            ignore_cost=ignore_cost,
-            write_meta=write_meta
-        )
+        if write_swap:
+            best_effort = (write_swap == 'best-effort')
+            self.write_swap(
+                cache_desc,
+                ignore_cost=ignore_cost,
+                write_meta=write_meta,
+                best_effort=best_effort,
+            )
 
         self._scrub_mem()
 
@@ -4918,20 +4895,6 @@ class _TraceCache(Loggable):
                     # If we don't know the computation cost, assume it can be evicted cheaply
                     compute_cost = self._data_cost.get(cache_desc, 0)
 
-                    if not compute_cost:
-                        score = 0
-                    else:
-                        swap_cost = self._estimate_data_swap_cost(data)
-                        # If it's already written back, make it cheaper to evict since
-                        # the eviction itself is going to be cheap
-                        if self._is_written_to_swap(cache_desc):
-                            swap_cost /= 2
-
-                        if swap_cost:
-                            score = compute_cost / swap_cost
-                        else:
-                            score = 0
-
                     # Assume that more references to an object implies it will
                     # stay around for longer. Therefore, it's less interesting to
                     # remove it from this cache and pay the cost of reading/writing it to
@@ -4939,7 +4902,7 @@ class _TraceCache(Loggable):
                     #
                     # Normalize to the minimum refcount, so that the _cache and other
                     # structures where references are stored are discounted for sure.
-                    return (refcounts[cache_desc] - min_refcount + 1) * score
+                    return (refcounts[cache_desc] - min_refcount + 1) * compute_cost
 
                 new_mem_usage = 0
                 for cache_desc, data in sorted(self._cache.items(), key=retention_score):
@@ -4957,7 +4920,7 @@ class _TraceCache(Loggable):
         If it would be cheaper to reload the data than to recompute them, they
         will be written to the swap area.
         """
-        self.write_swap(cache_desc)
+        self.write_swap(cache_desc, best_effort=True)
 
         try:
             with self._lock:
@@ -4965,7 +4928,7 @@ class _TraceCache(Loggable):
         except KeyError:
             pass
 
-    def write_swap(self, cache_desc, ignore_cost=False, write_meta=True):
+    def write_swap(self, cache_desc, ignore_cost=False, write_meta=True, best_effort=False):
         """
         Write the given descriptor to the swap area if that would be faster to
         reload the data rather than recomputing it. If the descriptor is not in
@@ -4980,6 +4943,11 @@ class _TraceCache(Loggable):
         :param write_meta: If ``True``, the swap entry metadata will be written
             on disk if the data are. Otherwise, no swap entry is written to disk.
         :type write_meta: bool
+
+        :param best_effort: If ``True``, attempt to write to the swap and
+            simply log an error rather than raising an exception in case of
+            failure.
+        :type best_effort: bool
         """
         try:
             with self._lock:
@@ -4995,7 +4963,12 @@ class _TraceCache(Loggable):
                     self._should_evict_to_swap(cache_desc, data)
                 )
             ):
-                self._write_swap(cache_desc, data, write_meta)
+                self._write_swap(
+                    cache_desc=cache_desc,
+                    data=data,
+                    write_meta=write_meta,
+                    best_effort=best_effort,
+                )
 
     def write_swap_all(self, **kwargs):
         """

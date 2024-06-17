@@ -45,7 +45,7 @@ import pandas as pd
 from lisa.utils import Loggable, deprecate, get_doc_url, get_short_doc, get_subclasses, guess_format, is_running_ipython, measure_time, memoized, update_wrapper_doc, _import_all_submodules, optional_kwargs
 from lisa.trace import _CacheDataDesc
 from lisa.notebook import _hv_fig_to_pane, _hv_link_dataframes, axis_cursor_delta, axis_link_dataframes, make_figure
-from lisa.datautils import _df_to
+from lisa.datautils import _df_to, _pandas_cleanup_df
 
 # Ensure hv.extension() is called
 import lisa.notebook
@@ -1183,6 +1183,10 @@ class TraceAnalysisBase(AnalysisHelpers):
             # they are collect()'ed in f(), they will be created using a common
             # StringCache so Categorical columns can be concatenated and such.
             with pl.StringCache():
+
+                # We might get different types based on whether the content
+                # comes from the function directly (could be a pandas object)
+                # or from the cache (polars LazyFrame).
                 df = cached_f(self, *args, **kwargs)
                 assert isinstance(df, (pd.DataFrame, pl.DataFrame, pl.LazyFrame))
 
@@ -1276,12 +1280,19 @@ class TraceAnalysisBase(AnalysisHelpers):
                 with measure_time() as measure:
                     data = f(*params.args, **params.kwargs)
 
+                if isinstance(data, pd.DataFrame):
+                    data = _pandas_cleanup_df(data)
+
                 if memory_cache:
-                    compute_cost = measure.exclusive_delta
+                    # Do not use measure.exclusive_delta, otherwise a simple
+                    # function making thousands of quick calls to a child
+                    # function may appear with a low cost, even though it
+                    # actually has a high total cost.
+                    compute_cost = measure.delta
                 else:
                     compute_cost = None
 
-                cache.insert(cache_desc, data, compute_cost=compute_cost, write_swap=True)
+                cache.insert(cache_desc, data, compute_cost=compute_cost, write_swap='best-effort')
                 return data
 
             if memory_cache:
