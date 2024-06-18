@@ -204,6 +204,9 @@ class Speedometer(Workload):
                 '<boolean name="first_run_tos_accepted" value="true" />\n',
                 '<boolean name="first_run_signin_complete" value="true" />\n',
                 '<boolean name="displayed_data_reduction_promo" value="true" />\n',
+                # Add a 'request count' value to dismiss the pop-up window on the screen.
+                # If the value is greater than 1, pop-up window will be dismissed.
+                '<int name="Chrome.NotificationPermission.RequestCount" value="2" />\n',
             ]:
                 lines.insert(len(lines) - 1, line)
 

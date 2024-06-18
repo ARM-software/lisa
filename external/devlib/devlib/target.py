@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+import atexit
 import asyncio
 from contextlib import contextmanager
 import io
@@ -40,6 +41,7 @@ from past.builtins import long
 from past.types import basestring
 from numbers import Number
 from shlex import quote
+from weakref import WeakMethod
 try:
     from collections.abc import Mapping
 except ImportError:
@@ -413,6 +415,10 @@ class Target(object):
         ))
         self._modules = modules
 
+        atexit.register(
+            WeakMethod(self.disconnect, atexit.unregister)
+        )
+
         self._update_modules('early')
         if connect:
             self.connect(max_async=max_async)
@@ -521,10 +527,32 @@ class Target(object):
 
     def disconnect(self):
         connections = self._conn.get_all_values()
+        # Now that we have all the connection objects, we simply reset the TLS
+        # property so that the connections we got will not be reused anywhere.
+        del self._conn
+
+        unused_conns = self._unused_conns
+        self._unused_conns.clear()
+
         for conn in itertools.chain(connections, self._unused_conns):
             conn.close()
-        if self._async_pool is not None:
-            self._async_pool.__exit__(None, None, None)
+
+        pool = self._async_pool
+        self._async_pool = None
+        if pool is not None:
+            pool.__exit__(None, None, None)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        self.disconnect()
+
+    async def __aenter__(self):
+        return self.__enter__()
+
+    async def __aexit__(self, *args, **kwargs):
+        return self.__exit__(*args, **kwargs)
 
     def get_connection(self, timeout=None):
         if self.conn_cls is None:
@@ -1125,20 +1153,20 @@ fi
             else:
                 raise
 
-    @contextmanager
-    def make_temp(self, is_directory=True, directory='', prefix='devlib-test'):
+    @asyn.asynccontextmanager
+    async def make_temp(self, is_directory=True, directory='', prefix='devlib-test'):
         """
         Creates temporary file/folder on target and deletes it once it's done.
 
         :param is_directory: Specifies if temporary object is a directory, defaults to True.
-        :type is_directory: bool, optional
+        :type is_directory: bool or None
 
         :param directory: Temp object will be created under this directory,
-            defaults to :attr:`Target.working_directory`.
-        :type directory: str, optional
+            defaults to ``Target.working_directory``.
+        :type directory: str or None
 
-        :param prefix: Prefix of temp object's name, defaults to 'devlib-test'.
-        :type prefix: str, optional
+        :param prefix: Prefix of temp object's name.
+        :type prefix: str or None
 
         :yield: Full path of temp object.
         :rtype: str
@@ -1147,15 +1175,15 @@ fi
         directory = directory or self.working_directory
         temp_obj = None
         try:
-            cmd = f'mktemp -p {directory} {prefix}-XXXXXX'
+            cmd = f'mktemp -p {quote(directory)} {quote(prefix)}-XXXXXX'
             if is_directory:
                 cmd += ' -d'
 
-            temp_obj = self.execute(cmd).strip()
+            temp_obj = (await self.execute.asyn(cmd)).strip()
             yield temp_obj
         finally:
             if temp_obj is not None:
-                self.remove(temp_obj)
+                await self.remove.asyn(temp_obj)
 
     def reset(self):
         try:
