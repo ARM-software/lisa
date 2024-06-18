@@ -1,0 +1,5 @@
+target-configs:
+  entry-0:
+    LocalLinuxTarget:
+      connection_settings:
+        unrooted: True

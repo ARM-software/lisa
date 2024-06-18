@@ -14,109 +14,143 @@
 # limitations under the License.
 #
 
-"""Module for testing targets."""
+"""
+Module for testing targets.
 
+Sample run with log level is set to DEBUG (see
+https://docs.pytest.org/en/7.1.x/how-to/logging.html#live-logs for logging details):
+
+$ python -m pytest --log-cli-level DEBUG test_target.py
+"""
+
+import logging
 import os
-from pprint import pp
 import pytest
 
-from devlib import AndroidTarget, ChromeOsTarget, LinuxTarget, LocalLinuxTarget, QEMUTargetRunner
+from devlib import AndroidTarget, ChromeOsTarget, LinuxTarget, LocalLinuxTarget
+from devlib._target_runner import NOPTargetRunner, QEMUTargetRunner
 from devlib.utils.android import AdbConnection
 from devlib.utils.misc import load_struct_from_yaml
 
 
-def build_targets():
-    """Read targets from a YAML formatted config file"""
+logger = logging.getLogger('test_target')
 
-    config_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'target_configs.yaml')
 
-    target_configs = load_struct_from_yaml(config_file)
-    if target_configs is None:
+def get_class_object(name):
+    """
+    Get associated class object from string formatted class name
+
+    :param name: Class name
+    :type name: str
+    :return: Class object
+    :rtype: object or None
+    """
+    if globals().get(name) is None:
+        return None
+
+    return globals()[name] if issubclass(globals()[name], object) else None
+
+
+@pytest.fixture(scope="module")
+# pylint: disable=too-many-branches
+def build_target_runners():
+    """Read targets from a YAML formatted config file and create runners for them"""
+
+    logger.info("Initializing resources...")
+
+    config_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'test_config.yml')
+
+    test_config = load_struct_from_yaml(config_file)
+    if test_config is None:
         raise ValueError(f'{config_file} looks empty!')
 
-    targets = []
+    target_configs = test_config.get('target-configs')
+    if target_configs is None:
+        raise ValueError('No targets found!')
 
-    if target_configs.get('AndroidTarget') is not None:
-        print('> Android targets:')
-        for entry in target_configs['AndroidTarget'].values():
-            pp(entry)
+    target_runners = []
+
+    for entry in target_configs.values():
+        key, target_info = entry.popitem()
+
+        target_class = get_class_object(key)
+        if target_class is AndroidTarget:
+            logger.info('> Android target: %s', repr(target_info))
             a_target = AndroidTarget(
                 connect=False,
-                connection_settings=entry['connection_settings'],
+                connection_settings=target_info['connection_settings'],
                 conn_cls=lambda **kwargs: AdbConnection(adb_as_root=True, **kwargs),
             )
-            a_target.connect(timeout=entry.get('timeout', 60))
-            targets.append((a_target, None))
+            a_target.connect(timeout=target_info.get('timeout', 60))
+            target_runners.append(NOPTargetRunner(a_target))
 
-    if target_configs.get('LinuxTarget') is not None:
-        print('> Linux targets:')
-        for entry in target_configs['LinuxTarget'].values():
-            pp(entry)
-            l_target = LinuxTarget(connection_settings=entry['connection_settings'])
-            targets.append((l_target, None))
-
-    if target_configs.get('ChromeOsTarget') is not None:
-        print('> ChromeOS targets:')
-        for entry in target_configs['ChromeOsTarget'].values():
-            pp(entry)
+        elif target_class is ChromeOsTarget:
+            logger.info('> ChromeOS target: %s', repr(target_info))
             c_target = ChromeOsTarget(
-                connection_settings=entry['connection_settings'],
+                connection_settings=target_info['connection_settings'],
                 working_directory='/tmp/devlib-target',
             )
-            targets.append((c_target, None))
+            target_runners.append(NOPTargetRunner(c_target))
 
-    if target_configs.get('LocalLinuxTarget') is not None:
-        print('> LocalLinux targets:')
-        for entry in target_configs['LocalLinuxTarget'].values():
-            pp(entry)
-            ll_target = LocalLinuxTarget(connection_settings=entry['connection_settings'])
-            targets.append((ll_target, None))
+        elif target_class is LinuxTarget:
+            logger.info('> Linux target: %s', repr(target_info))
+            l_target = LinuxTarget(connection_settings=target_info['connection_settings'])
+            target_runners.append(NOPTargetRunner(l_target))
 
-    if target_configs.get('QEMUTargetRunner') is not None:
-        print('> QEMU target runners:')
-        for entry in target_configs['QEMUTargetRunner'].values():
-            pp(entry)
-            qemu_settings = entry.get('qemu_settings') and entry['qemu_settings']
-            connection_settings = entry.get(
-                'connection_settings') and entry['connection_settings']
+        elif target_class is LocalLinuxTarget:
+            logger.info('> LocalLinux target: %s', repr(target_info))
+            ll_target = LocalLinuxTarget(connection_settings=target_info['connection_settings'])
+            target_runners.append(NOPTargetRunner(ll_target))
+
+        elif target_class is QEMUTargetRunner:
+            logger.info('> QEMU target runner: %s', repr(target_info))
 
             qemu_runner = QEMUTargetRunner(
-                qemu_settings=qemu_settings,
-                connection_settings=connection_settings,
+                qemu_settings=target_info.get('qemu_settings'),
+                connection_settings=target_info.get('connection_settings'),
             )
 
-            if entry.get('ChromeOsTarget') is None:
-                targets.append((qemu_runner.target, qemu_runner))
-                continue
+            if target_info.get('ChromeOsTarget') is not None:
+                # Leave termination of QEMU runner to ChromeOS target.
+                target_runners.append(NOPTargetRunner(qemu_runner.target))
 
-            # Leave termination of QEMU runner to ChromeOS target.
-            targets.append((qemu_runner.target, None))
+                logger.info('>> ChromeOS target: %s', repr(target_info["ChromeOsTarget"]))
+                qemu_runner.target = ChromeOsTarget(
+                    connection_settings={
+                        **target_info['ChromeOsTarget']['connection_settings'],
+                        **qemu_runner.target.connection_settings,
+                    },
+                    working_directory='/tmp/devlib-target',
+                )
 
-            print('> ChromeOS targets:')
-            pp(entry['ChromeOsTarget'])
-            c_target = ChromeOsTarget(
-                connection_settings={
-                    **entry['ChromeOsTarget']['connection_settings'],
-                    **qemu_runner.target.connection_settings,
-                },
-                working_directory='/tmp/devlib-target',
-            )
-            targets.append((c_target, qemu_runner))
+            target_runners.append(qemu_runner)
 
-    return targets
+        else:
+            raise ValueError(f'Unknown target type {key}!')
+
+    yield target_runners
+
+    logger.info("Destroying resources...")
+
+    for target_runner in target_runners:
+        target = target_runner.target
+
+        # TODO: Revisit per https://github.com/ARM-software/devlib/issues/680.
+        logger.debug('Removing %s...', target.working_directory)
+        target.remove(target.working_directory)
+
+        target_runner.terminate()
 
 
-@pytest.mark.parametrize("target, target_runner", build_targets())
-def test_read_multiline_values(target, target_runner):
+# pylint: disable=redefined-outer-name
+def test_read_multiline_values(build_target_runners):
     """
     Test Target.read_tree_values_flat()
 
-    :param target: Type of target per :class:`Target` based classes.
-    :type target: Target
-
-    :param target_runner: Target runner object to terminate target (if necessary).
-    :type target: TargetRunner
+    Runs tests around ``Target.read_tree_values_flat()`` for ``TargetRunner`` objects.
     """
+
+    logger.info('Running test_read_multiline_values test...')
 
     data = {
         'test1': '1',
@@ -124,26 +158,24 @@ def test_read_multiline_values(target, target_runner):
         'test3': '3\n\n4\n\n',
     }
 
-    print(f'target={target.__class__.__name__} os={target.os} hostname={target.hostname}')
+    target_runners = build_target_runners
+    for target_runner in target_runners:
+        target = target_runner.target
 
-    with target.make_temp() as tempdir:
-        print(f'Created {tempdir}.')
+        logger.info('target=%s os=%s hostname=%s',
+                    target.__class__.__name__, target.os, target.hostname)
 
-        for key, value in data.items():
-            path = os.path.join(tempdir, key)
-            print(f'Writing {value!r} to {path}...')
-            target.write_value(path, value, verify=False,
-                               as_root=target.conn.connected_as_root)
+        with target.make_temp() as tempdir:
+            logger.debug('Created %s.', tempdir)
 
-        print('Reading values from target...')
-        raw_result = target.read_tree_values_flat(tempdir)
-        result = {os.path.basename(k): v for k, v in raw_result.items()}
+            for key, value in data.items():
+                path = os.path.join(tempdir, key)
+                logger.debug('Writing %s to %s...', repr(value), path)
+                target.write_value(path, value, verify=False,
+                                   as_root=target.conn.connected_as_root)
 
-    print(f'Removing {target.working_directory}...')
-    target.remove(target.working_directory)
+            logger.debug('Reading values from target...')
+            raw_result = target.read_tree_values_flat(tempdir)
+            result = {os.path.basename(k): v for k, v in raw_result.items()}
 
-    if target_runner is not None:
-        print('Terminating target runner...')
-        target_runner.terminate()
-
-    assert {k: v.strip() for k, v in data.items()} == result
+        assert {k: v.strip() for k, v in data.items()} == result
