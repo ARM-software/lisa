@@ -37,21 +37,21 @@ test_os_release() {
 
     if [[ "$(read_os_release "${field_name}")" == "${value}" ]]; then
         return 0
-    else
-        return 1
     fi
+    return 1
 }
 
-function set_host_arch
-{
-	# Google ABI type for Arm platforms
-	HOST_ARCH="arm64-v8a"
+get_android_sdk_host_arch() {
+    # Default to Google ABI type for Arm platforms
+    local arch="arm64-v8a"
+    local machine
 
-	local machine
-	machine=$(uname -m)
-	if [[ "${machine}" == "x86"* ]]; then
-		HOST_ARCH=${machine}
-	fi
+    machine=$(uname -m)
+    if [[ "${machine}" == "x86"* ]]; then
+        arch=${machine}
+    fi
+
+    echo "${arch}"
 }
 
 ANDROID_HOME="$(dirname "${0}")/android-sdk-linux"
@@ -60,7 +60,7 @@ export ANDROID_USER_HOME="${ANDROID_HOME}/.android"
 
 mkdir -p "${ANDROID_HOME}/cmdline-tools"
 
-CMDLINE_VERSION=${CMDLINE_VERSION:-"11076708"}
+ANDROID_CMDLINE_VERSION=${ANDROID_CMDLINE_VERSION:-"11076708"}
 
 cleanup_android_home() {
     echo "Cleaning up Android SDK: ${ANDROID_HOME}"
@@ -72,7 +72,7 @@ install_android_sdk_manager() {
     echo "Installing Android SDK manager ..."
 
     # URL taken from "Command line tools only": https://developer.android.com/studio
-    local url="https://dl.google.com/android/repository/commandlinetools-linux-${CMDLINE_VERSION}_latest.zip"
+    local url="https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_VERSION}_latest.zip"
 
     echo "Downloading Android SDK manager from: $url"
     wget -qO- "${url}" | bsdtar -xf- -C "${ANDROID_HOME}/cmdline-tools"
@@ -117,29 +117,34 @@ call_android_avdmanager() {
 
 # Needs install_android_sdk_manager first
 install_android_tools() {
+    local android_sdk_host_arch
+    android_sdk_host_arch=$(get_android_sdk_host_arch)
+
     yes | call_android_sdkmanager --verbose --channel=0 --install "platform-tools"
     yes | call_android_sdkmanager --verbose --channel=0 --install "platforms;android-31"
     yes | call_android_sdkmanager --verbose --channel=0 --install "platforms;android-33"
     yes | call_android_sdkmanager --verbose --channel=0 --install "platforms;android-34"
-    yes | call_android_sdkmanager --verbose --channel=0 --install "system-images;android-31;google_apis;${HOST_ARCH}"
-    yes | call_android_sdkmanager --verbose --channel=0 --install "system-images;android-33;android-desktop;${HOST_ARCH}"
-    yes | call_android_sdkmanager --verbose --channel=0 --install "system-images;android-34;google_apis;${HOST_ARCH}"
+    yes | call_android_sdkmanager --verbose --channel=0 --install "system-images;android-31;google_apis;${android_sdk_host_arch}"
+    yes | call_android_sdkmanager --verbose --channel=0 --install "system-images;android-33;android-desktop;${android_sdk_host_arch}"
+    yes | call_android_sdkmanager --verbose --channel=0 --install "system-images;android-34;google_apis;${android_sdk_host_arch}"
 }
 
 create_android_vds() {
-    local vd_name
+    local android_sdk_host_arch
+    android_sdk_host_arch=$(get_android_sdk_host_arch)
 
+    local vd_name
     vd_name="devlib-p6-12"
     echo "Creating virtual device \"${vd_name}\" (Pixel 6 - Android 12)..."
-    echo no | call_android_avdmanager -s create avd -n "${vd_name}" -k "system-images;android-31;google_apis;${HOST_ARCH}" --skin pixel_6 -b "${HOST_ARCH}" -f
+    echo no | call_android_avdmanager -s create avd -n "${vd_name}" -k "system-images;android-31;google_apis;${android_sdk_host_arch}" --skin pixel_6 -b "${android_sdk_host_arch}" -f
 
     vd_name="devlib-p6-14"
     echo "Creating virtual device \"${vd_name}\" (Pixel 6 - Android 14)..."
-    echo no | call_android_avdmanager -s create avd -n "${vd_name}" -k "system-images;android-34;google_apis;${HOST_ARCH}" --skin pixel_6 -b "${HOST_ARCH}" -f
+    echo no | call_android_avdmanager -s create avd -n "${vd_name}" -k "system-images;android-34;google_apis;${android_sdk_host_arch}" --skin pixel_6 -b "${android_sdk_host_arch}" -f
 
     vd_name="devlib-chromeos"
     echo "Creating virtual device \"${vd_name}\" (ChromeOS - Android 13, Pixel tablet)..."
-    echo no | call_android_avdmanager -s create avd -n "${vd_name}" -k "system-images;android-33;android-desktop;${HOST_ARCH}" --skin pixel_tablet -b "${HOST_ARCH}" -f
+    echo no | call_android_avdmanager -s create avd -n "${vd_name}" -k "system-images;android-33;android-desktop;${android_sdk_host_arch}" --skin pixel_tablet -b "${android_sdk_host_arch}" -f
 }
 
 install_apt() {
@@ -183,7 +188,6 @@ if which apt-get &>/dev/null; then
     install_functions+=(install_apt)
     package_manager='apt-get'
     expected_distro="Ubuntu"
-
 elif which pacman &>/dev/null; then
     install_functions+=(install_pacman)
     package_manager="pacman"
@@ -222,8 +226,6 @@ if [[ -z "$*" ]]; then
 else
     args=("$@")
 fi
-
-set_host_arch
 
 # Use conditional fall-through ;;& to all matching all branches with
 # --install-all

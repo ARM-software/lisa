@@ -63,9 +63,9 @@ RUN cd /devlib && \
     pip install --upgrade pip setuptools wheel && \
     pip install .[full]
 
-# Set CMDLINE_VERSION environment variable if you want to use a specific
-# version of Android command line tools rather than default which is
-# ``11076708`` as of writing this comment.
+# Set ANDROID_CMDLINE_VERSION environment variable if you want to use a
+# specific version of Android command line tools rather than default
+# which is ``11076708`` as of writing this comment.
 RUN cd /devlib/tools/android && ./install_base.sh
 
 # Set BUILDROOT_VERSION environment variable if you want to use a specific

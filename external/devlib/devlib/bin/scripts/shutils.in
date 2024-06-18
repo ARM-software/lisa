@@ -154,7 +154,16 @@ cgroups_run_into() {
 		# Move this shell into that control group
 		echo $$ > $CGPATH/cgroup.procs
 		echo "Moving task into root CGroup ($CGPATH)"
+		# Check the move actually worked
+		$GREP -E "$$" $CGPATH/cgroup.procs >/dev/null 2>&1
+		if [ $? -ne 0 ]; then
+			echo "ERROR: Process was not moved into $CGP"
+			exit 1
+	  	fi
 	  done
+	  if [ $? -ne 0 ]; then
+		exit 1
+	  fi
 
 	# Execution under specified CGroup
 	else
@@ -173,8 +182,16 @@ cgroups_run_into() {
 		  # Move this shell into that control group
 		  echo $$ > $CGPATH/cgroup.procs
 		  echo "Moving task into $CGPATH"
+		  # Check the move actually worked
+		  $GREP -E "$$" $CGPATH/cgroup.procs >/dev/null 2>&1
+		  if [ $? -ne 0 ]; then
+			echo "ERROR: Process was not moved into $CGP"
+			exit 1
+	  	  fi
 	  done
-
+	  if [ $? -ne 0 ]; then
+		exit 1
+	  fi
 	fi
 
 	# Execute the command

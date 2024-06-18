@@ -24,14 +24,12 @@ import tempfile
 import socket
 import sys
 import time
-import atexit
 import contextlib
 import select
 import copy
 import functools
 import shutil
 from shlex import quote
-from weakref import WeakMethod
 
 from paramiko.client import SSHClient, AutoAddPolicy, RejectPolicy
 import paramiko.ssh_exception
@@ -372,8 +370,6 @@ class SshConnection(SshConnectionBase):
         self.client = None
         try:
             self.client = self._make_client()
-            weak_close = WeakMethod(self.close, atexit.unregister)
-            atexit.register(weak_close)
 
             # Use a marker in the output so that we will be able to differentiate
             # target connection issues with "password needed".
@@ -392,10 +388,13 @@ class SshConnection(SshConnectionBase):
                 )
             )
 
-        except BaseException:
-            if self.client is not None:
-                self.client.close()
-            raise
+        # pylint: disable=broad-except
+        except BaseException as e:
+            try:
+                if self.client is not None:
+                    self.client.close()
+            finally:
+                raise e
 
     def _make_client(self):
         if self.strict_host_check:
@@ -814,9 +813,6 @@ class TelnetConnection(SshConnectionBase):
         timeout = timeout if timeout is not None else self.default_timeout
 
         self.conn = telnet_get_shell(host, username, password, port, timeout, original_prompt)
-
-        weak_close = WeakMethod(self.close, atexit.unregister)
-        atexit.register(weak_close)
 
     def fmt_remote_path(self, path):
         return '{}@{}:{}'.format(self.username, self.host, path)
