@@ -19,13 +19,12 @@ from collections import namedtuple
 from shlex import quote
 import itertools
 import warnings
-import asyncio
 
 from devlib.module import Module
 from devlib.exception import TargetStableError
 from devlib.utils.misc import list_to_ranges, isiterable
 from devlib.utils.types import boolean
-from devlib.utils.asyn import asyncf
+from devlib.utils.asyn import asyncf, run
 
 
 class Controller(object):
@@ -410,7 +409,7 @@ class CgroupsModule(Module):
                              controller.mount_point)
             self.controllers[ss.name] = controller
 
-        asyncio.run(
+        run(
             target.async_manager.map_concurrently(
                 register_controller,
                 subsys,

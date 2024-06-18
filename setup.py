@@ -105,6 +105,7 @@ params = dict(
         'pytest',
         'lxml', # More robust xml parsing
         'nest_asyncio', # Allows running nested asyncio loops
+        'greenlet', # Allows running nested asyncio loops
         'future', # for the "past" Python package
         'ruamel.yaml >= 0.15.72', # YAML formatted config parsing
     ],
@@ -113,6 +114,9 @@ params = dict(
         'doc': ['sphinx'],
         'monsoon': ['python-gflags'],
         'acme': ['pandas', 'numpy'],
+        'dev': [
+            'uvloop', # Test async features under uvloop
+        ]
     },
     # https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
