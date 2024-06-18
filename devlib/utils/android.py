@@ -562,7 +562,7 @@ def adb_disconnect(device, adb_server=None, adb_port=None):
         adb_cmd = get_adb_command(None, 'disconnect', adb_server, adb_port)
         command = "{} {}".format(adb_cmd, device)
         logger.debug(command)
-        retval = subprocess.call(command, stdout=open(os.devnull, 'wb'), shell=True)
+        retval = subprocess.call(command, stdout=subprocess.DEVNULL, shell=True)
         if retval:
             raise TargetTransientError('"{}" returned {}'.format(command, retval))
 
@@ -571,11 +571,13 @@ def _ping(device, adb_server=None, adb_port=None):
     adb_cmd = get_adb_command(device, 'shell', adb_server, adb_port)
     command = "{} {}".format(adb_cmd, quote('ls /data/local/tmp > /dev/null'))
     logger.debug(command)
-    result = subprocess.call(command, stderr=subprocess.PIPE, shell=True)
-    if not result:  # pylint: disable=simplifiable-if-statement
-        return True
-    else:
+    try:
+        subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True)
+    except subprocess.CalledProcessError as e:
+        logger.debug(f'ADB ping failed: {e.stdout}')
         return False
+    else:
+        return True
 
 
 # pylint: disable=too-many-locals

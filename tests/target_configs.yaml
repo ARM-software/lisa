@@ -1,5 +1,0 @@
-LocalLinuxTarget:
-  entry-0:
-    connection_settings:
-      unrooted: True
-

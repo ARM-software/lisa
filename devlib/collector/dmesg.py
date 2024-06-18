@@ -70,7 +70,7 @@ class KernelLogEntry(object):
         def parse_raw_level(line):
             match = cls._RAW_LEVEL_REGEX.match(line)
             if not match:
-                raise ValueError('dmesg entry format not recognized: {}'.format(line))
+                raise ValueError(f'dmesg entry format not recognized: {line}')
             level, remainder = match.groups()
             levels = DmesgCollector.LOG_LEVELS
             # BusyBox dmesg can output numbers that need to wrap around
@@ -79,11 +79,15 @@ class KernelLogEntry(object):
 
         def parse_pretty_level(line):
             match = cls._PRETTY_LEVEL_REGEX.match(line)
+            if not match:
+                raise ValueError(f'dmesg entry pretty format not recognized: {line}')
             facility, level, remainder = match.groups()
             return facility, level, remainder
 
         def parse_timestamp_msg(line):
             match = cls._TIMESTAMP_MSG_REGEX.match(line)
+            if not match:
+                raise ValueError(f'dmesg entry timestamp format not recognized: {line}')
             timestamp, msg = match.groups()
             timestamp = timedelta(seconds=float(timestamp.strip()))
             return timestamp, msg
