@@ -28,7 +28,7 @@ import pandas as pd
 
 from devlib.target import KernelVersion
 
-from lisa.trace import Trace, TxtTraceParser, MockTraceParser
+from lisa.trace import Trace, TxtTraceParser, MockTraceParser, _TraceProxy
 from lisa.analysis.tasks import TaskID
 from lisa.datautils import df_squash
 from lisa.platforms.platinfo import PlatformInfo
@@ -50,36 +50,45 @@ class TraceTestCase(StorageTestCase):
         super().__init__(*args, **kwargs)
         self.plat_info = self._get_plat_info()
 
+    def _wrap_trace(self, trace):
+        return trace
+
     @property
     def trace(self):
-        return Trace(
-            os.path.join(self.traces_dir, 'trace.txt'),
-            plat_info=self.plat_info,
-            events=self.events,
-            normalize_time=False,
-            parser=TxtTraceParser.from_txt_file,
+        return self._wrap_trace(
+            Trace(
+                os.path.join(self.traces_dir, 'trace.txt'),
+                plat_info=self.plat_info,
+                events=self.events,
+                normalize_time=False,
+                parser=TxtTraceParser.from_txt_file,
+            )
         )
 
     def make_trace(self, in_data, plat_info=None, events=None):
         """
         Get a trace from an embedded string of textual trace data
         """
-        return Trace(
-            None,
-            plat_info=self.plat_info if plat_info is None else plat_info,
-            events=self.events if events is None else events,
-            normalize_time=False,
-            parser=TxtTraceParser.from_string(in_data),
+        return self._wrap_trace(
+            Trace(
+                None,
+                plat_info=self.plat_info if plat_info is None else plat_info,
+                events=self.events if events is None else events,
+                normalize_time=False,
+                parser=TxtTraceParser.from_string(in_data),
+            )
         )
 
     def get_trace(self, trace_name):
         """
         Get a trace from a separate provided trace file
         """
-        return Trace(
-            Path(self.traces_dir, trace_name, 'trace.dat'),
-            plat_info=self._get_plat_info(trace_name),
-            events=self.events,
+        return self._wrap_trace(
+            Trace(
+                Path(self.traces_dir, trace_name, 'trace.dat'),
+                plat_info=self._get_plat_info(trace_name),
+                events=self.events,
+            )
         )
 
     def _get_plat_info(self, trace_name=None):
@@ -90,9 +99,46 @@ class TraceTestCase(StorageTestCase):
         path = os.path.join(trace_dir, 'plat_info.yml')
         return PlatformInfo.from_yaml_map(path)
 
+    def test_context_manager(self):
+        trace = self.get_trace('doc')
+        with trace:
+            trace.df_event('sched_switch')
 
-class TestTrace(TraceTestCase):
-    """Smoke tests for LISA's Trace class"""
+    def test_meta_event(self):
+        trace = self.get_trace('doc')
+        df = trace.df_event('userspace@rtapp_stats')
+        assert 'userspace@rtapp_stats' in trace.available_events
+        assert len(df) == 465
+
+    def test_meta_event_available(self):
+        trace = self.get_trace('doc')
+        assert 'userspace@rtapp_stats' in trace.available_events
+
+    def _test_tasks_dfs(self, trace_name):
+        """Helper for smoke testing _dfg methods in tasks_analysis"""
+        trace = self.get_trace(trace_name)
+
+        lt_df = trace.ana.load_tracking.df_tasks_signal('util')
+        columns = ['comm', 'pid', 'util', 'cpu']
+        for column in columns:
+            msg = 'Task signals parsed from {} missing {} column'.format(
+                trace.trace_path, column)
+            assert column in lt_df, msg
+
+        # Pick an arbitrary PID to try plotting signals for.
+        pid = lt_df['pid'].unique()[0]
+        # Call plot - although we won't check the results we can just check
+        # that things aren't totally borken.
+        trace.ana.load_tracking.plot_task_signals(pid)
+
+    def test_sched_load_signals(self):
+        """Test parsing sched_load_se events from EAS upstream integration"""
+        self._test_tasks_dfs('sched_load')
+
+    def test_sched_load_avg_signals(self):
+        """Test parsing sched_load_avg_task events from EAS1.2"""
+        self._test_tasks_dfs('sched_load_avg')
+
 
     def test_get_task_id(self):
         for name, pid in [
@@ -301,31 +347,6 @@ class TestTrace(TraceTestCase):
         assert df.index.tolist() == [519.022643]
         assert df.cpu.tolist() == [2]
 
-    def _test_tasks_dfs(self, trace_name):
-        """Helper for smoke testing _dfg methods in tasks_analysis"""
-        trace = self.get_trace(trace_name)
-
-        lt_df = trace.ana.load_tracking.df_tasks_signal('util')
-        columns = ['comm', 'pid', 'util', 'cpu']
-        for column in columns:
-            msg = 'Task signals parsed from {} missing {} column'.format(
-                trace.trace_path, column)
-            assert column in lt_df, msg
-
-        # Pick an arbitrary PID to try plotting signals for.
-        pid = lt_df['pid'].unique()[0]
-        # Call plot - although we won't check the results we can just check
-        # that things aren't totally borken.
-        trace.ana.load_tracking.plot_task_signals(pid)
-
-    def test_sched_load_signals(self):
-        """Test parsing sched_load_se events from EAS upstream integration"""
-        self._test_tasks_dfs('sched_load')
-
-    def test_sched_load_avg_signals(self):
-        """Test parsing sched_load_avg_task events from EAS1.2"""
-        self._test_tasks_dfs('sched_load_avg')
-
     def df_peripheral_clock_effective_rate(self):
         """
         TestTrace: getPeripheralClockInfo() returns proper effective rate info.
@@ -365,18 +386,23 @@ class TestTrace(TraceTestCase):
         # Proxy check for detecting delta computation changes
         assert df.delta.sum() == pytest.approx(134.568219)
 
-    def test_meta_event(self):
-        trace = self.get_trace('doc')
-        df = trace.df_event('userspace@rtapp_stats')
-        assert 'userspace@rtapp_stats' in trace.available_events
-        assert len(df) == 465
 
-    def test_meta_event_available(self):
-        trace = self.get_trace('doc')
-        assert 'userspace@rtapp_stats' in trace.available_events
+class TestTrace(TraceTestCase):
+    """Smoke tests for LISA's Trace class"""
+    pass
+
+
+class TestTraceProxy(TraceTestCase):
+    """Smoke tests for LISA's Trace class"""
+    def _wrap_trace(self, trace):
+        proxy = _TraceProxy(None)
+        proxy._set_trace(trace)
+        return proxy
 
 
 class TestTraceView(TraceTestCase):
+    def _wrap_trace(self, trace):
+        return trace.get_view()
 
     def test_lower_slice(self):
         view = self.trace[81:]
@@ -405,9 +431,8 @@ class TestTraceView(TraceTestCase):
 
 
 class TestNestedTraceView(TestTraceView):
-    @property
-    def trace(self):
-        trace = super().trace
+    def _wrap_trace(self, trace):
+        trace = super()._wrap_trace(trace)
         return trace[trace.start:trace.end]
 
 

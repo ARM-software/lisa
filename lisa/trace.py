@@ -97,6 +97,11 @@ def _dealloc_all():
 atexit.register(_dealloc_all)
 
 def _file_cleanup(paths):
+    paths = [
+        path
+        for path in paths
+        if path is not None
+    ]
     for path in paths:
         try:
             shutil.rmtree(path)
@@ -1005,6 +1010,11 @@ class TraceDumpTraceParser(TraceParserBase):
 
     @classmethod
     def _process_metadata(cls, meta):
+        try:
+            meta['trace-id'] = f'trace.dat-{meta["trace-id"]}'
+        except KeyError:
+            pass
+
         try:
             start, end = meta['time-range']
         except KeyError:
@@ -2978,6 +2988,14 @@ class _InternalTraceBase(abc.ABC):
     def df_all_events(self, *args, **kwargs):
         return self.ana.notebook.df_all_events(*args, **kwargs)
 
+    @abc.abstractmethod
+    def __enter__(self):
+        return self
+
+    @abc.abstractmethod
+    def __exit__(self, *args):
+        pass
+
 
 # User-facing
 class TraceBase(_InternalTraceBase):
@@ -3240,6 +3258,13 @@ class _TraceViewBase(_InternalTraceBase):
     def __init__(self, trace):
         self.base_trace = trace
         super().__init__()
+
+    def __enter__(self):
+        self.base_trace.__enter__()
+        return self
+
+    def __exit__(self, *args):
+        return self.base_trace.__exit__(*args)
 
     def __getattr__(self, name):
         return delegate_getattr(self, 'base_trace', name)
@@ -4185,6 +4210,14 @@ class _TraceCache(Loggable):
         # Limit to one worker, as we will likely take the self._lock anyway
         self._thread_executor = ThreadPoolExecutor(max_workers=1)
 
+        self.__deallocator_callbacks = [
+            # Ensure we block until all workers are finished. Otherwise, e.g.
+            # removing the swap area might fail because an worker is still creating
+            # the metadata file in there.
+            lambda: self._thread_executor.shutdown()
+        ]
+
+
     @property
     def swap_dir(self):
         if (swap_dir := self._swap_dir) is None:
@@ -4196,43 +4229,33 @@ class _TraceCache(Loggable):
     @memoized
     def _hardlinks_base(self):
         path = Path(self.swap_dir) / 'hardlinks' / str(self._unique_id)
-        return path.resolve()
-
-    @property
-    @memoized
-    def _hardlinks_base_deallocator(self):
-        path = self._hardlinks_base
-        f = functools.partial(_file_cleanup, paths=[path])
-        return _Deallocator(
-            f=f,
-            on_del=False,
-            at_exit=True,
-        )
+        path = path.resolve()
+        def cleanup():
+            # Only try with rmdir first, so that we don't sabbotage existing
+            # LazyFrame that might still be alive.
+            try:
+                os.rmdir(path)
+            except Exception:
+                pass
+        with self._lock:
+            self.__deallocator_callbacks.append(cleanup)
+        return path
 
     def _hardlink_path(self, base, name):
         path = self._hardlinks_base / base
         path.mkdir(parents=True, exist_ok=True)
 
-        # Make sure the deallocator has been created
-        self._hardlinks_base_deallocator
         return (
             path,
             path / name,
         )
 
-    def __del__(self):
-        # Only try with rmdir first, so that we don't sabbotage existing
-        # LazyFrame that might still be alive.
-        try:
-            path = self._hardlinks_base
-            os.rmdir(path)
-        except Exception:
-            pass
+    def __enter__(self):
+        return self
 
-        # Ensure we block until all workers are finished. Otherwise, e.g.
-        # removing the swap area might fail because an worker is still creating
-        # the metadata file in there.
-        self._thread_executor.shutdown()
+    def __exit__(self, *args):
+        for cb in self.__deallocator_callbacks:
+            cb()
 
     def _parser_temp_path(self):
         try:
@@ -5023,6 +5046,61 @@ class _TraceCache(Loggable):
             }
 
 
+class _TraceProxy(TraceBase):
+    class _TraceNotSet:
+        def __getattribute__(self, attr):
+            raise RuntimeError('The trace instance can only be used after the end of the "with" statement.')
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    def __init__(self, path):
+        self.__base_trace = self._TraceNotSet()
+        self.__path = path
+        self.__deallocator = _Deallocator(
+            # Delete the file once we are done accessing it
+            f=functools.partial(_file_cleanup, paths=[path]),
+            on_del=True,
+            at_exit=True,
+        )
+
+    def __getattr__(self, attr):
+        return delegate_getattr(self, '_TraceProxy__base_trace', attr)
+
+    def _set_trace(self, trace):
+        self.__base_trace = trace
+
+    def __enter__(self):
+        self.__base_trace.__enter__()
+        return self
+
+    def __exit__(self, *args):
+        try:
+            return self.__base_trace.__exit__(*args)
+        finally:
+            self.__deallocator.run()
+
+    @property
+    def ana(self):
+        return self.__base_trace.ana
+
+    @property
+    def analysis(self):
+        return self.__base_trace.analysis
+
+    def df_event(self, *args, **kwargs):
+        return self.__base_trace.df_event(*args, **kwargs)
+
+    def _internal_df_event(self, *args, **kwargs):
+        return self.__base_trace._internal_df_event(*args, **kwargs)
+
+    def _preload_events(self, *args, **kwargs):
+        return self.__base_trace._preload_events(*args, **kwargs)
+
+
 class _Trace(Loggable, _InternalTraceBase):
     def _select_userspace(self, source_event, meta_event, df):
         # pylint: disable=unused-argument,no-self-use
@@ -5084,17 +5162,19 @@ class _Trace(Loggable, _InternalTraceBase):
         super().__init__()
         self._lock = threading.RLock()
 
+        stack = contextlib.ExitStack()
+        self._cm_stack = stack
+        self.__deallocator = _Deallocator(
+            f=lambda: self._cm_stack.__exit__(None, None, None),
+            on_del=True,
+            at_exit=True,
+        )
+
         # Make sure that we always operate with an active StringCache when
         # manipulating a trace object. This prevents issues with LazyFrame
         # built out of a DataFrame containing Categorical data, in places where
         # the user does not control the creation of the DataFrame.
-        str_cache = pl.StringCache()
-        str_cache.__enter__()
-        self.__string_cache_deallocator = _Deallocator(
-            f=lambda: str_cache.__exit__(None, None, None),
-            on_del=True,
-            at_exit=True,
-        )
+        stack.enter_context(pl.StringCache())
 
         trace_path = str(trace_path) if trace_path else None
 
@@ -5161,7 +5241,7 @@ class _Trace(Loggable, _InternalTraceBase):
         # over when querying the trace-id.
         self._cache = _TraceCache()
         trace_id = self._get_trace_id()
-        self._cache = _TraceCache.from_swap_dir(
+        cache = _TraceCache.from_swap_dir(
             trace_path=trace_path,
             swap_dir=swap_dir,
             max_swap_size=max_swap_size,
@@ -5169,6 +5249,9 @@ class _Trace(Loggable, _InternalTraceBase):
             trace_id=trace_id,
             metadata=self._cache._metadata,
         )
+        stack.enter_context(cache)
+        self._cache = cache
+
         # Initial scrub of the swap to discard unwanted data, honoring the
         # max_swap_size right from the beginning
         self._cache.scrub_swap()
@@ -5189,6 +5272,12 @@ class _Trace(Loggable, _InternalTraceBase):
         # Update the platform info with the data available from the trace once
         # the Trace is almost fully initialized
         self.plat_info = plat_info.add_trace_src(self)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.__deallocator.run()
 
     def _preload_metadata_cache(self):
         def fail():
@@ -6093,7 +6182,12 @@ class Trace(TraceBase):
         * ``ana``: The analysis proxy used as an entry point to run analysis
           methods on the trace. See :class:`lisa.analysis._proxy.AnalysisProxy`.
 
-    :Supporting more events:
+    :Supporting more events in text parsers:
+
+        .. note:: ``trace.dat`` parser can now fully infer the dataframe schema
+            from the binary trace.dat and does not require (nor allow) any
+            manual setting.
+
         Subclasses of :class:`TraceParserBase` can usually auto-detect the
         event format, but there may be a number of reasons to pass a custom
         event parser:
@@ -6142,6 +6236,13 @@ class Trace(TraceBase):
     def _init(self, view, df_fmt):
         self.__view = view
         self._df_fmt = df_fmt or 'pandas'
+
+    def __enter__(self):
+        self.__view.__enter__()
+        return self
+
+    def __exit__(self, *args):
+        return self.__view.__exit__(*args)
 
     def __init__(self, *args, df_fmt=None, **kwargs):
         view = self._view_from_user_kwargs(*args, **kwargs)
@@ -6319,42 +6420,6 @@ class Trace(TraceBase):
         plat_info = target.plat_info
         needs_temp = filepath is None
 
-        class _TraceNotSet:
-            def __getattribute__(self, attr):
-                raise RuntimeError('The trace instance can only be used after the end of the "with" statement.')
-
-        class _TraceProxy(TraceBase):
-            def __init__(self, path):
-                self.__base_trace = _TraceNotSet()
-
-                if path is not None:
-                    # Delete the file once we are done accessing it
-                    self.__deallocator = _Deallocator(
-                        f=functools.partial(_file_cleanup, paths=[path]),
-                        on_del=True,
-                        at_exit=True,
-                    )
-
-            def __getattr__(self, attr):
-                return delegate_getattr(self, '_TraceProxy__base_trace', attr)
-
-            @property
-            def ana(self):
-                return self.__base_trace.ana
-
-            @property
-            def analysis(self):
-                return self.__base_trace.analysis
-
-            def df_event(self, *args, **kwargs):
-                return self.__base_trace.df_event(*args, **kwargs)
-
-            def _internal_df_event(self, *args, **kwargs):
-                return self.__base_trace._internal_df_event(*args, **kwargs)
-
-            def _preload_events(self, *args, **kwargs):
-                return self.__base_trace._preload_events(*args, **kwargs)
-
         if needs_temp:
             @contextlib.contextmanager
             def cm_func():
@@ -6379,8 +6444,7 @@ class Trace(TraceBase):
                 **kwargs
             )
 
-        # pylint: disable=attribute-defined-outside-init
-        proxy._TraceProxy__base_trace = trace
+        proxy._set_trace(trace)
 
     @classmethod
     def get_event_sources(cls, *args, **kwargs):
