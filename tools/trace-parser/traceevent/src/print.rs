@@ -1317,7 +1317,7 @@ where
                     let mut merged = Vec::with_capacity(atoms.len());
                     atoms
                         .iter()
-                        .group_by(|x| matches!(x, PrintAtom::Fixed(_)))
+                        .chunk_by(|x| matches!(x, PrintAtom::Fixed(_)))
                         .into_iter()
                         .map(|(key, group)| {
                             if key {
