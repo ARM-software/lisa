@@ -13,7 +13,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use lib::{
     check::check_header,
     error::DynMultiError,
-    parquet::{dump_events, dump_metadata},
+    parquet::dump::{dump_events, dump_metadata},
     print::print_events,
 };
 use parquet::basic::{Compression as ParquetCompression, ZstdLevel};
