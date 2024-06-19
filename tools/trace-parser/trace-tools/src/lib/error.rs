@@ -54,6 +54,13 @@ impl DynMultiError {
                 .map(|err| Box::new(err) as Box<dyn Error>),
         ))
     }
+
+    pub fn from_string(error: String) -> Self {
+        DynMultiError(MultiError {
+            errors: vec![error.into()],
+        })
+    }
+
     pub fn errors(&self) -> impl IntoIterator<Item = &dyn Error> {
         self.0.errors().into_iter().map(AsRef::as_ref)
     }

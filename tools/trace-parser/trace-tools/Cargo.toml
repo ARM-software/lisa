@@ -10,7 +10,7 @@ path = "src/lib/lib.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-traceevent = { path = "../traceevent" }
+traceevent = { path = "../traceevent", optional = true }
 
 thiserror = "1.0"
 smartstring = {version = "1.0", features = ["serde"]}
@@ -25,6 +25,10 @@ serde = { version = "1.0", features = ["derive"] }
 nom = "7.1"
 bytemuck = "1.13"
 clap = { version = "4.4", features = ["derive"] }
+
+[features]
+default = ["tracedat"]
+tracedat = ["dep:traceevent"]
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 mimalloc = {version = "0.1", default-features = false }
