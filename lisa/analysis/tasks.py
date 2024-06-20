@@ -427,7 +427,7 @@ class TasksAnalysis(TraceAnalysisBase):
         def comm_to_pid(comm):
             try:
                 pid_list = self._task_name_map[comm]
-            except IndexError:
+            except KeyError:
                 # pylint: disable=raise-missing-from
                 raise ValueError(f'trace does not have any task named "{comm}"')
 
@@ -436,7 +436,7 @@ class TasksAnalysis(TraceAnalysisBase):
         def pid_to_comm(pid):
             try:
                 comm_list = self._task_pid_map[pid]
-            except IndexError:
+            except KeyError:
                 # pylint: disable=raise-missing-from
                 raise ValueError(f'trace does not have any task PID {pid}')
 
