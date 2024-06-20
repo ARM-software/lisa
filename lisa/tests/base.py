@@ -1793,7 +1793,10 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
             # Find out which task(s) this threshold is about
             if isinstance(key, str):
                 comms = df.loc[df['comm'].str.match(key), 'comm']
-                task_ids = comms.apply(self.trace.ana.tasks.get_task_id)
+                task_ids = [
+                    self.trace.ana.tasks.get_task_id(comm)
+                    for comm in comms
+                ]
             else:
                 # Use update=False to let None fields propagate, as they are
                 # used to indicate a "dont care" value
