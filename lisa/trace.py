@@ -740,7 +740,7 @@ class PerfettoTraceParser(TraceParserBase):
 
     """
     @kwargs_forwarded_to(TraceParserBase.__init__)
-    def __init__(self, path=None, events=None, trace_processor_path='https://get.perfetto.dev/trace_processor', **kwargs):
+    def __init__(self, path=None, events=None, trace_processor_path='https://get.perfetto.dev/trace_processor', needed_metadata=None, **kwargs):
 
         if urllib.parse.urlparse(trace_processor_path).scheme:
             bin_path = self._download_trace_processor(url=trace_processor_path)
@@ -748,25 +748,40 @@ class PerfettoTraceParser(TraceParserBase):
             bin_path = trace_processor_path
 
         self._bin_path = bin_path
-        tp = self._make_tp(path)
+        self._trace_path = path
 
-        time_range, = tp.query("SELECT MIN(ts), MAX(ts) FROM raw")
-        time_range = (
-            time_range.__dict__['MIN(ts)'] / 1e9,
-            time_range.__dict__['MAX(ts)'] / 1e9,
+        meta = {}
+        needed = needed_metadata or set()
+
+        if 'available-events' in needed:
+            meta['available-events'] = set(
+                row.name
+                for row in self._query("SELECT DISTINCT name FROM raw")
+            )
+
+        if 'time-range' in needed:
+            time_range, = self._query("SELECT MIN(ts), MAX(ts) FROM raw")
+            meta['time-range'] = (
+                time_range.__dict__['MIN(ts)'] / 1e9,
+                time_range.__dict__['MAX(ts)'] / 1e9,
+            )
+
+        self._metadata = meta
+        super().__init__(events=events, needed_metadata=needed_metadata, **kwargs)
+
+    @property
+    @memoized
+    def _tp(self):
+        from perfetto.trace_processor import TraceProcessor, TraceProcessorConfig
+
+        config = TraceProcessorConfig(
+            # Without that, perfetto will disallow querying for most events in
+            # the raw table
+            ingest_ftrace_in_raw=True,
+            bin_path=self._bin_path,
         )
-        available_events = set(
-            row.name
-            for row in tp.query("SELECT DISTINCT name FROM raw")
-        )
-
-        self._metadata = {
-            'available-events': available_events,
-            'time-range': time_range,
-        }
-
-        self._tp = tp
-        super().__init__(events=events, **kwargs)
+        tp = TraceProcessor(trace=self._trace_path, config=config)
+        return tp
 
     @classmethod
     def _download_trace_processor(cls, url):
@@ -785,18 +800,6 @@ class PerfettoTraceParser(TraceParserBase):
         cache_path = dir_cache.get_entry([url])
         return cache_path / 'trace_processor'
 
-    def _make_tp(self, path):
-        from perfetto.trace_processor import TraceProcessor, TraceProcessorConfig
-
-        config = TraceProcessorConfig(
-            # Without that, perfetto will disallow querying for most events in
-            # the raw table
-            ingest_ftrace_in_raw=True,
-            bin_path=self._bin_path,
-        )
-        tp = TraceProcessor(trace=path, config=config)
-        return tp
-
     def _query(self, query):
         return self._tp.query(query)
 
@@ -810,55 +813,58 @@ class PerfettoTraceParser(TraceParserBase):
             (field.key, field.value_type)
             for field in self._query(query)
         ]
+
+        def pick_col(typ):
+            return {
+                'uint': 'int_value',
+                'int': 'int_value',
+                'string': 'string_value',
+            }[typ]
+
         arg_cols = [
-            f"(SELECT display_value FROM args WHERE key = '{key}' AND args.arg_set_id = raw.arg_set_id)"
+            f"(SELECT {pick_col(typ)} FROM args WHERE key = '{key}' AND args.arg_set_id = raw.arg_set_id)"
             for (key, typ) in arg_fields
         ]
         common_cols = ['ts as Time', 'cpu as __cpu', 'utid as __pid', '(SELECT name from thread where thread.utid = raw.utid) as __comm']
 
-        extract = ', '.join(common_cols + arg_cols)
-        query = f"SELECT {extract} FROM raw WHERE name = '{event}'"
-        df = pd.DataFrame.from_records(
-            row.__dict__
-            for row in self._query(query)
-        )
+        def translate_type(typ):
+            return {
+                'uint': pl.UInt64,
+                'int': pl.Int64,
+                'string': pl.Categorical(),
+            }[typ]
 
-        dtype_map = {
-            'uint': 'uint64',
-            'int': 'int64',
-            'string': 'category',
+        schema = {
+            'Time': pl.UInt64,
+            '__cpu': pl.UInt32,
+            '__pid': pl.UInt32,
+            '__comm': pl.Categorical,
+            **{
+                query: translate_type(typ)
+                for (_, typ), query in zip(arg_fields, arg_cols)
+            }
         }
 
-        df = df.rename(columns={
+        extract = ', '.join(common_cols + arg_cols)
+        query = f"SELECT {extract} FROM raw WHERE name = '{event}'"
+
+        df = pl.LazyFrame(
+            (
+                row.__dict__
+                for row in self._query(query)
+            ),
+            orient='row',
+            schema=schema,
+        )
+        df = df.rename({
             query: name
             for (name, _), query in zip(arg_fields, arg_cols)
         })
+        df = df.select(order_as(df.columns, ['Time', '__cpu', '__pid', '__comm']))
 
-        df = df.astype(
-            {
-                **{
-                    '__pid': 'uint32',
-                    '__cpu': 'uint32',
-                    '__comm': 'category',
-                    'Time': 'uint64',
-                },
-                **{
-                    field: dtype_map[typ]
-                    for (field, typ) in arg_fields
-                    if typ in dtype_map
-                },
-            }
-        )
-        df['Time'] /= 1e9
-
-        # Attempt to avoid getting duplicated index issues. We may still end up
-        # with the same timestamp for different events accross 2 dataframes,
-        # which could create an issue if someone somewhat joins them, and it
-        # can happen in practice but there isn't really any good solution here.
-        # Fixing that would require adding a new fixedup column to the DB.
-        df_update_duplicates(df, col='Time', inplace=True)
-        df = df.set_index('Time')
-
+        # Collect the data to expose to the caller that everything sits in
+        # memory
+        df = df.collect()
         return df
 
     def parse_event(self, event):
