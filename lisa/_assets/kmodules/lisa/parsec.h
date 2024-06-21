@@ -69,7 +69,7 @@ static inline parse_buffer charp2parse_buffer(char *s, void *private)
 }
 
 /**
- * charp2parse_buffer() - Copy a struct parse_buffer into a null-terminated string.
+ * parse_buffer2charp() - Copy a struct parse_buffer into a null-terminated string.
  * @src: Buffer to copy from.
  * @dst: Null terminated string to copy into.
  * @max: Maximum number of bytes to copy.
@@ -79,13 +79,36 @@ static inline parse_buffer charp2parse_buffer(char *s, void *private)
 static inline size_t parse_buffer2charp(parse_buffer *src, char *dst,
 					size_t max)
 {
+	// Ensure we always provide a null-terminated string, even if the
+	// buffer is empty.
+	if (max)
+		dst[0] = '\0';
+
 	size_t to_copy = min(max, src->size);
-	size_t to_zero = src->size < max ? src->size : max - 1;
+	size_t to_zero = min(to_copy, max - 1);
 	if (to_copy) {
 		memcpy(dst, src->data, to_copy);
 		dst[to_zero] = '\0';
 	}
 	return to_copy;
+}
+
+/**
+ * parse_buffer_strdup() - Copy the parse_buffer into a newly allocated string.
+ * @src: Buffer to copy from.
+ *
+ * The string string is guaranteed to be null-terminated.
+ */
+static inline char *parse_buffer_strdup(parse_buffer *src) {
+	size_t size = src->size + 1;
+	char *s = NULL;
+	if (size) {
+		s = kmalloc(size, GFP_KERNEL);
+		if (s) {
+			parse_buffer2charp(src, s, size);
+		}
+	}
+	return s;
 }
 
 /**
@@ -126,8 +149,11 @@ enum parse_result_tag {
  */
 DEFINE_PARSE_RESULT_TYPE(parse_buffer);
 DEFINE_PARSE_RESULT_TYPE(u8);
+DEFINE_PARSE_RESULT_TYPE(u64);
 DEFINE_PARSE_RESULT_TYPE(int);
 DEFINE_PARSE_RESULT_TYPE(ulong);
+typedef char *str;
+DEFINE_PARSE_RESULT_TYPE(str);
 
 /**
  * IS_SUCCESS() - Evaluates to true if the parse result is successful.
@@ -179,54 +205,69 @@ static inline PARSE_RESULT(parse_buffer)
 }
 
 static inline PARSE_RESULT(u8)
-	__parse_u8_in(parse_buffer *input, const char *allowed, bool revert)
+	__parse_u8_in(parse_buffer *input, const bool lookup[256], bool revert)
 {
+
 	if (input->size) {
 		u8 input_char = *input->data;
-		u8 c;
-		for (c = *allowed; c != '\0'; c = *allowed++) {
-			if (revert ? input_char != c : input_char == c) {
-				return (PARSE_RESULT(u8)){
-					.tag = PARSE_SUCCESS,
-					.remainder =
-						(parse_buffer){
-							.private = input->private,
-							.data = input->data + 1,
-							.size = input->size - 1,
-							.capacity =
-								input->capacity -
-								1 },
-					.value = c,
-				};
-			}
+		bool success = lookup[(size_t)input_char];
+		success = revert ? !success : success;
+		success = input_char == '\0' ? false : success;
+
+		if (success) {
+			return (PARSE_RESULT(u8)){
+				.tag = PARSE_SUCCESS,
+				.remainder =
+					(parse_buffer){
+						.private = input->private,
+						.data = input->data + 1,
+						.size = input->size - 1,
+						.capacity =
+							input->capacity -
+							1 },
+				.value = input_char,
+			};
 		}
 	}
 	return (PARSE_RESULT(u8)){ .tag = PARSE_FAILURE, .remainder = *input };
 }
 
-/**
- * parse_char_in() - Recognize one character of the set passed in @allowed.
- * @input: parse_buffer input to the parser.
- * @allowed: Null-terminated string containing the characters to recognize.
- */
-static inline PARSE_RESULT(u8)
-	parse_char_in(parse_buffer *input, const char *allowed)
-{
-	return __parse_u8_in(input, allowed, false);
+
+// Build the lookup table in a way that allows the compiler to optimize-out the
+// code so the table is initialized only once, given that the lookup table is
+// actually stored in a static variable. Clang is very good at optimizing this
+// out from experiments.
+static inline __attribute__((always_inline)) void __init_char_lookup(const char *allowed, bool lookup[256]) {
+	// Using strlen makes the pattern obvious to the compiler that
+	// is then able to optimize-out the loop.
+	size_t allowed_len = strlen(allowed);
+	for (size_t i=0; i < allowed_len; i++) {
+		lookup[(size_t)allowed[i]] = true;
+	}
 }
 
+
+#define __CHAR_IN(name, allowed, revert) \
+	static inline PARSE_RESULT(u8) name(parse_buffer *input) \
+	{ \
+		static bool lookup[256] = {0}; \
+		__init_char_lookup((allowed), lookup); \
+		return __parse_u8_in(input, lookup, (revert)); \
+	}
+
+
 /**
- * parse_char_not_in() - Recognize one character not part of the set passed in
- * @disallowed.
- * @input: parse_buffer input to the parser.
- * @disallowed: Null-terminated string containing the characters to not
- * recognize.
+ * CHAR_IN() - Recognize one character in the set passed in @allowed.
+ * @allowed: Null-terminated string containing the characters to recognize.
  */
-static inline PARSE_RESULT(u8)
-	parse_char_not_in(parse_buffer *input, const char *disallowed)
-{
-	return __parse_u8_in(input, disallowed, true);
-}
+#define CHAR_IN(name, allowed) __CHAR_IN(name, allowed, false)
+
+/**
+ * CHAR_NOT_IN() - Recognize one character not in the set passed in @allowed.
+ * @allowed: Null-terminated string containing the characters to not recognize.
+ */
+#define CHAR_NOT_IN(name, allowed) __CHAR_IN(name, allowed, true)
+
 
 static inline PARSE_RESULT(u8)
 	__parse_u8(parse_buffer *input, u8 c, bool revert)
@@ -355,6 +396,25 @@ static inline PARSE_RESULT(u8) parse_not_char(parse_buffer *input, u8 c)
 	}                                                                      \
 	MAP(f_type, parser_type, name, parser, __map_parse_buffer_##f)
 
+
+static inline char *__strdup(const char *src) {
+	if (src) {
+		size_t size = strlen(src) + 1;
+		char *dst = kmalloc(size, GFP_KERNEL);
+		if (dst)
+			memcpy(dst, src, size);
+		return dst;
+	} else {
+		return NULL;
+	}
+}
+
+/**
+ * STRDUP() - Transforms a parser returning a parse_buffer to a parser
+ * returning an char * allocated with kmalloc.
+ */
+#define STRDUP(name, parser) MAP_PARSE_BUFFER(str, parse_buffer, name, parser, __strdup)
+
 /**
  * PEEK() - Combinator that applies the parser but does not consume any input.
  * @type: Return type of the parser.
@@ -408,7 +468,7 @@ static inline PARSE_RESULT(u8) parse_not_char(parse_buffer *input, u8 c)
 /**
  * MANY() - Same as AT_LEAST() with n=0
  */
-#define MANY(type, name, parser, f) AT_LEAST(type, name, parser, f, 0)
+#define MANY(type, name, parser, f, ...) AT_LEAST(type, name, parser, f, 0, ##__VA_ARGS__)
 
 /**
  * TAKEWHILE_AT_LEAST() - Combinator that applies @parser at least @n times and
@@ -449,7 +509,7 @@ static inline PARSE_RESULT(u8) parse_not_char(parse_buffer *input, u8 c)
 		}                                                                          \
 	}
 /**
- * TAKEWHILE() - Same as TAKEWHILE_AT_LEAST() with n=1
+ * TAKEWHILE() - Same as TAKEWHILE_AT_LEAST() with n=0
  */
 #define TAKEWHILE(type, name, parser) TAKEWHILE_AT_LEAST(type, name, parser, 0)
 
@@ -576,12 +636,26 @@ static inline PARSE_RESULT(u8) parse_not_char(parse_buffer *input, u8 c)
 		};                                                             \
 	}
 
+/**
+ * DISCARD() - Discard the output of the given parser
+ * @parser_type: Return type of @parser.
+ * @name: Name of the new parser to create.
+ * @parser: Parser to wrap.
+ */
+#define DISCARD(parser_type, name, parser) RIGHT(parser_type, void_t, name, parser, parse_void)
+
 /*
  * Collection of common basic parsers.
  */
+typedef struct {
+	u8 __internal;
+} void_t;
+DEFINE_PARSE_RESULT_TYPE(void_t);
+PURE(void_t, parse_void, (void_t){0});
 
-APPLY(u8, parse_whitespace, parse_char_in, " \n\t");
-COUNT_MANY(u8, count_whitespaces, parse_whitespace);
+CHAR_IN(parse_whitespace, " \n\t");
+COUNT_MANY(u8, __count_whitespaces, parse_whitespace);
+DISCARD(int, consume_whitespaces, __count_whitespaces);
 
 static inline unsigned long __to_ulong(const char *s)
 {
@@ -591,8 +665,20 @@ static inline unsigned long __to_ulong(const char *s)
 	else
 		return res;
 }
-APPLY(u8, parse_digit, parse_char_in, "0123456789");
+
+static inline unsigned long __to_u64(const char *s)
+{
+	u64 res;
+	if (kstrtou64(s, 10, &res))
+		return 0;
+	else
+		return res;
+}
+
+CHAR_IN(parse_digit, "0123456789");
 TAKEWHILE_AT_LEAST(u8, parse_number_string, parse_digit, 1);
 MAP_PARSE_BUFFER(ulong, parse_buffer, parse_ulong, parse_number_string,
 		 __to_ulong);
+MAP_PARSE_BUFFER(u64, parse_buffer, parse_u64, parse_number_string,
+		 __to_u64);
 #endif

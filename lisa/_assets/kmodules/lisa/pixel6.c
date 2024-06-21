@@ -225,7 +225,7 @@ SEQUENCE(sample_t, parse_sample, ({
 	value;
 }))
 
-LEFT(sample_t, int, parse_sample_line, parse_sample, count_whitespaces)
+LEFT(sample_t, void_t, parse_sample_line, parse_sample, consume_whitespaces);
 
 static int process_sample(int nr, sample_t sample)
 {
@@ -244,7 +244,7 @@ SEQUENCE(int, parse_content, ({
 	/* t=12345 */
 	PARSE(parse_string, "t=");
 	PARSE(parse_number_string);
-	PARSE(count_whitespaces);
+	PARSE(consume_whitespaces);
 
 	/* Parse all the following sample lines */
 	PARSE(parse_all_samples, 0);
