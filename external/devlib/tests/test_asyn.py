@@ -470,6 +470,28 @@ def _do_test_run(top_run):
 
     test_async_cm4()
 
+    def test_async_cm5():
+        @asynccontextmanager
+        async def cm_f():
+            yield 42
+
+        cm = cm_f()
+        assert top_run(cm.__aenter__()) == 42
+        assert not top_run(cm.__aexit__(None, None, None))
+
+    test_async_cm5()
+
+    def test_async_gen1():
+        async def agen_f():
+            for i in range(2):
+                yield i
+
+        agen = agen_f()
+        assert top_run(anext(agen)) == 0
+        assert top_run(anext(agen)) == 1
+
+    test_async_gen1()
+
 
 def _test_in_thread(setup, test):
     def f():
@@ -491,13 +513,32 @@ def _test_run_with_setup(setup):
     def run_with_existing_loop2(coro):
         # This is similar to how things are executed on IPython/jupyterlab
         loop = asyncio.new_event_loop()
-        return loop.run_until_complete(coro)
+        x = loop.run_until_complete(coro)
+        loop.close()
+        return x
+
+    def run_with_to_thread(top_run, coro):
+        # Add a layer of asyncio.to_thread(), to simulate a case where users
+        # would be using the blocking API along with asyncio.to_thread() (code
+        # written before devlib gained async capabilities or wishing to
+        # preserve compat with older devlib versions)
+        async def wrapper():
+            return await asyncio.to_thread(
+                top_run, coro
+            )
+        return top_run(wrapper())
+
 
     runners = [
         run,
         asyncio.run,
         run_with_existing_loop,
         run_with_existing_loop2,
+
+        partial(run_with_to_thread, run),
+        partial(run_with_to_thread, asyncio.run),
+        partial(run_with_to_thread, run_with_existing_loop),
+        partial(run_with_to_thread, run_with_existing_loop2),
     ]
 
     for top_run in runners:

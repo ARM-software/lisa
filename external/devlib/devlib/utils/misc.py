@@ -842,8 +842,13 @@ class tls_property:
     def __delete__(self, instance):
         tls, values = self._get_tls(instance)
         with self.lock:
-            values.discard(tls.value)
-        del tls.value
+            try:
+                value = tls.value
+            except AttributeError:
+                pass
+            else:
+                values.discard(value)
+                del tls.value
 
     def _get_tls(self, instance):
         dct = instance.__dict__
