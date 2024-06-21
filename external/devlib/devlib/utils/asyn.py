@@ -392,7 +392,7 @@ class _AwaitableGenlet:
 
     def __await__(self):
         coro = self._coro
-        is_started = coro.cr_running
+        is_started = inspect.iscoroutine(coro) and coro.cr_running
 
         def genf():
             gen = _Genlet.from_coro(coro)
@@ -535,7 +535,7 @@ def run(coro):
     # Ensure we have a fresh coroutine. inspect.getcoroutinestate() does not
     # work on all objects that asyncio creates on some version of Python, such
     # as iterable_coroutine
-    assert not coro.cr_running
+    assert not (inspect.iscoroutine(coro) and coro.cr_running)
 
     try:
         loop = asyncio.get_running_loop()

@@ -2755,8 +2755,6 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
         # object, so that what the rest of the world will see is consistent
         # with the 'obj' key
         if register_deprecated_map:
-            # Make sure we don't accidentally override an existing entry
-            assert obj_name not in DEPRECATED_MAP
             DEPRECATED_MAP[obj_name] = {
                 'obj': return_obj,
                 'replaced_by': replaced_by,
