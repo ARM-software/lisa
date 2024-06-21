@@ -322,6 +322,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
             .reset_index()
             .set_index([col for col in kept_cols if col != 'properties'])
         )
+        df.index.name = 'phases'
 
         return df
 
