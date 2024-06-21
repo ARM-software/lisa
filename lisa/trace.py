@@ -3205,7 +3205,21 @@ class _WindowTraceView(_TraceViewBase):
         compress_signals_init=None,
     ):
         super().__init__(trace)
-        self._window = window
+
+        def fixup_window(window):
+            if window:
+                start, end = window
+                if start is not None:
+                    start = Timestamp(start, rounding='down')
+
+                if end is not None:
+                    end = Timestamp(end, rounding='up')
+
+                return (start, end)
+            else:
+                return None
+
+        self._window = fixup_window(window)
         self._signals = set(signals or [])
         self._compress_signals_init = compress_signals_init
 
