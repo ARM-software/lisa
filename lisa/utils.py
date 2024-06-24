@@ -3761,9 +3761,9 @@ class DirCache(Loggable):
     The cache is managed in a process-safe way, so that there can be no race
     between concurrent processes or threads.
     """
-    def __init__(self, category, populate):
+    def __init__(self, category, populate=None):
         self._base = Path(LISA_CACHE_HOME, category)
-        self._populate = populate
+        self._populate = populate or (lambda *args, **kwargs: None)
         self._category = category
 
     def get_key_token(self, key):
