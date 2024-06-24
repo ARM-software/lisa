@@ -5197,6 +5197,31 @@ class _Trace(Loggable, _InternalTraceBase):
         stack.enter_context(pl.StringCache())
 
         trace_path = str(trace_path) if trace_path else None
+        self.trace_path = trace_path
+
+        if parser is None:
+            if not trace_path:
+                raise ValueError('A trace path must be provided')
+
+            url = urlparse(trace_path)
+            scheme = url.scheme
+            if scheme == 'lisatrace':
+                parser = ClientTraceParser.from_trace_url(trace_path)
+            elif scheme in ('file', ''):
+                _, extension = os.path.splitext(url.path)
+
+                if extension == '.html':
+                    parser = SysTraceParser.from_html
+                elif extension == '.txt':
+                    parser = HRTxtTraceParser.from_txt_file
+                else:
+                    parser = TraceDumpTraceParser.from_dat
+        self._parser = parser
+
+        # No-op cache so that the cacheable metadata machinery does not fall
+        # over when querying the trace-id.
+        self._cache = _TraceCache()
+        trace_id = self._get_trace_id()
 
         if enable_swap:
             if trace_path and os.path.exists(trace_path):
@@ -5209,7 +5234,10 @@ class _Trace(Loggable, _InternalTraceBase):
                     try:
                         os.makedirs(swap_dir, exist_ok=True)
                     except OSError:
-                        swap_dir = None
+                        dir_cache = DirCache(
+                            category='trace_swap',
+                        )
+                        swap_dir = str(dir_cache.get_entry(trace_id))
 
                 if max_swap_size is None:
                     trace_size = os.stat(trace_path).st_size
@@ -5221,7 +5249,6 @@ class _Trace(Loggable, _InternalTraceBase):
             swap_dir = None
             max_swap_size = None
 
-        self.trace_path = trace_path
         self._parseable_events = {}
 
         if parser is None:
@@ -5257,10 +5284,6 @@ class _Trace(Loggable, _InternalTraceBase):
             plots_dir = os.path.dirname(trace_path)
         self.plots_dir = plots_dir
 
-        # No-op cache so that the cacheable metadata machinery does not fall
-        # over when querying the trace-id.
-        self._cache = _TraceCache()
-        trace_id = self._get_trace_id()
         cache = _TraceCache.from_swap_dir(
             trace_path=trace_path,
             swap_dir=swap_dir,

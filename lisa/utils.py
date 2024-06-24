@@ -3761,9 +3761,9 @@ class DirCache(Loggable):
     The cache is managed in a process-safe way, so that there can be no race
     between concurrent processes or threads.
     """
-    def __init__(self, category, populate):
+    def __init__(self, category, populate=None):
         self._base = Path(LISA_CACHE_HOME, category)
-        self._populate = populate
+        self._populate = populate or (lambda *args, **kwargs: None)
         self._category = category
 
     def get_key_token(self, key):
@@ -3860,13 +3860,24 @@ class DirCache(Loggable):
             logger.debug(f'Populating {self._category} cache at: {path}')
             base.mkdir(parents=True, exist_ok=True)
 
+            @contextlib.contextmanager
+            def temp_dir(base):
+                with tempfile.TemporaryDirectory(dir=base, delete=False) as path:
+                    delete = True
+                    def enable_cleanup(enable):
+                        nonlocal delete
+                        delete = enable
+
+                    try:
+                        yield (path, enable_cleanup)
+                    finally:
+                        if delete:
+                            shutil.rmtree(path)
+
             # Create the cache entry under a temp name, so we can
             # atomically rename it and fix races with other
             # processes
-            with contextlib.ExitStack() as stack:
-                temp_path = stack.enter_context(
-                    tempfile.TemporaryDirectory(dir=base)
-                )
+            with temp_dir(base) as (temp_path, enable_cleanup):
                 temp_path = Path(temp_path)
 
                 populated_path = self._populate(key, temp_path) or temp_path
@@ -3885,9 +3896,10 @@ class DirCache(Loggable):
                 except OSError:
                     log_found()
                 else:
-                    # Do not cleanup the temp_base, as it has been
-                    # renamed and cleanup would fail.
-                    stack.pop_all()
+                    if temp_path == populated_path:
+                        # Do not cleanup the temp_base, as it has been
+                        # renamed and cleanup would fail.
+                        enable_cleanup(False)
         else:
             log_found()
 
