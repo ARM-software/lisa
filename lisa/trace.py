@@ -5016,6 +5016,7 @@ class _Trace(Loggable, _InternalTraceBase):
     ):
         super().__init__()
         self._lock = threading.RLock()
+        self._parseable_events = {}
 
         stack = contextlib.ExitStack()
         self._cm_stack = stack
@@ -5083,8 +5084,6 @@ class _Trace(Loggable, _InternalTraceBase):
         else:
             swap_dir = None
             max_swap_size = None
-
-        self._parseable_events = {}
 
         if parser is None:
             if not trace_path:
