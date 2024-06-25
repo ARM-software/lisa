@@ -3862,17 +3862,20 @@ class DirCache(Loggable):
 
             @contextlib.contextmanager
             def temp_dir(base):
-                with tempfile.TemporaryDirectory(dir=base, delete=False) as path:
-                    delete = True
-                    def enable_cleanup(enable):
-                        nonlocal delete
-                        delete = enable
+                delete = True
+                def enable_cleanup(enable):
+                    nonlocal delete
+                    delete = enable
 
-                    try:
-                        yield (path, enable_cleanup)
-                    finally:
-                        if delete:
-                            shutil.rmtree(path)
+                path = None
+
+                try:
+                    path = tempfile.mkdtemp(dir=base)
+
+                    yield (path, enable_cleanup)
+                finally:
+                    if delete and path:
+                        shutil.rmtree(path)
 
             # Create the cache entry under a temp name, so we can
             # atomically rename it and fix races with other
