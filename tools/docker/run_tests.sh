@@ -37,5 +37,5 @@ echo "Waiting 30 seconds for Android virtual devices to finish boot up..."
 sleep 30
 
 cd /devlib
-cp -f tools/docker/target_configs.yaml tests/
+cp -f tools/docker/test_config.yml tests/
 python3 -m pytest --log-cli-level DEBUG ./tests/test_target.py
