@@ -1,4 +1,20 @@
-#! /usr/bin/env bash
+#!/usr/bin/env bash
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copyright (C) 2024, ARM Limited and contributors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 # Script to install the depenencies for LISA on an Ubuntu-like system.
 
@@ -29,91 +45,19 @@ test_os_release(){
 }
 
 lower_or_equal() {
-    local x=$(printf "$1" | sed 's/\.//2g')
-    local y=$(printf "$2" | sed 's/\.//2g')
-    [[ "$(printf "$x\n$y\n" | sort -g | head -1)" == "$x" ]]
+    local x
+    local y
+
+    x=$(printf "%s" "$1" | sed 's/\.//2g')
+    y=$(printf "%s" "$2" | sed 's/\.//2g')
+    [[ "$(printf "%s\n%s\n" "$x" "$y" | sort -g | head -1)" == "$x" ]]
 }
 
 LISA_HOME=${LISA_HOME:-$(dirname "${BASH_SOURCE[0]}")}
 cd "$LISA_HOME" || (echo "LISA_HOME ($LISA_HOME) does not exists" && exit 1)
 
 # Must be kept in sync with shell/lisa_shell
-ANDROID_HOME="$LISA_HOME/tools/android-sdk-linux/"
-ANDROID_SDK_ROOT="$ANDROID_HOME"
-mkdir -p "$ANDROID_HOME"
-
-# No need for the whole SDK for this one
-install_android_platform_tools() {
-    echo "Installing Android platform tools ..."
-
-    local url="https://dl.google.com/android/repository/platform-tools-latest-linux.zip"
-    local archive="$ANDROID_HOME/android-platform-tools.zip"
-
-    wget --no-verbose "$url" -O "$archive" &&
-    echo "Extracting $archive ..." &&
-    unzip -q -o "$archive" -d "$ANDROID_HOME"
-}
-
-cleanup_android_home() {
-    echo "Cleaning up Android SDK: $ANDROID_HOME"
-    rm -r "$ANDROID_HOME"
-    mkdir -p "$ANDROID_HOME"
-}
-
-install_android_sdk_manager() {
-    echo "Installing Android SDK manager ..."
-
-    # URL taken from "Command line tools only": https://developer.android.com/studio
-    # Used to be "https://dl.google.com/android/repository/commandlinetools-linux-7302050_latest.zip"
-    # Used to be "https://dl.google.com/android/repository/commandlinetools-linux-8092744_latest.zip"
-    # Used to be "https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip"
-    # Used to be "https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip"
-    local url="https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
-    local archive="$ANDROID_HOME/android-sdk-manager.zip"
-    rm "$archive" &>/dev/null
-
-    echo "Downloading Android SDK manager from: $url"
-    wget --no-verbose "$url" -O "$archive" &&
-    echo "Extracting $archive ..." &&
-    unzip -q -o "$archive" -d "$ANDROID_HOME"
-
-    yes | (call_android_sdkmanager --licenses || true)
-    call_android_sdkmanager --list
-}
-
-# Android SDK is picky on Java version, so we need to set JAVA_HOME manually.
-# In most distributions, Java is installed under /usr/lib/jvm so use that.
-# according to the distribution
-ANDROID_SDK_JAVA_VERSION=17
-find_java_home() {
-    _JAVA_BIN=$(find -L /usr/lib/jvm -path "*$ANDROID_SDK_JAVA_VERSION*/bin/java" -not -path '*/jre/bin/*' -print -quit)
-    _JAVA_HOME=$(dirname "$_JAVA_BIN")/../
-
-    echo "Found JAVA_HOME=$_JAVA_HOME"
-}
-
-call_android_sdk() {
-    # Used to be:
-    # local tool="$ANDROID_HOME/tools/bin/$1"
-    local tool="$ANDROID_HOME/cmdline-tools/bin/$1"
-    shift
-    echo "Using JAVA_HOME=$_JAVA_HOME for Android SDK" >&2
-    # Use grep to remove the progress bar, as there is no CLI option for the SDK
-    # manager to do that
-    JAVA_HOME=$_JAVA_HOME "$tool" "$@" | grep -v '\[='
-}
-
-call_android_sdkmanager() {
-    call_android_sdk sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "$@"
-}
-
-# Needs install_android_sdk_manager first
-install_android_tools() {
-    # We could use install_android_platform_tools here for platform-tools if the
-    # SDK starts being annoying
-    yes | call_android_sdkmanager --verbose --channel=0 --install "build-tools;34.0.0"
-    yes | call_android_sdkmanager --verbose --channel=0 --install "platform-tools"
-}
+export ANDROID_HOME="$LISA_HOME/tools/android-sdk-linux/"
 
 install_apt() {
     echo "Installing apt packages ..."
@@ -136,11 +80,12 @@ install_pacman() {
 }
 
 register_pip_extra_requirements() {
+    local content
     local requirements="$LISA_HOME/extra_requirements.txt"
     local devmode_requirements="$LISA_HOME/devmode_extra_requirements.txt"
 
     echo "Registering extra Python pip requirements in $requirements:"
-    local content=$(printf "%s\n" "${pip_extra_requirements[@]}")
+    content=$(printf "%s\n" "${pip_extra_requirements[@]}")
     printf "%s\n\n" "$content" | tee "$requirements"
 
     # All the requirements containing "./" are prefixed with "-e " to install
@@ -153,16 +98,11 @@ pip_extra_requirements=()
 
 # APT-based distributions like Ubuntu or Debian
 apt_packages=(
-    coreutils
     build-essential
+    coreutils
     git
-    openssh-client
-    sshpass
-    wget
-    rsync
-    unzip
-    qemu-user-static
     kernelshark
+    openssh-client
     python3
     # venv is not installed by default on Ubuntu, even though it is part of the
     # Python standard library
@@ -170,23 +110,20 @@ apt_packages=(
     python3-venv
     python3-tk
     python3-setuptools
+    qemu-user-static
 )
 
 # pacman-based distributions like Archlinux or its derivatives
 pacman_packages=(
+    base-devel
     coreutils
     git
-    rsync
+    kernelshark
     openssh
-    sshpass
-    base-devel
-    wget
-    unzip
-    qemu-user-static
     python
     python-pip
     python-setuptools
-    kernelshark
+    qemu-user-static
 )
 
 HOST_ARCH="$(uname -m)"
@@ -232,11 +169,9 @@ else
     echo "The package manager of distribution $(read_os_release NAME) is not supported, will only install distro-agnostic code"
 fi
 
-if [[ ! -z "$package_manager" ]] && ! test_os_release NAME "$expected_distro"; then
+if [[ -n "$package_manager" ]] && ! test_os_release NAME "$expected_distro"; then
     unsupported_distro=1
-    echo
-    echo "INFO: the distribution seems based on $package_manager but is not $expected_distro, some package names might not be right"
-    echo
+    echo -e "\nINFO: the distribution seems based on $package_manager but is not $expected_distro, some package names might not be right\n"
 else
     unsupported_distro=0
 fi
@@ -258,51 +193,33 @@ EOF
 }
 
 # Defaults to --install-all if no option is given
-if [[ -z "$@" ]]; then
+if [[ -z "$*" ]]; then
     args=("--install-all")
 else
-    args=($@)
+    args=("$@")
 fi
 
 # Use conditional fall-through ;;& to all matching all branches with
 # --install-all
+devlib_params=()
 for arg in "${args[@]}"; do
     # We need this flag since *) does not play well with fall-through ;;&
     handled=0
     case "$arg" in
 
-    "--cleanup-android-sdk")
-        install_functions+=(cleanup_android_home)
+    "--cleanup-android-sdk" | \
+    "--install-android-tools" | \
+    "--install-android-platform-tools" | \
+    "--install-all")
+        devlib_params+=(${arg})
         handled=1
-        ;;&
-
-    # TODO: remove --install-android-sdk, since it is only temporarily there to
-    # give some time to migrate CI scripts
-    "--install-android-sdk" | "--install-android-tools" | "--install-all")
-        install_functions+=(
-            find_java_home
-            install_android_sdk_manager # Needed by install_android_build_tools
-            install_android_tools
-        )
-        apt_packages+=(openjdk-$ANDROID_SDK_JAVA_VERSION-jre openjdk-$ANDROID_SDK_JAVA_VERSION-jdk)
-        pacman_packages+=(jre$ANDROID_SDK_JAVA_VERSION-openjdk jdk$ANDROID_SDK_JAVA_VERSION-openjdk)
-        handled=1;
-        ;;&
-
-    # Not part of --install-all since that is already satisfied by
-    # --install-android-tools The advantage of that method is that it does not
-    # require the Java JDK/JRE to be installed, and is a bit quicker. However,
-    # it will not provide the build-tools which are needed by devlib.
-    "--install-android-platform-tools")
-        install_functions+=(install_android_platform_tools)
-        handled=1;
         ;;&
 
     "--install-doc-extras" | "--install-all")
         apt_packages+=(plantuml graphviz pandoc)
         # plantuml can be installed from the AUR
         pacman_packages+=(graphviz pandoc)
-        handled=1;
+        handled=1
         ;;&
 
     # Requirement for LISA's self tests (in tests/ folder), not the synthetic
@@ -310,7 +227,7 @@ for arg in "${args[@]}"; do
     "--install-tests-extras" | "--install-all")
         apt_packages+=(clang)
         pacman_packages+=(clang)
-        handled=1;
+        handled=1
         ;;&
 
     "--install-toolchains" | "--install-all")
@@ -323,13 +240,13 @@ for arg in "${args[@]}"; do
         # gettext for autopoint
         pacman_packages+=(gettext autoconf libtool bison cmake)
 
-        handled=1;
+        handled=1
         ;;&
 
     "--install-vagrant" | "--install-all")
         # Only install the package if we are not already inside the VM to save
         # some install time
-        vm=$(systemd-detect-virt 2>/dev/null)
+        vm=$(systemd-detect-virt 2>/dev/null) || true
         if [[ $vm == 'oracle' ]] ; then
             echo "VirtualBox detected, not installing virtualbox apt packages" >&2
         elif [[ $HOST_ARCH == 'aarch64' ]]; then
@@ -339,12 +256,12 @@ for arg in "${args[@]}"; do
             pacman_packages+=(vagrant virtualbox virtualbox-host-dkms)
         fi
 
-        handled=1;
+        handled=1
         ;;&
 
     "--install-kernel-build-dependencies" | "--install-all")
         apt_packages+=(build-essential gcc bc bison flex libssl-dev libncurses5-dev libelf-dev)
-        handled=1;
+        handled=1
         ;;&
 
     "--install-bisector-dbus")
@@ -360,7 +277,7 @@ for arg in "${args[@]}"; do
         # plantuml can be installed from the AUR
         pacman_packages+=(gobject-introspection)
         pip_extra_requirements+=(./tools/bisector[dbus])
-        handled=1;
+        handled=1
         ;;&
 
     "--help")
@@ -384,27 +301,19 @@ ordered_functions=(
     # pre-requisites are there
     install_apt
     install_pacman
-
-    find_java_home
-    # cleanup must be done BEFORE installing
-    cleanup_android_home
-    install_android_sdk_manager # Needed by install_android_build_tools
-    install_android_tools
-    install_android_platform_tools
-
     register_pip_extra_requirements
 )
 
 # Remove duplicates in the list
+# shellcheck disable=SC2207
 install_functions=($(echo "${install_functions[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
 
 # Call all the hooks in the order of available_functions
 ret=0
 for _func in "${ordered_functions[@]}"; do
     for func in "${install_functions[@]}"; do
-        if [[ $func == $_func ]]; then
-            # If one hook returns non-zero, we keep going but return an overall failure
-            # code
+        if [[ $func == "$_func" ]]; then
+            # If one hook returns non-zero, we keep going but return an overall failure code.
             $func; _ret=$?
             if [[ $_ret != 0 ]]; then
                 ret=$_ret
@@ -415,7 +324,9 @@ for _func in "${ordered_functions[@]}"; do
         fi
     done
 done
+[[ ${ret} == 0 ]] || exit ${ret}
 
-exit $ret
+"${LISA_HOME}/external/devlib/tools/android/setup_host.sh" "${devlib_params[@]}"
+exit $?
 
 # vim: set tabstop=4 shiftwidth=4 textwidth=80 expandtab:
