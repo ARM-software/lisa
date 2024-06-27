@@ -15,11 +15,25 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Forked from https://github.com/ARM-software/lisa/blob/main/install_base.sh
-#
+
+# Script to install Android SDK tools for LISA & devlib on an Ubuntu-like
+# system and creates Android virtual devices.
 
 # shellcheck disable=SC2317
+
+if [[ -z ${ANDROID_HOME:-} ]]; then
+    ANDROID_HOME="$(dirname "${BASH_SOURCE[0]}")/android-sdk-linux"
+    export ANDROID_HOME
+fi
+export ANDROID_USER_HOME="${ANDROID_HOME}/.android"
+
+ANDROID_CMDLINE_VERSION=${ANDROID_CMDLINE_VERSION:-"11076708"}
+
+# Android SDK is picky on Java version, so we need to set JAVA_HOME manually.
+# In most distributions, Java is installed under /usr/lib/jvm so use that.
+# according to the distribution
+ANDROID_SDK_JAVA_VERSION=17
+
 
 # Read standard /etc/os-release file and extract the needed field lsb_release
 # binary is not installed on all distro, but that file is found pretty much
@@ -54,13 +68,15 @@ get_android_sdk_host_arch() {
     echo "${arch}"
 }
 
-ANDROID_HOME="$(dirname "${0}")/android-sdk-linux"
-export ANDROID_HOME
-export ANDROID_USER_HOME="${ANDROID_HOME}/.android"
+# No need for the whole SDK for this one
+install_android_platform_tools() {
+    echo "Installing Android Platform Tools ..."
 
-mkdir -p "${ANDROID_HOME}/cmdline-tools"
+    local url="https://dl.google.com/android/repository/platform-tools-latest-linux.zip"
 
-ANDROID_CMDLINE_VERSION=${ANDROID_CMDLINE_VERSION:-"11076708"}
+    echo "Downloading Android Platform Tools from: ${url}"
+    wget -qO- "${url}" | bsdtar -xf- -C "${ANDROID_HOME}/"
+}
 
 cleanup_android_home() {
     echo "Cleaning up Android SDK: ${ANDROID_HOME}"
@@ -85,15 +101,8 @@ install_android_sdk_manager() {
     chmod +x -R "${ANDROID_HOME}/cmdline-tools/latest/bin"
 
     yes | (call_android_sdkmanager --licenses || true)
-
-    echo "Creating the link to skins directory..."
-    readlink "${ANDROID_HOME}/skins" > /dev/null 2>&1 || ln -sf "../skins" "${ANDROID_HOME}/skins"
 }
 
-# Android SDK is picky on Java version, so we need to set JAVA_HOME manually.
-# In most distributions, Java is installed under /usr/lib/jvm so use that.
-# according to the distribution
-ANDROID_SDK_JAVA_VERSION=17
 find_java_home() {
     _JAVA_BIN=$(find -L /usr/lib/jvm -path "*${ANDROID_SDK_JAVA_VERSION}*/bin/java" -not -path '*/jre/bin/*' -print -quit)
     _JAVA_HOME=$(dirname "${_JAVA_BIN}")/../
@@ -115,15 +124,24 @@ call_android_avdmanager() {
     call_android_sdk avdmanager "$@"
 }
 
-# Needs install_android_sdk_manager first
-install_android_tools() {
-    local android_sdk_host_arch
-    android_sdk_host_arch=$(get_android_sdk_host_arch)
+install_build_tools() {
+    yes | call_android_sdkmanager --verbose --channel=0 --install "build-tools;34.0.0"
+}
 
+install_platform_tools() {
     yes | call_android_sdkmanager --verbose --channel=0 --install "platform-tools"
+}
+
+install_platforms() {
     yes | call_android_sdkmanager --verbose --channel=0 --install "platforms;android-31"
     yes | call_android_sdkmanager --verbose --channel=0 --install "platforms;android-33"
     yes | call_android_sdkmanager --verbose --channel=0 --install "platforms;android-34"
+}
+
+install_system_images() {
+    local android_sdk_host_arch
+    android_sdk_host_arch=$(get_android_sdk_host_arch)
+
     yes | call_android_sdkmanager --verbose --channel=0 --install "system-images;android-31;google_apis;${android_sdk_host_arch}"
     yes | call_android_sdkmanager --verbose --channel=0 --install "system-images;android-33;android-desktop;${android_sdk_host_arch}"
     yes | call_android_sdkmanager --verbose --channel=0 --install "system-images;android-34;google_apis;${android_sdk_host_arch}"
@@ -136,15 +154,15 @@ create_android_vds() {
     local vd_name
     vd_name="devlib-p6-12"
     echo "Creating virtual device \"${vd_name}\" (Pixel 6 - Android 12)..."
-    echo no | call_android_avdmanager -s create avd -n "${vd_name}" -k "system-images;android-31;google_apis;${android_sdk_host_arch}" --skin pixel_6 -b "${android_sdk_host_arch}" -f
+    echo no | call_android_avdmanager -s create avd -n "${vd_name}" -k "system-images;android-31;google_apis;${android_sdk_host_arch}" -b "${android_sdk_host_arch}" -f
 
     vd_name="devlib-p6-14"
     echo "Creating virtual device \"${vd_name}\" (Pixel 6 - Android 14)..."
-    echo no | call_android_avdmanager -s create avd -n "${vd_name}" -k "system-images;android-34;google_apis;${android_sdk_host_arch}" --skin pixel_6 -b "${android_sdk_host_arch}" -f
+    echo no | call_android_avdmanager -s create avd -n "${vd_name}" -k "system-images;android-34;google_apis;${android_sdk_host_arch}" -b "${android_sdk_host_arch}" -f
 
     vd_name="devlib-chromeos"
     echo "Creating virtual device \"${vd_name}\" (ChromeOS - Android 13, Pixel tablet)..."
-    echo no | call_android_avdmanager -s create avd -n "${vd_name}" -k "system-images;android-33;android-desktop;${android_sdk_host_arch}" --skin pixel_tablet -b "${android_sdk_host_arch}" -f
+    echo no | call_android_avdmanager -s create avd -n "${vd_name}" -k "system-images;android-33;android-desktop;${android_sdk_host_arch}" -b "${android_sdk_host_arch}" -f
 }
 
 install_apt() {
@@ -171,15 +189,16 @@ install_pacman() {
 apt_packages=(
     cpu-checker
     libarchive-tools
-    wget
-    unzip
     qemu-user-static
+    wget
 )
 
 # pacman-based distributions like Archlinux or its derivatives
 pacman_packages=(
+    coreutils
     libarchive
     qemu-user-static
+    wget
 )
 
 # Detection based on the package-manager, so that it works on derivatives of
@@ -198,9 +217,7 @@ fi
 
 if [[ -n "${package_manager}" ]] && ! test_os_release NAME "${expected_distro}"; then
     unsupported_distro=1
-    echo
-    echo "INFO: the distribution seems based on ${package_manager} but is not ${expected_distro}, some package names might not be right"
-    echo
+    echo -e "\nINFO: the distribution seems based on ${package_manager} but is not ${expected_distro}, some package names might not be right\n"
 else
     unsupported_distro=0
 fi
@@ -239,22 +256,34 @@ for arg in "${args[@]}"; do
         handled=1
         ;;&
 
+    # Not part of --install-all since that is already satisfied by
+    # --install-android-tools The advantage of that method is that it does not
+    # require the Java JDK/JRE to be installed, and is a bit quicker. However,
+    # it will not provide the build-tools which are needed by devlib.
+    "--install-android-platform-tools")
+        install_functions+=(install_android_platform_tools)
+        handled=1
+        ;;&
+
     "--install-android-tools" | "--install-all")
         install_functions+=(
             find_java_home
             install_android_sdk_manager
-            install_android_tools
+            install_build_tools
+            install_platform_tools
         )
         apt_packages+=(openjdk-"${ANDROID_SDK_JAVA_VERSION}"-jre openjdk-"${ANDROID_SDK_JAVA_VERSION}"-jdk)
         pacman_packages+=(jre"${ANDROID_SDK_JAVA_VERSION}"-openjdk jdk"${ANDROID_SDK_JAVA_VERSION}"-openjdk)
-        handled=1;
+        handled=1
         ;;&
 
     "--create-avds" | "--install-all")
         install_functions+=(
             find_java_home
             install_android_sdk_manager
-            install_android_tools
+            install_platform_tools
+            install_platforms
+            install_system_images
             create_android_vds
         )
         handled=1
@@ -286,13 +315,19 @@ ordered_functions=(
     # cleanup must be done BEFORE installing
     cleanup_android_home
     install_android_sdk_manager
-    install_android_tools
+    install_android_platform_tools
+    install_build_tools
+    install_platform_tools
+    install_platforms
+    install_system_images
     create_android_vds
 )
 
 # Remove duplicates in the list
 # shellcheck disable=SC2207
 install_functions=($(echo "${install_functions[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
+
+mkdir -p "${ANDROID_HOME}/cmdline-tools"
 
 # Call all the hooks in the order of available_functions
 ret=0

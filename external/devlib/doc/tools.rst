@@ -4,7 +4,7 @@ Tools
 Android
 -------
 
-``tools/android/install_base.sh`` script installs Android command line tools
+``tools/android/setup_host.sh`` script installs Android command line tools
 for Linux and creates Android Virtual Devices (AVD).
 
 The script creates ``android-sdk-linux`` directory under ``tools/android`` and
@@ -13,7 +13,7 @@ https://developer.android.com/tools/variables).
 
 Your ``ANDROID_USER_HOME`` and ``ANDROID_EMULATOR_HOME`` environment variables
 point to ``tools/android/android-sdk-linux/.android``. Hence, removing
-``android-sdk-linux`` folder will clean all artefacts of ``install_base.sh``.
+``android-sdk-linux`` folder will clean all artefacts of ``setup_host.sh``.
 
 It fetches Android command line tools, then installs Android SDK
 Platform-Tools, SDK Platform 31 (for Android 12) & 34 (for Android 14), and
@@ -93,7 +93,7 @@ tests for Android, Linux, LocalLinux, and QEMU targets.
 
 The Dockerfile forks from ``Ubuntu-22.04``, installs required system packages,
 checks out ``master`` branch of devlib, installs devlib, creates Android
-virtual devices via ``tools/android/install_base.sh``, and QEMU images for
+virtual devices via ``tools/android/setup_host.sh``, and QEMU images for
 aarch64 and x86_84 architectures.
 
 Version Android command line tools (``CMDLINE_VERSION``), buildroot
