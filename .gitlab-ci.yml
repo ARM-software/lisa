@@ -241,6 +241,8 @@ pages:
       export TMPDIR=$(readlink -f .)/tmp
       mkdir -p "$TMPDIR"
 
+      df -h .
+
     - |
       out="$(readlink -f .)/public"
 
