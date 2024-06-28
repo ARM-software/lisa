@@ -93,6 +93,13 @@ register_pip_extra_requirements() {
     printf "%s\n\n" "$(printf "%s" "$content" | sed '/.\//s/^/-e /')" > "$devmode_requirements"
 }
 
+devlib_setup_host() {
+    echo "devlib_params=${devlib_params[@]}"
+    if [ ${#devlib_params[@]} -ne 0 ]; then
+        "${LISA_HOME}/external/devlib/tools/android/setup_host.sh" "${devlib_params[@]}"
+    fi
+}
+
 # Extra Python pip requirements, to be installed by lisa-install
 pip_extra_requirements=()
 
@@ -209,11 +216,13 @@ for arg in "${args[@]}"; do
 
     "--cleanup-android-sdk" | "--install-android-platform-tools" )
         devlib_params+=(${arg})
+        install_functions+=(devlib_setup_host)
         handled=1
         ;;&
 
     "--install-android-tools" | "--install-all" )
         devlib_params+=("--install-android-tools")
+        install_functions+=(devlib_setup_host)
         handled=1
         ;;&
 
@@ -304,6 +313,7 @@ ordered_functions=(
     install_apt
     install_pacman
     register_pip_extra_requirements
+    devlib_setup_host
 )
 
 # Remove duplicates in the list
@@ -326,9 +336,6 @@ for _func in "${ordered_functions[@]}"; do
         fi
     done
 done
-[[ ${ret} == 0 ]] || exit ${ret}
-
-"${LISA_HOME}/external/devlib/tools/android/setup_host.sh" "${devlib_params[@]}"
-exit $?
+exit ${ret}
 
 # vim: set tabstop=4 shiftwidth=4 textwidth=80 expandtab:
