@@ -207,11 +207,13 @@ for arg in "${args[@]}"; do
     handled=0
     case "$arg" in
 
-    "--cleanup-android-sdk" | \
-    "--install-android-tools" | \
-    "--install-android-platform-tools" | \
-    "--install-all")
+    "--cleanup-android-sdk" | "--install-android-platform-tools" )
         devlib_params+=(${arg})
+        handled=1
+        ;;&
+
+    "--install-android-tools" | "--install-all" )
+        devlib_params+=("--install-android-tools")
         handled=1
         ;;&
 
