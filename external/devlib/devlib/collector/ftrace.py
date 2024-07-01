@@ -21,6 +21,7 @@ import subprocess
 import sys
 import contextlib
 from shlex import quote
+import signal
 
 from devlib.collector import (CollectorBase, CollectorOutput,
                               CollectorOutputEntry)
@@ -71,6 +72,7 @@ class FtraceCollector(CollectorBase):
                  report_on_target=False,
                  trace_clock='local',
                  saved_cmdlines_nr=4096,
+                 mode='write-to-memory',
                  ):
         super(FtraceCollector, self).__init__(target)
         self.events = events if events is not None else DEFAULT_EVENTS
@@ -98,6 +100,8 @@ class FtraceCollector(CollectorBase):
         self.trace_clock = trace_clock
         self.saved_cmdlines_nr = saved_cmdlines_nr
         self._reset_needed = True
+        self.mode = mode
+        self._bg_cmd = None
 
         # pylint: disable=bad-whitespace
         # Setup tracing paths
@@ -276,18 +280,33 @@ class FtraceCollector(CollectorBase):
         with contextlib.suppress(TargetStableError):
             self.target.write_value('/proc/sys/kernel/kptr_restrict', 0)
 
-        self.target.execute(
-            '{} start -B devlib {buffer_size} {cmdlines_size} {clock} {events} {tracer} {functions}'.format(
-                self.target_binary,
-                events=self.event_string,
-                tracer=tracer_string,
-                functions=tracecmd_functions,
-                buffer_size='-b {}'.format(self.buffer_size) if self.buffer_size is not None else '',
-                clock='-C {}'.format(self.trace_clock) if self.trace_clock else '',
-                cmdlines_size='--cmdlines-size {}'.format(self.saved_cmdlines_nr) if self.saved_cmdlines_nr is not None else '',
-            ),
-            as_root=True,
+        params = '-B devlib {buffer_size} {cmdlines_size} {clock} {events} {tracer} {functions}'.format(
+            events=self.event_string,
+            tracer=tracer_string,
+            functions=tracecmd_functions,
+            buffer_size='-b {}'.format(self.buffer_size) if self.buffer_size is not None else '',
+            clock='-C {}'.format(self.trace_clock) if self.trace_clock else '',
+            cmdlines_size='--cmdlines-size {}'.format(self.saved_cmdlines_nr) if self.saved_cmdlines_nr is not None else '',
         )
+
+        mode = self.mode
+        if mode == 'write-to-disk':
+            bg_cmd = self.target.background(
+                # cd into the working_directory first to workaround this issue:
+                # https://lore.kernel.org/linux-trace-devel/20240119162743.1a107fa9@gandalf.local.home/
+                f'cd {self.target.working_directory} && devlib-signal-target {self.target_binary} record -o {quote(self.target_output_file)} {params}',
+                as_root=True,
+            )
+            assert self._bg_cmd is None
+            self._bg_cmd = bg_cmd.__enter__()
+        elif mode == 'write-to-memory':
+            self.target.execute(
+                f'{self.target_binary} start {params}',
+                as_root=True,
+            )
+        else:
+            raise ValueError(f'Unknown mode {mode}')
+
         if self.automark:
             self.mark_start()
         if 'cpufreq' in self.target.modules:
@@ -322,8 +341,21 @@ class FtraceCollector(CollectorBase):
         self.stop_time = time.time()
         if self.automark:
             self.mark_stop()
-        self.target.execute('{} stop -B devlib'.format(self.target_binary),
-                            timeout=TIMEOUT, as_root=True)
+
+        mode = self.mode
+        if mode == 'write-to-disk':
+            bg_cmd = self._bg_cmd
+            self._bg_cmd = None
+            assert bg_cmd is not None
+            bg_cmd.send_signal(signal.SIGINT)
+            bg_cmd.communicate()
+            bg_cmd.__exit__(None, None, None)
+        elif mode == 'write-to-memory':
+            self.target.execute('{} stop -B devlib'.format(self.target_binary),
+                                timeout=TIMEOUT, as_root=True)
+        else:
+            raise ValueError(f'Unknown mode {mode}')
+
         self._reset_needed = True
 
     def set_output(self, output_path):
@@ -334,9 +366,18 @@ class FtraceCollector(CollectorBase):
     def get_data(self):
         if self.output_path is None:
             raise RuntimeError("Output path was not set.")
-        self.target.execute('{0} extract -B devlib -o {1}; chmod 666 {1}'.format(self.target_binary,
-                                                                       self.target_output_file),
-                            timeout=TIMEOUT, as_root=True)
+
+        busybox = quote(self.target.busybox)
+
+        mode = self.mode
+        if mode == 'write-to-disk':
+            # Interrupting trace-cmd record will make it create the file
+            pass
+        elif mode == 'write-to-memory':
+            cmd = f'{self.target_binary} extract -B devlib -o {self.target_output_file} && {busybox} chmod 666 {self.target_output_file}'
+            self.target.execute(cmd, timeout=TIMEOUT, as_root=True)
+        else:
+            raise ValueError(f'Unknown mode {mode}')
 
         # The size of trace.dat will depend on how long trace-cmd was running.
         # Therefore timout for the pull command must also be adjusted

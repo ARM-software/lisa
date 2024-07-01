@@ -17,6 +17,7 @@ from abc import ABC, abstractmethod
 from contextlib import contextmanager, nullcontext
 from shlex import quote
 import os
+from pathlib import Path
 import signal
 import subprocess
 import threading
@@ -25,13 +26,10 @@ import logging
 import select
 import fcntl
 
-from devlib.utils.misc import InitCheckpoint
+from devlib.utils.misc import InitCheckpoint, memoized
 
 _KILL_TIMEOUT = 3
 
-
-def _kill_pgid_cmd(pgid, sig, busybox):
-    return '{} kill -{} -{}'.format(busybox, sig.value, pgid)
 
 def _popen_communicate(bg, popen, input, timeout):
     try:
@@ -130,8 +128,11 @@ class BackgroundCommand(ABC):
     semantic as :class:`subprocess.Popen`.
     """
 
-    def __init__(self, conn):
+    def __init__(self, conn, data_dir, cmd, as_root):
         self.conn = conn
+        self._data_dir = data_dir
+        self.as_root = as_root
+        self.cmd = cmd
 
         # Poll currently opened background commands on that connection to make
         # them deregister themselves if they are completed. This avoids
@@ -147,15 +148,65 @@ class BackgroundCommand(ABC):
 
         conn._current_bg_cmds.add(self)
 
+    @classmethod
+    def from_factory(cls, conn, cmd, as_root, make_init_kwargs):
+        cmd, data_dir = cls._with_data_dir(conn, cmd)
+        return cls(
+            conn=conn,
+            data_dir=data_dir,
+            cmd=cmd,
+            as_root=as_root,
+            **make_init_kwargs(cmd),
+        )
+
     def _deregister(self):
         try:
             self.conn._current_bg_cmds.remove(self)
         except KeyError:
             pass
 
-    @abstractmethod
-    def _send_signal(self, sig):
-        pass
+    @property
+    def _pid_file(self):
+        return str(Path(self._data_dir, 'pid'))
+
+    @property
+    @memoized
+    def _targeted_pid(self):
+        """
+        PID of the process pointed at by ``devlib-signal-target`` command.
+        """
+        path = quote(self._pid_file)
+        busybox = quote(self.conn.busybox)
+
+        def execute(cmd):
+            return self.conn.execute(cmd, as_root=self.as_root)
+
+        while self.poll() is None:
+            try:
+                pid = execute(f'{busybox} cat {path}')
+            except subprocess.CalledProcessError:
+                time.sleep(0.01)
+            else:
+                if pid.endswith('\n'):
+                    return int(pid.strip())
+                else:
+                    # We got a partial write in the PID file
+                    continue
+
+        raise ValueError(f'The background commmand did not use devlib-signal-target wrapper to designate which command should be the target of signals')
+
+    @classmethod
+    def _with_data_dir(cls, conn, cmd):
+        busybox = quote(conn.busybox)
+        data_dir = conn.execute(f'{busybox} mktemp -d').strip()
+        cmd = f'_DEVLIB_BG_CMD_DATA_DIR={data_dir} exec {busybox} sh -c {quote(cmd)}'
+        return cmd, data_dir
+
+    def _cleanup_data_dir(self):
+        path = quote(self._data_dir)
+        busybox = quote(self.conn.busybox)
+        cmd = f'{busybox} rm -r {path} || true'
+        self.conn.execute(cmd, as_root=self.as_root)
 
     def send_signal(self, sig):
         """
@@ -165,8 +216,29 @@ class BackgroundCommand(ABC):
         :param signal: Signal to send.
         :type signal: signal.Signals
         """
+
+        def execute(cmd):
+            return self.conn.execute(cmd, as_root=self.as_root)
+
+        def send(sig):
+            busybox = quote(self.conn.busybox)
+            # If the command has already completed, we don't want to send a
+            # signal to another process that might have gotten that PID in the
+            # meantime.
+            if self.poll() is None:
+                if sig in (signal.SIGTERM, signal.SIGQUIT, signal.SIGKILL):
+                    # Use -PGID to target a process group rather than just the
+                    # process itself. This will work in any condition and will
+                    # not require cooperation from the command.
+                    execute(f'{busybox} kill -{sig.value} -{self.pid}')
+                else:
+                    # Other signals require cooperation from the shell command
+                    # so that it points to a specific process using
+                    # devlib-signal-target
+                    pid = self._targeted_pid
+                    execute(f'{busybox} kill -{sig.value} {pid}')
         try:
-            return self._send_signal(sig)
+            return send(sig)
         finally:
             # Deregister if the command has finished
             self.poll()
@@ -287,6 +359,7 @@ class BackgroundCommand(ABC):
             return self._close()
         finally:
             self._deregister()
+            self._cleanup_data_dir()
 
     def __enter__(self):
         return self
@@ -300,12 +373,14 @@ class PopenBackgroundCommand(BackgroundCommand):
     :class:`subprocess.Popen`-based background command.
     """
 
-    def __init__(self, conn, popen):
-        super().__init__(conn=conn)
+    def __init__(self, conn, data_dir, cmd, as_root, popen):
+        super().__init__(
+            conn=conn,
+            data_dir=data_dir,
+            cmd=cmd,
+            as_root=as_root,
+        )
         self.popen = popen
-
-    def _send_signal(self, sig):
-        return os.killpg(self.popen.pid, sig)
 
     @property
     def stdin(self):
@@ -354,26 +429,20 @@ class ParamikoBackgroundCommand(BackgroundCommand):
     """
     :mod:`paramiko`-based background command.
     """
-    def __init__(self, conn, chan, pid, as_root, cmd, stdin, stdout, stderr, redirect_thread):
-        super().__init__(conn=conn)
+    def __init__(self, conn, data_dir, cmd, as_root, chan, pid, stdin, stdout, stderr, redirect_thread):
+        super().__init__(
+            conn=conn,
+            data_dir=data_dir,
+            cmd=cmd,
+            as_root=as_root,
+        )
+
         self.chan = chan
-        self.as_root = as_root
         self._pid = pid
         self._stdin = stdin
         self._stdout = stdout
         self._stderr = stderr
         self.redirect_thread = redirect_thread
-        self.cmd = cmd
-
-    def _send_signal(self, sig):
-        # If the command has already completed, we don't want to send a signal
-        # to another process that might have gotten that PID in the meantime.
-        if self.poll() is not None:
-            return
-        # Use -PGID to target a process group rather than just the process
-        # itself
-        cmd = _kill_pgid_cmd(self.pid, sig, self.conn.busybox)
-        self.conn.execute(cmd, as_root=self.as_root)
 
     @property
     def pid(self):
@@ -517,17 +586,15 @@ class AdbBackgroundCommand(BackgroundCommand):
     ``adb``-based background command.
     """
 
-    def __init__(self, conn, adb_popen, pid, as_root):
-        super().__init__(conn=conn)
-        self.as_root = as_root
+    def __init__(self, conn, data_dir, cmd, as_root, adb_popen, pid):
+        super().__init__(
+            conn=conn,
+            data_dir=data_dir,
+            cmd=cmd,
+            as_root=as_root,
+        )
         self.adb_popen = adb_popen
         self._pid = pid
-
-    def _send_signal(self, sig):
-        self.conn.execute(
-            _kill_pgid_cmd(self.pid, sig, self.conn.busybox),
-            as_root=self.as_root,
-        )
 
     @property
     def stdin(self):
@@ -638,7 +705,7 @@ class TransferHandleBase(ABC):
 
 
 class PopenTransferHandle(TransferHandleBase):
-    def __init__(self, bg_cmd, dest, direction, *args, **kwargs):
+    def __init__(self, popen, dest, direction, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         if direction == 'push':
@@ -650,7 +717,7 @@ class PopenTransferHandle(TransferHandleBase):
 
         self.sample_size = lambda: sample_size(dest)
 
-        self.bg_cmd = bg_cmd
+        self.popen = popen
         self.last_sample = 0
 
     @staticmethod
@@ -671,7 +738,7 @@ class PopenTransferHandle(TransferHandleBase):
         return int(out.split()[0])
 
     def cancel(self):
-        self.bg_cmd.cancel()
+        self.popen.terminate()
 
     def isactive(self):
         try:
