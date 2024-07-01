@@ -281,7 +281,7 @@ class Target(object):
     @property
     def shutils(self):
         if self._shutils is None:
-            self._setup_shutils()
+            self._setup_scripts()
         return self._shutils
 
     def is_running(self, comm):
@@ -588,7 +588,7 @@ class Target(object):
 
     @asyn.asyncf
     async def setup(self, executables=None):
-        await self._setup_shutils.asyn()
+        await self._setup_scripts.asyn()
 
         for host_exe in (executables or []):  # pylint: disable=superfluous-parens
             await self.install.asyn(host_exe)
@@ -1559,8 +1559,9 @@ fi
     # internal methods
 
     @asyn.asyncf
-    async def _setup_shutils(self):
-        shutils_ifile = os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts', 'shutils.in')
+    async def _setup_scripts(self):
+        scripts = os.path.join(PACKAGE_BIN_DIRECTORY, 'scripts')
+        shutils_ifile = os.path.join(scripts, 'shutils.in')
         with open(shutils_ifile) as fh:
             lines = fh.readlines()
         with tempfile.TemporaryDirectory() as folder:
@@ -1570,6 +1571,8 @@ fi
                     line = line.replace("__DEVLIB_BUSYBOX__", self.busybox)
                     ofile.write(line)
             self._shutils = await self.install.asyn(shutils_ofile)
+
+        await self.install.asyn(os.path.join(scripts, 'devlib-signal-target'))
 
     @asyn.asyncf
     @call_conn

@@ -145,16 +145,25 @@ class LocalConnection(ConnectionBase):
         def preexec_fn():
             os.setpgrp()
 
-        popen = subprocess.Popen(
-            command,
-            stdout=stdout,
-            stderr=stderr,
-            stdin=subprocess.PIPE,
-            shell=True,
-            preexec_fn=preexec_fn,
+        def make_init_kwargs(command):
+            popen = subprocess.Popen(
+                command,
+                stdout=stdout,
+                stderr=stderr,
+                stdin=subprocess.PIPE,
+                shell=True,
+                preexec_fn=preexec_fn,
+            )
+            return dict(
+                popen=popen,
+            )
+
+        return PopenBackgroundCommand.from_factory(
+            conn=self,
+            cmd=command,
+            as_root=as_root,
+            make_init_kwargs=make_init_kwargs,
         )
-        bg_cmd = PopenBackgroundCommand(self, popen)
-        return bg_cmd
 
     def _close(self):
         pass
