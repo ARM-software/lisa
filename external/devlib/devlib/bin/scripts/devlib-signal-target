@@ -1,0 +1,20 @@
+(
+    # If there is no data dir, it means we are not running as a background
+    # command so we just do nothing
+    if [ -e "$_DEVLIB_BG_CMD_DATA_DIR" ]; then
+        pid_file="$_DEVLIB_BG_CMD_DATA_DIR/pid"
+        # Atomically check if the PID file already exist and make the write
+        # fail if it already does. This way we don't have any race condition
+        # with the Python API, as there is either no PID or the same PID for
+        # the duration of the command
+        set -o noclobber
+        if ! printf "%u\n" $$ > "$pid_file"; then
+            echo "$0 was already called for this command" >&2
+            exit 1
+        fi
+    fi
+) || exit $?
+
+# Use exec so that the PID of the command we run is the same as the current $$
+# PID that we just registered
+exec "$@"

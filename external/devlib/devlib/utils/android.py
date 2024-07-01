@@ -40,7 +40,7 @@ from shlex import quote
 
 from devlib.exception import TargetTransientError, TargetStableError, HostError, TargetTransientCalledProcessError, TargetStableCalledProcessError, AdbRootError
 from devlib.utils.misc import check_output, which, ABI_MAP, redirect_streams, get_subprocess
-from devlib.connection import ConnectionBase, AdbBackgroundCommand, PopenBackgroundCommand, PopenTransferHandle
+from devlib.connection import ConnectionBase, AdbBackgroundCommand, PopenTransferHandle
 
 
 logger = logging.getLogger('android')
@@ -340,7 +340,7 @@ class AdbConnection(ConnectionBase):
         if timeout:
             adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server, adb_port=self.adb_port)
         else:
-            bg_cmd = adb_command_background(
+            popen = adb_command_popen(
                 device=self.device,
                 conn=self,
                 command=command,
@@ -350,12 +350,12 @@ class AdbConnection(ConnectionBase):
 
             handle = PopenTransferHandle(
                 manager=self.transfer_manager,
-                bg_cmd=bg_cmd,
+                popen=popen,
                 dest=dest,
                 direction=action
             )
-            with bg_cmd, self.transfer_manager.manage(sources, dest, action, handle):
-                bg_cmd.communicate()
+            with popen, self.transfer_manager.manage(sources, dest, action, handle):
+                popen.communicate()
 
     # pylint: disable=unused-argument
     def execute(self, command, timeout=None, check_exit_code=False,
@@ -386,12 +386,18 @@ class AdbConnection(ConnectionBase):
         return bg_cmd
 
     def _background(self, command, stdout, stderr, as_root):
-        adb_shell, pid = adb_background_shell(self, command, stdout, stderr, as_root)
-        bg_cmd = AdbBackgroundCommand(
+        def make_init_kwargs(command):
+            adb_popen, pid = adb_background_shell(self, command, stdout, stderr, as_root)
+            return dict(
+                adb_popen=adb_popen,
+                pid=pid,
+            )
+
+        bg_cmd = AdbBackgroundCommand.from_factory(
             conn=self,
-            adb_popen=adb_shell,
-            pid=pid,
-            as_root=as_root
+            cmd=command,
+            as_root=as_root,
+            make_init_kwargs=make_init_kwargs,
         )
         return bg_cmd
 
@@ -748,12 +754,11 @@ def adb_command(device, command, timeout=None, adb_server=None, adb_port=None):
     return output
 
 
-def adb_command_background(device, conn, command, adb_server=None, adb_port=None):
-    full_command = get_adb_command(device, command, adb_server, adb_port)
-    logger.debug(full_command)
-    popen = get_subprocess(full_command, shell=True)
-    cmd = PopenBackgroundCommand(conn=conn, popen=popen)
-    return cmd
+def adb_command_popen(device, conn, command, adb_server=None, adb_port=None):
+    command = get_adb_command(device, command, adb_server, adb_port)
+    logger.debug(command)
+    popen = get_subprocess(command, shell=True)
+    return popen
 
 
 def grant_app_permissions(target, package):
