@@ -236,7 +236,7 @@ NO_INDEX = _NoIndex()
 
 
 def _polars_index_col(df, index=None):
-    columns = df.columns
+    columns = df.collect_schema().names()
 
     if index is NO_INDEX:
         return None
@@ -252,7 +252,8 @@ def _df_to_polars(df, index):
     if isinstance(df, pl.LazyFrame):
         index = _polars_index_col(df, index)
         if index is not None:
-            dtype = df.schema[index]
+            schema = df.collect_schema()
+            dtype = schema[index]
             # This skips a useless cast, saving some time on the common path
             if index == 'Time':
                 if dtype != pl.Duration('ns'):
@@ -270,7 +271,7 @@ def _df_to_polars(df, index):
                     )
 
             # Make the index column the first one
-            df = df.select(order_as(list(df.columns), [index]))
+            df = df.select(order_as(list(df.collect_schema().names()), [index]))
     # TODO: once this is solved, we can just inspect the plan and see if the
     # data is backed by a "DataFrameScan" instead of a "Scan" of a file:
     # https://github.com/pola-rs/polars/issues/9771
@@ -297,7 +298,8 @@ def _df_to_pandas(df, index):
         assert isinstance(df, pl.LazyFrame)
         index = _polars_index_col(df, index)
 
-        has_time_index = index == 'Time' and df.schema[index].is_temporal()
+        schema = df.collect_schema()
+        has_time_index = index == 'Time' and schema[index].is_temporal()
         if has_time_index:
             df = df.with_columns(
                 pl.col(index).dt.total_nanoseconds() * 1e-9
@@ -1364,7 +1366,8 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
 
 def _polars_window_signals(df, window, signals, compress_init):
     index = _polars_index_col(df, index='Time')
-    assert df.schema[index].is_temporal()
+    schema = df.collect_schema()
+    assert schema[index].is_temporal()
 
     start, stop = window
     start = _polars_duration_expr(start, rounding='down')
