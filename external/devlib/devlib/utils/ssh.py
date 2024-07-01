@@ -586,138 +586,142 @@ class SshConnection(SshConnectionBase):
             return self._background(command, stdout, stderr, as_root)
 
     def _background(self, command, stdout, stderr, as_root):
-        orig_command = command
-        stdout, stderr, command = redirect_streams(stdout, stderr, command)
+        def make_init_kwargs(command):
+            _stdout, _stderr, _command = redirect_streams(stdout, stderr, command)
 
-        command = "printf '%s\n' $$; exec sh -c {}".format(quote(command))
-        channel = self._make_channel()
+            _command = "printf '%s\n' $$; exec sh -c {}".format(quote(_command))
+            channel = self._make_channel()
 
-        def executor(cmd, timeout):
-            channel.exec_command(cmd)
-            # Read are not buffered so we will always get the data as soon as
-            # they arrive
-            return (
-                channel.makefile_stdin('w', 0),
-                channel.makefile(),
-                channel.makefile_stderr(),
+            def executor(cmd, timeout):
+                channel.exec_command(cmd)
+                # Read are not buffered so we will always get the data as soon as
+                # they arrive
+                return (
+                    channel.makefile_stdin('w', 0),
+                    channel.makefile(),
+                    channel.makefile_stderr(),
+                )
+
+            stdin, stdout_in, stderr_in = self._execute_command(
+                _command,
+                as_root=as_root,
+                log=False,
+                timeout=None,
+                executor=executor,
             )
+            pid = stdout_in.readline()
+            if not pid:
+                _stderr = stderr_in.read()
+                if channel.exit_status_ready():
+                    ret = channel.recv_exit_status()
+                else:
+                    ret = 126
+                raise subprocess.CalledProcessError(
+                    ret,
+                    _command,
+                    b'',
+                    _stderr,
+                )
+            pid = int(pid)
 
-        stdin, stdout_in, stderr_in = self._execute_command(
-            command,
-            as_root=as_root,
-            log=False,
-            timeout=None,
-            executor=executor,
-        )
-        pid = stdout_in.readline()
-        if not pid:
-            stderr = stderr_in.read()
-            if channel.exit_status_ready():
-                ret = channel.recv_exit_status()
-            else:
-                ret = 126
-            raise subprocess.CalledProcessError(
-                ret,
-                command,
-                b'',
-                stderr,
-            )
-        pid = int(pid)
+            def create_out_stream(stream_in, stream_out):
+                """
+                Create a pair of file-like objects. The first one is used to read
+                data and the second one to write.
+                """
 
-        def create_out_stream(stream_in, stream_out):
-            """
-            Create a pair of file-like objects. The first one is used to read
-            data and the second one to write.
-            """
+                if stream_out == subprocess.DEVNULL:
+                    r, w = None, None
+                # When asked for a pipe, we just give the file-like object as the
+                # reading end and no writing end, since paramiko already writes to
+                # it
+                elif stream_out == subprocess.PIPE:
+                    r, w = os.pipe()
+                    r = os.fdopen(r, 'rb')
+                    w = os.fdopen(w, 'wb')
+                # Turn a file descriptor into a file-like object
+                elif isinstance(stream_out, int) and stream_out >= 0:
+                    r = os.fdopen(stream_in, 'rb')
+                    w = os.fdopen(stream_out, 'wb')
+                # file-like object
+                else:
+                    r = stream_in
+                    w = stream_out
 
-            if stream_out == subprocess.DEVNULL:
-                r, w = None, None
-            # When asked for a pipe, we just give the file-like object as the
-            # reading end and no writing end, since paramiko already writes to
-            # it
-            elif stream_out == subprocess.PIPE:
-                r, w = os.pipe()
-                r = os.fdopen(r, 'rb')
-                w = os.fdopen(w, 'wb')
-            # Turn a file descriptor into a file-like object
-            elif isinstance(stream_out, int) and stream_out >= 0:
-                r = os.fdopen(stream_in, 'rb')
-                w = os.fdopen(stream_out, 'wb')
-            # file-like object
-            else:
-                r = stream_in
-                w = stream_out
+                return (r, w)
 
-            return (r, w)
+            out_streams = {
+                name: create_out_stream(stream_in, stream_out)
+                for stream_in, stream_out, name in (
+                    (stdout_in, _stdout, 'stdout'),
+                    (stderr_in, _stderr, 'stderr'),
+                )
+            }
 
-        out_streams = {
-            name: create_out_stream(stream_in, stream_out)
-            for stream_in, stream_out, name in (
-                (stdout_in, stdout, 'stdout'),
-                (stderr_in, stderr, 'stderr'),
-            )
-        }
+            def redirect_thread_f(stdout_in, stderr_in, out_streams, select_timeout):
+                def callback(out_streams, name, chunk):
+                    try:
+                        r, w = out_streams[name]
+                    except KeyError:
+                        return out_streams
 
-        def redirect_thread_f(stdout_in, stderr_in, out_streams, select_timeout):
-            def callback(out_streams, name, chunk):
-                try:
-                    r, w = out_streams[name]
-                except KeyError:
+                    try:
+                        w.write(chunk)
+                    # Write failed
+                    except ValueError:
+                        # Since that stream is now closed, stop trying to write to it
+                        del out_streams[name]
+                        # If that was the last open stream, we raise an
+                        # exception so the thread can terminate.
+                        if not out_streams:
+                            raise
+
                     return out_streams
 
                 try:
-                    w.write(chunk)
-                # Write failed
+                    _read_paramiko_streams(stdout_in, stderr_in, select_timeout, callback, copy.copy(out_streams))
+                # The streams closed while we were writing to it, the job is done here
                 except ValueError:
-                    # Since that stream is now closed, stop trying to write to it
-                    del out_streams[name]
-                    # If that was the last open stream, we raise an
-                    # exception so the thread can terminate.
-                    if not out_streams:
-                        raise
+                    pass
 
-                return out_streams
+                # Make sure the writing end are closed proper since we are not
+                # going to write anything anymore
+                for r, w in out_streams.values():
+                    w.flush()
+                    if r is not w and w is not None:
+                        w.close()
 
-            try:
-                _read_paramiko_streams(stdout_in, stderr_in, select_timeout, callback, copy.copy(out_streams))
-            # The streams closed while we were writing to it, the job is done here
-            except ValueError:
-                pass
+            # If there is anything we need to redirect to, spawn a thread taking
+            # care of that
+            select_timeout = 1
+            thread_out_streams = {
+                name: (r, w)
+                for name, (r, w) in out_streams.items()
+                if w is not None
+            }
+            redirect_thread = threading.Thread(
+                target=redirect_thread_f,
+                args=(stdout_in, stderr_in, thread_out_streams, select_timeout),
+                # The thread will die when the main thread dies
+                daemon=True,
+            )
+            redirect_thread.start()
 
-            # Make sure the writing end are closed proper since we are not
-            # going to write anything anymore
-            for r, w in out_streams.values():
-                w.flush()
-                if r is not w and w is not None:
-                    w.close()
+            return dict(
+                chan=channel,
+                pid=pid,
+                stdin=stdin,
+                # We give the reading end to the consumer of the data
+                stdout=out_streams['stdout'][0],
+                stderr=out_streams['stderr'][0],
+                redirect_thread=redirect_thread,
+            )
 
-        # If there is anything we need to redirect to, spawn a thread taking
-        # care of that
-        select_timeout = 1
-        thread_out_streams = {
-            name: (r, w)
-            for name, (r, w) in out_streams.items()
-            if w is not None
-        }
-        redirect_thread = threading.Thread(
-            target=redirect_thread_f,
-            args=(stdout_in, stderr_in, thread_out_streams, select_timeout),
-            # The thread will die when the main thread dies
-            daemon=True,
-        )
-        redirect_thread.start()
-
-        return ParamikoBackgroundCommand(
+        return ParamikoBackgroundCommand.from_factory(
             conn=self,
+            cmd=command,
             as_root=as_root,
-            chan=channel,
-            pid=pid,
-            stdin=stdin,
-            # We give the reading end to the consumer of the data
-            stdout=out_streams['stdout'][0],
-            stderr=out_streams['stderr'][0],
-            redirect_thread=redirect_thread,
-            cmd=orig_command,
+            make_init_kwargs=make_init_kwargs,
         )
 
     def _close(self):
