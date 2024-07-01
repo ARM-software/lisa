@@ -7,15 +7,22 @@
 rebase-conf:
     rr-cache: ./rr-cache
     base:
-        remote: github
+        remote: upstream
         ref: master
 
     topics:
         -
-            remote: github
+            remote: douglas
             base: master
-            tip: async
+            tip: fix_nest_asyncio
+
+        -
+            remote: douglas
+            base: master
+            tip: fix_signals
 
     remotes:
-        github:
+        upstream:
+          url: https://github.com/ARM-Software/devlib.git
+        douglas:
           url: https://github.com/douglas-raillard-arm/devlib.git
