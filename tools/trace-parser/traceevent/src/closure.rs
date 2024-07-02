@@ -14,6 +14,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Collection of closure-related utils to work around the HRTB inference issues in current Rust.
+//! Hopefully one day this can be removed.
+
 macro_rules! make_closure_coerce {
     ($name:ident, $bound1:tt $(+ $bounds2:tt)*) => {
         #[inline]

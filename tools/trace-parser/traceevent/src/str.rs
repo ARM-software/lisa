@@ -14,6 +14,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Custom string type that fits all use cases inside this crate.
+//!
+//! The main reason for a custom type are the various ownership models supported and using
+//! [smartstring::alias::String] internally where possible.
+
 use core::{
     borrow::Borrow,
     cmp::Ordering,
@@ -30,11 +35,13 @@ use crate::{
     scratch::{OwnedScratchBox, OwnedScratchBox_as_dyn, ScratchAlloc},
 };
 
+/// String type with various ownership model available.
 #[derive(Debug, Clone)]
 pub struct Str<'a> {
     pub(crate) inner: InnerStr<'a>,
 }
 
+/// Alias for a [Memo]-ized string.
 type StrProcedure<'a> = Memo<
     String,
     OwnedScratchBox<'a, dyn StringProducer>,
@@ -56,8 +63,11 @@ impl<'a> Clone for OwnedScratchBox<'a, dyn StringProducer> {
     }
 }
 
+/// Lazily produce a string by writing it to a [fmt::Write] object.
 pub trait StringProducer: Send + Sync {
+    /// Write the string to `out`
     fn write(&self, out: &mut dyn fmt::Write);
+    /// Clone the producer.
     fn clone_box<'a>(&self, alloc: &'a ScratchAlloc) -> OwnedScratchBox<'a, dyn StringProducer>
     where
         Self: 'a;

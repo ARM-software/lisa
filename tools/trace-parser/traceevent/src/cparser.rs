@@ -14,6 +14,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! `C` language parser used for event fields declarations and printk-style variadic arguments.
+
 use core::{
     fmt,
     fmt::{Debug, Formatter},
@@ -53,6 +55,11 @@ use crate::{
     str::Str,
 };
 
+/// Type of a C expression.
+///
+/// The C parser is responsible for resolving the original C type such as *int* into a fixed-size
+/// type such as `u8` using an [Abi]. This simplifies use of the parsed expression and avoids
+/// having to represent the original "real" C types.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
     Void,
@@ -71,35 +78,57 @@ pub enum Type {
     U64,
     I64,
 
-    // Opaque type of variables
+    /// Opaque type of an unknown variable.
     Variable(Identifier),
 
-    // Complete black box used in cases where we want to completely hide any
-    // information about the type.
+    /// Complete black box used in cases where we want to completely hide any information about the
+    /// type.
     Unknown,
 
     Typedef(Box<Type>, Identifier),
     Enum(Box<Type>, Identifier),
+    /// For now, structs are only represented by their name, since the interpreter does not handle
+    /// struct values.
     Struct(Identifier),
+    /// For now, unions are only represented by their name, since the interpreter does not handle
+    /// union values.
     Union(Identifier),
+    /// Type of a function returning the given [Type]. A function pointer is represented as a [Type::Pointer] to [Type::Function]
     Function(Box<Type>, Vec<ParamDeclaration>),
 
     Pointer(Box<Type>),
 
     Array(Box<Type>, ArrayKind),
+    /// [Type::DynamicScalar] is an extension to the C language brought by ftrace. It denotes a scalar
+    /// value that has a variable size at runtime, such as a cpumask. This is different from an
+    /// array as this value is not meant to be iterated upon, or with a specific Rust wrapper that
+    /// would do further decoding.
     DynamicScalar(Box<Type>, DynamicKind),
 }
 
+/// Dynamic values can have multiple encodings in ftrace.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DynamicKind {
+    /// Basic kind, denoted by `__data_loc` in the event format. The offset of the data is relative
+    /// to the beginning of the event data.
     Dynamic,
+    /// Rel kind, denoted by `__rel_loc` in the event format. The offset of the data is relative to
+    /// the current field.
     DynamicRel,
 }
 
+/// ftrace supports various array kinds that reflect some invariants and their encoding.
 #[derive(Debug, Clone)]
 pub enum ArrayKind {
+    /// Classic fixed-length array with the given number of items. Sometimes, the number of items
+    /// is unknown from the syntax and has to be inferred from the size information of the event
+    /// field.
     Fixed(Result<FileSize, Box<InterpError>>),
+    /// A dynamic array has a size known at runtime only and can change for each occurence of an
+    /// event.
     Dynamic(DynamicKind),
+    /// zero-length-arrays (ZLA) are supported in ftrace and allow efficient encoding of a variable
+    /// length array.
     ZeroLength,
 }
 
@@ -119,44 +148,69 @@ impl Eq for ArrayKind {}
 
 /// C parsing environment.
 pub trait ParseEnv: Send + Sync {
+    /// Get the type of the event field named `id`.
     fn field_typ(&self, id: &str) -> Result<Type, CompileError>;
+    /// Get the current [Abi]. The `C` parser will resolve non-fixed-size types (such as `int`) to
+    /// fixed size ones (such as `u8`) to avoid having to manipulate multiple type systems
+    /// downstream. It will also use the abi to know if a `char` is signed or not.
     fn abi(&self) -> &Abi;
 }
 
+/// C declarator.
 #[derive(Clone)]
 pub struct Declarator {
+    /// Identifier of a declarator. If the declarator is abstract (e.g. a parameter in a function
+    /// prototype), no identifier is provided.
     identifier: Option<Identifier>,
+    /// Closure representing the declarator's type as a modification of an underlying type. For
+    /// example, an array type is built by modifying an inner item type.
     // Use Rc<> so that Declarator can be Clone, which is necessary to for the
     // packrat cache.
     modify_typ: Rc<dyn Fn(Type) -> Type>,
 }
 
+/// C declaration.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Declaration {
+    /// Name of the item being declared.
     pub identifier: Identifier,
+    /// Type of the item being declared.
     pub typ: Type,
 }
 
+/// C declaration of a function parameter.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParamDeclaration {
     pub identifier: Option<Identifier>,
     pub typ: Type,
 }
 
+/// C expression.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Expr {
+    /// Represent an uninitialized memory location.
     Uninit,
     Variable(Type, Identifier),
 
+    /// Array initializer list, with an expression for each of their inner component.
     InitializerList(Vec<Expr>),
+    /// Struct or array designated initializer, with an expression for each of their inner
+    /// component. A `.x = 42` component will be represented as a [Expr::MemberAccess] on an
+    /// [Expr::Uninit] value.
     DesignatedInitializer(Box<Expr>, Box<Expr>),
+    /// Struct and array compound literal.
     CompoundLiteral(Type, Vec<Expr>),
 
+    /// Integer constant.
     IntConstant(Type, u64),
+    /// Character constant. Oddly, character constants are normally *int*-sized rather than
+    /// *char*-sized. Wide character constants might have a different type.
     CharConstant(Type, u64),
+    /// Enumeration constant along with their representation type.
     EnumConstant(Type, Identifier),
     StringLiteral(String),
 
+    /// Symbolic address of an expression.
     Addr(Box<Expr>),
     Deref(Box<Expr>),
     Plus(Box<Expr>),
@@ -164,7 +218,11 @@ pub enum Expr {
     Tilde(Box<Expr>),
     Bang(Box<Expr>),
     Cast(Type, Box<Expr>),
+    /// The `sizeof` operator can be applied to a type and to an expression with slightly different
+    /// syntactic requirements. This is the type variant.
     SizeofType(Type),
+    /// The `sizeof` operator can be applied to a type and to an expression with slightly different
+    /// syntactic requirements. This is the expression variant.
     SizeofExpr(Box<Expr>),
     PreInc(Box<Expr>),
     PreDec(Box<Expr>),
@@ -172,11 +230,15 @@ pub enum Expr {
     PostDec(Box<Expr>),
 
     MemberAccess(Box<Expr>, Identifier),
+    /// Function call with the given vector of arguments.
     FuncCall(Box<Expr>, Vec<Expr>),
     Subscript(Box<Expr>, Box<Expr>),
     Assign(Box<Expr>, Box<Expr>),
 
+    /// Extension macros allow the user to provide a custom parser for the macro
+    /// invocation.
     ExtensionMacro(Arc<ExtensionMacroDesc>),
+    /// Call to an extension macro.
     ExtensionMacroCall(ExtensionMacroCall),
 
     Mul(Box<Expr>, Box<Expr>),
@@ -202,12 +264,16 @@ pub enum Expr {
     BitXor(Box<Expr>, Box<Expr>),
 
     Ternary(Box<Expr>, Box<Expr>, Box<Expr>),
+    /// Comma expression, which is not the same as the parameter list of a function.
     CommaExpr(Vec<Expr>),
 
+    /// Pre-evaluated value grafted in the AST. This allows for example an extension macro to
+    /// provide a typed value directly.
     Evaluated(Type, Value<'static>),
 }
 
 impl Expr {
+    /// Construct an expression representing a trace event field access.
     pub(crate) fn record_field(field: Identifier) -> Self {
         Expr::MemberAccess(
             // The extra Deref(Addr(...)) layer is important as it accurately
@@ -221,6 +287,10 @@ impl Expr {
             field,
         )
     }
+    /// Returns [true] if `self` is an event record field access.
+    ///
+    /// This matches the same pattern as what is constructed by the parser when encountering
+    /// `REC->myeventfield` and by [Expr::record_field].
     #[inline]
     pub(crate) fn is_record_field(&self, field: &str) -> bool {
         // This must match the record_field() definition
@@ -242,10 +312,14 @@ impl Expr {
     }
 }
 
+/// Call to an extension macro.
 #[derive(Clone)]
 pub struct ExtensionMacroCall {
+    /// Arguments passed to the extension macro as an ASCII char vector.
     pub args: Vec<u8>,
+    /// [ExtensionMacroDesc] of the extension macro of this call.
     pub desc: Arc<ExtensionMacroDesc>,
+    /// Compiler that will provide an [Evaluator] for that macro call.
     pub compiler: ExtensionMacroCallCompiler,
 }
 
@@ -271,24 +345,35 @@ impl PartialEq<Self> for ExtensionMacroCall {
 
 impl Eq for ExtensionMacroCall {}
 
+/// Alias for an expression compiler.
+///
+/// The role of a compiler for a given expression is to generate an [Evaluator] from a
+/// [CompileEnv]. The [Evaluator] will then materialize a [Value] provided an [EvalEnv].
 type Compiler = dyn for<'ceref, 'ce> Fn(
         &'ceref (dyn CompileEnv<'ce> + 'ceref),
     ) -> Result<Box<dyn Evaluator>, CompileError>
     + Send
     + Sync;
 
+/// Compiler for an extension macro that also exposes the return type.
+///
+/// Since the return type is attached to a specific macro call rather than the macro itself,
+/// extension macros are more powerful than mere functions. The return type can depend on the
+/// parameters passed in a given call, just like a real C macro.
 #[derive(Clone)]
 pub struct ExtensionMacroCallCompiler {
     pub ret_typ: Type,
     pub compiler: Arc<Compiler>,
 }
 
+/// Parser for a function-like macro (called with `()`), as opposed to object-like macros.
 type FunctionLikeExtensionMacroParser = Box<
     dyn for<'a> Fn(&'a dyn ParseEnv, &str) -> Result<ExtensionMacroCallCompiler, CParseError>
         + Send
         + Sync,
 >;
 
+/// Extension macros can be used both for function and object-like macros.
 pub(crate) enum ExtensionMacroKind {
     FunctionLike {
         parser: FunctionLikeExtensionMacroParser,
@@ -299,6 +384,7 @@ pub(crate) enum ExtensionMacroKind {
     },
 }
 
+/// User-provided descriptor for an extension macro.
 pub struct ExtensionMacroDesc {
     name: Identifier,
     pub(crate) kind: ExtensionMacroKind,
@@ -338,6 +424,7 @@ impl Debug for ExtensionMacroDesc {
     }
 }
 
+/// Parse error for the C parser.
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum CParseError {
@@ -1406,6 +1493,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
     }
 }
 
+/// Custom parsing context for the C grammar.
 #[derive(Clone)]
 pub struct CGrammarCtx<'a> {
     pub penv: &'a dyn ParseEnv,
@@ -1422,6 +1510,7 @@ impl<'a> CGrammarCtx<'a> {
     }
 }
 
+/// Returns [true] if the full given input is a C identifier.
 #[inline]
 pub fn is_identifier<I>(i: I) -> bool
 where
@@ -1432,6 +1521,7 @@ where
         .is_ok()
 }
 
+/// C identifier parser.
 // https://port70.net/~nsz/c/c11/n1570.html#6.4.2.1
 #[inline]
 pub fn identifier<I, E>() -> impl nom::Parser<I, Identifier, E>
@@ -1464,6 +1554,7 @@ where
     )
 }
 
+/// Parser of the given C keyword.
 fn keyword<'a, I, E>(name: &'a str) -> impl nom::Parser<I, I, E> + 'a
 where
     E: nom::error::ParseError<I> + 'a,

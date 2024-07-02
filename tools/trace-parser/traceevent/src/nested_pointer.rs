@@ -14,8 +14,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// Nested smart pointers.
 use core::{fmt::Debug, ops::Deref};
 
+/// Nested smart pointer wrapper that allows transparently delegating [AsRef] through multiple
+/// layers.
 #[derive(Clone, Debug)]
 pub(crate) struct NestedPointer<Outer> {
     outer: Outer,
@@ -25,11 +28,6 @@ impl<Outer> NestedPointer<Outer> {
     pub fn new(outer: Outer) -> Self {
         NestedPointer { outer }
     }
-
-    // #[inline]
-    // pub fn into_outer(self) -> Outer {
-    // self.outer
-    // }
 }
 
 impl<Outer> Deref for NestedPointer<Outer>

@@ -14,6 +14,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Array type that can own or borrow its content.
+
 use core::{
     borrow::Borrow,
     cmp::Ordering,

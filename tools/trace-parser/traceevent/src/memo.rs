@@ -14,6 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// Memoized closures.
 use core::{
     fmt,
     ops::{Deref, DerefMut},
@@ -21,10 +22,14 @@ use core::{
 
 use once_cell::sync::OnceCell;
 
+/// Represent a memoized closure.
 #[derive(Clone)]
 pub(crate) struct Memo<T, Seed, F> {
+    /// Memoized value.
     val: OnceCell<T>,
+    /// Seed that will be passed to `f()` if `val == None`.
     pub seed: Seed,
+    /// Function that will be called with `seed` to initialize `val`.
     pub f: F,
 }
 

@@ -114,6 +114,11 @@ where
     }
 }
 
+/// Merge multiple iterators into a single stream of [Ord] items, smallest first.
+///
+/// This implementation guarantees that a given source iterator will not have its [Iterator::next]
+/// called before the next [Iterator::next] call to the [MergedIterator]. This is useful in unsafe
+/// code that needs this extra invariant.
 impl<I> Iterator for MergedIterator<I>
 where
     I: IntoIterator,

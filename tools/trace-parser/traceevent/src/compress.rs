@@ -14,6 +14,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Compression support for trace.dat v7 content
+
 use core::{
     cell::RefCell,
     fmt::{Debug, Formatter},
@@ -76,6 +78,7 @@ impl Decompressor for DynDecompressor {
     }
 }
 
+/// Decompressor for `zstd` codec.
 pub(crate) struct ZstdDecompressor {
     inner: ThreadLocal<RefCell<zstd::bulk::Decompressor<'static>>>,
 }
@@ -142,6 +145,7 @@ impl Decompressor for ZstdDecompressor {
 // }
 // }
 
+/// Decompressor for `zlib` codec.
 pub(crate) struct ZlibDecompressor {
     inner: ThreadLocal<RefCell<libdeflater::Decompressor>>,
 }

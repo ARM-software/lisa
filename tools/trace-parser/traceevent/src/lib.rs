@@ -14,6 +14,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! This crate implements a parser for
+//! [trace.dat](https://www.trace-cmd.org/Documentation/trace-cmd/trace-cmd.dat.v7.5.html) file
+//! format. The decoding naturally streams so it is able to process arbitrarily large files.
+
 mod closure;
 mod compress;
 mod error;

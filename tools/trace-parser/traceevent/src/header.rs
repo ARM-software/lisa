@@ -14,6 +14,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! trace.dat header parsing.
+//!
+//! The user-visible entry type is [`Header`].
+
 use core::{
     borrow::Borrow,
     ffi::CStr,
@@ -74,27 +78,48 @@ use crate::{
     str::Str,
 };
 
+/// Type alias for a memory address contained in the trace. We cannot use [usize] since this would
+/// represent a memory address on the host running the parser, which may be of a different
+/// architecture than the system that produced the trace.
 pub type Address = u64;
+/// Type alias for an offset in memory. This provides more helpful signatures than using [Address]
+/// for everything.
 pub type AddressOffset = Address;
+/// Alias for the size of an object in memory.
 pub type AddressSize = Address;
+/// Alias for a CPU ID.
 pub type Cpu = u32;
+/// Alias for a process ID (PID).
 pub type Pid = u32;
+/// Alias for a nanosecond timestamp.
 pub type Timestamp = u64;
+/// Alias for an offset to a [Timestamp].
 pub type TimeOffset = i64;
+/// Alias for an ELF symbol name.
 pub type SymbolName = String;
+/// Alias for a Linux task name (also known as "comm" in various places).
 pub type TaskName = String;
+/// Alias for a C programming language identifier.
 pub type Identifier = String;
+/// Alias for an ftrace event ID.
 pub type EventId = u16;
 
+/// Alias for an offset from the beginning of a file.
 pub type FileOffset = u64;
+/// Alias for the size of a file.
 pub type FileSize = FileOffset;
 
+/// Alias for an offset from the beginning of memory, on the machine running the parser.
 pub type MemOffset = usize;
+/// Alias for the size of an object in memory, on the machine running the parser.
 pub type MemSize = MemOffset;
+/// Alias for the alignment of an object in memory, on the machine running the parser.
 pub type MemAlign = MemOffset;
 
+/// Alias for a trace.dat section ID
 pub type SectionId = u16;
 
+/// Encode the endianness of a piece of data.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
 pub enum Endianness {
     Big,
@@ -103,6 +128,7 @@ pub enum Endianness {
 
 macro_rules! parse_N {
     ($name:ident, $typ:ty) => {
+        #[doc = concat!("Parse a [", stringify!($typ), "] from a buffer, following the `Self` endianness.")]
         #[inline]
         pub fn $name<'a>(&self, input: &'a [u8]) -> Result<(&'a [u8], $typ), io::Error> {
             let arr = input
@@ -120,6 +146,7 @@ macro_rules! parse_N {
 }
 
 impl Endianness {
+    /// Return the native endianness of the machine running this library.
     fn native() -> Self {
         if cfg!(target_endian = "big") {
             Endianness::Big
@@ -130,6 +157,7 @@ impl Endianness {
         }
     }
 
+    /// Returns [true] if `Self` is the native endianness.
     pub fn is_native(&self) -> bool {
         self == &Self::native()
     }
@@ -140,12 +168,16 @@ impl Endianness {
     parse_N!(parse_u8, u8);
 }
 
+/// Size of the *long* C type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LongSize {
+    /// 4 bytes long
     Bits32,
+    /// 8 bytes long
     Bits64,
 }
 
+/// Convert the size of the *long* type to a size in bytes.
 impl From<LongSize> for u64 {
     fn from(size: LongSize) -> Self {
         match size {
@@ -154,6 +186,8 @@ impl From<LongSize> for u64 {
         }
     }
 }
+
+/// Convert the size of the *long* type to a size in bytes.
 impl From<LongSize> for usize {
     fn from(size: LongSize) -> Self {
         match size {
@@ -163,7 +197,9 @@ impl From<LongSize> for usize {
     }
 }
 
+/// Convert the a size in bytes to a [LongSize].
 impl TryFrom<usize> for LongSize {
+    /// If the conversion fails, the byte size is returned.
     type Error = usize;
 
     fn try_from(size: usize) -> Result<Self, Self::Error> {
@@ -175,6 +211,7 @@ impl TryFrom<usize> for LongSize {
     }
 }
 
+/// Whether a number is signed or unsigned.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Signedness {
     Signed,
@@ -191,15 +228,21 @@ impl Display for Signedness {
     }
 }
 
+/// Encodes ABI details necessary to parse a trace.dat file.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Abi {
+    /// Endianness in the kernel of the machine that generated the trace.
     pub endianness: Endianness,
+    /// Long size in the kernel of the machine that generated the trace.
     pub long_size: LongSize,
+    /// Whether a *char* C value is signed or unsigned in the kernel of the machine that generated
+    /// the trace.
     pub char_signedness: Signedness,
 }
 
 macro_rules! abi_parse_N {
     ($name:ident, $typ:ty) => {
+        #[doc = concat!("Parse a [", stringify!($typ), "] from a buffer.")]
         #[inline]
         pub fn $name<'a>(&self, input: &'a [u8]) -> Result<(&'a [u8], $typ), io::Error> {
             self.endianness.$name(input)
@@ -213,6 +256,8 @@ impl Abi {
     abi_parse_N!(parse_u16, u16);
     abi_parse_N!(parse_u8, u8);
 
+    /// Resolve the type of a *char* to a fixed-size and fixed-signedness type according to the
+    /// ABI.
     #[inline]
     pub fn char_typ(&self) -> Type {
         match self.char_signedness {
@@ -221,6 +266,8 @@ impl Abi {
         }
     }
 
+    /// Resolve the type of a *long* to a fixed-size type according to the
+    /// ABI.
     #[inline]
     pub fn long_typ(&self) -> Type {
         match self.long_size {
@@ -229,6 +276,8 @@ impl Abi {
         }
     }
 
+    /// Resolve the type of a *unsigned long* to a fixed-size type according to the
+    /// ABI.
     #[inline]
     pub fn ulong_typ(&self) -> Type {
         match self.long_size {
@@ -237,6 +286,7 @@ impl Abi {
         }
     }
 
+    /// Parse an *unsigned long* from a buffer.
     pub fn parse_ulong<'a>(&self, input: &'a [u8]) -> Result<(&'a [u8], u64), io::Error> {
         match self.long_size {
             LongSize::Bits32 => self
@@ -247,6 +297,7 @@ impl Abi {
     }
 }
 
+/// Basic [ParseEnv] instance that does not contain any event-specific information.
 impl ParseEnv for Abi {
     #[inline]
     fn abi(&self) -> &Abi {
@@ -258,12 +309,20 @@ impl ParseEnv for Abi {
     }
 }
 
+/// ID of a buffer in a trace.dat file.
+///
+/// There is typically one buffer per CPU, but extra buffer instances can exist, e.g. if the user
+/// called `trace-cmd record -B mybuffer`. In that scenario, an extra buffer per CPU will be
+/// created for that instance.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BufferId {
+    /// CPU ID associated to that buffer
     pub cpu: Cpu,
+    /// Named of the buffer. For the implicit top-level buffer, the name is an empty string.
     pub name: String,
 }
 
+/// Location of a buffer in the trace.dat file.
 #[derive(Debug, Clone)]
 pub struct BufferLocation {
     pub id: BufferId,
@@ -271,6 +330,7 @@ pub struct BufferLocation {
     pub size: FileSize,
 }
 
+/// Header for the [trace.dat v6 format](https://www.trace-cmd.org/Documentation/trace-cmd/trace-cmd.dat.v6.5.html).
 #[derive(Debug, Clone)]
 pub(crate) struct HeaderV6 {
     pub(crate) kernel_abi: Abi,
@@ -284,6 +344,7 @@ pub(crate) struct HeaderV6 {
     pub(crate) nr_cpus: Cpu,
 }
 
+/// Header for the [trace.dat v6 format](https://www.trace-cmd.org/Documentation/trace-cmd/trace-cmd.dat.v7.5.html).
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub(crate) struct HeaderV7 {
@@ -303,6 +364,7 @@ enum VersionedHeader {
     V7(HeaderV7),
 }
 
+/// Main struct representing a trace.dat header, irrespective of the file format version in use.
 #[derive(Debug, Clone)]
 pub struct Header {
     // We have this inner layer so the publicly exposed struct is completely
@@ -323,6 +385,10 @@ macro_rules! attr {
 }
 
 impl Header {
+    /// Dereference an address in the string table embedded in the header.
+    ///
+    /// This string table is typically used to store a single copy of static strings referenced by
+    /// some *char \** event fields.
     #[inline]
     pub fn deref_static(&self, addr: Address) -> Result<Value<'_>, EvalError> {
         match attr!(self, str_table).get(&addr) {
@@ -331,6 +397,7 @@ impl Header {
         }
     }
 
+    /// Returns an iterator of [EventDesc] for all the ftrace events defined in the header.
     #[inline]
     pub fn event_descs(&self) -> impl IntoIterator<Item = &EventDesc> {
         attr!(self, event_descs)
@@ -350,16 +417,21 @@ impl Header {
             .find(move |desc| desc.name == name)
     }
 
+    /// ABI of the kernel that generated the ftrace this header is representing.
     #[inline]
     pub fn kernel_abi(&self) -> &Abi {
         attr!(self, kernel_abi)
     }
 
+    /// Lookup the task name of the given PID in the PID/name table stored in the header.
     #[inline]
     pub fn comm_of(&self, pid: Pid) -> Option<&TaskName> {
         attr!(self, pid_comms).get(&pid)
     }
 
+    /// Loookup the symbol offset, size and name at address `addr`.
+    ///
+    /// The data is coming from the copy of `/proc/kallsyms` embedded in the header.
     pub fn sym_at(&self, addr: Address) -> Option<(AddressOffset, Option<AddressSize>, &str)> {
         use std::ops::Bound::{Excluded, Included, Unbounded};
         if addr == 0 {
@@ -380,26 +452,34 @@ impl Header {
         }
     }
 
+    /// Number of CPUs with a buffer in that trace.
     #[inline]
     pub fn nr_cpus(&self) -> Cpu {
         *attr!(self, nr_cpus)
     }
 
+    /// Header options encoded in the header.
     #[inline]
     pub fn options(&self) -> impl IntoIterator<Item = &Options> {
         attr!(self, options)
     }
 
+    /// Parsed content of `/proc/kallsyms` encoded in the header.
+    ///
+    /// Note: The addresses may not be the real addresses for security reasons depending on the
+    /// kernel configuration.
     #[inline]
     pub fn kallsyms(&self) -> impl IntoIterator<Item = (Address, &str)> {
         attr!(self, kallsyms).iter().map(|(k, v)| (*k, v.deref()))
     }
 
+    /// Content of the PID/task name table as an iterator.
     #[inline]
     pub fn pid_comms(&self) -> impl IntoIterator<Item = (Pid, &str)> {
         attr!(self, pid_comms).iter().map(|(k, v)| (*k, v.deref()))
     }
 
+    /// Returns a timestamp fixup closure based on he header options that can affect it.
     pub(crate) fn timestamp_fixer(&self) -> impl Fn(Timestamp) -> Timestamp {
         let mut offset_signed: i64 = 0;
         let mut offset_unsigned: u64 = 0;
@@ -432,6 +512,7 @@ impl Header {
         }
     }
 
+    /// Vector of buffers found in that trace.dat file.
     pub fn buffers<'i, 'h, 'a: 'i + 'h, I: BorrowingRead + Send + 'i>(
         &'a self,
         input: Box<I>,
@@ -455,6 +536,11 @@ impl Header {
         }
     }
 
+    /// Name of the clock that was used in that ftrace session, if available in the trace.dat file.
+    /// <div class="warning">
+    /// trace.dat v6 has a creative encoding for the clock which is not handled here. This will
+    /// therefore return [None] for that version.
+    /// </div>
     pub fn clock(&self) -> Option<&str> {
         let mut parser = nom::sequence::preceded(
             nom::bytes::complete::take_till(|c| c == '['),
@@ -476,6 +562,7 @@ impl Header {
         None
     }
 
+    /// Unique identifier of the tracing session that lead to that trace.dat.
     pub fn trace_id(&self) -> Option<StdString> {
         for opt in self.options() {
             if let Options::TraceId(id) = opt {
@@ -486,10 +573,16 @@ impl Header {
     }
 }
 
+/// Binary format of a trace event field.
 #[derive(Clone)]
 pub struct FieldFmt {
+    /// C declaration of that field considered as a struct member.
+    ///
+    /// This includes the name of the field.
     pub declaration: Declaration,
+    /// Offset of the field in the binary content of an event.
     pub offset: MemOffset,
+    /// Size of the field in the binary content of an event.
     pub size: MemSize,
 
     pub decoder: Arc<dyn FieldDecoder>,
@@ -515,8 +608,10 @@ impl Debug for FieldFmt {
     }
 }
 
+/// Binary format of a struct, typically used for an ftrace event.
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructFmt {
+    /// Vector of [FieldFmt], one for each struct member.
     pub fields: Vec<FieldFmt>,
 }
 
@@ -614,6 +709,8 @@ fn fixup_c_type(
 
 type HeaderNomError<'a> = NomError<HeaderError, nom::error::VerboseError<&'a [u8]>>;
 
+/// Parse the struct format of an ftrace event as reported in
+/// `/sys/kernel/tracing/events/*/*/format`
 #[inline(never)]
 fn parse_struct_fmt<'a, PE: ParseEnv>(
     penv: &PE,
@@ -701,6 +798,7 @@ fn parse_struct_fmt<'a, PE: ParseEnv>(
     .parse(input)
 }
 
+/// Parse header_event spec in the header
 #[inline(never)]
 fn parse_header_event(input: &[u8]) -> nom::IResult<&[u8], (), HeaderNomError<'_>> {
     map_res(
@@ -791,26 +889,43 @@ fn parse_header_event(input: &[u8]) -> nom::IResult<&[u8], (), HeaderNomError<'_
     .parse(input)
 }
 
+/// Descriptor of an ftrace event.
 #[derive(Debug, Clone)]
 pub struct EventDesc {
+    /// Name of the ftrace event.
+    ///
+    /// This does not include the subsystem name.
     pub name: String,
+    /// Unique ID of that event in the header.
+    ///
+    /// It is not unique accross files.
     pub id: EventId,
+    /// Binary and print format of the event.
     // Use a OnceCell so that we can mutate it in place in order to lazily parse
     // the format and memoize the result.
     fmt: OnceCell<Result<EventFmt, HeaderError>>,
+    /// Raw format in ASCII as encoded in the header.
     raw_fmt: Vec<u8>,
+    /// Backlink to the header that defines that event.
     header: Option<Arc<Header>>,
 }
 
+/// Combines binary and print format of an ftrace event
 #[derive(Clone)]
 pub struct EventFmt {
+    /// Binary format of the event encoded as a struct memory dump.
     struct_fmt: Result<StructFmt, HeaderError>,
+    /// Print format of an ftrace event.
+    ///
+    /// This includes a [PrintFmtStr] to represent a (parsed) printk-style format string and a list
+    /// of [Evaluator] objects for each value to interpolate in the format string.
     #[allow(clippy::type_complexity)]
     print_fmt_args:
         Result<(PrintFmtStr, Vec<Result<Arc<dyn Evaluator>, CompileError>>), HeaderError>,
 }
 
 impl EventFmt {
+    /// Binary format of the event struct.
     pub fn struct_fmt(&self) -> Result<&StructFmt, HeaderError> {
         match &self.struct_fmt {
             Ok(x) => Ok(x),
@@ -818,6 +933,7 @@ impl EventFmt {
         }
     }
 
+    /// Parsed printk-style format of the event.
     pub fn print_fmt(&self) -> Result<&PrintFmtStr, HeaderError> {
         match &self.print_fmt_args {
             Ok(x) => Ok(&x.0),
@@ -825,6 +941,7 @@ impl EventFmt {
         }
     }
 
+    /// Evaluators for the arguments to interpolate in the printk-style format of the event.
     pub fn print_args(
         &self,
     ) -> Result<impl IntoIterator<Item = &Result<Arc<dyn Evaluator>, CompileError>>, HeaderError>
@@ -852,9 +969,10 @@ impl PartialEq<Self> for EventFmt {
 }
 
 impl EventDesc {
-    // Allow for errors in case we decide to drop the raw_fmt once it has been parsed
+    /// Raw ASCII format of the event as found in `/sys/kernel/tracing/events/*/*/format`
     #[inline]
     pub fn raw_fmt(&self) -> Result<&[u8], HeaderError> {
+        // Allow for errors in case we decide to drop the raw_fmt once it has been parsed
         Ok(&self.raw_fmt)
     }
 
@@ -903,6 +1021,9 @@ impl Hash for EventDesc {
     }
 }
 
+/// Compilation and evaluation environment attached to a header.
+///
+/// This provides access to the string table.
 struct HeaderEnv<'h> {
     header: &'h Header,
     struct_fmt: &'h StructFmt,
@@ -989,6 +1110,7 @@ impl<'ce> CompileEnv<'ce> for HeaderEnv<'ce> {
     }
 }
 
+/// Parse event format as found in `/sys/kernel/tracing/events/*/*/format`
 #[inline(never)]
 fn parse_event_fmt<'a>(
     header: &'a Header,
@@ -1239,6 +1361,7 @@ fn parse_event_fmt<'a>(
         .parse_finish(input)
 }
 
+/// Parse the content of `/sys/kernel/tracing/events/*/*/format`
 #[inline(never)]
 fn parse_event_desc(input: &[u8]) -> nom::IResult<&[u8], EventDesc, HeaderNomError<'_>> {
     context(
@@ -1273,6 +1396,7 @@ fn parse_event_desc(input: &[u8]) -> nom::IResult<&[u8], EventDesc, HeaderNomErr
     .parse(input)
 }
 
+/// Parse content of `/proc/kallsyms`
 #[inline(never)]
 fn parse_kallsyms(
     input: &[u8],
@@ -1327,6 +1451,10 @@ fn parse_kallsyms(
     .parse(input)
 }
 
+/// Parse string table in trace.dat header.
+///
+/// The table is typically used to store printk-style format strings, but also string literals that
+/// can be referenced by address in the event fields and print args expressions.
 #[inline(never)]
 fn parse_str_table(
     input: &[u8],
@@ -1361,6 +1489,7 @@ fn parse_str_table(
     .parse(input)
 }
 
+/// Parse PID/task name tables.
 #[inline(never)]
 fn parse_pid_comms(input: &[u8]) -> nom::IResult<&[u8], BTreeMap<Pid, String>, HeaderNomError<'_>> {
     context("PID map", move |input| {
@@ -1380,6 +1509,7 @@ fn parse_pid_comms(input: &[u8]) -> nom::IResult<&[u8], BTreeMap<Pid, String>, H
     .parse(input)
 }
 
+/// Error type used in [Header] methods and manipulation function.
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum HeaderError {
@@ -1514,6 +1644,7 @@ pub struct TimeShiftCorrection {
     pub offset: TimeOffset,
 }
 
+/// Timestamp correction as encoded in trace.dat header option `TIME_SHIFT`
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct TimeShiftCpuCorrection {
@@ -1521,6 +1652,7 @@ pub struct TimeShiftCpuCorrection {
     pub corrections: Vec<TimeShiftCorrection>,
 }
 
+/// Guest vCPU info as encoded in trace.dat header option `GUEST`
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct GuestCpuInfo {
@@ -1528,17 +1660,20 @@ pub struct GuestCpuInfo {
     pub host_task_pid: Pid,
 }
 
+/// Options found in a [Header], regardless of the trace.dat format version.
+///
+/// Some options can only appear in some versions of the format.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum Options {
-    // v6 only, defines a non-top-level instance
+    /// v6 only, defines a non-top-level instance
     #[non_exhaustive]
     Instance {
         name: String,
         offset: FileOffset,
     },
 
-    // v7 only, fully defines the location of a single ring buffer
+    /// v7 only, fully defines the location of a single ring buffer
     #[non_exhaustive]
     Buffer {
         cpu: Cpu,
@@ -1647,6 +1782,7 @@ fn option_parse_date(option_type: u16, date: &str) -> Result<TimeOffset, HeaderE
     Ok(offset)
 }
 
+/// Decode options that are common between all trace.dat format versions.
 fn shared_decode_option(
     abi: &Abi,
     option_type: u16,
@@ -1805,6 +1941,7 @@ fn shared_decode_option(
     })
 }
 
+/// Decode options that are specific to trace.dat format v6.
 fn v6_parse_options<I>(abi: &Abi, input: &mut I) -> Result<Vec<Options>, HeaderError>
 where
     I: BorrowingRead,
@@ -1837,6 +1974,7 @@ where
     Ok(options)
 }
 
+/// Decode options that are specific to trace.dat format v7.
 fn v7_parse_options<I>(
     abi: &Abi,
     decomp: &mut Option<DynDecompressor>,
@@ -1968,6 +2106,7 @@ where
     }
 }
 
+/// Parse a [Header] from a generic input.
 pub fn header<I>(input: &mut I) -> Result<Header, HeaderError>
 where
     I: BorrowingRead,

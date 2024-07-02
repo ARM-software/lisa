@@ -14,6 +14,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! trace.dat CPU buffer decoding.
+
 use core::{
     cell::UnsafeCell,
     fmt::{Debug, Formatter},
@@ -51,13 +53,20 @@ use crate::{
     str::Str,
 };
 
-// Keep a BTreeMap for fast lookup and to avoid huge Vec allocation in case
-// some event ids are very large. Since most traces will contain just a few
-// types of events, build up the smallest mapping as it goes.
+/// Keeps an [EventId] <-> ([EventDesc], [Ctx]) mapping so we can quickly access the decoder for
+/// each event record as we encounter it in the buffer.
 struct EventDescMap<'h, Ctx, MakeCtx> {
     header: &'h Header,
-    cold_map: BTreeMap<EventId, &'h EventDesc>,
+    /// [BTreeMap] for fast lookup and to avoid huge Vec allocation in case some event ids are very
+    /// large. Since most traces will contain just a few types of events, build up the smallest
+    /// mapping as it goes. This will speed up further the lookup.
     hot_map: BTreeMap<EventId, (&'h EventDesc, Ctx)>,
+    /// Cold [BTreeMap] that contains all the [EventId] that did not appear so far in the trace.
+    /// This keeps them out of the way to increase lookup speed in `hot_map`.
+    cold_map: BTreeMap<EventId, &'h EventDesc>,
+    /// Make a user-defined [Ctx] object for every event type that is encountered in the trace.
+    /// That context can be used to hold e.g. a parquet file handler to dump the event in it. This
+    /// saves the user from having to maintain a separate map.
     make_ctx: Arc<Mutex<MakeCtx>>,
 }
 
@@ -105,8 +114,14 @@ where
     }
 }
 
+/// This is the main user-facing struct that represents an event record.
+///
+/// Almost all operations are lazy (e.g. event fields decoding), so efficient user-side filtering
+/// can be implemented.
 pub struct EventVisitor<'i, 'h, 'edm, MakeCtx, Ctx = ()> {
+    /// Binary buffer containing the undecoded event in the ftrace buffer.
     pub data: &'i [u8],
+    /// Reference to the [Header] of the trace the event was defined in.
     pub header: &'h Header,
 
     pub timestamp: Timestamp,
@@ -179,18 +194,21 @@ impl<'i, 'h, 'edm, MakeCtx, Ctx> EventVisitor<'i, 'h, 'edm, MakeCtx, Ctx> {
         self.scratch
     }
 
+    /// Compile-time check that we are covariant in 'i1
     fn __check_covariance_i<'i1>(self) -> EventVisitor<'i1, 'h, 'edm, MakeCtx, Ctx>
     where
         'i: 'i1,
     {
         self
     }
+    /// Compile-time check that we are covariant in 'h1
     fn __check_covariance_h<'h1>(self) -> EventVisitor<'i, 'h1, 'edm, MakeCtx, Ctx>
     where
         'h: 'h1,
     {
         self
     }
+    /// Compile-time check that we are covariant in 'edm1
     fn __check_covariance_edm<'edm1>(self) -> EventVisitor<'i, 'h, 'edm1, MakeCtx, Ctx>
     where
         'edm: 'edm1,
@@ -199,7 +217,7 @@ impl<'i, 'h, 'edm, MakeCtx, Ctx> EventVisitor<'i, 'h, 'edm, MakeCtx, Ctx> {
     }
 }
 
-// Capture a lifetime syntactically to avoid E0700 when using impl in return position
+/// Capture a lifetime syntactically to avoid E0700 when using impl in return position
 pub trait CaptureLifetime<'a> {}
 impl<T: ?Sized> CaptureLifetime<'_> for T {}
 
@@ -316,13 +334,24 @@ where
     }
 }
 
-pub trait FieldDecoder: Send + Sync {
+/// Represent a decoder for a specific field type in an event.
+///
+/// This trait exists mostly to help HRTB inference when manipulating decoding functions for which
+/// it is implemented.
+pub(crate) trait FieldDecoder: Send + Sync {
+    /// Decode a [Value] for the represented field.
+    ///
+    /// # Arguments
+    /// * `event_data` - Data of the entire event record. This is necessary as some field types
+    ///   might need access to arbitrary part of the event beyond the small area dedicated to the
+    ///   field, such as `__data_loc` fields.
+    /// * Specific area of `event_data` that contains the field value to be decoded.
     fn decode<'d>(
         &self,
         event_data: &'d [u8],
         field_data: &'d [u8],
         header: &'d Header,
-        bump: &'d ScratchAlloc,
+        scratch: &'d ScratchAlloc,
     ) -> Result<Value<'d>, BufferError>;
 }
 
@@ -689,6 +718,7 @@ impl<'a, Ctx, MakeCtx> Ord for BufferItem<'a, Ctx, MakeCtx> {
     }
 }
 
+/// An ftrace per-CPU buffer.
 pub struct Buffer<'i, 'h> {
     pub id: BufferId,
 
@@ -839,6 +869,17 @@ unsafe fn transmute_lifetime_mut<'b, T: ?Sized>(x: &mut T) -> &'b mut T {
     core::mem::transmute(x)
 }
 
+/// Parse the flyrecord buffers.
+///
+/// # Arguments
+///
+/// * `buffer` - Iterator of [Buffer] to consume. The event stream from each buffer will be merged
+///   into a single timestamp-ordered event stream.
+/// * `f` - Closure called for each parsed event. The [EventVisitor] passed to it is a zero-copy
+///   proxy object that allows lazily decoding everything related to the event occurence, so that
+///   cheap filtering can be implemented without having to decode all fields.
+/// * `make_ctx` - Closure to make per-event user context. The context will then be memoized and
+///   accessible via [EventVisitor::event_ctx].
 pub fn flyrecord<'i, 'h, R, F, IntoIter, MakeCtx, Ctx>(
     buffers: IntoIter,
     mut f: F,
@@ -963,6 +1004,7 @@ where
     }
 }
 
+/// Errors happening during [Buffer] decoding.
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum BufferError {
@@ -1189,9 +1231,13 @@ where
     Ok(Some((data, timestamp, recoverable_err)))
 }
 
+/// An ftrace buffer is constituted of records, not all of them representing an event.
 #[derive(Debug)]
 enum BufferRecord<'a> {
+    /// An ftrace event binary data.
     Event(&'a [u8]),
+    /// A timestamp record, used to (re)set the current full [u64] timestamp, allowing
+    /// space-efficient delta encoding in the [BufferRecord::Event] records.
     #[allow(dead_code)]
     Timestamp(Timestamp),
     #[allow(dead_code)]
@@ -1284,6 +1330,7 @@ fn parse_record<'a>(
 }
 
 impl PrintFmtStr {
+    /// Determine a [VBinDecoder] for each argument to a printk-style format string.
     fn vbin_decoders<'a>(&'a self, header: &'a Header) -> &Vec<VBinDecoder> {
         let abi = header.kernel_abi();
         let char_signedness = abi.char_signedness;
@@ -1466,6 +1513,7 @@ impl PrintFmtStr {
     }
 }
 
+/// Decoder for a value encoded by the `vbin_printf()` kernel function.
 #[derive(Clone)]
 pub struct VBinDecoder {
     atom: PrintAtom,
