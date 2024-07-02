@@ -773,7 +773,7 @@ class TasksAnalysis(TraceAnalysisBase):
     @staticmethod
     def _reorder_tasks_states_columns(df):
         order = ['Time', 'pid', 'comm', 'target_cpu', 'cpu', 'curr_state', 'next_state', 'delta']
-        return df.select(order_as(list(df.columns), order))
+        return df.select(order_as(list(df.collect_schema().names()), order))
 
     @_df_tasks_states.used_events
     @TraceAnalysisBase.df_method
@@ -889,7 +889,7 @@ class TasksAnalysis(TraceAnalysisBase):
             }
 
             def fixup(df, col):
-                str_col = (pl.col(col) & 0xff).replace(mapping, default=None)
+                str_col = (pl.col(col) & 0xff).replace_strict(mapping, default=None)
                 str_col = (
                     pl.when(str_col.is_null() & (pl.col(col) > 0))
                     .then(pl.col(col).map_elements(TaskState.sched_switch_str))

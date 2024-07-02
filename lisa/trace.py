@@ -62,6 +62,8 @@ import pandas as pd
 import pyarrow.lib
 import pyarrow.parquet
 import polars as pl
+import polars.exceptions
+import polars.selectors as cs
 
 import devlib
 
@@ -352,12 +354,12 @@ def _lazyframe_rewrite(df, update_plan):
     # TODO: once this is solved, we can just inspect the plan rather than
     # serialize()/deserialize() in JSON
     # https://github.com/pola-rs/polars/issues/9771
-    plan = df.serialize()
+    plan = df.serialize(format='json')
     plan = json.loads(plan)
     plan = update_plan(plan)
     plan = json.dumps(plan)
     plan = io.StringIO(plan)
-    df = pl.LazyFrame.deserialize(plan)
+    df = pl.LazyFrame.deserialize(plan, format='json')
     return df
 
 
@@ -1166,7 +1168,7 @@ class TraceDumpTraceParser(TraceParserBase):
         })
         df = df.with_columns([
             pl.col('Time').cast(pl.Duration("ns")),
-            pl.col('__pid').replace(pid_comms).alias('__comm')
+            pl.col('__pid').replace_strict(pid_comms, default=None).alias('__comm')
         ])
         df = df.drop('common_type', 'common_flags', 'common_preempt_count')
 
@@ -1186,17 +1188,7 @@ class TraceDumpTraceParser(TraceParserBase):
 
         # Turn all string columns into categorical columns, since strings are
         # typically extremely repetitive
-        categorical_cols = [
-            col
-            for col, dtype in df.schema.items()
-            if isinstance(dtype, (pl.String, pl.Binary))
-        ]
-
-        if categorical_cols:
-            df = df.with_columns([
-                pl.col(col).cast(pl.Categorical)
-                for col in categorical_cols
-            ])
+        df = df.with_columns((cs.string() | cs.binary()).cast(pl.Categorical))
 
         return df
 
@@ -1737,11 +1729,7 @@ class TxtTraceParserBase(TraceParserBase):
             infer_schema_length=None,
         ).lazy()
 
-        df = df.with_columns(
-            pl.col(col).cast(pl.String)
-            for col, dtype in df.schema.items()
-            if isinstance(dtype, pl.Binary)
-        )
+        df = df.with_columns(cs.binary().cast(pl.String))
 
         # Put the timestamp first so it's recognized as the index
         df = df.select(
@@ -1919,7 +1907,7 @@ class TxtTraceParserBase(TraceParserBase):
 
         # Drop unnecessary columns that might have been parsed by the regex
         to_keep = {'__timestamp', '__event', '__fields', 'line'}
-        skeleton_df = skeleton_df.select(sorted(to_keep & set(skeleton_df.columns)))
+        skeleton_df = skeleton_df.select(sorted(to_keep & set(skeleton_df.collect_schema().names())))
         # This is very fast on a category dtype
         available_events.update(
             skeleton_df.select(
@@ -2062,7 +2050,7 @@ class TxtTraceParserBase(TraceParserBase):
             # we can accurately infer the dtype.
             df = pl.DataFrame({
                 col: [get_representative(df, col)]
-                for col in df.columns
+                for col in df.collect_schema().names()
             })
 
             # Ugly hack: dump the first row to CSV to infer the schema of the
@@ -2083,11 +2071,7 @@ class TxtTraceParserBase(TraceParserBase):
 
         # Polars will fail to convert strings with trailing spaces (e.g. "42  "
         # into 42), so ensure we clean that up before conversion
-        df = df.with_columns(
-            pl.col(col).str.strip_chars()
-            for col, dtype in df.schema.items()
-            if isinstance(dtype, pl.String)
-        )
+        df = df.with_columns(cs.string().str.strip_chars())
 
         df = df.with_columns(
             pl.col(name).cast(dtype)
@@ -2095,8 +2079,9 @@ class TxtTraceParserBase(TraceParserBase):
         )
         df = df.rename({'__timestamp': 'Time'})
 
+        schema = df.collect_schema()
         if event == 'sched_switch':
-            if isinstance(df.schema['prev_state'], (pl.String, pl.Categorical)):
+            if isinstance(schema['prev_state'], (pl.String, pl.Categorical)):
                 # Avoid circular dependency issue by importing at the last moment
                 # pylint: disable=import-outside-toplevel
                 from lisa.analysis.tasks import TaskState
@@ -2112,7 +2097,7 @@ class TxtTraceParserBase(TraceParserBase):
                 pl.col('overutilized').cast(pl.Boolean)
             )
 
-            if isinstance(df.schema.get('span'), (pl.String, pl.Binary, pl.Categorical)):
+            if isinstance(schema.get('span'), (pl.String, pl.Binary, pl.Categorical)):
                 df = df.with_columns(
                     pl.col('span')
                     .cast(pl.String)
@@ -2129,7 +2114,7 @@ class TxtTraceParserBase(TraceParserBase):
             df = df.rename({'cpus': 'cpumask'})
 
             if event == 'thermal_power_cpu_get_power':
-                if isinstance(df.schema['load'], (pl.String, pl.Binary, pl.Categorical)):
+                if isinstance(schema['load'], (pl.String, pl.Binary, pl.Categorical)):
                     df = df.with_columns(
                         # Parse b'{2 3 2 8}'
                         pl.col('load')
@@ -4542,7 +4527,7 @@ class _TraceCache(Loggable):
                 to_parquet()
             else:
                 try:
-                    plan = data.serialize()
+                    plan = data.serialize(format='json')
                 # We failed to serialize the logical plan. This could happen
                 # because it contains references to UDF (e.g. a lambda passed
                 # to Expr.map_elements())
@@ -4599,7 +4584,7 @@ class _TraceCache(Loggable):
                     # correctly.
                     pandas_meta = json.loads(pandas_meta.decode('utf-8'))
                     index_cols = pandas_meta['index_columns']
-                    df = df.select(order_as(df.columns, index_cols))
+                    df = df.select(order_as(df.collect_schema().names(), index_cols))
 
                 return df
 
@@ -4613,7 +4598,7 @@ class _TraceCache(Loggable):
         elif fmt == 'polars-lazyframe':
             try:
                 data = load_parquet(path)
-            except pl.ComputeError:
+            except polars.exceptions.ComputeError:
                 with open(path, 'r') as f:
                     plan = json.load(f)
 
@@ -4624,7 +4609,7 @@ class _TraceCache(Loggable):
                 )
                 plan = json.dumps(plan)
                 plan = io.StringIO(plan)
-                data = pl.LazyFrame.deserialize(plan)
+                data = pl.LazyFrame.deserialize(plan, format='json')
                 data = _LazyFrameOnDelete.attach_file_cleanup(data, hardlinks)
         else:
             raise ValueError(f'File format not supported "{fmt}" at path: {path}')
@@ -5129,7 +5114,7 @@ class _Trace(Loggable, _InternalTraceBase):
         # writing to: /sys/kernel/debug/tracing/trace_marker
         # That said, it's not the end of the world if we don't filter on that
         # as the meta event name is supposed to be unique anyway
-        if isinstance(df.schema['ip'], (pl.String, pl.Binary, pl.Categorical)):
+        if isinstance(df.collect_schema()['ip'], (pl.String, pl.Binary, pl.Categorical)):
             df = df.filter(pl.col('ip').cast(pl.String).str.starts_with('tracing_mark_write'))
         return (df, 'buf')
 
@@ -5700,7 +5685,7 @@ class _Trace(Loggable, _InternalTraceBase):
                         self._internal_df_event(event)
                         for event in checked_events
                     )
-                    if '__cpu' in df.columns
+                    if '__cpu' in df.collect_schema().names()
                 )
                 count = max_cpu + 1
                 self.logger.debug(f"Estimated CPU count from trace: {count}")
@@ -5980,17 +5965,17 @@ class _Trace(Loggable, _InternalTraceBase):
                 assert isinstance(df, pl.LazyFrame)
 
                 # Add all the header fields from the source dataframes
-                extra_fields = [x for x in df.columns if x.startswith('__')]
-                extra_df = df.select(('Time', *extra_fields))
+                extra_df = df.select(cs.by_name('Time') | cs.starts_with('__'))
 
                 with tempfile.TemporaryDirectory() as temp_dir:
                     for (meta_event, event, _source_event, source_getter) in specs:  # pylint: disable=unused-variable
                         source_df, line_field = source_getter(self, _source_event, event, df)
+                        schema = source_df.collect_schema()
 
                         # If the lines are in a dtype we won't be able to
                         # handle, we won't add an entry to df_map, leading to a
                         # missing event
-                        if not isinstance(source_df.schema[line_field], (pl.String, pl.Categorical, pl.Binary)):
+                        if not isinstance(schema[line_field], (pl.String, pl.Categorical, pl.Binary)):
                             continue
 
                         # Ensure we have bytes and not str
@@ -6050,7 +6035,7 @@ class _Trace(Loggable, _InternalTraceBase):
                                 _df = _df.select(
                                     order_as(
                                         sorted(
-                                            _df.columns,
+                                            _df.collect_schema().names(),
                                             key=lambda col: 0 if col.startswith('__') else 1
                                         ),
                                         ['Time']
