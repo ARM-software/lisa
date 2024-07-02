@@ -1195,7 +1195,7 @@ class TraceAnalysisBase(AnalysisHelpers):
                     df,
                     fmt=df_fmt,
                     index=(
-                        ('Time' if 'Time' in df.columns else None)
+                        ('Time' if 'Time' in df.collect_schema().names() else None)
                         if index is None and isinstance(df, (pl.LazyFrame, pl.DataFrame)) else
                         index
                     ),
