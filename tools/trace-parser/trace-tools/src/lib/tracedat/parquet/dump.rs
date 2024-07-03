@@ -1080,8 +1080,8 @@ where
                         let pid = visitor.field_by_fmt(common_pid_fmt)?;
 
                         _table_state.errors.extend_errors(
-                            visitor
-                                .vbin_fields(print_fmt, &array)
+                            print_fmt
+                                .vbin_fields(visitor.header, visitor.scratch(), &array)
                                 .into_iter()
                                 .chain([Ok(PrintArg {
                                     value: pid,
@@ -1150,10 +1150,7 @@ where
                                 Some(s) => Ok(s),
                                 None => Err(EvalError::IllegalType(print_fmt.into_static().ok())),
                             }?;
-                            Ok(traceevent::print::parse_print_fmt(
-                                header,
-                                print_fmt.as_bytes(),
-                            )?)
+                            Ok(PrintFmtStr::try_new(header, print_fmt.as_bytes())?)
                         };
 
                         let make_schema =

@@ -49,11 +49,6 @@ impl ScratchAlloc {
             bump.reset()
         }
     }
-
-    #[inline]
-    pub fn move_inside<T: NoopDrop>(&self, x: T) -> &mut T {
-        OwnedScratchBox::new_in(x, self).leak()
-    }
 }
 
 impl AsRef<ScratchAlloc> for ScratchAlloc {
@@ -75,7 +70,6 @@ where
     A: 'a + AsRef<ScratchAlloc>,
 {
     Owned(OwnedScratchBox<'a, T, A>),
-    Borrowed(&'a T),
     Arc(Arc<T>),
 }
 
@@ -105,7 +99,6 @@ where
     {
         match self {
             ScratchBox::Owned(owned) => ScratchBox::Arc(Arc::new(owned.into_inner())),
-            ScratchBox::Borrowed(x) => ScratchBox::Arc(Arc::new(x.clone())),
             ScratchBox::Arc(rc) => ScratchBox::Arc(rc),
         }
     }
@@ -117,7 +110,6 @@ where
     {
         match self {
             ScratchBox::Owned(owned) => owned.into_inner(),
-            ScratchBox::Borrowed(x) => x.clone(),
             ScratchBox::Arc(rc) => rc.deref().clone(),
         }
     }
@@ -133,7 +125,6 @@ where
     fn deref(&self) -> &Self::Target {
         match self {
             ScratchBox::Owned(owned) => owned,
-            ScratchBox::Borrowed(x) => x,
             ScratchBox::Arc(rc) => rc,
         }
     }

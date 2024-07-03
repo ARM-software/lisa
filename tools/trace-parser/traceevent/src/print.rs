@@ -210,6 +210,15 @@ pub struct PrintArg<'a> {
 }
 
 impl PrintFmtStr {
+    /// Parse a printk-style format string.
+    #[inline]
+    pub fn try_new(header: &Header, fmt: &[u8]) -> Result<Self, PrintFmtError> {
+        print_fmt_parser::<crate::parser::NomError<PrintFmtError, nom::error::VerboseError<_>>>(
+            header.kernel_abi(),
+        )
+        .parse_finish(fmt)
+    }
+
     pub fn interpolate_values<'v, 'ee, E, W, I, EE>(
         &self,
         header: &'v Header,
@@ -1343,14 +1352,6 @@ where
         );
         parser.parse(input)
     }
-}
-
-#[inline]
-pub fn parse_print_fmt(header: &Header, fmt: &[u8]) -> Result<PrintFmtStr, PrintFmtError> {
-    print_fmt_parser::<crate::parser::NomError<PrintFmtError, nom::error::VerboseError<_>>>(
-        header.kernel_abi(),
-    )
-    .parse_finish(fmt)
 }
 
 #[cfg(test)]

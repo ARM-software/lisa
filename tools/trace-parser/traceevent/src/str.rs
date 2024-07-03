@@ -131,16 +131,24 @@ impl<'a> Str<'a> {
         }
     }
 
+    /// Create a [`Str<'static>`] and optimize the result for cheap cloning.
     #[inline]
     pub fn into_static(self) -> Str<'static> {
-        Str {
-            inner: InnerStr::Owned(match self.inner {
-                InnerStr::Owned(s) => s,
-                InnerStr::Borrowed(s) => (*s).into(),
-                InnerStr::Arc(s) => (&*s).into(),
-                InnerStr::Procedural(p) => p.into_owned(),
-            }),
-        }
+        let inner = match self.inner {
+            InnerStr::Arc(s) => InnerStr::Arc(s),
+            _ => {
+                let s: &str = self.deref();
+                // smartstring will keep strings smaller than 23 bytes directly in the value rather
+                // than allocating on the heap. It's cheap to clone and will not create unnecessary
+                // atomic writes memory traffic.
+                if s.len() <= 23 {
+                    InnerStr::Owned(s.into())
+                } else {
+                    InnerStr::Arc(Arc::from(s))
+                }
+            }
+        };
+        Str { inner }
     }
 }
 

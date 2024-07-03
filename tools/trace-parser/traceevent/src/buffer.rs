@@ -35,7 +35,7 @@ use smartstring::alias::String;
 use crate::{
     array,
     cinterp::{Bitmap, BufferEnv, CompileError, SockAddr, SockAddrKind, Value},
-    closure::make_closure_coerce_type,
+    closure::{closure, make_closure_coerce_type},
     compress::Decompressor,
     cparser::{ArrayKind, DynamicKind, Type},
     error::convert_err_impl,
@@ -175,6 +175,10 @@ impl<'i, 'h, 'edm, MakeCtx, Ctx> EventVisitor<'i, 'h, 'edm, MakeCtx, Ctx> {
         }
     }
 
+    pub fn scratch(&self) -> &ScratchAlloc {
+        self.scratch
+    }
+
     fn __check_covariance_i<'i1>(self) -> EventVisitor<'i1, 'h, 'edm, MakeCtx, Ctx>
     where
         'i: 'i1,
@@ -310,19 +314,6 @@ where
     pub fn buffer_env(&self) -> BufferEnv {
         BufferEnv::new(self.scratch, self.header, self.data)
     }
-
-    #[inline]
-    pub fn vbin_fields<'a>(
-        &self,
-        print_fmt: &'a PrintFmtStr,
-        data: &'a [u32],
-    ) -> impl IntoIterator<Item = Result<PrintArg<'a>, BufferError>>
-    where
-        'h: 'a,
-        'i: 'a,
-    {
-        print_fmt.vbin_fields(self.header, self.scratch, data)
-    }
 }
 
 pub trait FieldDecoder: Send + Sync {
@@ -351,43 +342,16 @@ where
         event_data: &'d [u8],
         field_data: &'d [u8],
         header: &'d Header,
-        bump: &'d ScratchAlloc,
+        scratch: &'d ScratchAlloc,
     ) -> Result<Value<'d>, BufferError> {
-        self(event_data, field_data, header, bump)
-    }
-}
-
-impl FieldDecoder for () {
-    fn decode<'d>(
-        &self,
-        _event_data: &'d [u8],
-        _field_data: &'d [u8],
-        _header: &'d Header,
-        _bump: &'d ScratchAlloc,
-    ) -> Result<Value<'d>, BufferError> {
-        Err(BufferError::NoDecoder)
+        self(event_data, field_data, header, scratch)
     }
 }
 
 impl Type {
     #[allow(clippy::type_complexity)]
     #[inline]
-    pub fn make_decoder(
-        &self,
-        header: &Header,
-    ) -> Result<
-        Box<
-            dyn for<'d> Fn(
-                    &'d [u8],
-                    &'d [u8],
-                    &'d Header,
-                    &'d ScratchAlloc,
-                ) -> Result<Value<'d>, BufferError>
-                + Send
-                + Sync,
-        >,
-        CompileError,
-    > {
+    pub fn make_decoder(&self, header: &Header) -> Result<Box<dyn FieldDecoder>, CompileError> {
         use Type::*;
 
         let dynamic_decoder = |kind: &DynamicKind| -> Box<
@@ -426,52 +390,68 @@ impl Type {
             }
         };
 
+        macro_rules! make_decoder {
+            ($closure:expr) => {
+                Box::new(closure!(
+                                                    (
+                                                        for<'d> Fn(
+                                                            &'d [u8],
+                                                            &'d [u8],
+                                                            &'d Header,
+                                                            &'d ScratchAlloc,
+                                                        )
+                                                        -> Result<Value<'d>, BufferError>
+                                                    ),
+                                                    $closure
+                                                ))
+            };
+        }
         match self {
-            Void => Ok(Box::new(|_, _, _, _| Ok(Value::Unknown))),
-            Bool => Ok(Box::new(move |_data, field_data, header, _| {
+            Void => Ok(make_decoder!(|_, _, _, _| Ok(Value::Unknown))),
+            Bool => Ok(make_decoder!(move |_data, field_data, header, _| {
                 Ok(Value::U64Scalar(
                     header.kernel_abi().parse_u8(field_data)?.1.into(),
                 ))
             })),
-            U8 => Ok(Box::new(move |_data, field_data, header, _| {
+            U8 => Ok(make_decoder!(move |_data, field_data, header, _| {
                 Ok(Value::U64Scalar(
                     header.kernel_abi().parse_u8(field_data)?.1.into(),
                 ))
             })),
-            I8 => Ok(Box::new(move |_data, field_data, header, _| {
+            I8 => Ok(make_decoder!(move |_data, field_data, header, _| {
                 Ok(Value::I64Scalar(
                     (header.kernel_abi().parse_u8(field_data)?.1 as i8).into(),
                 ))
             })),
 
-            U16 => Ok(Box::new(move |_data, field_data, header, _| {
+            U16 => Ok(make_decoder!(move |_data, field_data, header, _| {
                 Ok(Value::U64Scalar(
                     header.kernel_abi().parse_u16(field_data)?.1.into(),
                 ))
             })),
-            I16 => Ok(Box::new(move |_data, field_data, header, _| {
+            I16 => Ok(make_decoder!(move |_data, field_data, header, _| {
                 Ok(Value::I64Scalar(
                     (header.kernel_abi().parse_u16(field_data)?.1 as i16).into(),
                 ))
             })),
 
-            U32 => Ok(Box::new(move |_data, field_data, header, _| {
+            U32 => Ok(make_decoder!(move |_data, field_data, header, _| {
                 Ok(Value::U64Scalar(
                     header.kernel_abi().parse_u32(field_data)?.1.into(),
                 ))
             })),
-            I32 => Ok(Box::new(move |_data, field_data, header, _| {
+            I32 => Ok(make_decoder!(move |_data, field_data, header, _| {
                 Ok(Value::I64Scalar(
                     (header.kernel_abi().parse_u32(field_data)?.1 as i32).into(),
                 ))
             })),
 
-            U64 => Ok(Box::new(move |_data, field_data, header, _| {
+            U64 => Ok(make_decoder!(move |_data, field_data, header, _| {
                 Ok(Value::U64Scalar(
                     header.kernel_abi().parse_u64(field_data)?.1,
                 ))
             })),
-            I64 => Ok(Box::new(move |_data, field_data, header, _| {
+            I64 => Ok(make_decoder!(move |_data, field_data, header, _| {
                 Ok(Value::I64Scalar(
                     header.kernel_abi().parse_u64(field_data)?.1 as i64,
                 ))
@@ -493,20 +473,20 @@ impl Type {
                             "cpumask_t" | "dma_cap_mask_t" | "nodemask_t" | "pnp_irq_mask_t"
                         ) =>
                     {
-                        Ok(Box::new(
+                        Ok(make_decoder!(
                             move |data, field_data: &[u8], header: &Header, scratch| {
                                 let field_data = decoder(data, field_data, header, scratch)?;
                                 Ok(Value::Bitmap(Bitmap::from_bytes(
                                     field_data,
                                     header.kernel_abi(),
                                 )))
-                            },
+                            }
                         ))
                     }
 
                     // As described in:
                     // https://bugzilla.kernel.org/show_bug.cgi?id=217532
-                    Type::Typedef(_, id) if id.deref() == "sockaddr_t" => Ok(Box::new(
+                    Type::Typedef(_, id) if id.deref() == "sockaddr_t" => Ok(make_decoder!(
                         move |data, field_data: &[u8], header: &Header, scratch| {
                             let field_data = decoder(data, field_data, header, scratch)?;
                             Ok(Value::SockAddr(SockAddr::from_bytes(
@@ -514,14 +494,14 @@ impl Type {
                                 header.kernel_abi().endianness,
                                 SockAddrKind::Full,
                             )?))
-                        },
+                        }
                     )),
 
                     // Any other dynamic scalar type is unknown, so just provide
                     // the raw buffer to consumers.
                     _ => {
                         let typ = Arc::from(typ.clone());
-                        Ok(Box::new(move |data, field_data, header, scratch| {
+                        Ok(make_decoder!(move |data, field_data, header, scratch| {
                             let field_data = decoder(data, field_data, header, scratch)?;
                             Ok(Value::Raw(
                                 Arc::clone(&typ),
@@ -537,17 +517,19 @@ impl Type {
                 let array_decoder =
                     Type::Array(typ.clone(), ArrayKind::Fixed(Ok(0))).make_decoder(header)?;
 
-                Ok(Box::new(move |data, field_data, header, scratch| {
-                    let array_data = data_decoder(data, field_data, header, scratch)?;
-                    array_decoder.decode(data, array_data, header, scratch)
-                }))
+                Ok(make_decoder!(
+                    (move |data, field_data, header, scratch| {
+                        let array_data = data_decoder(data, field_data, header, scratch)?;
+                        array_decoder.decode(data, array_data, header, scratch)
+                    })
+                ))
             }
 
             Array(typ, ArrayKind::ZeroLength) => {
                 let decoder =
                     Type::Array(typ.clone(), ArrayKind::Fixed(Ok(0))).make_decoder(header)?;
 
-                Ok(Box::new(move |data, field_data, header, scratch| {
+                Ok(make_decoder!(move |data, field_data, header, scratch| {
                     let offset: usize = field_data.as_ptr() as usize - data.as_ptr() as usize;
                     // Currently, ZLA fields are buggy as we cannot know the
                     // true data size. Instead, we get this aligned size,
@@ -565,7 +547,10 @@ impl Type {
                 macro_rules! parse_scalar {
                     ($ctor:tt, $item_ty:ty, $parse_item:ident) => {{
                         if header.kernel_abi().endianness.is_native() {
-                            Box::new(move |_data, field_data: &[u8], header, scratch| {
+                            make_decoder!(move |_data,
+                                                field_data: &[u8],
+                                                header: &Header,
+                                                scratch| {
                                 match bytemuck::try_cast_slice(field_data) {
                                     Ok(slice) => Ok(Value::$ctor(array::Array::Borrowed(slice))),
                                     // Data is either misaligned or the array
@@ -586,7 +571,10 @@ impl Type {
                                 }
                             })
                         } else {
-                            Box::new(move |_data, field_data: &[u8], header, scratch| {
+                            make_decoder!(move |_data,
+                                                field_data: &[u8],
+                                                header: &Header,
+                                                scratch| {
                                 let mut vec = ScratchVec::with_capacity_in(
                                     field_data.len() / item_size,
                                     scratch,
@@ -595,17 +583,9 @@ impl Type {
                                     Ok(slice) => {
                                         vec.extend(slice.into_iter().map(|x| x.swap_bytes()));
 
-                                        // Leak the bumpalo's Vec, which is fine because
+                                        // Leak the ScratchVec, which is fine because
                                         // we will deallocate it later by calling
-                                        // ScratchAlloc::reset(). Note that Drop impl for items
-                                        // will _not_ run.
-                                        //
-                                        // In order for them to run, we would need to
-                                        // return an Vec<> instead of a slice, which
-                                        // will be possible one day when the unstable
-                                        // allocator_api becomes stable so we can
-                                        // allocate a real Vec<> in the ScratchAlloc and simply
-                                        // return it.
+                                        // ScratchAlloc::reset().
                                         Ok(Value::$ctor(array::Array::Borrowed(vec.leak())))
                                     }
                                     // Data is either misaligned or the array
@@ -651,7 +631,7 @@ impl Type {
             }
             typ => {
                 let typ = Arc::new(typ.clone());
-                Ok(Box::new(move |_data, field_data, _, _| {
+                Ok(make_decoder!(move |_data, field_data, _, _| {
                     Ok(Value::Raw(
                         Arc::clone(&typ),
                         array::Array::Borrowed(field_data),
@@ -714,35 +694,18 @@ impl<'a, Ctx, MakeCtx> Ord for BufferItem<'a, Ctx, MakeCtx> {
 }
 
 pub struct Buffer<'i, 'h> {
-    header: &'h Header,
     pub id: BufferId,
+
+    header: &'h Header,
     page_size: MemSize,
     reader: Box<dyn BufferBorrowingRead<'i> + Send>,
-}
-
-impl<'i, 'h> Buffer<'i, 'h> {
-    // Keep BufferBorrowingRead an implementation detail for now in case we
-    // need something more powerful than BufferBorrowingRead in the future.
-    pub fn new<I: BorrowingRead + Send + 'i>(
-        id: BufferId,
-        reader: I,
-        page_size: MemSize,
-        header: &'h Header,
-    ) -> Self {
-        Buffer {
-            id,
-            reader: Box::new(reader),
-            page_size,
-            header,
-        }
-    }
 }
 
 impl HeaderV7 {
     pub(crate) fn buffers<'i, 'h, 'a, I>(
         &'a self,
         header: &'h Header,
-        input: Box<I>,
+        #[allow(clippy::boxed_local)] input: Box<I>,
     ) -> Result<Vec<Buffer<'i, 'h>>, BufferError>
     where
         'a: 'i + 'h,
@@ -806,7 +769,7 @@ impl HeaderV6 {
     pub(crate) fn buffers<'i, 'h, 'a: 'i + 'h, I: BorrowingRead + Send + 'i>(
         &'a self,
         header: &'h Header,
-        input: Box<I>,
+        #[allow(clippy::boxed_local)] input: Box<I>,
     ) -> Result<Vec<Buffer<'i, 'h>>, BufferError> {
         let nr_cpus = self.nr_cpus;
         let abi = &self.kernel_abi;
@@ -1030,9 +993,6 @@ pub enum BufferError {
 
     #[error("Unknown socket family code: {0}")]
     UnknownSockAddrFamily(u16),
-
-    #[error("No decoder for that field")]
-    NoDecoder,
 
     #[error("I/O error while loading data: {0}")]
     IoError(Box<io::ErrorKind>),

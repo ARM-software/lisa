@@ -52,7 +52,6 @@ fn file2mem(x: FileOffset) -> MemOffset {
 // Sized we are probably not too far away from it:
 // https://github.com/rust-lang/rust/issues/47649
 pub trait BorrowingReadCore {
-    fn clear_buffer(&mut self);
     fn read(&mut self, count: MemSize) -> io::Result<&[u8]>;
     fn read_null_terminated(&mut self) -> io::Result<&[u8]>;
 
@@ -101,7 +100,7 @@ pub trait BorrowingRead: BorrowingReadCore {
     }
 
     #[inline]
-    fn read_tag<'b, T, E>(&mut self, tag: T, or: E) -> io::Result<Result<(), E>>
+    fn read_tag<'b, T>(&mut self, tag: T) -> io::Result<Result<(), ()>>
     where
         T: IntoIterator<Item = &'b u8>,
         T::IntoIter: ExactSizeIterator,
@@ -109,17 +108,13 @@ pub trait BorrowingRead: BorrowingReadCore {
         let tag = tag.into_iter();
         let buff = self.read(tag.len())?;
         let eq = buff.iter().eq(tag);
-        Ok(if eq { Ok(()) } else { Err(or) })
+        Ok(if eq { Ok(()) } else { Err(()) })
     }
 }
 
 impl<T: BorrowingReadCore> BorrowingRead for T {}
 
 // impl<'a> BorrowingReadCore for &'a mut dyn BorrowingReadCore {
-//     #[inline]
-//     fn clear_buffer(&mut self) {
-//         (*self).clear_buffer()
-//     }
 //     #[inline]
 //     fn read(&mut self, count: MemSize) -> io::Result<&[u8]> {
 //         (*self).read(count)
@@ -165,7 +160,7 @@ impl<T: BorrowingReadCore> BorrowingRead for T {}
 //     }
 
 //     #[inline]
-//     fn read_tag<'b, T, E>(&mut self, tag: T, or: E) -> io::Result<Result<(), E>>
+//     fn read_tag<'b, T>(&mut self, tag: T) -> io::Result<Result<(), ()>>
 //     where
 //         T: IntoIterator<Item = &'b u8>,
 //         T::IntoIter: ExactSizeIterator,
@@ -251,9 +246,6 @@ impl<T> BorrowingReadCore for BorrowingCursor<T>
 where
     T: AsRef<[u8]> + Clone,
 {
-    #[inline]
-    fn clear_buffer(&mut self) {}
-
     #[inline]
     fn read(&mut self, count: MemSize) -> io::Result<&[u8]> {
         self.advance(count)
@@ -506,17 +498,17 @@ impl<T> MmapFile<T> {
             })
         }
     }
+
+    #[inline]
+    fn clear_buffer(&mut self) {
+        self.scratch.reset()
+    }
 }
 
 impl<T> BorrowingReadCore for MmapFile<T>
 where
     T: AsRawFd + Read + Seek,
 {
-    #[inline]
-    fn clear_buffer(&mut self) {
-        self.scratch.reset()
-    }
-
     #[inline]
     fn read(&mut self, count: MemSize) -> io::Result<&[u8]> {
         self.clear_buffer();
@@ -751,6 +743,11 @@ where
     }
 
     #[inline]
+    fn clear_buffer(&mut self) {
+        self.scratch.reset();
+    }
+
+    #[inline]
     fn consume(&mut self) {
         self.inner.consume(self.consume);
         self.consume = 0;
@@ -762,11 +759,6 @@ impl<T> BorrowingReadCore for BorrowingBufReader<T>
 where
     T: Read + Seek,
 {
-    #[inline]
-    fn clear_buffer(&mut self) {
-        self.scratch.reset();
-    }
-
     #[inline]
     fn read(&mut self, count: MemSize) -> io::Result<&[u8]> {
         self.consume();

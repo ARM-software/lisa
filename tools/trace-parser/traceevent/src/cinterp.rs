@@ -24,7 +24,7 @@ use crate::{
     array::Array,
     buffer::BufferError,
     cparser,
-    cparser::{ArrayKind, Expr, ExtensionMacroKind, Type},
+    cparser::{ArrayKind, Expr, ExtensionMacroKind, ParseEnv, Type},
     error::convert_err_impl,
     header::{Abi, Address, Endianness, FileSize, Header, Identifier, LongSize, Signedness},
     print::{PrintError, PrintFmtError},
@@ -738,11 +738,6 @@ impl<'a> fmt::Display for Value<'a> {
             Value::Unknown => write!(f, "<UNKNOWN>"),
         }
     }
-}
-
-pub trait ParseEnv: Send + Sync {
-    fn field_typ(&self, id: &str) -> Result<Type, CompileError>;
-    fn abi(&self) -> &Abi;
 }
 
 pub trait CompileEnv<'ce>: EvalEnv<'ce> + ParseEnv

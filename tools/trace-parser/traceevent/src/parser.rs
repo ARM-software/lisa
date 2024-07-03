@@ -135,10 +135,7 @@ pub struct NomError<T, E> {
 
 impl<T, E> NomError<T, E> {
     #[inline]
-    fn from_inner<I>(inner: E) -> Self
-    where
-        T: FromParseError<I, E>,
-    {
+    fn from_inner(inner: E) -> Self {
         NomError { data: None, inner }
     }
 

@@ -53,14 +53,13 @@ use crate::{
     array::Array,
     buffer::{Buffer, BufferError, FieldDecoder},
     cinterp::{
-        new_dyn_evaluator, BasicEnv, CompileEnv, CompileError, EvalEnv, EvalError, Evaluator,
-        ParseEnv, Value,
+        new_dyn_evaluator, BasicEnv, CompileEnv, CompileError, EvalEnv, EvalError, Evaluator, Value,
     },
     closure::closure,
     compress::{Decompressor, DynDecompressor, ZlibDecompressor, ZstdDecompressor},
     cparser::{
         identifier, is_identifier, string_literal, ArrayKind, CGrammar, CGrammarCtx, Declaration,
-        Expr, ExtensionMacroCall, ExtensionMacroCallCompiler, ExtensionMacroDesc, Type,
+        Expr, ExtensionMacroCall, ExtensionMacroCallCompiler, ExtensionMacroDesc, ParseEnv, Type,
     },
     error::convert_err_impl,
     grammar::PackratGrammar as _,
@@ -70,7 +69,7 @@ use crate::{
         error, failure, hex_u64, lexeme, map_res_cut, to_str, FromParseError, NomError,
         NomParserExt as _, VerboseParseError,
     },
-    print::{parse_print_fmt, PrintAtom, PrintFmtError, PrintFmtStr, PrintSpecifier, StringWriter},
+    print::{PrintAtom, PrintFmtError, PrintFmtStr, PrintSpecifier, StringWriter},
     scratch::{ScratchAlloc, ScratchVec},
     str::Str,
 };
@@ -680,7 +679,18 @@ fn parse_struct_fmt<'a, PE: ParseEnv>(
                         declaration,
                         offset: get!("offset"),
                         size,
-                        decoder: Arc::new(()),
+                        decoder: Arc::new(closure!(
+                            (
+                                for<'d> Fn(
+                                    &'d [u8],
+                                    &'d [u8],
+                                    &'d Header,
+                                    &'d ScratchAlloc,
+                                )
+                                -> Result<Value<'d>, BufferError>
+                            ),
+                            |_, _, _, _| Ok(Value::Unknown)
+                        )),
                     })
                 },
             ),
@@ -1000,10 +1010,10 @@ fn parse_event_fmt<'a>(
                     .map(|mut fmt| {
                         for field in &mut fmt.fields {
                             field.decoder =
-                                Arc::new(match field.declaration.typ.make_decoder(header) {
-                                    Ok(parser) => parser,
+                                match field.declaration.typ.make_decoder(header) {
+                                    Ok(parser) => parser.into(),
                                     Err(err) => {
-                                        Box::new(closure!(
+                                        let closure = closure!(
                                             (
                                                 for<'d> Fn(
                                                     &'d [u8],
@@ -1014,9 +1024,10 @@ fn parse_event_fmt<'a>(
                                                 -> Result<Value<'d>, BufferError>
                                             ),
                                             move |_, _, _, _| Err(err.clone().into())
-                                        ))
+                                        );
+                                        Arc::new(closure)
                                     }
-                                });
+                                };
                         }
                         fmt
                     }),
@@ -1066,7 +1077,7 @@ fn parse_event_fmt<'a>(
                                         Expr::StringLiteral(s) => Ok((s, vec![])),
                                         expr => Err(PrintFmtError::NotAStringLiteral(expr)),
                                     }?;
-                                    let fmt = parse_print_fmt(header, fmt.as_bytes())?;
+                                    let fmt = PrintFmtStr::try_new(header, fmt.as_bytes())?;
                                     Ok((fmt, exprs))
                                 };
                                 // We are handling errors at the next stage, so we can create an
@@ -1122,7 +1133,7 @@ fn parse_event_fmt<'a>(
                                                                     None => Err(EvalError::IllegalType(fmt.into_static().ok())),
                                                                 }?;
 
-                                                                let fmt = parse_print_fmt(header, fmt.as_bytes())?;
+                                                                let fmt = PrintFmtStr::try_new(header, fmt.as_bytes())?;
                                                                 _fmt_map_write = fmt_map.write().unwrap();
                                                                 _fmt_map_write.entry(fmt_addr).or_insert(fmt)
                                                             }
@@ -1961,7 +1972,9 @@ pub fn header<I>(input: &mut I) -> Result<Header, HeaderError>
 where
     I: BorrowingRead,
 {
-    input.read_tag(b"\x17\x08\x44tracing", HeaderError::BadMagic)??;
+    input
+        .read_tag(b"\x17\x08\x44tracing")?
+        .map_err(|_| HeaderError::BadMagic)?;
 
     let version: u64 = {
         let version = input.read_null_terminated()?;
@@ -2275,7 +2288,9 @@ where
     make_read_int!(input, abi);
 
     // Header page
-    input.read_tag(b"header_page\0", HeaderError::ExpectedHeaderPage)??;
+    input
+        .read_tag(b"header_page\0")?
+        .map_err(|_| HeaderError::ExpectedHeaderPage)?;
     let page_header_size_u64: u64 = read_int!()?;
     let page_header_size: usize = page_header_size_u64
         .try_into()
@@ -2310,7 +2325,9 @@ where
     };
 
     // Header event
-    input.read_tag(b"header_event\0", HeaderError::ExpectedHeaderEvent)??;
+    input
+        .read_tag(b"header_event\0")?
+        .map_err(|_| HeaderError::ExpectedHeaderEvent)?;
     let header_event_size: u64 = read_int!()?;
     let header_event_size: usize = header_event_size
         .try_into()
@@ -2461,6 +2478,19 @@ mod tests {
             }
         }
 
+        let noop_decoder = Arc::new(closure!(
+            (
+                for<'d> Fn(
+                    &'d [u8],
+                    &'d [u8],
+                    &'d Header,
+                    &'d ScratchAlloc,
+                )
+                -> Result<Value<'d>, BufferError>
+            ),
+            |_, _, _, _| Ok(Value::Unknown)
+        ));
+
         test(
             b"name: wakeup\nID: 3\nformat:\n\tfield:unsigned short common_type;\toffset:0;\tsize:2;\tsigned:0;\n\tfield:unsigned char common_flags;\toffset:2;\tsize:1;\tsigned:0;\n\tfield:unsigned char common_preempt_count;\toffset:3;\tsize:1;\tsigned:0;\n\tfield:int common_pid;\toffset:4;\tsize:4;\tsigned:1;\n\n\tfield:unsigned int prev_pid;\toffset:8;\tsize:4;\tsigned:0;\n\tfield:unsigned int next_pid;\toffset:12;\tsize:4;\tsigned:0;\n\tfield:unsigned int next_cpu;\toffset:16;\tsize:4;\tsigned:0;\n\tfield:unsigned char prev_prio;\toffset:20;\tsize:1;\tsigned:0;\n\tfield:unsigned char prev_state;\toffset:21;\tsize:1;\tsigned:0;\n\tfield:unsigned char next_prio;\toffset:22;\tsize:1;\tsigned:0;\n\tfield:unsigned char next_state;\toffset:23;\tsize:1;\tsigned:0;\n\nprint fmt: \"%u:%u:%u  ==+ %u:%u:%u \\\" \\t [%03u]\", __builtin_choose_expr(1, 55, 56)\n",
             EventDescContent {
@@ -2538,7 +2568,7 @@ mod tests {
                                 },
                                 offset: 0,
                                 size: 2,
-                                decoder: Arc::new(()),
+                                decoder: noop_decoder.clone(),
                             },
                             FieldFmt {
                                 declaration: Declaration {
@@ -2547,7 +2577,7 @@ mod tests {
                                 },
                                 offset: 2,
                                 size: 1,
-                                decoder: Arc::new(()),
+                                decoder: noop_decoder.clone(),
                             },
                             FieldFmt {
                                 declaration: Declaration {
@@ -2556,7 +2586,7 @@ mod tests {
                                 },
                                 offset: 3,
                                 size: 1,
-                                decoder: Arc::new(()),
+                                decoder: noop_decoder.clone(),
                             },
                             FieldFmt {
                                 declaration: Declaration {
@@ -2565,7 +2595,7 @@ mod tests {
                                 },
                                 offset: 4,
                                 size: 4,
-                                decoder: Arc::new(()),
+                                decoder: noop_decoder.clone(),
                             },
                             FieldFmt {
                                 declaration: Declaration {
@@ -2574,7 +2604,7 @@ mod tests {
                                 },
                                 offset: 8,
                                 size: 4,
-                                decoder: Arc::new(()),
+                                decoder: noop_decoder.clone(),
                             },
                             FieldFmt {
                                 declaration: Declaration {
@@ -2583,7 +2613,7 @@ mod tests {
                                 },
                                 offset: 12,
                                 size: 4,
-                                decoder: Arc::new(()),
+                                decoder: noop_decoder.clone(),
                             },
                             FieldFmt {
                                 declaration: Declaration {
@@ -2592,7 +2622,7 @@ mod tests {
                                 },
                                 offset: 16,
                                 size: 4,
-                                decoder: Arc::new(()),
+                                decoder: noop_decoder.clone(),
                             },
                             FieldFmt {
                                 declaration: Declaration {
@@ -2601,7 +2631,7 @@ mod tests {
                                 },
                                 offset: 20,
                                 size: 1,
-                                decoder: Arc::new(()),
+                                decoder: noop_decoder.clone(),
                             },
                             FieldFmt {
                                 declaration: Declaration {
@@ -2610,7 +2640,7 @@ mod tests {
                                 },
                                 offset: 21,
                                 size: 1,
-                                decoder: Arc::new(()),
+                                decoder: noop_decoder.clone(),
                             },
                             FieldFmt {
                                 declaration: Declaration {
@@ -2619,7 +2649,7 @@ mod tests {
                                 },
                                 offset: 22,
                                 size: 1,
-                                decoder: Arc::new(()),
+                                decoder: noop_decoder.clone(),
                             },
                             FieldFmt {
                                 declaration: Declaration {
@@ -2628,7 +2658,7 @@ mod tests {
                                 },
                                 offset: 23,
                                 size: 1,
-                                decoder: Arc::new(()),
+                                decoder: noop_decoder.clone(),
                             },
                         ]
                     })
@@ -2665,7 +2695,7 @@ mod tests {
                                 },
                                 offset: 0,
                                 size: 2,
-                                decoder: Arc::new(()),
+                                decoder: noop_decoder.clone(),
                             },
                             FieldFmt {
                                 declaration: Declaration {
@@ -2674,7 +2704,7 @@ mod tests {
                                 },
                                 offset: 2,
                                 size: 1,
-                                decoder: Arc::new(()),
+                                decoder: noop_decoder.clone(),
                             },
                             FieldFmt {
                                 declaration: Declaration {
@@ -2683,7 +2713,7 @@ mod tests {
                                 },
                                 offset: 3,
                                 size: 1,
-                                decoder: Arc::new(()),
+                                decoder: noop_decoder.clone(),
                             },
                             FieldFmt {
                                 declaration: Declaration {
@@ -2692,7 +2722,7 @@ mod tests {
                                 },
                                 offset: 4,
                                 size: 4,
-                                decoder: Arc::new(()),
+                                decoder: noop_decoder.clone(),
                             },
                             FieldFmt {
                                 declaration: Declaration {
@@ -2701,7 +2731,7 @@ mod tests {
                                 },
                                 offset: 8,
                                 size: 4,
-                                decoder: Arc::new(()),
+                                decoder: noop_decoder.clone(),
                             },
                             FieldFmt {
                                 declaration: Declaration {
@@ -2710,7 +2740,7 @@ mod tests {
                                 },
                                 offset: 16,
                                 size: 64,
-                                decoder: Arc::new(()),
+                                decoder: noop_decoder.clone(),
                             },
                         ]
                     })

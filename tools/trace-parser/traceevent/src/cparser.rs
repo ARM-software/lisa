@@ -40,7 +40,7 @@ use smartstring::alias::String;
 use crate::{
     cinterp::{
         new_dyn_evaluator, BasicEnv, Bitmap, CompileEnv, CompileError, EvalEnv, EvalError,
-        Evaluator, InterpError, ParseEnv, Value,
+        Evaluator, InterpError, Value,
     },
     error::convert_err_impl,
     grammar::{grammar, PackratGrammar as _},
@@ -116,6 +116,12 @@ impl PartialEq for ArrayKind {
 }
 
 impl Eq for ArrayKind {}
+
+/// C parsing environment.
+pub trait ParseEnv: Send + Sync {
+    fn field_typ(&self, id: &str) -> Result<Type, CompileError>;
+    fn abi(&self) -> &Abi;
+}
 
 #[derive(Clone)]
 pub struct Declarator {

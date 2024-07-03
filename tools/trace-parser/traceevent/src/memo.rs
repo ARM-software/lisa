@@ -51,6 +51,7 @@ where
     // self.val.get_mut()
     // }
 
+    #[allow(dead_code)]
     #[inline]
     pub fn into_owned(mut self) -> T {
         let _ = self.eval();

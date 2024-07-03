@@ -21,7 +21,7 @@ use core::{
 };
 use std::collections::BinaryHeap;
 
-pub struct SavedIterator<I>
+struct SavedIterator<I>
 where
     I: Iterator,
 {
@@ -93,7 +93,7 @@ where
 impl<I> MergedIterator<I>
 where
     I: IntoIterator,
-    SavedIterator<<I as IntoIterator>::IntoIter>: Ord,
+    <I as IntoIterator>::Item: Ord,
 {
     pub fn new<II: IntoIterator<Item = I>>(iterators: II) -> Option<Self> {
         let mut iterators = iterators.into_iter().map(|i| i.into_iter());
@@ -117,7 +117,7 @@ where
 impl<I> Iterator for MergedIterator<I>
 where
     I: IntoIterator,
-    SavedIterator<<I as IntoIterator>::IntoIter>: Ord,
+    <I as IntoIterator>::Item: Ord,
 {
     type Item = I::Item;
 
