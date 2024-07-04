@@ -169,7 +169,7 @@ impl Endianness {
 }
 
 /// Size of the *long* C type.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum LongSize {
     /// 4 bytes long
     Bits32,
@@ -314,7 +314,7 @@ impl ParseEnv for Abi {
 /// There is typically one buffer per CPU, but extra buffer instances can exist, e.g. if the user
 /// called `trace-cmd record -B mybuffer`. In that scenario, an extra buffer per CPU will be
 /// created for that instance.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BufferId {
     /// CPU ID associated to that buffer
     pub cpu: Cpu,
@@ -365,11 +365,20 @@ enum VersionedHeader {
 }
 
 /// Main struct representing a trace.dat header, irrespective of the file format version in use.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Header {
     // We have this inner layer so the publicly exposed struct is completely
     // opaque. An enum cannot be opaque.
     inner: VersionedHeader,
+    typ_decoders: Arc<RwLock<BTreeMap<Type, Arc<dyn FieldDecoder>>>>,
+}
+
+impl Debug for Header {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), core::fmt::Error> {
+        f.debug_struct("Header")
+            .field("inner", &self.inner)
+            .finish_non_exhaustive()
+    }
 }
 
 macro_rules! attr {
@@ -379,6 +388,7 @@ macro_rules! attr {
                 inner:
                     VersionedHeader::V6(HeaderV6 { $attr, .. })
                     | VersionedHeader::V7(HeaderV7 { $attr, .. }),
+                ..
             } => $attr,
         }
     };
@@ -585,7 +595,7 @@ pub struct FieldFmt {
     /// Size of the field in the binary content of an event.
     pub size: MemSize,
 
-    pub decoder: Arc<dyn FieldDecoder>,
+    pub(crate) decoder: Arc<dyn FieldDecoder>,
 }
 
 // This instance is used for testing for now. We compare everything except the
@@ -1131,25 +1141,36 @@ fn parse_event_fmt<'a>(
                     )
                     .map(|mut fmt| {
                         for field in &mut fmt.fields {
-                            field.decoder =
-                                match field.declaration.typ.make_decoder(header) {
-                                    Ok(parser) => parser.into(),
-                                    Err(err) => {
-                                        let closure = closure!(
-                                            (
-                                                for<'d> Fn(
-                                                    &'d [u8],
-                                                    &'d [u8],
-                                                    &'d Header,
-                                                    &'d ScratchAlloc,
-                                                )
-                                                -> Result<Value<'d>, BufferError>
-                                            ),
-                                            move |_, _, _, _| Err(err.clone().into())
-                                        );
-                                        Arc::new(closure)
-                                    }
-                                };
+                            let typ = &field.declaration.typ;
+                            let memo = header.typ_decoders.read().unwrap();
+                            field.decoder = match memo.get(typ) {
+                                Some(decoder) => Arc::clone(decoder),
+                                None => {
+                                    // Release the read lock so we can lock it to write again.
+                                    drop(memo);
+                                    let decoder = match typ.make_decoder(header) {
+                                        Ok(parser) => parser,
+                                        Err(err) => {
+                                            let closure = closure!(
+                                                (
+                                                    for<'d> Fn(
+                                                        &'d [u8],
+                                                        &'d [u8],
+                                                        &'d Header,
+                                                        &'d ScratchAlloc,
+                                                    )
+                                                    -> Result<Value<'d>, BufferError>
+                                                ),
+                                                move |_, _, _, _| Err(err.clone().into())
+                                            );
+                                            Arc::new(closure) as Arc<dyn FieldDecoder>
+                                        }
+                                    };
+                                    let mut memo = header.typ_decoders.write().unwrap();
+                                    memo.insert(typ.clone(), decoder.clone());
+                                    decoder
+                                }
+                            };
                         }
                         fmt
                     }),
@@ -1510,7 +1531,7 @@ fn parse_pid_comms(input: &[u8]) -> nom::IResult<&[u8], BTreeMap<Pid, String>, H
 }
 
 /// Error type used in [Header] methods and manipulation function.
-#[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
+#[derive(thiserror::Error, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum HeaderError {
     #[error("Bad magic found")]
@@ -2291,6 +2312,7 @@ where
             options,
             nr_cpus,
         }),
+        typ_decoders: Arc::new(RwLock::new(BTreeMap::new())),
     })
 }
 
@@ -2515,6 +2537,7 @@ where
                         options,
                         nr_cpus,
                     }),
+                    typ_decoders: Arc::new(RwLock::new(BTreeMap::new())),
                 });
             }
         }
@@ -2590,6 +2613,7 @@ mod tests {
                     top_level_buffer_locations: Vec::new(),
                     nr_cpus: 0,
                 }),
+                typ_decoders: Arc::new(RwLock::new(BTreeMap::new())),
             };
             let header = Arc::new(header);
 

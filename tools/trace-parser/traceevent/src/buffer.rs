@@ -380,7 +380,10 @@ where
 impl Type {
     #[allow(clippy::type_complexity)]
     #[inline]
-    pub fn make_decoder(&self, header: &Header) -> Result<Box<dyn FieldDecoder>, CompileError> {
+    pub(crate) fn make_decoder(
+        &self,
+        header: &Header,
+    ) -> Result<Arc<dyn FieldDecoder>, CompileError> {
         use Type::*;
 
         let dynamic_decoder = |kind: &DynamicKind| -> Box<
@@ -421,7 +424,7 @@ impl Type {
 
         macro_rules! make_decoder {
             ($closure:expr) => {
-                Box::new(closure!(
+                Arc::new(closure!(
                                                     (
                                                         for<'d> Fn(
                                                             &'d [u8],
@@ -1005,7 +1008,7 @@ where
 }
 
 /// Errors happening during [Buffer] decoding.
-#[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
+#[derive(thiserror::Error, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum BufferError {
     #[error("Header contains not ring buffer reference")]

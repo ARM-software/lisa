@@ -16,6 +16,7 @@
 
 /// Various parsing-related utility functions.
 use core::{
+    cmp::Ordering,
     fmt::{Debug, Display, Formatter},
     ops::Range,
 };
@@ -87,6 +88,36 @@ impl VerboseParseError {
 }
 
 impl Eq for VerboseParseError {}
+
+impl PartialOrd<Self> for VerboseParseError {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for VerboseParseError {
+    #[inline]
+    fn cmp<'a>(&'a self, other: &'a Self) -> Ordering {
+        let key = |x: &'a Self| -> (&'a _, _) {
+            (
+                &x.input,
+                x.errors
+                    .iter()
+                    .map(|(range, kind)| {
+                        (
+                            range.start,
+                            range.end,
+                            // ErrorKind does not have PartialOrd and Ord implem
+                            format!("{kind:?}"),
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        };
+        key(self).cmp(&key(other))
+    }
+}
 
 impl Debug for VerboseParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), core::fmt::Error> {

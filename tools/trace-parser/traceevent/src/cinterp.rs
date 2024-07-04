@@ -55,7 +55,7 @@ use crate::{
 /// Errors while compiling.
 ///
 /// See also: [EvalError] and [InterpError]
-#[derive(Error, Debug, Clone, PartialEq, Eq)]
+#[derive(Error, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum CompileError {
     #[error("Cannot this handle expression in its context: {0:?}")]
@@ -92,7 +92,7 @@ pub enum CompileError {
 /// Errors while evaluating an expression.
 ///
 /// See also: [CompileError] and [InterpError]
-#[derive(Error, Debug, Clone, PartialEq, Eq)]
+#[derive(Error, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum EvalError {
     #[error("Illegal type of value: {}", match .0 {
@@ -142,7 +142,7 @@ convert_err_impl!(PrintError, PrintError, EvalError);
 /// Generic interpreter-related error type.
 ///
 /// See also: [CompileError] and [EvalError]
-#[derive(Error, Debug, Clone, PartialEq, Eq)]
+#[derive(Error, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum InterpError {
     #[error("Could not compile: {0}")]
     CompileError(Box<CompileError>),
@@ -152,7 +152,7 @@ pub enum InterpError {
 convert_err_impl!(EvalError, EvalError, InterpError);
 convert_err_impl!(CompileError, CompileError, InterpError);
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum SockAddrFamily {
     Ipv4,
     Ipv6,
@@ -172,7 +172,7 @@ impl SockAddrFamily {
 /// Kind of socket address.
 ///
 /// See also [SockAddr].
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SockAddrKind {
     Full,
     Ipv4AddrOnly,
@@ -180,7 +180,7 @@ pub enum SockAddrKind {
 }
 
 /// In-kernel socket address value.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SockAddr<'a> {
     family: SockAddrFamily,
     kind: SockAddrKind,
@@ -320,7 +320,7 @@ impl<'a> fmt::Display for SockAddr<'a> {
 /// Kernel bitmap value.
 ///
 /// bitmaps are used for some types such as `cpumask_t`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Bitmap<'a> {
     data: &'a [u8],
     pub(crate) chunk_size: LongSize,
@@ -539,7 +539,7 @@ impl<'a> Iterator for BitmapIterator<'a> {
 ///    only supported when appearing in `*&x` that gets simplified into `x`, or `&x` that is
 ///    represented by a symbolic address [Value::Addr].
 /// 4. Pointers to unknown values. They are represented as an [Value::U64Scalar] at runtime.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Value<'a> {
     /// Unsigned integer value.
     U64Scalar(u64),

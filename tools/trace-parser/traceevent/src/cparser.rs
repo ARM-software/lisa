@@ -17,6 +17,7 @@
 //! `C` language parser used for event fields declarations and printk-style variadic arguments.
 
 use core::{
+    cmp::Ordering,
     fmt,
     fmt::{Debug, Formatter},
     ops::Deref,
@@ -60,7 +61,7 @@ use crate::{
 /// The C parser is responsible for resolving the original C type such as *int* into a fixed-size
 /// type such as `u8` using an [Abi]. This simplifies use of the parsed expression and avoids
 /// having to represent the original "real" C types.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Type {
     Void,
 
@@ -107,7 +108,7 @@ pub enum Type {
 }
 
 /// Dynamic values can have multiple encodings in ftrace.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DynamicKind {
     /// Basic kind, denoted by `__data_loc` in the event format. The offset of the data is relative
     /// to the beginning of the event data.
@@ -118,7 +119,7 @@ pub enum DynamicKind {
 }
 
 /// ftrace supports various array kinds that reflect some invariants and their encoding.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialOrd, Ord)]
 pub enum ArrayKind {
     /// Classic fixed-length array with the given number of items. Sometimes, the number of items
     /// is unknown from the syntax and has to be inferred from the size information of the event
@@ -179,14 +180,14 @@ pub struct Declaration {
 }
 
 /// C declaration of a function parameter.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ParamDeclaration {
     pub identifier: Option<Identifier>,
     pub typ: Type,
 }
 
 /// C expression.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Expr {
     /// Represent an uninitialized memory location.
     Uninit,
@@ -345,6 +346,22 @@ impl PartialEq<Self> for ExtensionMacroCall {
 
 impl Eq for ExtensionMacroCall {}
 
+impl PartialOrd<Self> for ExtensionMacroCall {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ExtensionMacroCall {
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        let left = (&self.desc, &self.args);
+        let right = (&other.desc, &other.args);
+        left.cmp(&right)
+    }
+}
+
 /// Alias for an expression compiler.
 ///
 /// The role of a compiler for a given expression is to generate an [Evaluator] from a
@@ -415,6 +432,20 @@ impl PartialEq<Self> for ExtensionMacroDesc {
 }
 impl Eq for ExtensionMacroDesc {}
 
+impl PartialOrd<Self> for ExtensionMacroDesc {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ExtensionMacroDesc {
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.name.cmp(&other.name)
+    }
+}
+
 impl Debug for ExtensionMacroDesc {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), core::fmt::Error> {
@@ -425,7 +456,7 @@ impl Debug for ExtensionMacroDesc {
 }
 
 /// Parse error for the C parser.
-#[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
+#[derive(thiserror::Error, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum CParseError {
     #[error("Could not decode UTF-8 string: {0}")]

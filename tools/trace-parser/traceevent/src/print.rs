@@ -150,7 +150,7 @@ impl fmt::Write for SinkWriter {
 }
 
 /// Main error type when printing ftrace events.
-#[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
+#[derive(thiserror::Error, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum PrintError {
     #[error("Dynamic width in printf format is missing")]
@@ -923,7 +923,7 @@ impl PrintAtom {
 }
 
 /// Errors detected when parsing a printk-style format string.
-#[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
+#[derive(thiserror::Error, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum PrintFmtError {
     #[error("Expected string literal: {0:?}")]

@@ -17,6 +17,7 @@
 //! Fast arena memory allocator
 
 use core::{
+    cmp::Ordering,
     fmt::{Debug, Formatter},
     marker::PhantomData,
     mem::ManuallyDrop,
@@ -173,6 +174,26 @@ where
 }
 
 impl<'a, T: Eq + ?Sized, A> Eq for ScratchBox<'a, T, A> where A: 'a + AsRef<ScratchAlloc> {}
+
+impl<'a, T: PartialOrd + ?Sized, A> PartialOrd<Self> for ScratchBox<'a, T, A>
+where
+    A: 'a + AsRef<ScratchAlloc>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.deref().partial_cmp(other.deref())
+    }
+}
+
+impl<'a, T: Ord + ?Sized, A> Ord for ScratchBox<'a, T, A>
+where
+    A: 'a + AsRef<ScratchAlloc>,
+{
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.deref().cmp(other.deref())
+    }
+}
 
 /// Owned value allocated inside a [ScratchAlloc]
 pub struct OwnedScratchBox<'a, T: 'a + ?Sized, A = &'a ScratchAlloc> {
