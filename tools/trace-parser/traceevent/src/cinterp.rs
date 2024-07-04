@@ -393,11 +393,10 @@ impl<'a> BitmapIterator<'a> {
         }
     }
 
-    #[inline]
-    pub fn as_chunks(&'a mut self) -> impl Iterator<Item = u64> + 'a {
-        core::iter::from_fn(move || self.next_chunk())
-    }
-
+    /// Iterate over bytes in the bitmap.
+    ///
+    /// Endianness is controlled such that the first bit in the bitmap is the first bit of the
+    /// first chunk.
     #[inline]
     pub fn as_bytes(&'a mut self) -> impl Iterator<Item = u8> + 'a {
         let mut curr = None;

@@ -1076,20 +1076,10 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                                             Value::Raw(_, arr) => {
                                                 Ok(print_array!(u8, arr.iter().copied()))
                                             }
-                                            Value::Bitmap(bitmap) => match &bitmap.chunk_size {
-                                                LongSize::Bits32 => Ok(print_array!(
-                                                    u32,
-                                                    bitmap.into_iter().as_chunks().map(|x| x
-                                                        .try_into()
-                                                        .expect(
-                                                            "Chunk requires more than 32 bits"
-                                                        ))
-                                                )),
-                                                LongSize::Bits64 => Ok(print_array!(
-                                                    u64,
-                                                    bitmap.into_iter().as_chunks()
-                                                )),
-                                            },
+                                            Value::Bitmap(bitmap) => {
+                                                Ok(print_array!(u8, bitmap.into_iter().as_bytes()))
+                                            }
+
                                             Value::Str(s) => {
                                                 Ok(print_array!(u8, s.bytes().chain([0])))
                                             }
@@ -1356,20 +1346,9 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                                         }
 
                                         match cbuf.eval(env)? {
-                                            Value::Bitmap(bitmap) => match &bitmap.chunk_size {
-                                                LongSize::Bits32 => print_array!(
-                                                    u32,
-                                                    bitmap.into_iter().as_chunks().map(|x| x
-                                                        .try_into()
-                                                        .expect(
-                                                            "Chunk requires more than 32 bits"
-                                                        ))
-                                                ),
-                                                LongSize::Bits64 => print_array!(
-                                                    u64,
-                                                    bitmap.into_iter().as_chunks()
-                                                ),
-                                            },
+                                            Value::Bitmap(bitmap) => {
+                                                print_array!(u8, bitmap.into_iter().as_bytes())
+                                            }
                                             Value::Raw(_, arr) => {
                                                 print_array!(u8, arr.iter().copied())
                                             }
