@@ -61,6 +61,9 @@ pub enum CompileError {
 
     #[error("The field \"{0}\" does not exist")]
     UnknownField(String),
+
+    #[error("Values of this type cannot be decoded from a buffer: {0:?}")]
+    NonDecodableType(Type),
 }
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]

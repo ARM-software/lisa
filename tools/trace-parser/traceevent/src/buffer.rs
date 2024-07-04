@@ -629,15 +629,11 @@ impl Type {
                     _ => Err(CompileError::InvalidArrayItem(typ.deref().clone())),
                 }
             }
-            typ => {
-                let typ = Arc::new(typ.clone());
-                Ok(make_decoder!(move |_data, field_data, _, _| {
-                    Ok(Value::Raw(
-                        Arc::clone(&typ),
-                        array::Array::Borrowed(field_data),
-                    ))
-                }))
-            }
+            Type::Unknown
+            | Type::Variable(_)
+            | Type::Struct { .. }
+            | Type::Union { .. }
+            | Type::Function { .. } => Err(CompileError::NonDecodableType(self.clone())),
         }
     }
 }
