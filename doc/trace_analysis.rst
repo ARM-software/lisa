@@ -9,8 +9,8 @@ Introduction
 
 LISA comes with a plethora of analysis functions based on `Ftrace
 <https://www.kernel.org/doc/Documentation/trace/ftrace.txt>`_ traces. We
-convert the trace events into :class:`pandas.DataFrame` which are suited to
-handling mid-sized data sets.
+convert the trace events into dataframes (:class:`polars.LazyFrame` and
+:class:`pandas.DataFrame` are currently supported).
 
 Trace
 =====
@@ -35,6 +35,10 @@ Whereas analysis dataframes can be obtained like that::
   trace.ana.tasks.df_tasks_states()
 
 Switching to :mod:`polars` can be done with::
+
+  trace = Trace("path/to/trace.dat", df_fmt='polars-lazyframe')
+
+Or from an existing :class:`~lisa.trace.Trace` object::
 
   trace = Trace("path/to/trace.dat")
   trace = trace.get_view(df_fmt='polars-lazyframe')
