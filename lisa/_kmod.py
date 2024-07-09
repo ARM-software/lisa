@@ -616,7 +616,21 @@ def _overlay_folders(lowers, backend, upper=None, copy_filter=None):
         @destroyablecontextmanager
         def do_mount(dirs):
             dirs['lower'] = ':'.join(map(str, reversed(list(lowers))))
-            cmd = ['mount', '-t', 'overlay', 'overlay', '-o', 'lowerdir={lower},workdir={work},upperdir={upper}'.format(**dirs), '--', mount_point]
+            cmd = [
+                'mount',
+                '-t', 'overlay', 'overlay',
+                '-o', 'lowerdir={lower},workdir={work},upperdir={upper}'.format(**dirs),
+                # Required on some setup, and recommended by the kernel doc:
+                # https://docs.kernel.org/filesystems/overlayfs.html#user-xattr
+                '-o', 'userxattr',
+                # Having xino cannot be guaranteed, so we turn it off in order
+                # to limit the variability of results based on the host setup.
+                # This will make any related issue easier to reproduce on
+                # another different setup.
+                '-o', 'xino=off',
+                '--',
+                mount_point,
+            ]
             _subprocess_log(cmd, logger=logger, level=logging.DEBUG)
 
             try:
