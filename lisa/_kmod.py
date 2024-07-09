@@ -260,7 +260,7 @@ def _subprocess_log(*args, env=None, extra_env=None, **kwargs):
         env = {
             k: v
             for k, v in os.environ.items()
-            if k in ('PATH', 'USER', 'TERM')
+            if k in ('PATH', 'USER', 'TERM', 'TMPDIR')
         }
 
     env.update(extra_env or {})
