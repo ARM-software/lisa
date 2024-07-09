@@ -37,6 +37,7 @@ from ipywidgets import widgets, Layout, interact
 from IPython.display import display
 
 from lisa.utils import is_running_ipython, order_as, destroyablecontextmanager, ContextManagerExit
+from lisa.datautils import _df_to
 
 pn.extension('tabulator')
 
@@ -564,8 +565,8 @@ def _hv_link_dataframes(fig, dfs):
                 col in ('event', 'Time')
             )
         ]
+        df = _df_to(df, fmt='pandas')
         df = df[order_as(df.columns, event_header)]
-
         if df.index.name in df.columns:
             df.index = df.index.copy(deep=False)
             df.index.name = ''
