@@ -21,6 +21,7 @@ functions.
 
 import functools
 import collections
+from collections.abc import Mapping
 import warnings
 import importlib
 import inspect
@@ -554,12 +555,13 @@ def _hv_link_dataframes(fig, dfs):
 
     :returns: A panel displaying the dataframes and the figure.
     """
-    def make_table(i, df):
+    def make_table(tab_name, df):
+        df = _df_to(df, fmt='pandas')
         event_header = [
             col for col in df.columns
             if (
                 col.startswith('__') or
-                col == 'event'
+                col in ('event', 'Time')
             )
         ]
         df = df[order_as(df.columns, event_header)]
@@ -570,7 +572,7 @@ def _hv_link_dataframes(fig, dfs):
 
         df_widget = pn.widgets.Tabulator(
             df,
-            name=f'dataframe #{i}',
+            name=tab_name,
             formatters={
                 'bool': {'type': 'tickCross'}
             },
@@ -639,7 +641,16 @@ def _hv_link_dataframes(fig, dfs):
         dmap = hv.DynamicMap(record_taps, streams=[tap])
         return dmap
 
-    tables = list(starmap(make_table, enumerate(dfs)))
+    dfs = dfs or []
+    if isinstance(dfs, Mapping):
+        dfs = dfs.items()
+    else:
+        dfs = (
+            (f'dataframe #{i}', df)
+            for i, df in enumerate(dfs)
+        )
+
+    tables = list(starmap(make_table, dfs))
     markers = mark_table_selection(tables)
     scroll = scroll_table(tables)
 
