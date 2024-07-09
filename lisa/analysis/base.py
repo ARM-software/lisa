@@ -815,25 +815,36 @@ class AnalysisHelpers(Loggable, abc.ABC):
                     aspect = 4
 
                     if (width, height) == (None, None):
+                        height = 400
                         size = dict(
-                            aspect=aspect,
                             responsive=True,
                         )
                     elif height is None:
+                        # There is usually illimited height available. This
+                        # will make auto-sizing the height break, so we have to
+                        # set it ourselves
+                        height = int(width / aspect)
                         size = dict(
                             width=width,
-                            height=int(width / aspect),
                         )
                     elif width is None:
                         size = dict(
-                            height=height,
+                            # Width is usually limited by the window width, so
+                            # responsive mode will work correctly.
                             responsive=True,
                         )
                     else:
                         size = dict(
                             width=width,
-                            height=height,
                         )
+
+                    # We need to set height in any case, otherwise the
+                    # output="ui" will break since plots have illimited
+                    # vertical space, and holoviews will then not be able to
+                    # provide a height for the object since there is no
+                    # external constraint. This will make the layout to squish
+                    # it vertically.
+                    size['height'] = height
 
                     hv_fig = set_options(
                         hv_fig,

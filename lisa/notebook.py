@@ -668,7 +668,10 @@ def _hv_link_dataframes(fig, dfs):
         tables_widget.align = 'start'
 
     return pn.Column(
-        fig,
+        pn.pane.HoloViews(
+            fig,
+            sizing_mode='stretch_width',
+        ),
         tables_widget,
         sizing_mode='stretch_both',
         align='center',
