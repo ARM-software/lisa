@@ -558,6 +558,9 @@ def _hv_link_dataframes(fig, dfs):
     """
     def make_table(tab_name, df):
         df = _df_to(df, fmt='pandas')
+        index = df.index
+        df = df.reset_index()
+
         event_header = [
             col for col in df.columns
             if (
@@ -566,13 +569,13 @@ def _hv_link_dataframes(fig, dfs):
             )
         ]
         df = _df_to(df, fmt='pandas')
-        df = df[order_as(df.columns, event_header)]
-        if df.index.name in df.columns:
-            df.index = df.index.copy(deep=False)
-            df.index.name = ''
+        df = df[order_as(df.columns, ['Time', *event_header])]
 
         df_widget = pn.widgets.Tabulator(
             df,
+            # We used df.reset_index(), so the index is now a RangeIndex we
+            # don't care about.
+            show_index=False,
             name=tab_name,
             formatters={
                 'bool': {'type': 'tickCross'}
@@ -593,13 +596,13 @@ def _hv_link_dataframes(fig, dfs):
             theme='simple',
             selectable='toggle',
         )
-        return df_widget
+        return (df_widget, index)
 
     def mark_table_selection(tables):
         def plot(*args):
             xs = [
-                table.value.index[x]
-                for xs, table in zip(args, tables)
+                index[x]
+                for xs, (_, index) in zip(args, tables)
                 for x in xs
             ]
             return hv.Overlay(
@@ -615,7 +618,7 @@ def _hv_link_dataframes(fig, dfs):
         tables = list(tables)
         streams = [
             table.param.selection
-            for table in tables
+            for (table, _) in tables
         ]
         bound = pn.bind(plot, *streams)
         dmap = hv.DynamicMap(bound).opts(framewise=True)
@@ -625,10 +628,10 @@ def _hv_link_dataframes(fig, dfs):
     def scroll_table(tables):
         def record_taps(x, y):
             try:
-                for table in tables:
+                for (table, index) in tables:
                     if x is not None:
                         df = table.value
-                        i = df.index.get_indexer([x], method='ffill')[0]
+                        i = index.get_indexer([x], method='ffill')[0]
                         # This will automatically scroll in the table.
                         # It requires a Python int, a numpy object is not good
                         # enough.
@@ -671,12 +674,12 @@ def _hv_link_dataframes(fig, dfs):
         tables_widget = pn.Tabs(
             *(
                 (table.name, table)
-                for table in tables
+                for (table, _) in tables
             ),
             align='start',
         )
     else:
-        tables_widget = tables[0]
+        tables_widget, _ = tables[0]
         tables_widget.align = 'start'
 
     return pn.Column(
