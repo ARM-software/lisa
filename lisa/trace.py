@@ -4493,7 +4493,7 @@ class _TraceCache(Loggable):
                 try:
                     data.sink_parquet(path, **kwargs)
                 # Some LazyFrame cannot be sunk lazily to a parquet file
-                except pl.InvalidOperationError:
+                except polars.exceptions.InvalidOperationError:
                     data.collect().write_parquet(path, **kwargs)
         else:
             data.to_parquet(path, **kwargs)
