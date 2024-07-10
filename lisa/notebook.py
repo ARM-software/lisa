@@ -26,7 +26,7 @@ import warnings
 import importlib
 import inspect
 from uuid import uuid4
-from itertools import starmap
+from itertools import chain, starmap
 
 import pandas as pd
 import holoviews as hv
@@ -806,6 +806,23 @@ def _hv_fig_to_pane(fig, make_pane):
     """
     cls = _hv_wrap_fig_cls(fig.__class__)
     return cls(fig=fig, make_pane=make_pane)
+
+
+@functools.lru_cache(maxsize=128)
+def _hv_has_options(options, backend):
+    """
+    Return the holoviews elements and containers names that accept the given
+    set of options, for the given backend.
+    """
+    options = set(options)
+    return set(chain.from_iterable(
+        names
+        for names, opts in hv.Store.options(backend=backend).items()
+        if set(chain.from_iterable(
+            group.allowed_keywords
+            for group in opts.groups.values()
+        )) > options
+    ))
 
 
 

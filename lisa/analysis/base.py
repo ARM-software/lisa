@@ -44,7 +44,7 @@ import pandas as pd
 
 from lisa.utils import Loggable, deprecate, get_doc_url, get_short_doc, get_subclasses, guess_format, is_running_ipython, measure_time, memoized, update_wrapper_doc, _import_all_submodules, optional_kwargs
 from lisa.trace import _CacheDataDesc
-from lisa.notebook import _hv_fig_to_pane, _hv_link_dataframes, axis_cursor_delta, axis_link_dataframes, make_figure
+from lisa.notebook import _hv_fig_to_pane, _hv_link_dataframes, _hv_has_options, axis_cursor_delta, axis_link_dataframes, make_figure
 from lisa.datautils import _df_to, _pandas_cleanup_df
 
 # Ensure hv.extension() is called
@@ -697,7 +697,14 @@ class AnalysisHelpers(Loggable, abc.ABC):
                     ):
                         set_by_method.setdefault(name, set()).update(_opts)
 
-                def set_options(fig, opts, typs):
+                def set_options(fig, opts, typs=None, not_typs=None):
+                    typs = _hv_has_options(frozenset(opts.keys()), backend=backend)
+                    not_typs = set(not_typs or [])
+                    typs = {
+                        typ
+                        for typ in typs
+                        if typ not in not_typs
+                    }
                     return fig.options(
                         {
                             typ: {
@@ -710,22 +717,6 @@ class AnalysisHelpers(Loggable, abc.ABC):
                         # Specify the backend explicitly, in case the user
                         # asked for a specific backend
                         backend=backend,
-                    )
-
-                def set_option(fig, name, val, typs, extra=None):
-                    return set_options(
-                        fig=fig,
-                        opts={name: val, **(extra or {})},
-                        typs=typs,
-                    )
-
-                def set_cycle(fig, name, xs, typs, extra=None):
-                    return set_option(
-                        fig=fig,
-                        name=name,
-                        val=hv.Cycle(xs),
-                        typs=typs,
-                        extra=extra,
                     )
 
                 # Deprecated options
@@ -780,10 +771,9 @@ class AnalysisHelpers(Loggable, abc.ABC):
 
                 # Tools
                 if backend == 'bokeh':
-                    hv_fig = set_option(
+                    hv_fig = set_options(
                         hv_fig,
-                        name='tools',
-                        val=[
+                        opts=dict(tools=[
                             # TODO: revisit:
                             # undo/redo tools are currently broken for some plots:
                             # https://github.com/holoviz/holoviews/issues/5928
@@ -792,8 +782,11 @@ class AnalysisHelpers(Loggable, abc.ABC):
                             # 'redo',
                             'crosshair',
                             'hover',
-                        ],
-                        typs=('Curve', 'Path', 'Points', 'Scatter', 'Bars', 'Histogram', 'Distribution', 'HeatMap', 'Image', 'Rectangles', 'Area', 'Spikes'),
+                        ]),
+                        # Setting hover tool for HSpan and VSpan is broken, so
+                        # we don't:
+                        # https://github.com/holoviz/holoviews/issues/6321
+                        not_typs=['HSpan', 'VSpan', 'VLine', 'HLine']
                     ).options(
                         backend=backend,
                         # Sometimes holoviews (or bokeh) decides to put it on
@@ -803,10 +796,9 @@ class AnalysisHelpers(Loggable, abc.ABC):
 
                 # Workaround:
                 # https://github.com/holoviz/holoviews/issues/4981
-                hv_fig = set_option(
+                hv_fig = set_options(
                     hv_fig,
-                    name='color',
-                    val=hv.Cycle(),
+                    opts=dict(color=hv.Cycle()),
                     typs=('Rectangles',),
                 )
 
@@ -849,27 +841,23 @@ class AnalysisHelpers(Loggable, abc.ABC):
                     hv_fig = set_options(
                         hv_fig,
                         opts=size,
-                        typs=('Curve', 'Path', 'Points', 'Scatter', 'Overlay', 'Bars', 'Histogram', 'Distribution', 'HeatMap', 'Image', 'Rectangles', 'Area', 'HLine', 'VLine', 'Spikes', 'HSpan', 'VSpan'),
                     )
                 elif backend == 'matplotlib':
                     width = 16 if width is None else width
                     height = 4 if height is None else height
                     fig_inches = max(width, height)
 
+                    # Set the 2 options separately so they apply to the maximum
+                    # number of types.
                     hv_fig = set_options(
                         hv_fig,
-                        opts=dict(
-                            aspect=width / height,
-                            fig_inches=fig_inches,
-                        ),
-                        typs=('Curve', 'Path', 'Points', 'Scatter', 'Overlay', 'Bars', 'Histogram', 'Distribution', 'HeatMap', 'Image', 'Rectangles', 'Area', 'HLine', 'VLine', 'Spikes'),
+                        opts=dict(aspect=width / height),
                     )
                     # Not doing this on the Layout will prevent getting big
                     # figures, but the "aspect" cannot be set on a Layout
                     hv_fig = set_options(
                         hv_fig,
                         opts=dict(fig_inches=fig_inches),
-                        typs=('Layout',),
                     )
 
                 # Use a memoized function to make sure we only do the rendering once
@@ -921,7 +909,6 @@ class AnalysisHelpers(Loggable, abc.ABC):
                         static_fig = set_options(
                             hv_fig,
                             opts=dict(responsive=False),
-                            typs=('Curve', 'Path', 'Points', 'Scatter', 'Overlay', 'Bars', 'Histogram', 'Distribution', 'HeatMap', 'Image', 'Rectangles', 'HLine', 'VLine', 'VSpan', 'HSpan', 'Spikes'),
                         )
                         hv.save(static_fig, filepath, fmt=img_format, backend=backend)
 
