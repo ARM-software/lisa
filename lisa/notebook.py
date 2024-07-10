@@ -419,13 +419,14 @@ def plot_signal(series, name=None, interpolation=None, add_markers=True, vdim=No
         # styling in generic code..
         # TODO: use mute_legend=True once this bug is fixed:
         # https://github.com/holoviz/holoviews/issues/3936
-        fig *= hv.Scatter(
+        markers = hv.Scatter(
             series,
             label=label,
             group='marker',
             kdims=kdims,
             vdims=vdims,
         )
+        fig = fig * markers
     return fig
 
 
@@ -440,64 +441,6 @@ def _hv_neutral():
     """
     return hv.Curve([])
 
-
-def _hv_backend_twinx(backend, display, y_range):
-    def hook(plot, element):
-        p = plot.state
-
-        if backend == 'bokeh':
-            glyph = p.renderers[-1]
-            vals = glyph.data_source.data['y']
-
-            if y_range is None:
-                _y_range = (vals.min(), vals.max())
-            else:
-                _y_range = y_range
-
-            name = uuid4().hex
-            p.extra_y_ranges.update({
-                name: bokeh.models.Range1d(start=_y_range[0], end=_y_range[1])
-            })
-            glyph.y_range_name = name
-
-            if display:
-                p.add_layout(
-                    bokeh.models.LinearAxis(y_range_name=name),
-                    'right'
-                )
-        elif backend == 'matplotlib':
-            ax = plot.handles['axis']
-            twin = ax.twinx()
-            plot.handles['axis'] = twin
-            if not display:
-                twin.get_yaxis().set_ticks([])
-            if y_range is not None:
-                twin.set_ylim(y_range)
-        else:
-            raise ValueError(f'Unsupported backend={backend}')
-
-    return hook
-
-def _hv_twinx(fig, display=True, y_range=None):
-    """
-    Similar to matplotlib's twinx feature where the element's Y axis is
-    separated from the default one and drawn on the right of the plot.
-
-    :param display: If ``True``, the ticks will be displayed on the right of
-        the plot. Otherwise, it will be hidden.
-    :type display: bool
-
-    .. note:: This uses a custom hook for each backend, so it will be disabled
-        if the user also set their own hook.
-    """
-    kwargs = dict(
-        display=display,
-        y_range=y_range,
-    )
-    return fig.options(
-        backend='bokeh',
-        hooks=[_hv_backend_twinx('bokeh', **kwargs)],
-    )
 
 def _hv_multi_line_title_hook(plot, element):
     p = plot.state

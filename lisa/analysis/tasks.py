@@ -35,7 +35,7 @@ from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized, kwargs_forwarded_to, deprecate, order_as
 from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates, SignalDesc
 from lisa.trace import requires_events, will_use_events_from, may_use_events, CPU, MissingTraceEventError
-from lisa.notebook import _hv_neutral, plot_signal, _hv_twinx
+from lisa.notebook import _hv_neutral, plot_signal
 from lisa._typeclass import FromString
 
 
@@ -1388,9 +1388,12 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @df_task_activation.used_events
     def _plot_tasks_activation(self, tasks, show_legend=None, cpu: CPU=None, alpha:
-            float=None, overlay: bool=False, duration: bool=False, duty_cycle:
+            float=None, overlay: bool=None, duration: bool=False, duty_cycle:
             bool=False, which_cpu: bool=False, height_duty_cycle: bool=False, best_effort=False):
         logger = self.logger
+
+        if overlay is not None:
+            warnings.warn('"overlay" parameter is deprecated and will be removed, use holoviews twin axis support and plot customization to change e.g. Rectangles alpha instead', DeprecationWarning)
 
         def ensure_last_rectangle(df):
             # Make sure we will draw the last rectangle, which could be
@@ -1403,9 +1406,6 @@ class TasksAnalysis(TraceAnalysisBase):
                 # window
                 df = df_add_delta(df, window=window, col='duration')
                 return df
-
-        def make_twinx(fig, **kwargs):
-            return _hv_twinx(fig, **kwargs)
 
         if which_cpu:
             def make_rect_df(df):
@@ -1448,7 +1448,9 @@ class TasksAnalysis(TraceAnalysisBase):
             figs = []
             if duty_cycle:
                 figs.append(
-                    plot_signal(df['duty_cycle'], name=f'Duty cycle of {task}')
+                    plot_signal(df['duty_cycle'], name=f'Duty cycle of {task}').redim(
+                        duty_cycle='Duty cycle'
+                    )
                 )
 
             if duration:
@@ -1459,7 +1461,9 @@ class TasksAnalysis(TraceAnalysisBase):
                     return plot_signal(duration_series, name=f'{label} duration of {task}')
 
                 figs.extend(
-                    plot_duration(active, label)
+                    plot_duration(active, label).redim(
+                        duration='Duration'
+                    )
                     for active, label in (
                         (True, 'Activations'),
                         (False, 'Sleep')
@@ -1548,7 +1552,7 @@ class TasksAnalysis(TraceAnalysisBase):
             )
 
         if alpha is None:
-            if overlay or duty_cycle or duration:
+            if duty_cycle or duration:
                 alpha = 0.2
             else:
                 alpha = 1
@@ -1556,12 +1560,7 @@ class TasksAnalysis(TraceAnalysisBase):
         # For performance reasons, plot all the tasks as one hv.Rectangles
         # invocation when we get too many tasks
         if show_legend is None:
-            if overlay:
-                # TODO: twinx() breaks on hv.Overlay, so we are forced to use a
-                # single hv.Rectangles in that case, meaning no useful legend
-                show_legend = False
-            else:
-                show_legend = len(tasks) < 5
+            show_legend = len(tasks) < 5
 
         cpus_count = self.trace.cpus_count
 
@@ -1604,38 +1603,22 @@ class TasksAnalysis(TraceAnalysisBase):
             )
             fig = plot_rect(data)
 
-        if overlay:
-            fig = make_twinx(
-                fig,
-                y_range=(-1, cpus_count),
-                display=False
+        if which_cpu:
+            fig = fig.options(
+                'Rectangles',
+                ylabel='CPU',
+                yticks=[
+                    (cpu, f'CPU{cpu}')
+                    for cpu in range(cpus_count)
+                ],
             )
         else:
-            if which_cpu:
-                fig = fig.options(
-                    'Rectangles',
-                    ylabel='CPU',
-                    yticks=[
-                        (cpu, f'CPU{cpu}')
-                        for cpu in range(cpus_count)
-                    ],
-                ).redim(
-                    y=hv.Dimension('y', range=(-0.5, cpus_count - 0.5))
-                )
-            elif height_duty_cycle:
-                fig = fig.options(
-                    'Rectangles',
-                    ylabel='Duty cycle',
-                )
+            fig = fig.options(
+                'Rectangles',
+                ylabel='Task Activations',
+            )
 
         if duty_cycle or duration:
-            if duty_cycle:
-                ylabel = 'Duty cycle'
-            elif duration:
-                ylabel = 'Duration (s)'
-
-            # TODO: twinx() on hv.Overlay does not work, so we unfortunately have a
-            # scaling issue here
             fig = hv.Overlay(
                 [fig] +
                 [
@@ -1644,7 +1627,8 @@ class TasksAnalysis(TraceAnalysisBase):
                     for fig in plot_extra(task, df)
                 ]
             ).options(
-                ylabel=ylabel,
+                # Enable twin axes, so that the duty cycle has a separate scale.
+                multi_y=True,
             )
 
         return fig.options(
@@ -1656,7 +1640,7 @@ class TasksAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.plot_method
     @_plot_tasks_activation.used_events
     @kwargs_forwarded_to(_plot_tasks_activation, ignore=['tasks', 'best_effort'])
-    def plot_tasks_activation(self, tasks: typing.Sequence[TaskID]=None, hide_tasks: typing.Sequence[TaskID]=None, which_cpu: bool=True, overlay: bool=False, **kwargs):
+    def plot_tasks_activation(self, tasks: typing.Sequence[TaskID]=None, hide_tasks: typing.Sequence[TaskID]=None, which_cpu: bool=True, overlay: bool=None, **kwargs):
         """
         Plot all tasks activations, in a style similar to kernelshark.
 
@@ -1723,24 +1707,6 @@ class TasksAnalysis(TraceAnalysisBase):
             TaskID(pid=pid, comm=None)
             for pid in sorted(set(x.pid for x in full_task_ids))
         ]
-
-        #TODO: Re-enable the CPU "lanes" once this bug is solved:
-        # https://github.com/holoviz/holoviews/issues/4979
-        if False and which_cpu and not overlay:
-            # Add horizontal lines to delimitate each CPU "lane" in the plot
-            cpu_lanes = [
-                hv.HLine(y - offset).options(
-                    color='grey',
-                    alpha=0.2,
-                ).options(
-                    backend='bokeh',
-                    line_width=0.5,
-                )
-                for y in range(trace.cpus_count + 1)
-                for offset in ((0.5, -0.5) if y == 0 else (0.5,))
-            ]
-        else:
-            cpu_lanes = []
 
         title = 'Activations of ' + ', '.join(
             map(str, full_task_ids)
