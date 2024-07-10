@@ -658,17 +658,7 @@ def _hv_link_dataframes(fig, dfs):
     markers = mark_table_selection(tables)
     scroll = scroll_table(tables)
 
-    # Workaround issue:
-    # https://github.com/holoviz/holoviews/issues/5003
-    if isinstance(fig, hv.Layout):
-        ncols = fig._max_cols
-    else:
-        ncols = None
-
     fig = fig * (scroll * markers)
-
-    if ncols is not None:
-        fig = fig.cols(ncols)
 
     if len(tables) > 1:
         tables_widget = pn.Tabs(
