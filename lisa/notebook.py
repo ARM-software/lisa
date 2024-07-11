@@ -32,12 +32,14 @@ import pandas as pd
 import holoviews as hv
 import bokeh.models
 import panel as pn
+import polars as pl
+import polars.selectors as cs
 
 from ipywidgets import widgets, Layout, interact
 from IPython.display import display
 
 from lisa.utils import is_running_ipython, order_as, destroyablecontextmanager, ContextManagerExit
-from lisa.datautils import _df_to
+from lisa.datautils import _df_to, _dispatch, _polars_index_col
 
 pn.extension('tabulator')
 
@@ -369,7 +371,7 @@ def plot_signal(series, name=None, interpolation=None, add_markers=True, vdim=No
     Plot a signal using ``holoviews`` library.
 
     :param series: Series of values to plot.
-    :type series: pandas.Series
+    :type series: pandas.Series or pandas.DataFrame or polars.LazyFrame
 
     :param name: Name of the signal. Defaults to the series name.
     :type name: str or None
@@ -385,6 +387,33 @@ def plot_signal(series, name=None, interpolation=None, add_markers=True, vdim=No
     :param vdim: Value axis dimension.
     :type vdim: holoviews.core.dimension.Dimension
     """
+    return _dispatch(
+        _polars_plot_signal,
+        _pandas_plot_signal,
+        series, name, interpolation, add_markers, vdim,
+    )
+
+
+def _polars_plot_signal(series, name, interpolation, add_markers, vdim):
+    df = series
+    assert isinstance(df, pl.LazyFrame)
+    index = _polars_index_col(df, index='Time')
+    col1, col2 = df.collect_schema().names()
+    col = col2 if col1 == index else col1
+
+    df = df.select((index, col))
+    pandas_df = _df_to(df, index=index, fmt='pandas')
+
+    return _pandas_plot_signal(
+        series=pandas_df,
+        name=name,
+        interpolation=interpolation,
+        add_markers=add_markers,
+        vdim=vdim,
+    )
+
+
+def _pandas_plot_signal(series, name, interpolation, add_markers, vdim):
     if isinstance(series, pd.DataFrame):
         try:
             col, = series.columns
