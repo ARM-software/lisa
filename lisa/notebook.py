@@ -678,9 +678,11 @@ def _hv_link_dataframes(fig, dfs):
             ),
             align='start',
         )
-    else:
+    elif tables:
         tables_widget, _ = tables[0]
         tables_widget.align = 'start'
+    else:
+        tables_widget = pn.VSpacer()
 
     return pn.Column(
         pn.pane.HoloViews(
