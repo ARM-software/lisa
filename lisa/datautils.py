@@ -30,6 +30,7 @@ import weakref
 import threading
 
 import polars as pl
+import polars.selectors as cs
 import numpy as np
 import pandas as pd
 import pandas.api.extensions
@@ -297,13 +298,12 @@ def _df_to_pandas(df, index):
     else:
         assert isinstance(df, pl.LazyFrame)
         index = _polars_index_col(df, index)
-
         schema = df.collect_schema()
         has_time_index = index == 'Time' and schema[index].is_temporal()
-        if has_time_index:
-            df = df.with_columns(
-                pl.col(index).dt.total_nanoseconds() * 1e-9
-            )
+
+        df = df.with_columns(
+            cs.duration().dt.total_nanoseconds() * 1e-9
+        )
         df = df.collect()
 
         # Make sure we get nullable dtypes:
