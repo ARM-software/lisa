@@ -33,7 +33,7 @@ import polars as pl
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized, kwargs_forwarded_to, deprecate, order_as
-from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates, SignalDesc
+from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates, SignalDesc, _df_to, NO_INDEX
 from lisa.trace import requires_events, will_use_events_from, may_use_events, CPU, MissingTraceEventError
 from lisa.notebook import _hv_neutral, plot_signal
 from lisa._typeclass import FromString
@@ -1391,74 +1391,61 @@ class TasksAnalysis(TraceAnalysisBase):
             float=None, overlay: bool=None, duration: bool=False, duty_cycle:
             bool=False, which_cpu: bool=False, height_duty_cycle: bool=False, best_effort=False):
         logger = self.logger
+        trace = self.trace.get_view(df_fmt='polars-lazyframe')
+        ana = trace.ana
 
         if overlay is not None:
             warnings.warn('"overlay" parameter is deprecated and will be removed, use holoviews twin axis support and plot customization to change e.g. Rectangles alpha instead', DeprecationWarning)
 
         def ensure_last_rectangle(df):
-            # Make sure we will draw the last rectangle, which could be
-            # critical for tasks that are never sleeping
-            if df.empty:
-                return df
-            else:
-                window = self.trace.window
-                # Regenerate the duration so they match the boundaries of the
-                # window
-                df = df_add_delta(df, window=window, col='duration')
-                return df
+            """
+            Make sure we will draw the last rectangle, which could be
+            critical for tasks that are never sleeping
+            """
+            window = trace.window
+
+            # Regenerate the duration so they match the boundaries of the
+            # window
+            df = df_add_delta(df, window=window, col='duration')
+            return df
 
         if which_cpu:
             def make_rect_df(df):
-                half_height = df['active'] / 2
-                return pd.DataFrame(
-                    dict(
-                        Time=df.index,
-                        CPU=df['cpu'] - half_height,
-                        x1=df.index + df['duration'],
-                        y1=df['cpu'] + half_height,
-                    ),
-                    index=df.index
-                )
+                half_height = pl.col('active') / 2
+                return df.select((
+                    pl.col('Time'),
+                    pl.col('cpu').alias('CPU'),
+
+                    (pl.col('cpu') - half_height).alias('y0'),
+                    (pl.col('Time') + pl.col('duration')).alias('x1'),
+                    (pl.col('cpu') + half_height).alias('y1'),
+                ))
         else:
             def make_rect_df(df):
-                if duty_cycle or duration:
-                    max_val = max(
-                        df[col].max()
-                        for select, col in (
-                            (duty_cycle, 'duty_cycle'),
-                            (duration, 'duration')
-                        )
-                        if select
-                    )
-                    height_factor = max_val
-                else:
-                    height_factor = 1
+                return df.select((
+                    pl.col('Time'),
+                    pl.col('cpu').alias('CPU'),
 
-                return pd.DataFrame(
-                    dict(
-                        Time=df.index,
-                        CPU=0,
-                        x1=df.index + df['duration'],
-                        y1=df['active'] * height_factor,
-                    ),
-                    index=df.index,
-                )
+                    pl.lit(0).alias('y0').cast(pl.Float64),
+                    (pl.col('Time') + pl.col('duration')).alias('x1'),
+                    pl.col('active').alias('y1').cast(pl.Float64),
+                ))
 
         def plot_extra(task, df):
             figs = []
             if duty_cycle:
                 figs.append(
-                    plot_signal(df['duty_cycle'], name=f'Duty cycle of {task}').redim(
+                    plot_signal(df.select(('Time', 'duty_cycle')), name=f'Duty cycle of {task}').redim(
                         duty_cycle='Duty cycle'
                     )
                 )
 
             if duration:
                 def plot_duration(active, label):
-                    duration_series = df[df['active'] == active]['duration']
+                    duration_df = df.filter(pl.col('active') == pl.lit(active)).select(('Time', 'duration'))
                     # Add blanks in the plot when the state is not the one we care about
-                    duration_series = duration_series.reindex_like(df)
-                    return plot_signal(duration_series, name=f'{label} duration of {task}')
+                    _, duration_df = pl.align_frames(df, duration_df, on='Time', how='left')
+                    return plot_signal(duration_df, name=f'{label} duration of {task}')
 
                 figs.extend(
                     plot_duration(active, label).redim(
@@ -1473,7 +1460,9 @@ class TasksAnalysis(TraceAnalysisBase):
             return figs
 
         def check_df(task, df, empty_is_none):
-            if df.empty:
+            try:
+                ana.tasks.get_task_pid_names(task.pid)
+            except KeyError:
                 msg = f'Could not find events associated to task {task}'
                 if empty_is_none:
                     logger.debug(msg)
@@ -1484,42 +1473,60 @@ class TasksAnalysis(TraceAnalysisBase):
                 return ensure_last_rectangle(df)
 
         def get_task_data(task, df):
-            df = df.copy()
-
-            # Preempted == sleep for plots
-            df['active'] = df['active'].fillna(0)
+            df = df.with_columns(
+                # Preempted == sleep for plots
+                pl.col('active').fill_null(0)
+            )
             if height_duty_cycle:
-                df['active'] *= df['duty_cycle']
+                df = df.with_columns(
+                    active=(
+                        pl.col('active') *
+                        # Ensure we don't end up with null here, otherwise the
+                        # rectangle will disappear.
+                        pl.col('duty_cycle').fill_null(1)
+                    )
+                )
 
-            data = make_rect_df(df[df['active'] != 0])
-            if data.empty:
-                return data
-            else:
-                name_df = self.trace.df_event('sched_switch')
-                name_df = name_df[name_df['next_pid'] == task.pid]
-                names = name_df['next_comm'].reindex(data.index, method='ffill')
+            data_df = make_rect_df(df.filter(pl.col('active') != 0))
 
-                # If there was no sched_switch with next_pid matching task.pid, we
-                # simply take the last known name of the task, which could
-                # originate from another field or another event.
+            comm_df = trace.df_event('sched_switch')
+            comm_df = (
+                comm_df
+                .filter(pl.col('next_pid') == task.pid)
+                .select(('Time', pl.col('next_comm').alias('comm')))
+            )
+
+            data_df = data_df.join_asof(
+                comm_df,
+                on='Time',
+            )
+
+            last_comm = ana.tasks.get_task_pid_names(task.pid)[-1]
+            data_df = data_df.with_columns(
+                # If there was no sched_switch with next_pid matching
+                # task.pid, we simply take the last known name of the
+                # task, which could originate from another field or
+                # another event.
                 #
-                # Note: This prevent an <NA> value, which makes bokeh choke.
-                last_comm = self.get_task_pid_names(task.pid)[-1]
+                # Note: This prevent an null value, which makes bokeh
+                # choke.
+                pl.col('comm').fill_null(last_comm)
+            )
 
-                if last_comm not in names.cat.categories:
-                    names = names.cat.add_categories([last_comm])
-                names = names.fillna(last_comm)
+            data_df = data_df.join_asof(
+                df.select(('Time', 'cpu', 'duration', 'duty_cycle')),
+                on='Time',
+            )
 
+            data_df = data_df.with_columns(
                 # Use a string for PID so that holoviews interprets it as
-                # categorical variable, rather than continuous. This is important
-                # for correct color mapping
-                data['pid'] = str(task.pid)
-                data['comm'] = names
-                data['start'] = data.index
-                data['cpu'] = df['cpu']
-                data['duration'] = df['duration']
-                data['duty_cycle'] = df['duty_cycle']
-                return data
+                # categorical variable, rather than continuous. This is
+                # important for correct color mapping
+                pid=pl.lit(str(task.pid)),
+                start=pl.col('Time'),
+                cpu=pl.col('CPU'),
+            )
+            return data_df
 
         def plot_rect(data):
             if show_legend:
@@ -1534,16 +1541,21 @@ class TasksAnalysis(TraceAnalysisBase):
                 )
 
             return hv.Rectangles(
-                data,
+                _df_to(data, fmt='pandas', index=NO_INDEX),
                 kdims=[
+                    # Ensure we have Time as kdim, otherwise some generic code
+                    # in AnalysisBase will not recognize this plot uses Time as
+                    # X axis and will not link the events dataframe by default
+                    # in output="ui"
                     hv.Dimension('Time'),
-                    hv.Dimension('CPU'),
+                    hv.Dimension('y0'),
                     hv.Dimension('x1'),
                     hv.Dimension('y1'),
                 ]
             ).options(
                 show_legend=show_legend,
                 alpha=alpha,
+                xlabel='Time',
                 **opts,
             ).options(
                 backend='bokeh',
@@ -1562,22 +1574,21 @@ class TasksAnalysis(TraceAnalysisBase):
         if show_legend is None:
             show_legend = len(tasks) < 5
 
-        cpus_count = self.trace.cpus_count
+        cpus_count = trace.cpus_count
 
         task_dfs = {
             task: check_df(
                 task,
-                self.df_task_activation(task, cpu=cpu),
+                ana.tasks.df_task_activation(task, cpu=cpu),
                 empty_is_none=best_effort,
             )
             for task in tasks
         }
-        if best_effort:
-            task_dfs = {
-                task: df
-                for task, df in task_dfs.items()
-                if df is not None
-            }
+        task_dfs = {
+            task: df
+            for task, df in task_dfs.items()
+            if df is not None
+        }
         tasks = sorted(task_dfs.keys())
 
         if show_legend:
@@ -1587,7 +1598,7 @@ class TasksAnalysis(TraceAnalysisBase):
                         f'Activations of {task.pid} (' +
                         ', '.join(
                             task_id.comm
-                            for task_id in self.get_task_ids(task)
+                            for task_id in ana.tasks.get_task_ids(task)
                         ) +
                         ')',
                     )
@@ -1597,7 +1608,7 @@ class TasksAnalysis(TraceAnalysisBase):
                 legend_limit=len(tasks) * 100,
             )
         else:
-            data = pd.concat(
+            data = pl.concat(
                 get_task_data(task, df)
                 for task, df in task_dfs.items()
             )
@@ -1676,7 +1687,6 @@ class TasksAnalysis(TraceAnalysisBase):
 
         .. seealso:: :meth:`df_task_activation`
         """
-        trace = self.trace
         hidden = set(itertools.chain.from_iterable(
             self.get_task_ids(task)
             for task in (hide_tasks or [])
