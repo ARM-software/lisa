@@ -148,12 +148,11 @@ import lisa._git as git
 from lisa.conf import SimpleMultiSrcConf, TopLevelKeyDesc, LevelKeyDesc, KeyDesc, VariadicLevelKeyDesc
 from lisa._kallsyms import parse_kallsyms
 
-_CC_MAKE_VARS_DEFAULT = object()
-def _make_vars_cc(make_vars, default=_CC_MAKE_VARS_DEFAULT):
+def _make_vars_cc(make_vars, default=None):
     try:
         cc = make_vars['CC']
     except KeyError:
-        if default is _CC_MAKE_VARS_DEFAULT:
+        if default is None:
             raise
         else:
             cc = default
@@ -908,7 +907,7 @@ class _KernelBuildEnvConf(SimpleMultiSrcConf):
             KeyDesc('build-env', 'Environment used to build modules. Can be any of "alpine" (Alpine Linux chroot, recommended) or "host" (command ran directly on host system)', [typing.Literal['host', 'alpine']]),
             LevelKeyDesc('build-env-settings', 'build-env settings', (
                 LevelKeyDesc('host', 'Settings for host build-env', (
-                    KeyDesc('toolchain-path', 'Folder to prepend to PATH when executing toolchain command in the host build env', [str]),
+                    KeyDesc('toolchain-path', 'Folder to prepend to PATH when executing toolchain command in the host build env. Toolchain autodetection will be restricted to that folder.', [str]),
                 )),
                 LevelKeyDesc('alpine', 'Settings for Alpine linux build-env', (
                     KeyDesc('version', 'Alpine linux version, e.g. 3.18.0', [None, str]),
@@ -1592,9 +1591,9 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     cross_compiles = [os.environ['CROSS_COMPILE']]
                 except KeyError:
                     if abi == 'arm64':
-                        cross_compiles = ['aarch64-linux-gnu-', 'aarch64-none-elf-', 'aarch64-linux-android-', 'aarch64-none-linux-android-']
+                        cross_compiles = ['aarch64-linux-gnu-', 'aarch64-none-linux-gnu-', 'aarch64-none-elf-', 'aarch64-linux-android-', 'aarch64-none-linux-android-']
                     elif abi == 'armeabi':
-                        cross_compiles = ['arm-linux-gnueabi-', 'arm-none-eabi-', 'arm-none-linux-gnueabi-']
+                        cross_compiles = ['arm-linux-gnueabi-', 'arm-none-linux-gnueabi-', 'arm-linux-eabi-', 'arm-none-linux-eabi-', 'arm-none-eabi-']
                     elif abi == 'x86':
                         cross_compiles = ['i686-linux-gnu-']
                     else:
@@ -1680,6 +1679,21 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
 
             toolchain_path = build_conf['build-env-settings']['host'].get('toolchain-path', None)
 
+            def is_in_toolchain_path(cc, cross_compile):
+                if toolchain_path:
+                    cmd = cc_cmd(cc, cross_compile, opts=[])
+                    bin_, *_ = cmd
+                    bin_ = shutil.which(bin_, path=toolchain_path)
+                    return bin_ is not None
+                else:
+                    return True
+
+            ccs = [
+                (cc, cross_compile)
+                for cc, cross_compile in ccs
+                if is_in_toolchain_path(cc, cross_compile)
+            ]
+
             for (cc, cross_compile) in ccs:
                 cmd = test_cmd(cc, cross_compile)
 
@@ -1710,7 +1724,10 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     f'CROSS_COMPILE={cross_compile}'
                     for cross_compile in cross_compiles
                 )
-                cc = _make_vars_cc(make_vars, None)
+                try:
+                    cc = _make_vars_cc(make_vars)
+                except KeyError:
+                    cc = None
                 with_cc = f' with CC={cc}' if cc else ''
                 raise ValueError(f'Could not find a working toolchain for {cross}{with_cc}')
 
