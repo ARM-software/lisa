@@ -1185,7 +1185,7 @@ class TraceDumpTraceParser(TraceParserBase):
             pl.col('Time').cast(pl.Duration("ns")),
             pl.col('__pid').replace_strict(pid_comms, default=None).alias('__comm')
         ])
-        df = df.drop('common_type', 'common_flags', 'common_preempt_count')
+        df = df.drop(('common_type', 'common_flags', 'common_preempt_count'), strict=False)
 
         monotonic_clocks = (
             'local',
@@ -1620,7 +1620,7 @@ class TxtTraceParserBase(TraceParserBase):
             # We only needed the fields to infer the descriptors, so let's drop
             # them to lower peak memory usage
             with contextlib.suppress(KeyError):
-                self._skeleton_df = self._skeleton_df.drop(['__fields'])
+                self._skeleton_df = self._skeleton_df.drop(['__fields'], strict=False)
 
             event_parsers = {
                 **{
