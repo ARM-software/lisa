@@ -908,7 +908,7 @@ class _KernelBuildEnvConf(SimpleMultiSrcConf):
             KeyDesc('build-env', 'Environment used to build modules. Can be any of "alpine" (Alpine Linux chroot, recommended) or "host" (command ran directly on host system)', [typing.Literal['host', 'alpine']]),
             LevelKeyDesc('build-env-settings', 'build-env settings', (
                 LevelKeyDesc('host', 'Settings for host build-env', (
-                    KeyDesc('toolchain-path', 'Folder to prepend to PATH when executing toolchain command in the host build env', [str]),
+                    KeyDesc('toolchain-path', 'Folder to prepend to PATH when executing toolchain command in the host build env. Toolchain autodetection will be restricted to that folder.', [str]),
                 )),
                 LevelKeyDesc('alpine', 'Settings for Alpine linux build-env', (
                     KeyDesc('version', 'Alpine linux version, e.g. 3.18.0', [None, str]),
@@ -1679,6 +1679,21 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                 return cc_cmd(cc, cross_compile, opts)
 
             toolchain_path = build_conf['build-env-settings']['host'].get('toolchain-path', None)
+
+            def is_in_toolchain_path(cc, cross_compile):
+                if toolchain_path:
+                    cmd = cc_cmd(cc, cross_compile, opts=[])
+                    bin_, *_ = cmd
+                    bin_ = shutil.which(bin_, path=toolchain_path)
+                    return bin_ is not None
+                else:
+                    return True
+
+            ccs = [
+                (cc, cross_compile)
+                for cc, cross_compile in ccs
+                if is_in_toolchain_path(cc, cross_compile)
+            ]
 
             for (cc, cross_compile) in ccs:
                 cmd = test_cmd(cc, cross_compile)
