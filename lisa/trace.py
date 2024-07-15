@@ -4485,7 +4485,10 @@ class _TraceCache(Loggable):
                 self._write_data(cache_desc.fmt, data, data_path)
             except Exception as e:
                 if best_effort:
-                    log_error(e)
+                    # Do not log the error, as it could be an expected one
+                    # (e.g. we have an object column in a dataframe that cannot
+                    # be converted to arrow.
+                    pass
                 else:
                     raise e
             else:
@@ -4499,7 +4502,7 @@ class _TraceCache(Loggable):
                     # probably because the descriptor includes something that
                     # cannot be serialized to JSON.
                     except _CannotWriteSwapEntry as e:
-                        self.logger.debug(f'Could not write {cache_desc} to swap: {e}')
+                        log_error(e)
                         swap_entry.written = False
                         return
                     else:
