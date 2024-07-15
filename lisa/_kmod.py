@@ -148,12 +148,11 @@ import lisa._git as git
 from lisa.conf import SimpleMultiSrcConf, TopLevelKeyDesc, LevelKeyDesc, KeyDesc, VariadicLevelKeyDesc
 from lisa._kallsyms import parse_kallsyms
 
-_CC_MAKE_VARS_DEFAULT = object()
-def _make_vars_cc(make_vars, default=_CC_MAKE_VARS_DEFAULT):
+def _make_vars_cc(make_vars, default=None):
     try:
         cc = make_vars['CC']
     except KeyError:
-        if default is _CC_MAKE_VARS_DEFAULT:
+        if default is None:
             raise
         else:
             cc = default
@@ -1725,7 +1724,10 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     f'CROSS_COMPILE={cross_compile}'
                     for cross_compile in cross_compiles
                 )
-                cc = _make_vars_cc(make_vars, None)
+                try:
+                    cc = _make_vars_cc(make_vars)
+                except KeyError:
+                    cc = None
                 with_cc = f' with CC={cc}' if cc else ''
                 raise ValueError(f'Could not find a working toolchain for {cross}{with_cc}')
 
