@@ -30,6 +30,7 @@ import weakref
 import threading
 
 import polars as pl
+import polars.selectors as cs
 import numpy as np
 import pandas as pd
 import pandas.api.extensions
@@ -212,6 +213,14 @@ def _polars_duration_expr(duration, unit='s', rounding='down'):
         return duration.to_polars_expr()
 
 
+def _polars_duration_window(window):
+    start, end = window
+    return (
+        _polars_duration_expr(start, rounding='down'),
+        _polars_duration_expr(end, rounding='up')
+    )
+
+
 _MEM_LAZYFRAMES_LOCK = threading.Lock()
 _MEM_LAZYFRAMES = weakref.WeakValueDictionary()
 def _polars_declare_in_memory(df):
@@ -297,13 +306,12 @@ def _df_to_pandas(df, index):
     else:
         assert isinstance(df, pl.LazyFrame)
         index = _polars_index_col(df, index)
-
         schema = df.collect_schema()
         has_time_index = index == 'Time' and schema[index].is_temporal()
-        if has_time_index:
-            df = df.with_columns(
-                pl.col(index).dt.total_nanoseconds() * 1e-9
-            )
+
+        df = df.with_columns(
+            cs.duration().dt.total_nanoseconds() * 1e-9
+        )
         df = df.collect()
 
         # Make sure we get nullable dtypes:
@@ -494,7 +502,13 @@ def df_refit_index(df, start=None, end=None, window=None, method='inclusive'):
     Same as :func:`series_refit_index` but acting on :class:`pandas.DataFrame`
     """
     window = _make_window(start, end, window)
-    return _pandas_refit_index(df, window, method=method)
+
+    return _dispatch(
+        _polars_refit_index,
+        _pandas_refit_index,
+        df, window, method
+    )
+
 
 def _make_window(start, end, window):
     uses_separated = (start, end) != (None, None)
@@ -565,6 +579,42 @@ def df_split_signals(df, signal_cols, align_start=False, window=None):
             if window:
                 signal = df_refit_index(signal, window=window, method='inclusive')
             yield (cols_val, signal)
+
+
+def _polars_refit_index(data, window, method):
+    # TODO: maybe expose that as a param
+    index = _polars_index_col(data, index='Time')
+    start, end = _polars_duration_window(window)
+
+    data = _polars_window(data, window, method=method, col=index)
+    index_col = pl.col(index)
+
+    if start is not None:
+        data = data.with_columns(
+            # Only advance the beginning of the data, never move it in the
+            # past. Otherwise, we "invent" a value for the signal that did
+            # not exist, leading to various wrong results.
+            index_col.clip(lower_bound=start)
+        )
+
+    if end is not None:
+        data = pl.concat([
+            data.with_columns(
+                index_col.clip(upper_bound=end)
+            ),
+            data.last().with_columns(
+                end.alias(index)
+            )
+        ])
+
+        # If it turns out the last value of the index was already "end" or if
+        # "end" had a lower value than the unclipped index, we get rid of all
+        # the excess rows.
+        data = data.filter(
+            (index_col != end) | (index_col.diff() != 0)
+        )
+
+    return data
 
 
 def _pandas_refit_index(data, window, method):
@@ -1113,26 +1163,26 @@ def series_window(series, window, method='pre', clip_window=True):
     return _pandas_window(series, window, method)
 
 
-def _polars_window(data, window, method):
+def _polars_window(data, window, method, col=None):
     # TODO: relax that
     assert isinstance(data, pl.LazyFrame)
 
-    # TODO: maybe expose that as a param
-    col = _polars_index_col(data, index='Time')
+    if col is None:
+        col = _polars_index_col(data, index='Time')
 
     col = pl.col(col)
-    start, stop = window
+    start, end = window
 
     def pre():
         if start is None:
-            filter_ = col <= stop
+            filter_ = col <= end
         else:
-            if stop is None:
+            if end is None:
                 filter_ = col > start
             else:
                 filter_ = col.is_between(
                     lower_bound=start,
-                    upper_bound=stop,
+                    upper_bound=end,
                     closed='right',
                 )
 
@@ -1141,36 +1191,35 @@ def _polars_window(data, window, method):
         return filter_
 
     def post():
-        if stop is None:
+        if end is None:
             filter_ = col >= start
         else:
             if start is None:
-                filter_ = col < stop
+                filter_ = col < end
             else:
                 filter_ = col.is_between(
                     lower_bound=start,
-                    upper_bound=stop,
+                    upper_bound=end,
                     closed='left',
                 )
 
             filter_ = filter_ | filter_.shift(+1)
         return filter_
 
-    if start is None and stop is None:
+    if start is None and end is None:
         filter_ = True
     else:
-        start = _polars_duration_expr(start, rounding='down')
-        stop = _polars_duration_expr(stop, rounding='up')
+        start, end = _polars_duration_window((start, end))
 
         if method == 'exclusive':
             if start is None:
-                filter_ = col <= stop
-            elif stop is None:
+                filter_ = col <= end
+            elif end is None:
                 filter_ = col >= start
             else:
                 filter_ = col.is_between(
                     lower_bound=start,
-                    upper_bound=stop,
+                    upper_bound=end,
                     closed='both',
                 )
 
@@ -1369,21 +1418,19 @@ def _polars_window_signals(df, window, signals, compress_init):
     schema = df.collect_schema()
     assert schema[index].is_temporal()
 
-    start, stop = window
-    start = _polars_duration_expr(start, rounding='down')
-    stop = _polars_duration_expr(stop, rounding='up')
+    start, end = _polars_duration_window(window)
 
     if start is not None:
-        if stop is None:
+        if end is None:
             post_filter = pl.col(index) >= start
             pre_filter = pl.lit(True)
         else:
             post_filter = pl.col(index).is_between(
                 lower_bound=start,
-                upper_bound=stop,
+                upper_bound=end,
                 closed='both'
             )
-            pre_filter = (pl.col(index) < stop)
+            pre_filter = (pl.col(index) < end)
 
         pre_filter &= ~post_filter
 
@@ -1644,6 +1691,7 @@ def _pandas_filter_task_ids(df, task_ids, pid_col, comm_col, invert, comm_max_le
         return df[tasks_filter]
     else:
         return df if invert else df.iloc[0:0]
+
 
 def _polars_filter_task_ids(df, task_ids, pid_col, comm_col, invert, comm_max_len):
     def make_filter(task_id):
@@ -2056,7 +2104,14 @@ def df_add_delta(df, col='delta', src_col=None, window=None, inplace=False):
     :param inplace: If ``True``, ``df`` is modified inplace to add the column
     :type inplace: bool
     """
+    return _dispatch(
+        _polars_add_delta,
+        _pandas_add_delta,
+        df, col, src_col, window, inplace
+    )
 
+
+def _pandas_add_delta(df, col, src_col, window, inplace):
     use_refit_index = window and not inplace
 
     if use_refit_index:
@@ -2079,6 +2134,19 @@ def df_add_delta(df, col='delta', src_col=None, window=None, inplace=False):
     df[col] = delta
 
     return df
+
+
+def _polars_add_delta(df, col, src_col, window, inplace):
+    assert not inplace
+
+    if window:
+        df = df_refit_index(df, window=window)
+
+    src_col = src_col if src_col is not None else _polars_index_col(df)
+
+    return df.with_columns(
+        pl.col(src_col).diff().shift(-1).alias(col)
+    )
 
 
 def series_combine(series_list, func, fill_value=None):

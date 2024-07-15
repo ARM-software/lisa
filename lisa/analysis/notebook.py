@@ -165,6 +165,7 @@ class NotebookAnalysis(TraceAnalysisBase):
 
             # Reorder the columns to provide a better kernelshark-like display
             columns_order = (
+                ['Time'] +
                 [
                     col
                     for col in df.columns

@@ -132,8 +132,8 @@ if __name__ == "__main__":
             "selenium",
             "phantomjs",
             "pillow",
-
-            "holoviews",
+            # For twin axes support: https://holoviews.org/user_guide/Customizing_Plots.html#twin-axes
+            "holoviews >= 1.17",
             "panel",
             "colorcet",
             "polars >= 1.0.0, < 2.0.0",

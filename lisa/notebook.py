@@ -21,21 +21,25 @@ functions.
 
 import functools
 import collections
+from collections.abc import Mapping
 import warnings
 import importlib
 import inspect
 from uuid import uuid4
-from itertools import starmap
+from itertools import chain, starmap
 
 import pandas as pd
 import holoviews as hv
 import bokeh.models
 import panel as pn
+import polars as pl
+import polars.selectors as cs
 
 from ipywidgets import widgets, Layout, interact
 from IPython.display import display
 
 from lisa.utils import is_running_ipython, order_as, destroyablecontextmanager, ContextManagerExit
+from lisa.datautils import _df_to, _dispatch, _polars_index_col
 
 pn.extension('tabulator')
 
@@ -367,7 +371,7 @@ def plot_signal(series, name=None, interpolation=None, add_markers=True, vdim=No
     Plot a signal using ``holoviews`` library.
 
     :param series: Series of values to plot.
-    :type series: pandas.Series
+    :type series: pandas.Series or pandas.DataFrame or polars.LazyFrame
 
     :param name: Name of the signal. Defaults to the series name.
     :type name: str or None
@@ -383,6 +387,33 @@ def plot_signal(series, name=None, interpolation=None, add_markers=True, vdim=No
     :param vdim: Value axis dimension.
     :type vdim: holoviews.core.dimension.Dimension
     """
+    return _dispatch(
+        _polars_plot_signal,
+        _pandas_plot_signal,
+        series, name, interpolation, add_markers, vdim,
+    )
+
+
+def _polars_plot_signal(series, name, interpolation, add_markers, vdim):
+    df = series
+    assert isinstance(df, pl.LazyFrame)
+    index = _polars_index_col(df, index='Time')
+    col1, col2 = df.collect_schema().names()
+    col = col2 if col1 == index else col1
+
+    df = df.select((index, col))
+    pandas_df = _df_to(df, index=index, fmt='pandas')
+
+    return _pandas_plot_signal(
+        series=pandas_df,
+        name=name,
+        interpolation=interpolation,
+        add_markers=add_markers,
+        vdim=vdim,
+    )
+
+
+def _pandas_plot_signal(series, name, interpolation, add_markers, vdim):
     if isinstance(series, pd.DataFrame):
         try:
             col, = series.columns
@@ -417,13 +448,14 @@ def plot_signal(series, name=None, interpolation=None, add_markers=True, vdim=No
         # styling in generic code..
         # TODO: use mute_legend=True once this bug is fixed:
         # https://github.com/holoviz/holoviews/issues/3936
-        fig *= hv.Scatter(
+        markers = hv.Scatter(
             series,
             label=label,
             group='marker',
             kdims=kdims,
             vdims=vdims,
         )
+        fig = fig * markers
     return fig
 
 
@@ -438,64 +470,6 @@ def _hv_neutral():
     """
     return hv.Curve([])
 
-
-def _hv_backend_twinx(backend, display, y_range):
-    def hook(plot, element):
-        p = plot.state
-
-        if backend == 'bokeh':
-            glyph = p.renderers[-1]
-            vals = glyph.data_source.data['y']
-
-            if y_range is None:
-                _y_range = (vals.min(), vals.max())
-            else:
-                _y_range = y_range
-
-            name = uuid4().hex
-            p.extra_y_ranges.update({
-                name: bokeh.models.Range1d(start=_y_range[0], end=_y_range[1])
-            })
-            glyph.y_range_name = name
-
-            if display:
-                p.add_layout(
-                    bokeh.models.LinearAxis(y_range_name=name),
-                    'right'
-                )
-        elif backend == 'matplotlib':
-            ax = plot.handles['axis']
-            twin = ax.twinx()
-            plot.handles['axis'] = twin
-            if not display:
-                twin.get_yaxis().set_ticks([])
-            if y_range is not None:
-                twin.set_ylim(y_range)
-        else:
-            raise ValueError(f'Unsupported backend={backend}')
-
-    return hook
-
-def _hv_twinx(fig, display=True, y_range=None):
-    """
-    Similar to matplotlib's twinx feature where the element's Y axis is
-    separated from the default one and drawn on the right of the plot.
-
-    :param display: If ``True``, the ticks will be displayed on the right of
-        the plot. Otherwise, it will be hidden.
-    :type display: bool
-
-    .. note:: This uses a custom hook for each backend, so it will be disabled
-        if the user also set their own hook.
-    """
-    kwargs = dict(
-        display=display,
-        y_range=y_range,
-    )
-    return fig.options(
-        backend='bokeh',
-        hooks=[_hv_backend_twinx('bokeh', **kwargs)],
-    )
 
 def _hv_multi_line_title_hook(plot, element):
     p = plot.state
@@ -554,23 +528,27 @@ def _hv_link_dataframes(fig, dfs):
 
     :returns: A panel displaying the dataframes and the figure.
     """
-    def make_table(i, df):
+    def make_table(tab_name, df):
+        df = _df_to(df, fmt='pandas')
+        index = df.index
+        df = df.reset_index()
+
         event_header = [
             col for col in df.columns
             if (
                 col.startswith('__') or
-                col == 'event'
+                col in ('event', 'Time')
             )
         ]
-        df = df[order_as(df.columns, event_header)]
-
-        if df.index.name in df.columns:
-            df.index = df.index.copy(deep=False)
-            df.index.name = ''
+        df = _df_to(df, fmt='pandas')
+        df = df[order_as(df.columns, ['Time', *event_header])]
 
         df_widget = pn.widgets.Tabulator(
             df,
-            name=f'dataframe #{i}',
+            # We used df.reset_index(), so the index is now a RangeIndex we
+            # don't care about.
+            show_index=False,
+            name=tab_name,
             formatters={
                 'bool': {'type': 'tickCross'}
             },
@@ -590,13 +568,13 @@ def _hv_link_dataframes(fig, dfs):
             theme='simple',
             selectable='toggle',
         )
-        return df_widget
+        return (df_widget, index)
 
     def mark_table_selection(tables):
         def plot(*args):
             xs = [
-                table.value.index[x]
-                for xs, table in zip(args, tables)
+                index[x]
+                for xs, (_, index) in zip(args, tables)
                 for x in xs
             ]
             return hv.Overlay(
@@ -612,7 +590,7 @@ def _hv_link_dataframes(fig, dfs):
         tables = list(tables)
         streams = [
             table.param.selection
-            for table in tables
+            for (table, _) in tables
         ]
         bound = pn.bind(plot, *streams)
         dmap = hv.DynamicMap(bound).opts(framewise=True)
@@ -622,10 +600,10 @@ def _hv_link_dataframes(fig, dfs):
     def scroll_table(tables):
         def record_taps(x, y):
             try:
-                for table in tables:
+                for (table, index) in tables:
                     if x is not None:
                         df = table.value
-                        i = df.index.get_indexer([x], method='ffill')[0]
+                        i = index.get_indexer([x], method='ffill')[0]
                         # This will automatically scroll in the table.
                         # It requires a Python int, a numpy object is not good
                         # enough.
@@ -639,36 +617,40 @@ def _hv_link_dataframes(fig, dfs):
         dmap = hv.DynamicMap(record_taps, streams=[tap])
         return dmap
 
-    tables = list(starmap(make_table, enumerate(dfs)))
+    dfs = dfs or []
+    if isinstance(dfs, Mapping):
+        dfs = dfs.items()
+    else:
+        dfs = (
+            (f'dataframe #{i}', df)
+            for i, df in enumerate(dfs)
+        )
+
+    tables = list(starmap(make_table, dfs))
     markers = mark_table_selection(tables)
     scroll = scroll_table(tables)
 
-    # Workaround issue:
-    # https://github.com/holoviz/holoviews/issues/5003
-    if isinstance(fig, hv.Layout):
-        ncols = fig._max_cols
-    else:
-        ncols = None
-
     fig = fig * (scroll * markers)
-
-    if ncols is not None:
-        fig = fig.cols(ncols)
 
     if len(tables) > 1:
         tables_widget = pn.Tabs(
             *(
                 (table.name, table)
-                for table in tables
+                for (table, _) in tables
             ),
             align='start',
         )
-    else:
-        tables_widget = tables[0]
+    elif tables:
+        tables_widget, _ = tables[0]
         tables_widget.align = 'start'
+    else:
+        tables_widget = pn.VSpacer()
 
     return pn.Column(
-        fig,
+        pn.pane.HoloViews(
+            fig,
+            sizing_mode='stretch_width',
+        ),
         tables_widget,
         sizing_mode='stretch_both',
         align='center',
@@ -796,6 +778,23 @@ def _hv_fig_to_pane(fig, make_pane):
     """
     cls = _hv_wrap_fig_cls(fig.__class__)
     return cls(fig=fig, make_pane=make_pane)
+
+
+@functools.lru_cache(maxsize=128)
+def _hv_has_options(options, backend):
+    """
+    Return the holoviews elements and containers names that accept the given
+    set of options, for the given backend.
+    """
+    options = set(options)
+    return set(chain.from_iterable(
+        names
+        for names, opts in hv.Store.options(backend=backend).items()
+        if set(chain.from_iterable(
+            group.allowed_keywords
+            for group in opts.groups.values()
+        )) > options
+    ))
 
 
 
