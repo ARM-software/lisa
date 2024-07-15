@@ -478,6 +478,13 @@ ignored_refs.update(
 ignored_refs = set(map(re.compile, ignored_refs))
 
 
+# Workaround for: https://github.com/jupyter-widgets/ipywidgets/issues/3930
+# Suggested: https://github.com/sphinx-doc/sphinx/issues/12585#issuecomment-2228420035
+suppress_warnings = [
+    'intersphinx.external',
+]
+
+
 class CustomPythonDomain(PythonDomain):
     def find_obj(self, env, modname, classname, name, type, searchmode=0):
         refs = super().find_obj(env, modname, classname, name, type, searchmode)
