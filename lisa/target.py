@@ -817,12 +817,23 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
                 adb_as_root=(username == 'root'),
             )
         elif kind == 'linux':
+            def resolve_strict_host_check(strict_host_check):
+                strict_host_check = True if strict_host_check is None else strict_host_check
+
+                # Expand the path to known_hosts so that the devlib objects can
+                # be reused unchanged in another user namespace where the home
+                # directory would not expand to the expected folder.
+                if strict_host_check and isinstance(strict_host_check, bool):
+                    strict_host_check = str(Path('~/.ssh/known_hosts').expanduser().resolve())
+
+                return strict_host_check
+
             devlib_target_cls = devlib.LinuxTarget
             conn_settings.update(
                 username=resolved_username,
                 port=port or cls.SSH_PORT_DEFAULT,
                 host=host,
-                strict_host_check=True if strict_host_check is None else strict_host_check,
+                strict_host_check=resolve_strict_host_check(strict_host_check),
                 use_scp=False if use_scp is None else use_scp,
             )
 

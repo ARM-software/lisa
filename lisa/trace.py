@@ -360,6 +360,21 @@ def _lazyframe_rewrite(df, update_plan):
     return df
 
 
+class _CacheDataDescEncodable(abc.ABC):
+    """
+    Inheriting from this class allows encoding a value in JSON for a cache
+    desc.
+    """
+
+    @abc.abstractmethod
+    def json_encode(self):
+        """
+        Returns a more basic object that can readily be encoded by an
+        unmodified json serializer.
+        """
+        pass
+
+
 CPU = newtype(int, 'CPU', doc='Alias to ``int`` used for CPU IDs')
 
 
@@ -3399,11 +3414,12 @@ class _ProcessTraceView(_TraceViewBase):
     @property
     def trace_state(self):
         f = self._process_df
+
         return (
             super().trace_state,
             # This likely will be a value that cannot be serialized to JSON if
             # it was user-provided. This will prevent caching as it should.
-            None if f is None else f,
+            f,
         )
 
     def _internal_df_event(self, event, **kwargs):
@@ -3586,6 +3602,22 @@ class _NamespaceTraceView(_TraceViewBase):
             return super()._internal_df_event(event, **kwargs)
 
 
+class _TimeOffsetter(_CacheDataDescEncodable):
+    def __init__(self, offset):
+        assert isinstance(offset, Timestamp)
+        offset_ns = offset.as_nanoseconds
+        self._offset_ns = offset_ns
+        self._offset_polars = _polars_duration_expr(offset_ns, unit='ns', rounding='down')
+
+    def json_encode(self):
+        return self._offset_ns
+
+    def __call__(self, event, df):
+        return df.with_columns(
+            pl.col('Time') - self._offset_polars
+        )
+
+
 class _NormalizedTimeTraceView(_TraceViewBase):
     def __init__(self, trace, window, **kwargs):
         window = window or (trace.start, None)
@@ -3611,14 +3643,10 @@ class _NormalizedTimeTraceView(_TraceViewBase):
     def _with_time_offset(cls, trace, start):
         # Round down to avoid ending up with negative Time for anything that
         # does not actually happen before the start
-        offset = _polars_duration_expr(start, rounding='down')
-        def time_offset(event, df):
-            return df.with_columns(
-                pl.col('Time') - offset
-            )
+        start = Timestamp(start, rounding='down')
 
         return trace.get_view(
-            process_df=time_offset
+            process_df=_TimeOffsetter(start)
         )
 
     @property
@@ -3929,10 +3957,23 @@ class _CacheDataSwapEntry:
         Return a mapping suitable for JSON serialization.
         """
         desc = self.cache_desc_nf.to_json_map()
+
+        class Encoder(json.JSONEncoder):
+            def default(self, o):
+                if isinstance(o, _CacheDataDescEncodable):
+                    cls = o.__class__
+                    return {
+                        'module': cls.__module__,
+                        'cls': cls.__qualname__,
+                        'value': o.json_encode(),
+                    }
+                else:
+                   return super().default(o)
+
         try:
             # Use json.dumps() here to fail early if the descriptor cannot be
             # dumped to JSON
-            desc = json.dumps(desc)
+            desc = Encoder().encode(desc)
         except TypeError as e:
             raise _CannotWriteSwapEntry(e)
 
@@ -4477,15 +4518,15 @@ class _TraceCache(Loggable):
             if self._estimate_data_swap_size(data) + self._swap_size > self.max_swap_size:
                 self.scrub_swap()
 
-            def log_error(e):
-                self.logger.error(f'Could not write {cache_desc} to swap: {e}')
-
             # Write the Parquet file and update the write speed
             try:
                 self._write_data(cache_desc.fmt, data, data_path)
             except Exception as e:
                 if best_effort:
-                    log_error(e)
+                    # Do not log the error, as it could be an expected one
+                    # (e.g. we have an object column in a dataframe that cannot
+                    # be converted to arrow.
+                    pass
                 else:
                     raise e
             else:
@@ -4497,7 +4538,9 @@ class _TraceCache(Loggable):
                         )
                     # We have a swap entry that cannot be written to the swap,
                     # probably because the descriptor includes something that
-                    # cannot be serialized to JSON.
+                    # cannot be serialized to JSON. This may happen under
+                    # normal operations, e.g. with a user-defined process_df
+                    # function passed to _ProcessTraceView.
                     except _CannotWriteSwapEntry as e:
                         self.logger.debug(f'Could not write {cache_desc} to swap: {e}')
                         swap_entry.written = False
