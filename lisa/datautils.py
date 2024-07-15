@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""
+Dataframe utilities.
+"""
 
 import re
 import functools
@@ -1013,49 +1016,49 @@ def series_integrate(y, x=None, sign=None, method='rect', rect_step='post'):
 
     *Rectangular Method*
 
-        - Step: Post
+    * Step: Post
 
-            Consider the following time series data::
+      Consider the following time series data::
 
-                2            *----*----*----+
-                             |              |
-                1            |              *----*----+
-                             |
-                0  *----*----+
-                   0    1    2    3    4    5    6    7
+          2            *----*----*----+
+                       |              |
+          1            |              *----*----+
+                       |
+          0  *----*----+
+             0    1    2    3    4    5    6    7
 
-                import pandas as pd
-                a = [0, 0, 2, 2, 2, 1, 1]
-                s = pd.Series(a)
+          import pandas as pd
+          a = [0, 0, 2, 2, 2, 1, 1]
+          s = pd.Series(a)
 
-            The area under the curve is:
+      The area under the curve is:
 
-            .. math::
+      .. math::
 
-                \\sum_{k=0}^{N-1} (x_{k+1} - {x_k}) \\times f(x_k) \\\\
-                (2 \\times 3) + (1 \\times 2) = 8
+          \\sum_{k=0}^{N-1} (x_{k+1} - {x_k}) \\times f(x_k) \\\\
+          (2 \\times 3) + (1 \\times 2) = 8
 
-        - Step: Pre
+    * Step: Pre
 
-            ::
+      ::
 
-                2       +----*----*----*
-                        |              |
-                1       |              +----*----*----+
-                        |
-                0  *----*
-                   0    1    2    3    4    5    6    7
+          2       +----*----*----*
+                  |              |
+          1       |              +----*----*----+
+                  |
+          0  *----*
+             0    1    2    3    4    5    6    7
 
-                import pandas as pd
-                a = [0, 0, 2, 2, 2, 1, 1]
-                s = pd.Series(a)
+          import pandas as pd
+          a = [0, 0, 2, 2, 2, 1, 1]
+          s = pd.Series(a)
 
-            The area under the curve is:
+      The area under the curve is:
 
-            .. math::
+      .. math::
 
-                \\sum_{k=1}^{N} (x_k - x_{k-1}) \\times f(x_k) \\\\
-                (2 \\times 3) + (1 \\times 3) = 9
+          \\sum_{k=1}^{N} (x_k - x_{k-1}) \\times f(x_k) \\\\
+          (2 \\times 3) + (1 \\times 3) = 9
     """
 
     x = _resolve_x(y, x)
@@ -1145,15 +1148,15 @@ def series_window(series, window, method='pre', clip_window=True):
 
     :param method: Choose how edges are handled:
 
-        * `inclusive`: When no exact match is found, include both the previous
-            and next values around the window.
-        * `exclusive`: When no exact match is found, only index values within
-            the range are selected. This is the default pandas float slicing
-            behavior.
-        * `nearest`: Not supported with :mod:`polars` objects: when no exact
-          match is found, take the nearest index value.
-        * `pre`: When no exact match is found, take the previous index value.
-        * `post`: When no exact match is found, take the next index value.
+       * `inclusive`: When no exact match is found, include both the previous
+         and next values around the window.
+       * `exclusive`: When no exact match is found, only index values within
+         the range are selected. This is the default pandas float slicing
+         behavior.
+       * `nearest`: Not supported with :mod:`polars` objects: when no exact
+         match is found, take the nearest index value.
+       * `pre`: When no exact match is found, take the previous index value.
+       * `post`: When no exact match is found, take the next index value.
 
     .. note:: The index of `series` must be monotonic and without duplicates.
     """

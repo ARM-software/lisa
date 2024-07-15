@@ -448,4 +448,4 @@ What next ?
 ===========
 
 The next step depends on the intended use case, further information at
-:ref:`workflows-page`
+:ref:`guides-page`.

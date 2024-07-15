@@ -14,17 +14,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""
+Regression testing utilities.
+"""
 
 import math
 import itertools
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict
+from typing import NamedTuple
 
 import scipy.stats
 
 from lisa.utils import groupby, memoized
 from lisa.tests.base import Result, ResultBundleBase
 
-ResultCount = namedtuple('ResultCount', ('passed', 'failed'))
+class ResultCount(NamedTuple):
+    passed: int
+    """
+    Number of passed occurrences.
+    """
+
+    failed: int
+    """
+    Number of failed occurrences.
+    """
 
 
 class RegressionResult:

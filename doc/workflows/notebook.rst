@@ -1,6 +1,6 @@
-*********
-Notebooks
-*********
+********************
+JupyterLab Notebooks
+********************
 
 Starting the server
 ===================

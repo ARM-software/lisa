@@ -287,6 +287,9 @@ class RTAConf(Loggable, Mapping):
     """
 
     ALLOWED_TASK_NAME_REGEX = r'^[a-zA-Z0-9_]+$'
+    """
+    Regex to check whether the ``rt-app`` task name is valid.
+    """
 
     def __init__(self, conf):
         self.conf = conf
@@ -1329,8 +1332,6 @@ class PropertyBase(SimpleHash, metaclass=PropertyMeta):
     @classmethod
     def _from_key(cls, key, val):
         """
-        :meta public:
-
         Build an instance out of ``key`` and ``val``.
         """
         raise NotImplementedError()
@@ -1360,8 +1361,6 @@ class PropertyBase(SimpleHash, metaclass=PropertyMeta):
     @classmethod
     def _check_key(cls, key):
         """
-        :meta public:
-
         Check that the ``key`` is allowed for this class.
         """
         if cls.KEY is not None and key != cls.KEY:
@@ -1891,8 +1890,6 @@ class SimpleConcreteProperty(SimpleProperty, ConcretePropertyBase):
 
 class _SemigroupProperty(PropertyBase):
     """
-    :meta public:
-
     Base class for properties forming a semigroup with respect to their
     ``__and__`` method.
 
@@ -1903,15 +1900,13 @@ class _SemigroupProperty(PropertyBase):
     @abc.abstractmethod
     def _SEMIGROUP_OP(x, y):
         """
-        :meta public:
-
         Function used to combine two non-None values.
         """
 
     def __and__(self, other):
         """
         Combine values of the properties using
-        :meth:`~_SemigroupProperty._SEMIGROUP_OP`, except when one of the value
+        :meth:`~_SEMIGROUP_OP`, except when one of the value
         is ``None``, in which case the other value is used as is and wrapped
         into an instance using :meth:`~PropertyBase.from_key`.
         """
@@ -2124,8 +2119,6 @@ class PriorityProperty(SimpleConcreteProperty):
 
 class _UsecSimpleConcreteProperty(SimpleConcreteProperty):
     """
-    :meta public:
-
     Simple property that converts its value from seconds to microseconds for
     the JSON file.
     """
@@ -2329,8 +2322,6 @@ class ComposableMultiConcretePropertyBase(MultiConcreteProperty):
 
     _ATTRIBUTES = {}
     """
-    :meta public:
-
     Dictionary of allowed attributes where each value is in the format
     ``dict(doc=..., type_=...)``. This extra information is used to patch the
     docstrings (see :meth:`__init_subclass__`).
@@ -2388,7 +2379,7 @@ class ComposableMultiConcretePropertyBase(MultiConcreteProperty):
         Update the docstring used as a :meth:`str.format` template with the
         following keys:
 
-            * ``{params}``: replaced by the Sphinx-friendly list of attributes
+        * ``{params}``: replaced by the Sphinx-friendly list of attributes
         """
         docstring = inspect.getdoc(cls)
         if docstring:
@@ -2461,8 +2452,6 @@ class ComposableMultiConcretePropertyBase(MultiConcreteProperty):
 
     def _and(self, other):
         """
-        :meta public:
-
         Combine together two instances by taking the non-default values for
         each attribute, and giving priority to ``self``.
         """
@@ -2555,8 +2544,6 @@ class UclampProperty(ComposableMultiConcretePropertyBase):
 
     def _and(self, other):
         """
-        :meta public:
-
         Combine clamps by taking the most constraining solution.
         """
         def none_shortcircuit(f, x, y):
@@ -2719,8 +2706,6 @@ class WloadSequence(WloadPropertyBase, SimpleConcreteProperty):
 
 class _SingleWloadBase(WloadPropertyBase):
     """
-    :meta public:
-
     Execute a single rt-app event.
     """
 
@@ -2752,7 +2737,7 @@ class _SingleWloadBase(WloadPropertyBase):
         return [(self._action, self.json_value)]
 
 
-class DurationWload(WloadPropertyBase):
+class DurationWload(_SingleWloadBase):
     """
     Workload parametrized by a duration.
     """
@@ -2773,10 +2758,6 @@ class DurationWload(WloadPropertyBase):
     @property
     def json_value(self):
         return _to_us(self.duration)
-
-
-class DurationWload(DurationWload, _SingleWloadBase):
-    pass
 
 
 class RunWload(DurationWload):
@@ -3093,15 +3074,15 @@ class RTAPhaseProperties(SimpleHash, Mapping):
         """
         Alternative constructor with polymorphic input:
 
-            * ``None``: equivalent to an empty list.
-            * :class:`RTAPhaseProperties`: taken as-is.
-            * :class:`~collections.abc.Mapping`: each key/value pair is either:
+        * ``None``: equivalent to an empty list.
+        * :class:`RTAPhaseProperties`: taken as-is.
+        * :class:`~collections.abc.Mapping`: each key/value pair is either:
 
-                * the value is a :class:`PropertyBase`: it's taken as-is
-                * the value is a :class:`PlaceHolderValue`: the property is
-                  created using its ``PROPERTY_CLS.from_key`` method.
-                * otherwise, an instance of the appropriate class is built by
-                  :meth:`PropertyBase.from_key`.
+          * the value is a :class:`PropertyBase`: it's taken as-is
+          * the value is a :class:`PlaceHolderValue`: the property is
+            created using its ``PROPERTY_CLS.from_key`` method.
+          * otherwise, an instance of the appropriate class is built by
+            :meth:`PropertyBase.from_key`.
         """
         if obj is None:
             return cls(properties=[])
@@ -3202,11 +3183,11 @@ class RTAPhaseProperties(SimpleHash, Mapping):
 
         Properties are merged according to the following rules:
 
-            * Take the value as-is for all the keys that only appear in one of
-              them.
-            * For values set in both properties, combine them with ``&``
-              operator. The value coming from ``self`` will be the left
-              operand.
+        * Take the value as-is for all the keys that only appear in one of
+          them.
+        * For values set in both properties, combine them with ``&``
+          operator. The value coming from ``self`` will be the left
+          operand.
         """
         common = self.properties.keys() & other.properties.keys()
         merged = [
@@ -3376,7 +3357,7 @@ class RTAPhaseBase(_RTAPhaseBase, SimpleHash, Mapping, abc.ABC):
     def with_delete_props(self, properties):
         """
         Delete all the given property names, equivalent to
-        `with_props(foo=delete())``
+        ``with_props(foo=delete())``
         """
         return self.with_properties_map(
             dict.fromkeys(properties, delete())
@@ -3479,8 +3460,6 @@ class RTAPhaseBase(_RTAPhaseBase, SimpleHash, Mapping, abc.ABC):
 
 class _RTAPhaseTreeBase(RTAPhaseBase, abc.ABC):
     """
-    :meta public:
-
     Base class for phases laid out as a tree.
     """
     @abc.abstractmethod
@@ -3922,8 +3901,6 @@ class ParametricPhase(RTAPhaseTree):
     @abc.abstractmethod
     def _make_children(cls, template, **kwargs):
         """
-        :meta public:
-
         Create a list of children :class:`RTAPhaseBase` based on the parameters
         passed from the constructor.
         """
@@ -4619,9 +4596,9 @@ def task_factory(f):
     Calling the decorated function will result in another callable that can be
     called once with:
 
-        * ``seed``: Seed to use to automatically initialize a :class:`random.Random`.
-        * ``rng``: Alternatively, an existing instance of
-          :class:`random.Random` to use.
+    * ``seed``: Seed to use to automatically initialize a :class:`random.Random`.
+    * ``rng``: Alternatively, an existing instance of
+      :class:`random.Random` to use.
 
     If the user-defined coroutine function returns ``None``, the return value
     will be replaced by an :class:`RTAPhaseBase` representing all the phases

@@ -3,76 +3,36 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-.. module:: lisa
+.. toctree::
+  :maxdepth: 2
+  :hidden:
+
+  sections/guides/index
+  sections/tools/index
+  sections/api/index
+  sections/changes/index
 
 LISA Documentation
 ==================
 
-LISA - "Linux Integrated System Analysis" is a toolkit for interactive analysis
-and automated regression testing of Linux kernel behaviour.
+Welcome to LISA documentation. LISA - "Linux Integrated System Analysis" is a
+toolkit for interactive analysis and automated regression testing of Linux
+kernel behaviour. LISA's goal is to help Linux kernel developers measure the
+impact of modifications in core parts of the kernel. The focus is on the
+scheduler (e.g. EAS), power management and thermal frameworks. However LISA is
+generic and can be used for other purposes.
 
-- See the README on the project's `GitLab home page`__ for an overview.
-- Once you have LISA running, take a look at the tutorial and example notebooks
-  included with the installation.
+LISA has a "host"/"target" model. LISA itself runs on a host machine, and uses
+the :mod`devlib` package to interact with the target via SSH or ADB. LISA is
+flexible with regard to the target OS; its only expectation is a Linux
+kernel-based system. Android, GNU/Linux and busybox style systems have all been
+used.
 
-__ https://gitlab.arm.com/tooling/lisa
+LISA provides features to describe workloads (notably using rt-app) and run
+them on targets. It can collect trace files from the target OS (e.g. ftrace
+traces) and parse them. These traces can then be parsed and analysed in order
+to examine detailed target behaviour during the workload's execution.
 
-Contributions to LISA and its documentation are very welcome, and handled
-via GitLab merge requests.
+See :ref:`getting-started-page` for setup instruction.
 
-.. _Readme:
-
-Contents:
-
-.. toctree::
-   :maxdepth: 2
-
-   ────── Getting started ────── <self>
-
-   overview
-   setup
-   workflows/index
-
-   ──── Tools documentation ──── <self>
-
-   lisa_shell/man/man
-   bisector/index
-   exekall/index
-
-   ───── API documentation ───── <self>
-
-   target
-   workloads
-   kernel_tests
-   trace_analysis
-   energy_analysis
-   misc_utilities
-   stat_comparison
-
-   ──────── Changes ──────── <self>
-
-   changes
-   contributors_guide
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
-
-
-Building this documentation
-==============================
-
-- Install ``doc`` optional dependencies of ``lisa`` package (``lisa-install``
-  does that by default)
-- Run:
-
-  .. code:: shell
-
-    source init_env
-    lisa-doc-build
-
-- Find the HTML in ``doc/_build/html``
+See https://gitlab.arm.com/tooling/lisa for the source repository.

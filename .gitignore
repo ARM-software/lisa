@@ -12,7 +12,6 @@ server.url
 /vagrant
 /tools/wa_user_directory/dependencies
 /src/buildroot
-_build
 custom_requirements.txt
 devmode_extra_requirements.txt
 extra_requirements.txt

@@ -59,14 +59,5 @@ platform frequencies.
 API
 ===
 
-Target
-++++++
-
-.. automodule:: lisa.target
-   :members:
-
-Platform Info
-+++++++++++++
-
-.. automodule:: lisa.platforms.platinfo
-   :members:
+* Target: :mod:`lisa.target`
+* Platform info: :mod:`lisa.platforms.platinfo`

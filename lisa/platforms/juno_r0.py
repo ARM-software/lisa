@@ -14,6 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""
+Juno R0 board hardcoded platform information.
+
+
+.. deprecated:: Information found in this module should nowadays be
+   auto-detected using :class:`~lisa.platforms.platinfo.PlatformInfo`.
+"""
 from collections import OrderedDict
 
 from lisa.energy_model import (ActiveState, EnergyModelNode, EnergyModelRoot,

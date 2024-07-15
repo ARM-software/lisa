@@ -203,14 +203,5 @@ commands:
 API
 ===
 
-Energy model
-++++++++++++
-
-.. automodule:: lisa.energy_model
-   :members:
-
-Energy meters
-+++++++++++++
-
-.. automodule:: lisa.energy_meter
-   :members:
+* Energy model: :mod:`lisa.energy_model`
+* Energy meters: :mod:`lisa.energy_meter`

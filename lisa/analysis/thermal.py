@@ -14,7 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+"""
+Linux kernel thermal management subsystem analysis.
+"""
 
 from devlib.utils.misc import list_to_mask, mask_to_list
 

@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""
+Pixel 6-specific analysis.
+"""
 
 import pandas as pd
 import holoviews as hv

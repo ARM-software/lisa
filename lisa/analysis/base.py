@@ -15,6 +15,10 @@
 # limitations under the License.
 #
 
+"""
+Base classes to define a new trace analysis.
+"""
+
 import io
 import os
 import inspect
@@ -458,10 +462,10 @@ class AnalysisHelpers(Loggable, abc.ABC):
 
         It provides among other things:
 
-            * automatic plot setup
-            * HTML and reStructuredText output.
-            * workarounds some holoviews issues
-            * integration in other tools
+        * automatic plot setup
+        * HTML and reStructuredText output.
+        * workarounds some holoviews issues
+        * integration in other tools
         """
 
         _decorator = cls.plot_method.__func__
@@ -473,13 +477,13 @@ class AnalysisHelpers(Loggable, abc.ABC):
 
             :param backend: Holoviews plot library backend to use:
 
-                    * ``bokeh``: good support for interactive plots
-                    * ``matplotlib``: sometimes better static image output, but
-                      unpredictable results that more often than not require
-                      a fair amount of hacks to get something good.
-                    * ``plotly``: not supported by LISA but technically
-                      available. Since it's very similar to bokeh
-                      feature-wise, bokeh should be preferred.
+                * ``bokeh``: good support for interactive plots
+                * ``matplotlib``: sometimes better static image output, but
+                  unpredictable results that more often than not require
+                  a fair amount of hacks to get something good.
+                * ``plotly``: not supported by LISA but technically
+                  available. Since it's very similar to bokeh
+                  feature-wise, bokeh should be preferred.
 
                 .. note:: In a notebook, the way to choose which backend should
                     be used to display plots is typically selected with e.g.
@@ -1144,7 +1148,7 @@ class TraceAnalysisBase(AnalysisHelpers):
 
         It provides among other things:
 
-            * Dataframe format conversion
+        * Dataframe format conversion
         """
 
         # Apply caching to all df-returning functions. This way we also

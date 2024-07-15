@@ -14,6 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""
+Energy measurement device support.
+
+.. deprecated:: The content of the is module is deprecated as none of these
+    devices are in active use. Additionally, the data from such device is
+    usually hard to synchronize with other software events as there is no
+    shared clock. As a result, an approach based on ftrace is usually favored.
+"""
 
 import abc
 import json
@@ -22,7 +30,7 @@ import os.path
 import time
 import shutil
 
-from collections import namedtuple
+from typing import NamedTuple, Dict
 from collections.abc import Mapping
 from subprocess import Popen, PIPE, STDOUT
 import subprocess
@@ -41,9 +49,11 @@ from lisa.conf import (
     SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable,
 )
 
-# Default energy measurements for each board
-EnergyReport = namedtuple('EnergyReport',
-                          ['channels', 'report_file', 'data_frame'])
+class EnergyReport(NamedTuple):
+    channels: Dict[str, float]
+    report_file: str
+    data_frame: pd.DataFrame
+
 
 _deprecate_emeter = deprecate(
     'LISA energy meters are deprecated, please use devlib instruments or contribute the instrument to devlib',
@@ -102,8 +112,9 @@ class EnergyMeter(Loggable, Configurable):
         chosen_cls.check_init_param(**kwargs)
         return chosen_cls(**kwargs)
 
+    @property
     @abc.abstractmethod
-    def name():
+    def name(self):
         pass
 
     @abc.abstractmethod
@@ -251,8 +262,6 @@ class HWMon(EnergyMeter):
 
 class _DevlibContinuousEnergyMeter(EnergyMeter):
     """
-    :meta public:
-
     Common functionality for devlib Instruments in CONTINUOUS mode
     """
 

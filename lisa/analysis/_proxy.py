@@ -98,27 +98,6 @@ class AnalysisProxy(Loggable):
     """
     Entry point to call analysis methods on :class:`~lisa.trace.Trace` objects.
 
-    **Example**
-
-    # Call lisa.analysis.LoadTrackingAnalysis.df_task_signal() on a trace::
-
-        df = trace.ana.load_tracking.df_task_signal(task='foo', signal='util')
-
-    The proxy can also be called like a function to define default values for
-    analysis methods::
-
-        ana = trace.ana(task='big_0-3')
-        ana.load_tracking.df_task_signal(signal='util')
-
-        # Equivalent to:
-        ana.load_tracking.df_task_signal(task='big_0-3', signal='util')
-
-        # The proxy can be called again to override the value given to some
-        # parameters, and the the value can also be overridden when calling the
-        # method:
-        ana(task='foo').df_task_signal(signal='util')
-        ana.df_task_signal(task='foo', signal='util')
-
     :param trace: input Trace object
     :type trace: lisa.trace.Trace
     """

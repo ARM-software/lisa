@@ -14,6 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""
+Linux kernel scheduler latency analysis.
+"""
+
 import pandas as pd
 import polars as pl
 import numpy as np
@@ -425,7 +429,8 @@ class LatencyAnalysis(TraceAnalysisBase):
     @df_activations.used_events
     def plot_activations(self, task: TaskID):
         """
-        Plot the :meth:`lisa.analysis.latency.LatencyAnalysis.df_activations` of a task
+        Plot the :meth:`~lisa.analysis.latency.LatencyAnalysis.df_activations`
+        of a task
 
         :param task: The task's name or PID
         :type task: int or str or tuple(int, str)
