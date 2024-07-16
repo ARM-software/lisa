@@ -373,6 +373,7 @@ below:
             device: generic_android
             device_config:
                 adb_server: null
+                adb_port: null
                 big_core: null
                 core_clusters: null
                 core_names: null
