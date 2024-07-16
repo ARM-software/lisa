@@ -657,9 +657,12 @@ class _AsyncPolymorphicCM:
             self._loop = None
             if loop is not None:
                 loop.run_until_complete(loop.shutdown_asyncgens())
-                loop.run_until_complete(
-                    loop.shutdown_default_executor()
-                )
+                try:
+                    shutdown_default_executor = loop.shutdown_default_executor
+                except AttributeError:
+                    pass
+                else:
+                    loop.run_until_complete(shutdown_default_executor())
                 loop.close()
 
     def __aenter__(self, *args, **kwargs):
