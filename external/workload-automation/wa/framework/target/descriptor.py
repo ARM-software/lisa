@@ -309,6 +309,11 @@ CONNECTION_PARAMS = {
             ADB server to connect to.
             """),
         Parameter(
+            'adb_port', kind=int,
+            description="""
+            ADB port to connect to.
+            """),
+        Parameter(
             'poll_transfers', kind=bool,
             default=True,
             description="""
