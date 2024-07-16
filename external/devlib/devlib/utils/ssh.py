@@ -17,6 +17,7 @@
 import os
 import stat
 import logging
+from pathlib import Path
 import subprocess
 import re
 import threading
@@ -172,6 +173,18 @@ def _read_paramiko_streams_internal(stdout, stderr, select_timeout, callback, in
         callback_state = read_all_channel(callback, callback_state)
         exit_code = channel.recv_exit_status()
         return (callback_state, exit_code)
+
+
+def _resolve_known_hosts(strict_host_check):
+    if strict_host_check:
+        if isinstance(strict_host_check, (str, os.PathLike)):
+            path = Path(strict_host_check)
+        else:
+            path = Path('~/.ssh/known_hosts').expandvars()
+    else:
+        path = Path('/dev/null')
+
+    return str(path.resolve())
 
 
 def telnet_get_shell(host,
@@ -407,7 +420,9 @@ class SshConnection(SshConnectionBase):
         with _handle_paramiko_exceptions():
             client = SSHClient()
             if self.strict_host_check:
-                client.load_system_host_keys()
+                client.load_system_host_keys(_resolve_known_hosts(
+                    self.strict_host_check
+                ))
             client.set_missing_host_key_policy(policy)
             client.connect(
                 hostname=self.host,
@@ -822,16 +837,12 @@ class TelnetConnection(SshConnectionBase):
         return '{}@{}:{}'.format(self.username, self.host, path)
 
     def _get_default_options(self):
-        if self.strict_host_check:
-            options = {
-                'StrictHostKeyChecking': 'yes',
-            }
-        else:
-            options = {
-                'StrictHostKeyChecking': 'no',
-                'UserKnownHostsFile': '/dev/null',
-            }
-        return options
+        check = self.strict_host_check
+        known_hosts = _resolve_known_hosts(check)
+        return {
+            'StrictHostKeyChecking': 'yes' if check else 'no',
+            'UserKnownHostsFile': str(known_hosts),
+        }
 
     def push(self, sources, dest, timeout=30):
         # Quote the destination as SCP would apply globbing too

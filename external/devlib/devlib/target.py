@@ -1928,6 +1928,10 @@ class AndroidTarget(Target):
         return getattr(self.conn, 'adb_server', None)
 
     @property
+    def adb_port(self):
+        return getattr(self.conn, 'adb_port', None)
+
+    @property
     @memoized
     def android_id(self):
         """
@@ -2264,8 +2268,10 @@ class AndroidTarget(Target):
                 flags.append('-g')  # Grant all runtime permissions
             self.logger.debug("Replace APK = {}, ADB flags = '{}'".format(replace, ' '.join(flags)))
             if isinstance(self.conn, AdbConnection):
-                return adb_command(self.adb_name, "install {} {}".format(' '.join(flags), quote(filepath)),
-                                   timeout=timeout, adb_server=self.adb_server)
+                return adb_command(self.adb_name,
+                                   "install {} {}".format(' '.join(flags), quote(filepath)),
+                                   timeout=timeout, adb_server=self.adb_server,
+                                   adb_port=self.adb_port)
             else:
                 dev_path = self.get_workpath(filepath.rsplit(os.path.sep, 1)[-1])
                 await self.push.asyn(quote(filepath), dev_path, timeout=timeout)
@@ -2343,7 +2349,7 @@ class AndroidTarget(Target):
     async def uninstall_package(self, package):
         if isinstance(self.conn, AdbConnection):
             adb_command(self.adb_name, "uninstall {}".format(quote(package)), timeout=30,
-                        adb_server=self.adb_server)
+                        adb_server=self.adb_server, adb_port=self.adb_port)
         else:
             await self.execute.asyn("pm uninstall {}".format(quote(package)), timeout=30)
 
@@ -2362,7 +2368,8 @@ class AndroidTarget(Target):
         logcat_opts = '-d' + formatstr + filtstr
         if isinstance(self.conn, AdbConnection):
             command = 'logcat {} {} {}'.format(logcat_opts, op, quote(filepath))
-            adb_command(self.adb_name, command, timeout=timeout, adb_server=self.adb_server)
+            adb_command(self.adb_name, command, timeout=timeout, adb_server=self.adb_server,
+                        adb_port=self.adb_port)
         else:
             dev_path = self.get_workpath('logcat')
             command = 'logcat {} {} {}'.format(logcat_opts, op, quote(dev_path))
@@ -2376,7 +2383,8 @@ class AndroidTarget(Target):
         if locked:
             try:
                 if isinstance(self.conn, AdbConnection):
-                    adb_command(self.adb_name, 'logcat -c', timeout=30, adb_server=self.adb_server)
+                    adb_command(self.adb_name, 'logcat -c', timeout=30, adb_server=self.adb_server,
+                                adb_port=self.adb_port)
                 else:
                     await self.execute.asyn('logcat -c', timeout=30)
             finally:
@@ -3178,7 +3186,7 @@ class ChromeOsTarget(LinuxTarget):
         # We can't determine if the target supports android until connected to the linux host so
         # create unconditionally.
         # Pull out adb connection settings
-        adb_conn_params = ['device', 'adb_server', 'timeout']
+        adb_conn_params = ['device', 'adb_server', 'adb_port', 'timeout']
         self.android_connection_settings = {}
         self.android_connection_settings.update(
             (key, value)
