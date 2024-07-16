@@ -177,7 +177,11 @@ Connection Types
     :param platform: Specify the platform to be used. The generic :class:`~devlib.platform.Platform`
                      class is used by default.
     :param sudo_cmd: Specify the format of the command used to grant sudo access.
-    :param strict_host_check: Specify the ssh connection parameter ``StrictHostKeyChecking``,
+    :param strict_host_check: Specify the ssh connection parameter
+			     ``StrictHostKeyChecking``. If a path is passed
+			     rather than a boolean, it will be taken for a
+			     ``known_hosts`` file.  Otherwise, the default
+			     ``$HOME/.ssh/known_hosts`` will be used.
     :param use_scp: Use SCP for file transfers, defaults to SFTP.
     :param poll_transfers: Specify whether file transfers should be polled. Polling
                            monitors the progress of file transfers and periodically
