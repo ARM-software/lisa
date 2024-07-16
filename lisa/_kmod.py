@@ -139,7 +139,7 @@ from elftools.elf.elffile import ELFFile
 
 from devlib.target import AndroidTarget, KernelVersion, TypedKernelConfig, KernelConfigTristate
 from devlib.host import LocalConnection
-from devlib.exception import TargetStableError, TargetStableCalledProcessError
+from devlib.exception import TargetStableError
 
 from lisa.utils import nullcontext, Loggable, LISA_CACHE_HOME, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor, destroyablecontextmanager, ContextManagerExit, ignore_exceps, get_nested_key, is_link_dead, deduplicate, subprocess_detailed_excep
 from lisa._assets import ASSETS_PATH, HOST_PATH, ABI_BINARIES_FOLDER
@@ -2702,7 +2702,7 @@ class DynamicKmod(Loggable):
             except Exception as e:
                 log_dmesg(dmesg_coll, logger.error)
 
-                if isinstance(e, TargetStableCalledProcessError) and e.returncode == errno.EPROTO:
+                if isinstance(e, subprocess.CalledProcessError) and e.returncode == errno.EPROTO:
                     raise KmodVersionError('In-tree module version does not match what LISA expects. If the module was pre-installed on the target, please contact the 3rd party that shared this setup to you as they took responsibility for maintaining it. This setup is available but unsupported (see online documenation)')
                 else:
                     raise
@@ -2921,7 +2921,7 @@ class LISADynamicKmod(FtraceDynamicKmod):
                     modules_version = Path(target.execute(
                         f"{busybox} find {modules_path_base} -maxdepth 1 -mindepth 1 | {busybox} head -1"
                     ).strip()).name
-                except TargetStableCalledProcessError:
+                except subprocess.CalledProcessError:
                     pass
 
             base_path = f"{modules_path_base}/{modules_version}"
@@ -2943,7 +2943,7 @@ class LISADynamicKmod(FtraceDynamicKmod):
             kmod_path = target.execute(
                 f"{busybox} find {base_path} -name {quote(kmod_filename)}"
             ).strip()
-        except TargetStableCalledProcessError as e:
+        except subprocess.CalledProcessError as e:
             ret = preinstalled_broken(e)
         else:
             if kmod_path:
@@ -2957,7 +2957,7 @@ class LISADynamicKmod(FtraceDynamicKmod):
 
                     try:
                         ret = self._install(kmod_cm(), kmod_params=kmod_params)
-                    except (TargetStableCalledProcessError, KmodVersionError) as e:
+                    except (subprocess.CalledProcessError, KmodVersionError) as e:
                         ret = preinstalled_broken(e)
                     else:
                         logger.warning(f'Loaded "{self.mod_name}" module from pre-installed location: {kmod_path}. This implies that the module was compiled by a 3rd party, which is available but unsupported. If you experience issues related to module version mismatch in the future, please contact them for updating the module. This may break at any time, without notice, and regardless of the general backward compatibility policy of LISA.')
