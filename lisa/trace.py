@@ -252,9 +252,24 @@ def _logical_plan_update_paths(plan, update_path):
             except KeyError:
                 return fixup_scans(obj.values())
             else:
+                # Polars 1.2.0 has a slightly changed format where
+                # scan['paths'] is no longer a plain list[str]. It is a
+                # list[list[str] | bool]. This function handles both formats.
+                def dispatch_update(paths):
+                    if isinstance(paths, str):
+                        path = paths
+                        return str(update_path(path))
+                    elif isinstance(paths, Iterable):
+                        return [
+                            dispatch_update(path)
+                            for path in paths
+                        ]
+                    else:
+                        return paths
+
                 scan['paths'] = [
-                    str(update_path(path))
-                    for path in scan['paths']
+                    dispatch_update(paths)
+                    for paths in scan['paths']
                 ]
         elif isinstance(obj, str):
             return
