@@ -176,7 +176,7 @@ class KmodVersionError(Exception):
     pass
 
 
-_ALPINE_DEFAULT_VERSION = '3.18.3'
+_ALPINE_DEFAULT_VERSION = '3.20.0'
 _ALPINE_ROOTFS_URL = 'https://dl-cdn.alpinelinux.org/alpine/v{minor}/releases/{arch}/alpine-minirootfs-{version}-{arch}.tar.gz'
 _ALPINE_PACKAGE_INFO_URL = 'https://pkgs.alpinelinux.org/package/v{version}/{repo}/{arch}/{package}'
 
