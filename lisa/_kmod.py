@@ -254,15 +254,29 @@ def _url_path(url):
     )
 
 
-def _subprocess_log(*args, env=None, extra_env=None, **kwargs):
-    if env is None:
-        env = {
-            k: v
-            for k, v in os.environ.items()
-            if k in ('PATH', 'USER', 'TERM', 'TMPDIR')
-        }
+def _filter_env(env):
+    allowed = {
+        'PATH',
+        'USER',
+        'TERM',
+        'TMPDIR',
+        # Allow any env var set inside our code that is not already in
+        # os.environ
+        *(
+            set(env.keys()) - set(os.environ.keys())
+        )
+    }
+    return {
+        k: v
+        for k, v in env.items()
+        if k in allowed
+    }
 
-    env.update(extra_env or {})
+
+def _subprocess_log(*args, env=None, **kwargs):
+    env = env or os.environ
+    env = _filter_env(env)
+
     with subprocess_detailed_excep():
         return subprocess_log(*args, **kwargs, env=env)
 
@@ -1151,6 +1165,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
     def _prepare_tree(cls, path, cc, cross_compile, abi, build_conf, apply_overlays):
         logger = cls.get_logger()
         path = Path(path).resolve()
+        toolchain_env = cls._make_toolchain_env_from_conf(build_conf)
 
         def make(*targets):
             return _kbuild_make_cmd(
@@ -1160,7 +1175,11 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                 make_vars=build_conf.get('make-variables', {}),
             )
 
-        def make_runner(cmd, allow_fail=False, **kwargs):
+        def make_runner(cmd, allow_fail=False, env=None, **kwargs):
+            _env = {
+                **toolchain_env,
+                **(env or {}),
+            }
             def runner(amend_cmd=lambda cmd: cmd):
                 _cmd = amend_cmd(cmd)
 
@@ -1169,6 +1188,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                         _cmd,
                         logger=logger,
                         level=logging.DEBUG,
+                        env=_env,
                         **kwargs,
                     )
                 except subprocess.CalledProcessError as e:
@@ -1264,7 +1284,8 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                         updated = join(updated)
                         _path.write_bytes(updated)
 
-        if build_conf['build-env'] == 'alpine':
+        build_env = build_conf['build-env']
+        if build_env == 'alpine':
             settings = build_conf['build-env-settings']['alpine']
             version = settings.get('version', None)
             alpine_packages = settings.get('packages', None)
@@ -1292,7 +1313,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                         ]
                         for runners in cmds
                     ]
-        else:
+        elif build_env == 'host':
             @contextlib.contextmanager
             def cmd_cm(cmds):
                 yield [
@@ -1302,6 +1323,8 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     ]
                     for runners in cmds
                 ]
+        else:
+            raise ValueError('Unknwon build-env kind: {build_env}')
 
         try:
             config_path = os.environ['KCONFIG_CONFIG']
@@ -1465,10 +1488,12 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         return {**os.environ, **env}
 
     @classmethod
-    def _make_toolchain_env_from_conf(cls, build_conf, env=None):
+    def _make_toolchain_env_from_conf(cls, build_conf):
         if build_conf['build-env'] == 'host':
             toolchain_path = build_conf['build-env-settings']['host'].get('toolchain-path')
+            env = {'PATH': HOST_PATH}
         else:
+            env = {}
             toolchain_path = None
         return cls._make_toolchain_env(toolchain_path, env=env)
 
@@ -2377,8 +2402,8 @@ class KmodSrc(Loggable):
                         mod_path=f'/{mod_path.relative_to(chroot)}',
                         make_vars=make_vars,
                     )
-                    yield (mod_path, _make_build_chroot_cmd(chroot, cmd), {})
-        else:
+                    yield (mod_path, _make_build_chroot_cmd(chroot, cmd))
+        elif build_conf['build-env'] == 'host':
             @contextlib.contextmanager
             def cmd_cm():
                 with tempfile.TemporaryDirectory() as mod_path:
@@ -2388,15 +2413,17 @@ class KmodSrc(Loggable):
                         make_vars=make_vars,
                     )
 
-                    env = _KernelBuildEnv._make_toolchain_env_from_conf(build_conf, env={'PATH': HOST_PATH})
-                    yield (mod_path, cmd, {'PATH': env['PATH']})
+                    yield (mod_path, cmd)
+        else:
+            raise ValueError('Unknwon build-env kind: {build_env}')
 
-        with cmd_cm() as (mod_path, cmd, env):
+        env = _KernelBuildEnv._make_toolchain_env_from_conf(build_conf)
+        with cmd_cm() as (mod_path, cmd):
             mod_path = Path(mod_path)
             populate_mod(mod_path)
 
             logger.info(f'Compiling kernel module {self.mod_name}')
-            _subprocess_log(cmd, logger=logger, level=logging.DEBUG, extra_env=env)
+            _subprocess_log(cmd, logger=logger, level=logging.DEBUG, env=env)
 
             mod_file = find_mod_file(mod_path)
             with open(mod_file, 'rb') as f:
