@@ -1853,10 +1853,13 @@ def get_short_doc(obj, strip_rst=False):
     if docstring:
         docstring = split_paragraphs(docstring)[0]
         docstring = ' '.join(docstring.splitlines())
-        if not docstring.endswith('.'):
-            docstring += '.'
     else:
         docstring = ''
+
+    docstring = docstring.strip()
+
+    if docstring and not docstring.endswith('.'):
+        docstring += '.'
 
     if strip_rst:
         # Remove basic reStructuredText markup
