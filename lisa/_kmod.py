@@ -134,6 +134,7 @@ from io import BytesIO
 from collections.abc import Mapping
 import typing
 import fnmatch
+import sys
 
 from elftools.elf.elffile import ELFFile
 
@@ -147,6 +148,15 @@ from lisa._unshare import ensure_root
 import lisa._git as git
 from lisa.conf import SimpleMultiSrcConf, TopLevelKeyDesc, LevelKeyDesc, KeyDesc, VariadicLevelKeyDesc
 from lisa._kallsyms import parse_kallsyms
+
+
+def _tar_extractall(f, *args, **kwargs):
+    # Avoid DeprecationWarning, see:
+    # https://docs.python.org/3/library/tarfile.html#extraction-filters
+    if sys.version_info[:2] >= (3, 12):
+        kwargs['filter'] = 'tar'
+    return f.extractall(*args, **kwargs)
+
 
 def _make_vars_cc(make_vars, default=None):
     try:
@@ -493,7 +503,7 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
                     shutil.copyfileobj(url, f)
 
                 with tarfile.open(tar_path, 'r') as f:
-                    f.extractall(path=path)
+                    _tar_extractall(f, path=path)
         else:
             packages = []
 
@@ -885,8 +895,8 @@ class TarOverlay(_PathOverlayBase):
         return cls(path)
 
     def write_to(self, dst):
-        with tarfile.open(self.path) as tar:
-            tar.extractall(dst)
+        with tarfile.open(self.path) as f:
+            _tar_extractall(f, dst)
 
 
 class PatchOverlay(OverlayResource):
@@ -2189,13 +2199,13 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             with response as url_f, open(tar_path, 'wb') as tar_f:
                 shutil.copyfileobj(url_f, tar_f)
 
-            with tarfile.open(tar_path) as tar:
+            with tarfile.open(tar_path) as f:
                 # Account for a top-level folder in the archive
                 prefix = os.path.commonpath(
                     member.path
-                    for member in tar.getmembers()
+                    for member in f.getmembers()
                 )
-                tar.extractall(extract_folder)
+                _tar_extractall(f, extract_folder)
         except Exception:
             with contextlib.suppress(FileNotFoundError):
                 shutil.rmtree(extract_folder, ignore_errors=True)
