@@ -3227,6 +3227,8 @@ def get_sphinx_role(obj):
     """
     if isinstance(obj, type):
         return 'class'
+    elif inspect.ismodule(obj):
+        return 'mod'
     elif callable(obj):
         if '<locals>' in obj.__qualname__:
             return 'code'
@@ -3264,18 +3266,20 @@ def get_sphinx_name(obj, style=None, abbrev=False):
     try:
         qualname = obj.__qualname__
     except AttributeError:
-        qualname = str(obj)
+        # Some objects like modules don't have a __qualname__
+        try:
+            qualname = obj.__name__
+        except AttributeError:
+            qualname = str(obj)
 
-    name = mod + qualname
+    fullname = f'{mod}{qualname}'
 
     if style == 'rst':
-        return ':{}:`{}{}{}`'.format(
-            get_sphinx_role(obj),
-            '~' if abbrev else '',
-            mod, qualname
-        )
+        role = get_sphinx_role(obj)
+        abbrev = '~' if abbrev else ''
+        return f':{role}:`{abbrev}{fullname}`'
     else:
-        return name
+        return fullname
 
 
 
