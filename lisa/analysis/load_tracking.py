@@ -197,7 +197,8 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.df_method
     @will_use_events_from(
         requires_one_event_of(*_SCHED_PELT_SE_NAMES),
-        'sched_util_est_se'
+        'sched_util_est_se',
+        'sched_util_est_se_unified'
     )
     def df_tasks_signal(self, signal):
         """
@@ -213,15 +214,21 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             * ``load``
             * ``enqueued`` (util est enqueued)
             * ``ewma`` (util est ewma)
+            * ``util_est_unified`` (unified util est)
             * ``required_capacity``
 
         :type signal: str
         """
+        col = signal
         if signal in ('util', 'load'):
             df = self._df_either_event(self._SCHED_PELT_SE_NAMES)
 
         elif signal in ('enqueued', 'ewma'):
             df = self._df_uniformized_signal('sched_util_est_se')
+
+        elif signal in ('util_est_unified'):
+            col = 'util_est'
+            df = self._df_uniformized_signal('sched_util_est_se_unified')
 
         elif signal == 'required_capacity':
             # Add a column which represents the max capacity of the smallest
@@ -241,9 +248,9 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             raise ValueError(f'Signal "{signal}" not supported')
 
         # Select the available columns among
-        columns = {'cpu', 'comm', 'pid', 'update_time', signal}
+        columns = {'cpu', 'comm', 'pid', 'update_time', col}
         columns = sorted(set(df.columns) & columns)
-        return df[columns]
+        return df[columns].rename(columns={col: signal})
 
     @TraceAnalysisBase.df_method
     @df_tasks_signal.used_events
