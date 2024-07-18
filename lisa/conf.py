@@ -144,7 +144,7 @@ class KeyDescBase(abc.ABC):
     This allows defining the structure of the configuration file, in order
     to sanitize user input and generate help snippets used in various places.
     """
-    INDENTATION = 4 * ' '
+    _INDENTATION = 4 * ' '
     _VALID_NAME_PATTERN = r'^[a-zA-Z0-9-<>]+$'
 
     def __init__(self, name, help):
@@ -673,23 +673,14 @@ class LevelKeyDesc(KeyDescBase, Mapping):
             self[key].validate_val(val)
 
     def get_help(self, style=None, last=False):
-        idt = self.INDENTATION
+        idt = '  ' if style == 'rst' else self._INDENTATION
         prefix = '*' if style == 'rst' else ('└' if last else '├')
-        # Nasty hack: adding an empty ResStructuredText comment between levels
-        # of nested list avoids getting extra blank line between list items.
-        # That prevents ResStructuredText from thinking each item must be a
-        # paragraph.
-        suffix = '\n\n..\n\n' if style == 'rst' else '\n'
-        suffix += idt
-        help_ = '{prefix} {key}:{help}{suffix}'.format(
-            prefix=prefix,
-            suffix=suffix,
-            key=self.name,
-            help=' ' + self.help if self.help else '',
-        )
         nl = '\n' + idt
+        _help = ' ' + self.help if self.help else ''
+        suffix = (nl * 2) if style == 'rst' else nl
+        help_ = f'{prefix} {self.name}:{_help}{suffix}'
         last = len(self.children) - 1
-        help_ += nl.join(
+        help_ += suffix.join(
             key_desc.get_help(
                 style=style,
                 last=i == last,
@@ -697,7 +688,7 @@ class LevelKeyDesc(KeyDescBase, Mapping):
             for i, key_desc in enumerate(self.children)
         )
         if style == 'rst':
-            help_ += '\n\n..\n'
+            help_ += '\n'
 
         return help_
 
