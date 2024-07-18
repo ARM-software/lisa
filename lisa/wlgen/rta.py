@@ -22,30 +22,27 @@ scheduler tests, allowing to easily run custom workloads.
 
 The most important classes are:
 
-    * :class:`RTA`: Subclass of :class:`lisa.wlgen.workload.Workload` that can
-      run rt-app on a given :class:`~lisa.target.Target`.
+* :class:`RTA`: Subclass of :class:`lisa.wlgen.workload.Workload` that can
+  run rt-app on a given :class:`~lisa.target.Target`.
+* :class:`RTAConf`: An rt-app configuration file. It can be created either
+  from a template JSON or using a programmatic API.
+* :class:`RTAPhase`: The entry point of the programmatic API to build
+  rt-app configuration, phase by phase.
+* :class:`WloadPropertyBase`: The base class of all workloads that can be
+  given to an :class:`RTAPhase`. It has the following subclasses:
 
-    * :class:`RTAConf`: An rt-app configuration file. It can be created either
-      from a template JSON or using a programmatic API.
+  .. exec::
+    from lisa._doc.helpers import get_subclasses_bullets
+    from lisa.wlgen.rta import WloadPropertyBase
 
-    * :class:`RTAPhase`: The entry point of the programmatic API to build
-      rt-app configuration, phase by phase.
-
-    * :class:`WloadPropertyBase`: The base class of all workloads that can be
-      given to an :class:`RTAPhase`. It has the following subclasses:
-
-        .. exec::
-            from lisa._doc.helpers import get_subclasses_bullets
-            from lisa.wlgen.rta import WloadPropertyBase
-
-            print(
-                get_subclasses_bullets(
-                    WloadPropertyBase,
-                    abbrev=True,
-                    only_leaves=True,
-                    style='rst',
-                )
-            )
+    print(
+        get_subclasses_bullets(
+            WloadPropertyBase,
+            abbrev=True,
+            only_leaves=True,
+            style='rst',
+        )
+    )
 
 A typical workload would be created this way::
 

@@ -2066,18 +2066,18 @@ class Configurable(abc.ABC):
     The pairing is achieved by inheriting from :class:`Configurable` and
     setting ``CONF_CLASS`` attribute. The benefits are:
 
-        * The docstring of the class is processed as a string template and
-          ``{configurable_params}`` is replaced with a Sphinx-compliant list of
-          parameters. The help and type of each parameter is extracted from the
-          configuration class.
-        * The ``DEFAULT_SRC`` attribute of the configuration class is updated
-          with non-``None`` default values of the class ``__init__`` parameters.
-        * The :meth:`~Configurable.conf_to_init_kwargs` method allows turning a
-          configuration object into a dictionary suitable for passing to
-          ``__init__`` as ``**kwargs``.
-        * The :meth:`~Configurable.check_init_param` method allows checking
-          types of ``__init__`` parameters according to what is specified in the
-          configuration class.
+    * The docstring of the class is processed as a string template and
+      ``{configurable_params}`` is replaced with a Sphinx-compliant list of
+      parameters. The help and type of each parameter is extracted from the
+      configuration class.
+    * The ``DEFAULT_SRC`` attribute of the configuration class is updated
+      with non-``None`` default values of the class ``__init__`` parameters.
+    * The :meth:`~Configurable.conf_to_init_kwargs` method allows turning a
+      configuration object into a dictionary suitable for passing to
+      ``__init__`` as ``**kwargs``.
+    * The :meth:`~Configurable.check_init_param` method allows checking
+      types of ``__init__`` parameters according to what is specified in the
+      configuration class.
 
     Most of the time, the configuration keys and ``__init__`` parameters have
     the same name (modulo underscore/dashes which are handled automatically).
