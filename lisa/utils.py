@@ -494,36 +494,51 @@ def get_subclasses(cls, only_leaves=False, cls_set=None):
     return cls_set
 
 
-def get_cls_name(cls, style=None, fully_qualified=True):
+def get_obj_name(obj, style=None, fully_qualified=True, abbrev=False):
     """
-    Get a prettily-formated name for the class given as parameter
+    Get a prettily-formated name for the object given as parameter
 
-    :param cls: Class or typing hint to get the name from.
-    :type cls: type
+    :param obj: Class or module or instance or typing hint to get the name from.
+    :type obj: object
 
     :param style: When "rst", a RestructuredText snippet is returned
     :param style: str
 
+    :param abbrev: If ``True``, a short name will be used.
+    :type abbrev: bool
     """
-    if cls is None:
+    if isinstance(obj, (staticmethod, classmethod)):
+        obj = obj.__func__
+    elif isinstance(obj, property):
+        obj = obj.fget
+
+    if obj is None:
         return 'None'
     else:
         try:
-            qualname = cls.__qualname__
-        # type annotations like typing.Union[str, int] do not have a __qualname__
+            name = obj.__qualname__
         except AttributeError:
-            name = str(cls)
-        else:
-            if fully_qualified or style == 'rst':
-                mod_name = inspect.getmodule(cls).__name__
-                mod_name = mod_name + '.' if mod_name not in ('builtins', '__main__') else ''
-            else:
-                mod_name = ''
+            # Some objects like modules don't have a __qualname__ but do have a name
+            try:
+                name = obj.__name__
+            # type annotations like typing.Union[str, int] do not have a __qualname__
+            except AttributeError:
+                name = str(obj)
 
-            name = mod_name + cls.__qualname__
+        mod_name = ''
+        if (fully_qualified or style == 'rst') and not inspect.ismodule(obj):
+            mod = inspect.getmodule(obj)
+            mod_name = mod.__name__ if mod is not None else None
+            mod_name = f'{mod_name}.' if mod_name not in (None, 'builtins', '__main__') else ''
+
 
         if style == 'rst':
-            name = f':class:`~{name}`'
+            name = f'{mod_name}{name}'
+            role = get_sphinx_role(obj)
+            abbrev = '~' if abbrev else ''
+            name = f':{role}:`{abbrev}{name}`'
+        else:
+            name = name if abbrev else f'{mod_name}{name}'
 
         return name
 
@@ -2150,7 +2165,7 @@ def update_wrapper_doc(func, added_by=None, sig_from=None, description=None, rem
 
         if added_by:
             if callable(added_by):
-                added_by_ = get_sphinx_name(added_by, style='rst')
+                added_by_ = get_obj_name(added_by, style='rst')
             else:
                 added_by_ = added_by
 
@@ -2603,7 +2618,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
                 with contextlib.suppress(Exception):
                     doc_url = f' (see: {get_doc_url(replaced_by)})'
 
-            replacement_msg = f', use {get_sphinx_name(replaced_by, style=style)} instead{doc_url}'
+            replacement_msg = f', use {get_obj_name(replaced_by, style=style)} instead{doc_url}'
         else:
             replacement_msg = ''
 
@@ -2612,7 +2627,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
         else:
             removal_msg = ''
 
-        name = get_sphinx_name(deprecated_obj, style=style, abbrev=True)
+        name = get_obj_name(deprecated_obj, style=style, abbrev=True)
         if parameter:
             if style == 'rst':
                 parameter = f'``{parameter}``'
@@ -2633,7 +2648,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
         )
 
     def decorator(obj):
-        obj_name = get_sphinx_name(obj)
+        obj_name = get_obj_name(obj)
 
         if removed_in and current_version >= removed_in:
             raise DeprecationWarning(f'{obj_name} was marked as being removed in version {format_version(removed_in)} but is still present in current version {format_version(current_version)}')
@@ -3241,49 +3256,6 @@ def get_sphinx_role(obj):
             return 'func'
     else:
         return 'code'
-
-def get_sphinx_name(obj, style=None, abbrev=False):
-    """
-    Get a Sphinx-friendly name of an object.
-
-    :param obj: The object to take the name from
-    :type obj: object or type
-
-    :param style: If ``rst``, a reStructuredText reference will be returned.
-        Otherwise a bare name is returned.
-    :type style: str or None
-
-    :param abbrev: If ``True``, a short name will be used with ``style='rst'``.
-    :type abbrev: bool
-    """
-    if isinstance(obj, (staticmethod, classmethod)):
-        obj = obj.__func__
-    elif isinstance(obj, property):
-        obj = obj.fget
-
-    try:
-        mod = obj.__module__ + '.'
-    except AttributeError:
-        mod = ''
-
-    try:
-        qualname = obj.__qualname__
-    except AttributeError:
-        # Some objects like modules don't have a __qualname__
-        try:
-            qualname = obj.__name__
-        except AttributeError:
-            qualname = str(obj)
-
-    fullname = f'{mod}{qualname}'
-
-    if style == 'rst':
-        role = get_sphinx_role(obj)
-        abbrev = '~' if abbrev else ''
-        return f':{role}:`{abbrev}{fullname}`'
-    else:
-        return fullname
-
 
 
 def newtype(cls, name, doc=None, module=None):
@@ -4187,5 +4159,15 @@ class PlaceHolderRef:
     something private and undocumented, or is not expected to be even
     documentable.
     """
+
+
+@deprecate(deprecated_in='3.0', removed_in='4.0', replaced_by=get_obj_name)
+def get_cls_name(*args, **kwargs):
+    return get_obj_name(**args, **kwargs)
+
+
+@deprecate(deprecated_in='3.0', removed_in='4.0', replaced_by=get_obj_name)
+def get_sphinx_name(*args, **kwargs):
+    return get_obj_name(**args, **kwargs)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

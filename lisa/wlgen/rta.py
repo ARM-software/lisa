@@ -205,7 +205,7 @@ from lisa.utils import (
     deprecate,
     fixedpoint,
     fold,
-    get_cls_name,
+    get_obj_name,
     get_subclasses,
     group_by_value,
     groupby,
@@ -214,7 +214,7 @@ from lisa.utils import (
     nullcontext,
     order_as,
     value_range,
-    get_cls_name,
+    get_obj_name,
     get_short_doc,
     kwargs_dispatcher,
     kwargs_forwarded_to,
@@ -1436,7 +1436,7 @@ class PropertyBase(SimpleHash, metaclass=PropertyMeta):
         if parsed_type:
             type_ += f'{parsed_type} or '
 
-        type_ += get_cls_name(cls)
+        type_ += get_obj_name(cls)
 
         return (doc, type_)
 
@@ -2405,7 +2405,7 @@ class ComposableMultiConcretePropertyBase(MultiConcreteProperty):
 
         def make(param, desc):
             fst = f':param {param}: {desc["doc"]}'
-            snd = f':type {param}: {get_cls_name(desc["type_"])} or {default}'
+            snd = f':type {param}: {get_obj_name(desc["type_"])} or {default}'
             return f'{fst}\n{snd}'
 
         return '\n\n'.join(starmap(make, cls._ATTRIBUTES.items()))

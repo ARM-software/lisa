@@ -40,7 +40,7 @@ import typeguard
 import lisa
 from lisa.utils import (
     Serializable, Loggable, get_nested_key, set_nested_key, get_call_site,
-    is_running_sphinx, get_cls_name, HideExekallID, get_subclasses, groupby,
+    is_running_sphinx, get_obj_name, HideExekallID, get_subclasses, groupby,
     import_all_submodules, delegate_getattr
 )
 from lisa._generic import check_type
@@ -283,8 +283,8 @@ class KeyDesc(KeyDescBase):
             try:
                 check_type(val, classinfo)
             except TypeError as e:
-                classinfo = ' or '.join(get_cls_name(cls) for cls in classinfo)
-                raise TypeError(f'Key "{key}" is an instance of {get_cls_name(type(val))}, but should be instance of {classinfo}: {e}. Help: {self.help}', key)
+                classinfo = ' or '.join(get_obj_name(cls) for cls in classinfo)
+                raise TypeError(f'Key "{key}" is an instance of {get_obj_name(type(val))}, but should be instance of {classinfo}: {e}. Help: {self.help}', key)
 
         # DeferredValue will be checked when they are computed
         if not isinstance(val, DeferredValue):
@@ -323,7 +323,7 @@ class KeyDesc(KeyDescBase):
             prefix=prefix,
             key=key,
             classinfo=' or '.join(
-                get_cls_name(
+                get_obj_name(
                     key_cls,
                     style=style,
                     fully_qualified=False,
@@ -2195,7 +2195,7 @@ class Configurable(abc.ABC):
                 type=(
                     'collections.abc.Mapping'
                     if isinstance(key_desc, LevelKeyDesc) else
-                    ' or '.join(get_cls_name(t) for t in key_desc.classinfo)
+                    ' or '.join(get_obj_name(t) for t in key_desc.classinfo)
                 ),
             )
             for param, key_desc

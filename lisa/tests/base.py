@@ -53,7 +53,7 @@ from lisa.target import Target
 from lisa.utils import (
     Serializable, memoized, lru_memoized, ArtifactPath, non_recursive_property,
     update_wrapper_doc, ExekallTaggable, annotations_from_signature,
-    get_sphinx_name, optional_kwargs, group_by_value, kwargs_dispatcher,
+    get_obj_name, optional_kwargs, group_by_value, kwargs_dispatcher,
     dispatch_kwargs, Loggable, kwargs_forwarded_to, docstring_update,
     is_running_ipython,
 )
@@ -589,7 +589,7 @@ class TestBundleMeta(abc.ABCMeta):
 
                     {}
                     """).strip().format(
-                        get_sphinx_name(func, style='rst', abbrev=True),
+                        get_obj_name(func, style='rst', abbrev=True),
                         inspect.getdoc(func),
                     ),
             )

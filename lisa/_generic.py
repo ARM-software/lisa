@@ -26,7 +26,7 @@ from typing import Any, Union, Generic, TypeVar
 import typeguard
 from collections.abc import Iterable
 
-from lisa.utils import get_cls_name
+from lisa.utils import get_obj_name
 
 class _TypeguardCustom:
     _HINT = Any
@@ -123,7 +123,7 @@ def hint_to_class(hint):
     class Stub(metaclass=Meta):
         pass
 
-    name = get_cls_name(hint).split('.', 1)
+    name = get_obj_name(hint).split('.', 1)
     try:
         name = name[1]
     except IndexError:
