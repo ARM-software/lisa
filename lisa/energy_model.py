@@ -87,37 +87,40 @@ class _CpuTree(Loggable):
     Internal class. Abstract representation of a CPU topology.
 
     Each node contains either a single CPU or a set of child nodes.
-
-    :Attributes:
-        * ``cpus``: CPUs contained in this node. Includes those of child nodes.
-        * ``cpu``: For convenience, this holds the single CPU contained by leaf
-          nodes. ``None`` for non-leaf nodes.
     """
 
     def __init__(self, cpu, children):
         if (cpu is None) == (children is None):
             raise ValueError('Provide exactly one of: cpu or children')
 
-        self.parent = None
-        #: Test yolo
-        self.cpu = cpu
-
         if cpu is not None:
             #: This is another thingie
-            self.cpus = (cpu,)
-            self.children = []
+            cpus = (cpu,)
+            children = []
         else:
             if len(children) == 0:
                 raise ValueError('children cannot be empty')
-            self.cpus = tuple(sorted({
+            cpus = tuple(sorted({
                 cpu
                 for node in children
                 for cpu in node.cpus
             }))
-            self.children = children
             for child in children:
                 child.parent = self
 
+        self.cpus = cpus
+        """
+        CPUs contained in this node. Includes those of child nodes.
+        """
+
+        self.cpu = cpu
+        """
+        For convenience, this holds the single CPU contained by leaf nodes.
+        ``None`` for non-leaf nodes.
+        """
+
+        self.parent = None
+        self.children = children
         self.name = None
 
     def __repr__(self):
