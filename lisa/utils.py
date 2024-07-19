@@ -535,7 +535,7 @@ def get_obj_name(obj, style=None, fully_qualified=True, abbrev=False):
         if style == 'rst':
             name = f'{mod_name}{name}'
             role = get_sphinx_role(obj)
-            abbrev = '~' if abbrev else ''
+            abbrev = '~' if abbrev and role != 'code' else ''
             name = f':{role}:`{abbrev}{name}`'
         else:
             name = name if abbrev else f'{mod_name}{name}'
