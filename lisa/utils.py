@@ -4180,4 +4180,12 @@ def delegate_getattr(x, delegate_to, attr):
     x = super(type(x), x).__getattribute__(delegate_to)
     return getattr(x, attr)
 
+
+class PlaceHolderRef:
+    """
+    If you got redirected to here, this means that the reference points to
+    something private and undocumented, or is not expected to be even
+    documentable.
+    """
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
