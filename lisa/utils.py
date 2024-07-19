@@ -694,11 +694,22 @@ def _lru_memoized(first_param_maxsize, other_params_maxsize, sig_f):
 
 
 def resolve_dotted_name(name):
-    """Only resolve names where __qualname__ == __name__, i.e the callable is a
-    module-level name."""
-    mod_name, callable_name = name.rsplit('.', 1)
-    mod = importlib.import_module(mod_name)
-    return getattr(mod, callable_name)
+    """
+    Resolve a dotted name, importing all modules necessary.
+    """
+    first, *compos = name.split('.')
+
+    obj = importlib.import_module(first)
+    visited = [first]
+    for compo in compos:
+        visited.append(compo)
+        try:
+            importlib.import_module('.'.join(visited))
+        except ImportError:
+            pass
+        obj = getattr(obj, compo)
+
+    return obj
 
 
 def import_all_submodules(pkg, best_effort=False):
