@@ -1296,21 +1296,24 @@ where
                                 event_name = Some(_event_name);
                                 None
                             }
-                            Err(()) => None,
+                            Err(()) => Some(Err(MainError::NotAMetaEvent)),
                         }
                     }
-                    _ => None,
+                    _ => Some(Err(MainError::NotAMetaEvent)),
                 }
             } else {
                 match atom {
                     PrintAtom::Fixed(fixed) => {
-                        let _ = nom::combinator::all_consuming(field_name_parser())
+                        match nom::combinator::all_consuming(field_name_parser())
                             .parse(fixed.as_bytes())
                             .finish()
-                            .map(|(_, name)| {
+                        {
+                            Err(()) => Some(Err(MainError::NotAMetaEvent)),
+                            Ok((_, name)) => {
                                 field_name = Some(name);
-                            });
-                        None
+                                None
+                            }
+                        }
                     }
                     PrintAtom::Variable { vbin_spec, .. } => {
                         let typ = match vbin_spec {
