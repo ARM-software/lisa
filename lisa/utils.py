@@ -303,14 +303,11 @@ class Loggable:
 
     @classmethod
     def get_logger(cls, suffix=None):
-        cls_name = cls.__name__
-        module = inspect.getmodule(cls)
-        if module:
-            name = module.__name__ + '.' + cls_name
-        else:
-            name = cls_name
-        if suffix:
-            name += '.' + suffix
+        """
+        Provides a :class:`logging.Logger` named after ``cls``.
+        """
+        suffix = f'.{suffix}' if suffix else ''
+        name = f'{cls.__module__}.{cls.__qualname__}{suffix}'
         logger = logging.getLogger(name)
         return _WrappedLogger(logger)
 
