@@ -444,7 +444,7 @@ def get_analysis_list(meth_type):
         elif meth_type == 'df':
             meth_list = (
                 subclass.get_df_methods()
-                if isinstance(subclass, TraceAnalysisBase) else
+                if issubclass(subclass, TraceAnalysisBase) else
                 []
             )
         else:
