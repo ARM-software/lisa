@@ -4154,11 +4154,16 @@ def delegate_getattr(x, delegate_to, attr):
     :param attr: Name of the attribute to lookup.
     :type attr: str
     """
-
     # Prevent infinite recursion by calling the base class __getattr__
     # implementation
     x = super(type(x), x).__getattribute__(delegate_to)
-    return getattr(x, attr)
+
+    # Allow using delegate_getattr() in __getattribute__ implementation where
+    # the attribute being lookedup might be the attribute to delegate to.
+    if attr == delegate_to:
+        return x
+    else:
+        return getattr(x, attr)
 
 
 class PlaceHolderRef:
