@@ -1489,6 +1489,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
     def _make_toolchain_env(cls, toolchain_path=None, env=None):
         env = env or os.environ
         if toolchain_path is not None:
+            assert toolchain_path
             path = env.get('PATH', '')
             env = {
                 **env,
@@ -1715,13 +1716,13 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             toolchain_path = build_conf['build-env-settings']['host'].get('toolchain-path', None)
 
             def is_in_toolchain_path(cc, cross_compile):
-                if toolchain_path:
+                if toolchain_path is None:
+                    return True
+                else:
                     cmd = cc_cmd(cc, cross_compile, opts=[])
                     bin_, *_ = cmd
                     bin_ = shutil.which(bin_, path=toolchain_path)
                     return bin_ is not None
-                else:
-                    return True
 
             ccs = [
                 (cc, cross_compile)
