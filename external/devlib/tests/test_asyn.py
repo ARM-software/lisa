@@ -508,14 +508,18 @@ def _test_run_with_setup(setup):
         asyncio.set_event_loop(loop)
         # Simulate case where devlib is ran in a context where the main app has
         # set an event loop at some point
-        return asyncio.run(coro)
+        try:
+            return asyncio.run(coro)
+        finally:
+            loop.close()
 
     def run_with_existing_loop2(coro):
         # This is similar to how things are executed on IPython/jupyterlab
         loop = asyncio.new_event_loop()
-        x = loop.run_until_complete(coro)
-        loop.close()
-        return x
+        try:
+            return loop.run_until_complete(coro)
+        finally:
+            loop.close()
 
     def run_with_to_thread(top_run, coro):
         # Add a layer of asyncio.to_thread(), to simulate a case where users
@@ -553,7 +557,10 @@ def test_run_stdlib():
     def setup():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        yield asyncio.run
+        try:
+            yield asyncio.run
+        finally:
+            loop.close()
 
     _test_run_with_setup(setup)
 
