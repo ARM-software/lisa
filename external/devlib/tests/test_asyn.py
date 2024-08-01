@@ -17,6 +17,7 @@
 import sys
 import asyncio
 from functools import partial
+import contextvars
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 
@@ -70,6 +71,30 @@ def _do_test_run(top_run):
 
     top_run(test_run_basic())
 
+    async def test_run_basic_contextvars_get():
+        var = contextvars.ContextVar('var')
+        var.set(42)
+
+        async def f():
+            return var.get()
+
+        assert var.get() == 42
+        assert run(f()) == 42
+
+    top_run(test_run_basic_contextvars_get())
+
+    async def test_run_basic_contextvars_set():
+        var = contextvars.ContextVar('var')
+
+        async def f():
+            var.set(43)
+
+        var.set(42)
+        assert var.get() == 42
+        run(f())
+        assert var.get() == 43
+
+    top_run(test_run_basic_contextvars_set())
 
     async def test_run_basic_raise():
 
