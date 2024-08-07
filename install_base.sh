@@ -94,7 +94,6 @@ register_pip_extra_requirements() {
 }
 
 devlib_setup_host() {
-    echo "devlib_params=${devlib_params[@]}"
     if [ ${#devlib_params[@]} -ne 0 ]; then
         "${LISA_HOME}/external/devlib/tools/android/setup_host.sh" "${devlib_params[@]}"
     fi

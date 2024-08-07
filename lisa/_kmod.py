@@ -2730,7 +2730,7 @@ class DynamicKmod(Loggable):
             dmesg_coll = ignore_exceps(
                 Exception,
                 DmesgCollector(target, output_path=dmesg_out.name),
-                lambda when, cm, excep: logger.error(f'Encounted exceptions while {when}ing dmesg collector: {excep}')
+                lambda when, cm, excep: logger.error(f'Encountered exceptions while {when}ing dmesg collector: {excep}')
             )
 
             try:
