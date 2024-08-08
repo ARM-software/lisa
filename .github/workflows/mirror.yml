@@ -22,6 +22,12 @@ jobs:
 
     steps:
 
+      # Wait a random amount of time to avoid overloading git servers by
+      # running at precise timestamps, which quite a lot of people probably do.
+      - name: Random wait
+        run: |
+          sleep $((RANDOM % 600))
+
       # Checks out a copy of your repository on the virtual machine
       - uses: actions/checkout@v3
         with:
