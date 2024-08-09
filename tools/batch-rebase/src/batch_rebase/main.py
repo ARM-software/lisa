@@ -55,35 +55,34 @@ def load_conf(path):
     def postprocess(conf):
         return conf['rebase-conf']
 
-    try:
-        from ruamel.yaml import YAML
-    except ImportError:
-        try_yaml = False
-    else:
-        try_yaml = True
-
     def load_yaml(path):
-        yaml = YAML(typ='safe')
-        with open(path) as f:
-            return yaml.load(f)
+        try:
+            from ruamel.yaml import YAML
+        except ImportError:
+            raise RuntimeError('ruamel.yaml is not installed, YAML support disabled')
+        else:
+            yaml = YAML(typ='safe')
+            with open(path) as f:
+                return yaml.load(f)
 
     def load_json(path):
         with open(path) as f:
             return json.load(f)
 
     loaders = [
-        load_json,
-        *([load_yaml] if try_yaml else [])
+        ('JSON', load_json),
+        ('YAML', load_yaml),
     ]
 
     last_excep = ValueError('No loader selected')
-    for loader in loaders:
+    for fmt, loader in loaders:
         try:
             conf = loader(path)
         except Exception as e:
             last_excep = e
-            error(e)
+            error(f'Error while trying to load the configuration as {fmt}: {e}')
         else:
+            info(f'Configuration successfully loaded as {fmt}')
             return postprocess(conf)
 
     raise last_excep
@@ -193,6 +192,8 @@ def empty_staging_area(repo):
         return True
 
 def do_create(conf_folder, repo, temp_repo, new_branch, conf, persistent_tags, tags_suffix):
+    conf = conf.copy()
+
     # Use --shared to avoid copying the git objects, so we only pay for a
     # checkout
     call_git(['clone', '--shared', '--', repo, temp_repo])
@@ -252,14 +253,15 @@ def do_resume(temp_repo, conf):
         return (False, True)
 
 def do_cherry_pick(repo, temp_repo, conf, persistent_tags, tags_suffix, branch, rr_cache):
-    has_conflict, persistent_refs = _do_cherry_pick(temp_repo, conf, persistent_tags, tags_suffix)
+    has_conflict, conf, persistent_refs = _do_cherry_pick(temp_repo, conf, persistent_tags, tags_suffix)
 
     if has_conflict:
-        conf['resume'] = {
+        conf = conf.copy()
+        conf['resume'].update({
             'repo': str(repo),
             'rr-cache': str(rr_cache) if rr_cache else rr_cache,
             'branch': branch,
-        }
+        })
         # Save the augmented manifest for later resumption
         dump_conf(conf, temp_repo/RESUME_MANIFEST_NAME)
     else:
@@ -334,7 +336,7 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
             git(['diff-index', '--quiet', 'HEAD', '--'])
         except subprocess.CalledProcessError:
             info('Please commit all files before running batch-rebase resume')
-            return (True, persistent_refs)
+            return (True, conf, persistent_refs)
 
         # Finish cherry picking the topic with the conflict.
         # If the commit was the last in the topic, this will fail as the `git
@@ -406,12 +408,15 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
 
             if not cherry_pick_ref(repo, range_sha1s):
                 # Save the current state for later resumption
-                conf['resume'] = {
-                    'conflict-topic': name,
-                    'persistent-refs': sorted(persistent_refs),
-                    'tags': {
-                        'persistent': persistent_tags,
-                        'suffix': tags_suffix,
+                conf = {
+                    **conf,
+                    'resume': {
+                        'conflict-topic': name,
+                        'persistent-refs': sorted(persistent_refs),
+                        'tags': {
+                            'persistent': persistent_tags,
+                            'suffix': tags_suffix,
+                        }
                     }
                 }
                 info(textwrap.dedent("""
@@ -430,7 +435,7 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
                         repo=repo,
                         range_ref=range_ref,
                     )).strip())
-                return (True, persistent_refs)
+                return (True, conf, persistent_refs)
 
             tag_name = add_tag(name)
             if persistent_tags:
@@ -439,7 +444,7 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
         else:
             raise ValueError('Unknown action: {}'.format(action))
 
-    return (False, persistent_refs)
+    return (False, conf, persistent_refs)
 
 
 def cherry_pick_ref(repo, refs):
