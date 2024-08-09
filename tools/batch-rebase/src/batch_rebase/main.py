@@ -55,17 +55,15 @@ def load_conf(path):
     def postprocess(conf):
         return conf['rebase-conf']
 
-    try:
-        from ruamel.yaml import YAML
-    except ImportError:
-        try_yaml = False
-    else:
-        try_yaml = True
-
     def load_yaml(path):
-        yaml = YAML(typ='safe')
-        with open(path) as f:
-            return yaml.load(f)
+        try:
+            from ruamel.yaml import YAML
+        except ImportError:
+            raise RuntimeError('ruamel.yaml is not installed, YAML support disabled')
+        else:
+            yaml = YAML(typ='safe')
+            with open(path) as f:
+                return yaml.load(f)
 
     def load_json(path):
         with open(path) as f:
@@ -73,7 +71,7 @@ def load_conf(path):
 
     loaders = [
         ('JSON', load_json),
-        *([('YAML', load_yaml)] if try_yaml else [])
+        ('YAML', load_yaml),
     ]
 
     last_excep = ValueError('No loader selected')
