@@ -72,18 +72,19 @@ def load_conf(path):
             return json.load(f)
 
     loaders = [
-        load_json,
-        *([load_yaml] if try_yaml else [])
+        ('JSON', load_json),
+        *([('YAML', load_yaml)] if try_yaml else [])
     ]
 
     last_excep = ValueError('No loader selected')
-    for loader in loaders:
+    for fmt, loader in loaders:
         try:
             conf = loader(path)
         except Exception as e:
             last_excep = e
-            error(e)
+            error(f'Error while trying to load the configuration as {fmt}: {e}')
         else:
+            info(f'Configuration successfully loaded as {fmt}')
             return postprocess(conf)
 
     raise last_excep
