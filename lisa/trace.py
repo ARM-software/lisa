@@ -181,6 +181,22 @@ def _make_hardlink(src, dst):
         pass
 
 
+def _df_json_serialize(df):
+    # TODO: revisit based on the outcome of:
+    # https://github.com/pola-rs/polars/issues/18284
+    with warnings.catch_warnings():
+        warnings.simplefilter(action='ignore')
+        return df.serialize(format='json')
+
+
+def _df_json_deserialize(plan):
+    # TODO: revisit based on the outcome of:
+    # https://github.com/pola-rs/polars/issues/18284
+    with warnings.catch_warnings():
+        warnings.simplefilter(action='ignore')
+        return pl.LazyFrame.deserialize(plan, format='json')
+
+
 def _logical_plan_resolve_paths(cache, plan, kind):
     swap_dir = Path(cache.swap_dir).resolve()
 
@@ -366,12 +382,12 @@ def _lazyframe_rewrite(df, update_plan):
     # TODO: once this is solved, we can just inspect the plan rather than
     # serialize()/deserialize() in JSON
     # https://github.com/pola-rs/polars/issues/9771
-    plan = df.serialize(format='json')
+    plan = _df_json_serialize(df)
     plan = json.loads(plan)
     plan = update_plan(plan)
     plan = json.dumps(plan)
     plan = io.StringIO(plan)
-    df = pl.LazyFrame.deserialize(plan, format='json')
+    df = _df_json_deserialize(plan)
     return df
 
 
@@ -4418,7 +4434,7 @@ class _TraceCache(Loggable):
                 to_parquet()
             else:
                 try:
-                    plan = data.serialize(format='json')
+                    plan = _df_json_serialize(data)
                 # We failed to serialize the logical plan. This could happen
                 # because it contains references to UDF (e.g. a lambda passed
                 # to Expr.map_elements())
@@ -4500,7 +4516,7 @@ class _TraceCache(Loggable):
                 )
                 plan = json.dumps(plan)
                 plan = io.StringIO(plan)
-                data = pl.LazyFrame.deserialize(plan, format='json')
+                data = _df_json_deserialize(plan)
                 data = _LazyFrameOnDelete.attach_file_cleanup(data, hardlinks)
         else:
             raise ValueError(f'File format not supported "{fmt}" at path: {path}')
