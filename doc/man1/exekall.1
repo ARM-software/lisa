@@ -39,8 +39,7 @@ discovered from Python PEP 484 parameter and return value annotations.
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 usage: exekall [\-h] [\-\-debug] {run,merge,compare,show} ...
 
 Test runner
@@ -57,16 +56,14 @@ optional arguments:
 subcommands:
   {run,merge,compare,show}
 
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS exekall run
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 usage: exekall run [\-h] [\-\-dependency DEPENDENCY] [\-s ID_PATTERN] [\-\-list]
                    [\-n N] [\-\-load\-db LOAD_DB] [\-\-load\-type TYPE_PATTERN]
                    [\-\-replay REPLAY | \-\-load\-uuid LOAD_UUID]
@@ -180,16 +177,14 @@ advanced arguments:
   \-\-adaptor ADAPTOR     Adaptor to use from the customization module, if there is more than
                         one to choose from.
 
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS exekall compare
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 usage: exekall compare [\-h] db db
 
 Compare two DBs produced by exekall run.
@@ -208,16 +203,14 @@ positional arguments:
 optional arguments:
   \-h, \-\-help  show this help message and exit
 
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS exekall show
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 usage: exekall show [\-h] db
 
 Show the content of a ValueDB created by exekall \(ga\(garun\(ga\(ga
@@ -236,16 +229,14 @@ positional arguments:
 optional arguments:
   \-h, \-\-help  show this help message and exit
 
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS exekall merge
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 usage: exekall merge [\-h] \-o OUTPUT [\-\-copy] artifact_dirs [artifact_dirs ...]
 
 Merge artifact directories of \(dqexekall run\(dq executions.
@@ -269,8 +260,7 @@ optional arguments:
                         contains subexpression\(aqs values.
   \-\-copy                Force copying files, instead of using hardlinks.
 
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SH EXECUTING EXPRESSIONS
@@ -352,13 +342,11 @@ same object within any given expression. Executing the IDs \fBg:f(p2=g)\fP and
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 x = g()
 res1 = f(x, p2=x)
 res2 = h(x)
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .sp
@@ -454,8 +442,7 @@ would be:
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 import abc
 class BaseConf(abc.ABC):
    @abc.abstractmethod
@@ -493,8 +480,7 @@ def process1(x:Stage1) \-> Stage2:
 
 def process2(x:Stage1, conf:BaseConf, has_default_val=33) \-> Stage2:
    return Stage2(x.conf.x == 0)
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .sp
@@ -510,8 +496,7 @@ Haskell\(aqs associated type families is supported:
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 import typing
 
 class Base:
@@ -529,8 +514,7 @@ class Derived1(Base):
 class Derived2(Base):
     X = \(aqhello\(aq
     ASSOCIATED_CLS = type(X)
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .sp

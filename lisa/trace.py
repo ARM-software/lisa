@@ -67,7 +67,7 @@ import polars.selectors as cs
 
 import devlib
 
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, unzip_into, order_as, delegate_getattr, DirCache
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, unzip_into, order_as, DirCache, DelegateToAttr
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df
 from lisa.version import VERSION_TOKEN
@@ -182,6 +182,22 @@ def _make_hardlink(src, dst):
         os.link(src, dst)
     except FileExistsError:
         pass
+
+
+def _df_json_serialize(df):
+    # TODO: revisit based on the outcome of:
+    # https://github.com/pola-rs/polars/issues/18284
+    with warnings.catch_warnings():
+        warnings.simplefilter(action='ignore')
+        return df.serialize(format='json')
+
+
+def _df_json_deserialize(plan):
+    # TODO: revisit based on the outcome of:
+    # https://github.com/pola-rs/polars/issues/18284
+    with warnings.catch_warnings():
+        warnings.simplefilter(action='ignore')
+        return pl.LazyFrame.deserialize(plan, format='json')
 
 
 def _logical_plan_resolve_paths(cache, plan, kind):
@@ -369,12 +385,12 @@ def _lazyframe_rewrite(df, update_plan):
     # TODO: once this is solved, we can just inspect the plan rather than
     # serialize()/deserialize() in JSON
     # https://github.com/pola-rs/polars/issues/9771
-    plan = df.serialize(format='json')
+    plan = _df_json_serialize(df)
     plan = json.loads(plan)
     plan = update_plan(plan)
     plan = json.dumps(plan)
     plan = io.StringIO(plan)
-    df = pl.LazyFrame.deserialize(plan, format='json')
+    df = _df_json_deserialize(plan)
     return df
 
 
@@ -469,6 +485,12 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
     metadata should only be computed when the object is used as a context
     manager. Note that the same parser object might be used as a context
     manager multiple times in its lifetime.
+
+
+    .. attention:: This class and its base class is not subject to the normal
+        backward compatibility guarantees. It is considered somewhat internal
+        and will be modified if necessary, with backward compatibility being
+        offered on a best-effort basis.
     """
 
     _STEAL_FILES = False
@@ -552,7 +574,7 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
             promise on the availability of any except for the following that
             *must* be provided if asked for:
 
-                * ``time-range``
+            * ``time-range``
 
             Metadata may still be made available if not asked for, but only if
             it's a very cheap byproduct of parsing that incurs no extra cost.
@@ -581,14 +603,16 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
         Parse the given event from the trace and return a
         :class:`pandas.DataFrame` with the following columns:
 
-            * ``Time`` index: floating point absolute timestamp in seconds. The
-              index *must not* have any duplicated values.
-            * One column per event field, with the appropriate dtype.
-            * Columns prefixed with ``__``: Header of each event, usually containing the following fields:
+        * ``Time`` index: floating point absolute timestamp in seconds. The
+          index *must not* have any duplicated values.
+        * One column per event field, with the appropriate dtype.
+        * Columns prefixed with ``__``: Header of each event, usually
+          containing the following fields:
 
-                * ``__cpu``: CPU number the event was emitted from
-                * ``__pid``: PID of the current process scheduled at the time the event was emitted
-                * ``__comm``: Task command name going with ``__pid`` at the point the event was emitted
+          * ``__cpu``: CPU number the event was emitted from
+          * ``__pid``: PID of the current process scheduled at the time the event was emitted
+          * ``__comm``: Task command name going with ``__pid`` at the point the
+            event was emitted
 
         :param event: name of the event to parse
         :type event: str
@@ -1235,10 +1259,10 @@ class EventParserBase:
 
     Required attributes or properties:
 
-        * ``event``: name of the event
-        * ``regex``: full regex to parse a line of the event
-        * ``fields``: mapping of field names to :mod:`pandas` dtype to use for
-          the :class:`pandas.DataFrame` column.
+    * ``event``: name of the event
+    * ``regex``: full regex to parse a line of the event
+    * ``fields``: mapping of field names to :mod:`pandas` dtype to use for
+      the :class:`pandas.DataFrame` column.
     """
 
     PARSER_REGEX_TERMINALS = dict(
@@ -1433,9 +1457,9 @@ class PrintTxtEventParser(TxtEventParser):
     Event parser for the folling events, displayed in non-raw format by
     ``trace-cmd``:
 
-        * ``print``
-        * ``bprint``
-        * ``bputs``
+    * ``print``
+    * ``bprint``
+    * ``bputs``
 
     .. note:: ``bputs`` and ``print`` could be parsed in raw format, but that
         would make them harder to parse (function resolution needed), and
@@ -2675,20 +2699,20 @@ class SimpleTxtTraceParser(TxtTraceParserBase):
 
     Each event description can include the following dict keys:
 
-        * ``header_regex``: Regex to parse the event header. If not set, the
-          header regex from the trace parser will be used.
+    * ``header_regex``: Regex to parse the event header. If not set, the
+      header regex from the trace parser will be used.
 
-        * ``fields_regex``: Regex to parse the fields part of the event (i.e.
-          the part after the header). This is the most commonly modified
-          setting to take into account special cases in event formatting.
+    * ``fields_regex``: Regex to parse the fields part of the event (i.e.
+      the part after the header). This is the most commonly modified
+      setting to take into account special cases in event formatting.
 
-        * ``fields``: Mapping of field names to :class:`pandas.DataFrame`
-          column dtype. This allows using a smaller dtype or the use of a
-          non-inferred dtype like ``boolean``.
+    * ``fields``: Mapping of field names to :class:`pandas.DataFrame`
+      column dtype. This allows using a smaller dtype or the use of a
+      non-inferred dtype like ``boolean``.
 
-        * ``positional_field``: Name of the positional field (comming before
-          the named fields). If ``None``, the column will be suppressed in the
-          parsed dataframe.
+    * ``positional_field``: Name of the positional field (comming before
+      the named fields). If ``None``, the column will be suppressed in the
+      parsed dataframe.
     """
 
     HEADER_REGEX = None
@@ -2696,11 +2720,11 @@ class SimpleTxtTraceParser(TxtTraceParserBase):
     Default regex to use to parse event header.
     It must parse the following groups:
 
-        * ``__timestamp``: the timestamp of the event
-        * ``__event``: the name of the event
-        * ``__cpu`` (optional): the CPU by which the event was emitted
-        * ``__pid`` (optional): the currently scheduled PID at the point the event was emitted
-        * ``__comm`` (optional): the currently scheduled task's name at the point the event was emitted
+    * ``__timestamp``: the timestamp of the event
+    * ``__event``: the name of the event
+    * ``__cpu`` (optional): the CPU by which the event was emitted
+    * ``__pid`` (optional): the currently scheduled PID at the point the event was emitted
+    * ``__comm`` (optional): the currently scheduled task's name at the point the event was emitted
 
     .. note:: It must *not* capture the event fields, as it will be
         concatenated with the field regex of each event to parse full lines.
@@ -2884,23 +2908,49 @@ class SysTraceParser(HRTxtTraceParser):
 
 class _InternalTraceBase(abc.ABC):
     """
-    Base class for common functionalities between :class:`Trace` and
+    Base class for common functionalities between :class:`_Trace` and
     :class:`_TraceViewBase`.
-
-    :Attributes:
-
-        * ``start``: The timestamp of the first trace event.
-        * ``end``: The timestamp of the last trace event.
-        * ``basetime``: Absolute timestamp when the tracing started. This might
-          differ from ``start`` as the latter can be affected by various
-          normalization or windowing features.
-        * ``endtime``: Absolute timestamp when the tracing stopped. It has
-          similar characteristics as ``basetime``.
-
     """
 
     def __init__(self):
         pass
+
+    @property
+    @abc.abstractmethod
+    def start(self):
+        '''
+        The timestamp of the first trace event.
+        '''
+
+    @property
+    @abc.abstractmethod
+    def end(self):
+        '''
+        The timestamp of the last trace event.
+        '''
+
+    @property
+    @abc.abstractmethod
+    def basetime(self):
+        '''
+        Absolute timestamp when the tracing started.
+
+        This might differ from :attr:`start` as the latter can be affected
+        by various normalization or windowing features.
+        '''
+
+    @property
+    @abc.abstractmethod
+    def endtime(self):
+        '''
+        Absolute timestamp when the tracing stopped.
+
+        This might differ from :attr:`end` as the latter can be affected by
+        various normalization or windowing features.
+
+        .. note:: With some parsers, that might be the timestamp of the last
+           recorded event instead if the trace end timestamp was not recorded.
+        '''
 
     @property
     def trace_state(self):
@@ -2916,7 +2966,7 @@ class _InternalTraceBase(abc.ABC):
     @property
     def time_range(self):
         """
-        Duration of that trace.
+        Duration of that trace (difference between :attr:`start` and :attr:`end`).
         """
         return self.end - self.start
 
@@ -2931,10 +2981,95 @@ class _InternalTraceBase(abc.ABC):
 
     @property
     def available_events(self):
+        """
+        Set of available events on that trace.
+
+        .. warning:: The set of events can change as new events are parsed. Not
+            all trace parsers are able to provide the list of events that could
+            be parsed upfront, so do not rely on this set to be stable.
+            However, using ``event in trace.available_events`` will always
+            return ``True`` if the event can be parsed, possibly at the cost of
+            actually parsing the event to check if that works.
+        """
         return _AvailableTraceEventsSet(self)
 
     def get_view(self, **kwargs):
-        view = _TraceViewBase.make_view(self, **kwargs)
+        """
+        Get a view on a trace.
+
+        Various aspects of the trace can be altered depending on the
+        parameters, such as cropping time-wise to fit in ``window``.
+
+        :param window: Crop the dataframe to include events that are inside the
+            given window. This includes the event immediately preceding the
+            left boundary if there is no exact timestamp match. This can also
+            include more rows before the beginning of the window based on the
+            ``signals`` required by the user. A ``None`` boundary will extend
+            to the beginning/end of the trace.
+        :type window: tuple(float or None, float or None) or None
+
+        :param signals: List of :class:`lisa.datautils.SignalDesc` to use when
+            selecting rows before the beginning of the ``window``. This allows
+            ensuring that all the given signals have a known value at the beginning
+            of the window.
+        :type signals: list(lisa.datautils.SignalDesc) or None
+
+        :param compress_signals_init: If ``True``, the timestamp of the events
+            before the beginning of the ``window`` will be compressed to be
+            either right before the beginning of the window, or at the exact
+            timestamp of the beginning of the window (depending on the
+            dataframe library chosen, since pandas cannot cope with more than
+            one row for each timestamp).
+        :type compress_signals_init: bool or None
+
+        :param normalize_time: If ``True``, the beginning of the ``window``
+            will become timestamp 0. If no ``window`` is used, the beginning of
+            the trace is taken as T=0. This allows easier comparison of traces
+            that were generated with absolute timestamps (e.g. timestamp
+            related to the uptime of the system). It also allows comparing
+            various slices of the same trace.
+        :type normalize_time: bool or None
+
+        :param events_namespaces: List of namespaces of the requested events.
+            Each namespace will be tried in order until the event is found. The
+            ``None`` namespace can be used to specify no namespace. The full
+            event name is formed with ``<namespace>__<event>``.
+        :type events_namespaces: list(str or None)
+
+        :param events: Preload the given events when creating the view. This
+            can be advantageous as a single instance of the parser will be
+            spawned, so if the parser supports it, multiple events will be
+            parsed in one trace traversal.
+        :type events: list(str) or lisa.trace.TraceEventCheckerBase or None
+
+        :param strict_events: If ``True``, will raise an exception if the
+            ``events`` specified cannot be loaded from the trace. This allows
+            failing early in trace processing.
+        :param strict_events: bool or None
+
+        :param process_df: Function called on each dataframe returned by
+            :meth:`lisa.trace.TraceBase.df_event`. The parameters are as follow:
+
+            1. Name of the event being queried.
+            2. A :class:`polars.LazyFrame` of the event.
+
+            It is expected to return a :class:`polars.LazyFrame` as well.
+
+        :type process_df: typing.Callable[[str, polars.LazyFrame], polars.LazyFrame] or None
+
+        :param df_fmt: Format of the dataframes returned by
+            :meth:`lisa.trace.TraceBase.df_events`. One of:
+
+            * ``"pandas"``: :class:`pandas.DataFrame`.
+            * ``"polars-lazyframe"``: :class:`polars.LazyFrame`.
+            * ``None``: defaults to ``"pandas"`` for
+              backward-compatibility.
+
+        :type df_fmt: str or None
+
+        :Variable arguments: Forwarded to the contructor of the view.
+        """
+        view = _TraceViewBase._make_view(self, **kwargs)
         assert isinstance(view, _TraceViewBase)
         return view
 
@@ -2951,9 +3086,18 @@ class _InternalTraceBase(abc.ABC):
 
     @abc.abstractmethod
     def _preload_events(self, events):
+        """
+        Preload the given events by parsing them if necessary.
+
+        This can be more efficient than requesting events one by one as the
+        parser might be able to parse multiple events in one pass.
+        """
         pass
 
     def __getitem__(self, window):
+        """
+        Slice the trace with the given time range.
+        """
         if not isinstance(window, slice):
             raise TypeError("Cropping window must be an instance of slice")
 
@@ -3020,6 +3164,12 @@ class _InternalTraceBase(abc.ABC):
 
 # User-facing
 class TraceBase(_InternalTraceBase):
+    """
+    Base class for all public trace classes.
+
+    This :class:`abc.ABC` class defines the API available on trace-like
+    objects, and is suitable to use with ``isinstance`` and ``issubclass``.
+    """
     @abc.abstractmethod
     def df_event(self, event, **kwargs):
         """
@@ -3035,15 +3185,15 @@ class TraceBase(_InternalTraceBase):
               ``bprint`` event format string, and the field values are decoded
               from the variable arguments buffer. Note that:
 
-                * The field values *must* be in the buffer, i.e. the format
-                  string is only used as the event format, no "literal value"
-                  will be extracted from it.
+              * The field values *must* be in the buffer, i.e. the format
+                string is only used as the event format, no "literal value"
+                will be extracted from it.
 
-                * The event *must* have fields. If not, ``trace_printk()``
-                  will emit a bputs event that will be ignored at the moment.
-                  We need to get a bprint event.
+              * The event *must* have fields. If not, ``trace_printk()``
+                will emit a bputs event that will be ignored at the moment.
+                We need to get a bprint event.
 
-                * Field names *must* be unique.
+              * Field names *must* be unique.
 
               .. code-block:: C
 
@@ -3080,82 +3230,6 @@ class TraceBase(_InternalTraceBase):
         """
         pass
 
-    def get_view(self, *args, **kwargs):
-        """
-        Get a view on a trace cropped time-wise to fit in ``window`` and with
-        event dataframes post processed with ``process_df``.
-
-        :param window: Crop the dataframe to include events that are inside the
-            given window. This includes the event immediately preceding the
-            left boundary if there is no exact timestamp match. This can also
-            include more rows before the beginning of the window based on the
-            ``signals`` required by the user. A ``None`` boundary will extend
-            to the beginning/end of the trace.
-        :type window: tuple(float or None, float or None) or None
-
-        :param signals: List of :class:`lisa.datautils.SignalDesc` to use when
-            selecting rows before the beginning of the ``window``. This allows
-            ensuring that all the given signals have a known value at the beginning
-            of the window.
-        :type signals: list(lisa.datautils.SignalDesc) or None
-
-        :param compress_signals_init: If ``True``, the timestamp of the events
-            before the beginning of the ``window`` will be compressed to be
-            either right before the beginning of the window, or at the exact
-            timestamp of the beginning of the window (depending on the
-            dataframe library chosen, since pandas cannot cope with more than
-            one row for each timestamp).
-        :type compress_signals_init: bool or None
-
-        :param normalize_time: If ``True``, the beginning of the ``window``
-            will become timestamp 0. If no ``window`` is used, the beginning of
-            the trace is taken as T=0. This allows easier comparison of traces
-            that were generated with absolute timestamps (e.g. timestamp
-            related to the uptime of the system). It also allows comparing
-            various slices of the same trace.
-        :type normalize_time: bool or None
-
-        :param events_namespaces: List of namespaces of the requested events.
-            Each namespace will be tried in order until the event is found. The
-            ``None`` namespace can be used to specify no namespace. The full
-            event name is formed with ``<namespace>__<event>``.
-        :type events_namespaces: list(str or None)
-
-        :param events: Preload the given events when creating the view. This
-            can be advantageous as a single instance of the parser will be
-            spawned, so if the parser supports it, multiple events will be
-            parsed in one trace traversal.
-        :type events: list(str) or lisa.trace.TraceEventCheckerBase or None
-
-        :param strict_events: If ``True``, will raise an exception if the
-            ``events`` specified cannot be loaded from the trace. This allows
-            failing early in trace processing.
-        :param strict_events: bool or None
-
-        :param process_df: Function called on each dataframe returned by
-            :meth:`lisa.trace.TraceBase.df_event`. The parameters are as follow:
-
-                1. Name of the event being queried.
-                2. A :class:`polars.LazyFrame` of the event.
-
-            It is expected to return a :class:`polars.LazyFrame` as well.
-
-        :type process_df: typing.Callable[[str, polars.LazyFrame], polars.LazyFrame] or None
-
-        :param df_fmt: Format of the dataframes returned by
-            :meth:`lisa.trace.TraceBase.df_events`. One of:
-
-                * ``"pandas"``: :class:`pandas.DataFrame`.
-                * ``"polars-lazyframe"``: :class:`polars.LazyFrame`.
-                * ``None``: defaults to ``"pandas"`` for
-                  backward-compatibility.
-
-        :type df_fmt: str or None
-
-        :Variable arguments: Forwarded to the contructor of the view.
-        """
-        return super().get_view(*args, **kwargs)
-
     @deprecate('This method has been deprecated and is an alias',
         deprecated_in='2.0',
         removed_in='4.0',
@@ -3167,10 +3241,35 @@ class TraceBase(_InternalTraceBase):
     @property
     @abc.abstractmethod
     def ana(self):
+        """
+        Allows calling an analysis method on the trace, sharing the dataframe cache.
+
+        **Example**
+
+        Call lisa.analysis.LoadTrackingAnalysis.df_task_signal() on a trace::
+
+            df = trace.ana.load_tracking.df_task_signal(task='foo', signal='util')
+
+        The ``trace.ana`` proxy can also be called like a function to define default
+        values for analysis methods::
+
+            ana = trace.ana(task='big_0-3')
+            ana.load_tracking.df_task_signal(signal='util')
+
+            # Equivalent to:
+            ana.load_tracking.df_task_signal(task='big_0-3', signal='util')
+
+            # The proxy can be called again to override the value given to some
+            # parameters, and the the value can also be overridden when calling the
+            # method:
+            ana(task='foo').df_task_signal(signal='util')
+            ana.df_task_signal(task='foo', signal='util')
+        """
         pass
 
     @property
     @abc.abstractmethod
+    @deprecate(replaced_by=ana, deprecated_in='3.0', removed_in='4.0')
     def analysis(self):
         pass
 
@@ -3275,9 +3374,18 @@ class TraceBase(_InternalTraceBase):
         return self.ana.tasks.task_ids
 
 
-class _TraceViewBase(_InternalTraceBase):
+class _TraceViewBase(
+    DelegateToAttr(
+        'base_trace',
+        [_InternalTraceBase],
+    ),
+    _InternalTraceBase
+):
     def __init__(self, trace):
         self.base_trace = trace
+        """
+        The original :class:`TraceBase` this view is based on.
+        """
         super().__init__()
 
     def __enter__(self):
@@ -3287,11 +3395,8 @@ class _TraceViewBase(_InternalTraceBase):
     def __exit__(self, *args):
         return self.base_trace.__exit__(*args)
 
-    def __getattr__(self, name):
-        return delegate_getattr(self, 'base_trace', name)
-
     @classmethod
-    def make_view(cls, trace, *, window=None, signals=None, compress_signals_init=None, normalize_time=False, events_namespaces=None, events=None, strict_events=False, process_df=None, df_fmt=None, clear_base_cache=None):
+    def _make_view(cls, trace, *, window=None, signals=None, compress_signals_init=None, normalize_time=False, events_namespaces=None, events=None, strict_events=False, process_df=None, df_fmt=None, clear_base_cache=None):
         if clear_base_cache is not None:
             _deprecated_warn(f'"clear_base_cache" parameter has no effect anymore')
 
@@ -3338,8 +3443,33 @@ class _TraceViewBase(_InternalTraceBase):
     def _internal_df_event(self, *args, **kwargs):
         return self.base_trace._internal_df_event(*args, **kwargs)
 
+    @property
+    def basetime(self):
+        return self.base_trace.basetime
 
-class _WindowTraceView(_TraceViewBase):
+    @property
+    def endtime(self):
+        return self.base_trace.endtime
+
+    @property
+    def start(self):
+        return self.base_trace.start
+
+    @property
+    def end(self):
+        return self.base_trace.end
+
+
+class _WindowTraceViewBase(_TraceViewBase, abc.ABC):
+    @property
+    @abc.abstractmethod
+    def normalize_time(self):
+        """
+        ``True`` if the trace timestamps were normalized to start at ``0``.
+        """
+
+
+class _WindowTraceView(_WindowTraceViewBase):
     """
     A view on a :class:`Trace`.
 
@@ -3353,14 +3483,6 @@ class _WindowTraceView(_TraceViewBase):
     :param process_df: Function used to post process the event dataframes
         returned by :meth:`TraceBase.df_event`.
     :type process_df: typing.Callable[[str, pandas.DataFrame], pandas.DataFrame] or None
-
-    :Attributes:
-        * ``base_trace``: The original :class`:`Trace` this view is based on.
-        * ``ana``: The analysis proxy on the trimmed down :class`:`Trace`.
-        * ``start``: The timestamp of the first trace event in the view (>=
-          ``window[0]``)
-        * ``end``: The timestamp of the last trace event in the view (<=
-          ``window[1]``)
 
     You can substitute an instance of :class:`Trace` with an instance of
     :class:`_WindowTraceView`. This means you can create a view of a trimmed down trace
@@ -3410,6 +3532,9 @@ class _WindowTraceView(_TraceViewBase):
     @property
     @memoized
     def start(self):
+        """
+        The timestamp of the first trace event in the view (>= :attr:`start`)
+        """
         t_min, _ = self._window or (None, None)
         if t_min is None:
             return self.base_trace.start
@@ -3419,6 +3544,9 @@ class _WindowTraceView(_TraceViewBase):
     @property
     @memoized
     def end(self):
+        """
+        The timestamp of the last trace event in the view (<= :attr:`end`)
+        """
         _, t_max = self._window or (None, None)
         if t_max is None:
             return self.base_trace.end
@@ -3428,6 +3556,10 @@ class _WindowTraceView(_TraceViewBase):
         # Ensure we never end up with end < start
         end = max(end, self.start)
         return end
+
+    @property
+    def normalize_time(self):
+        return False
 
     def _fixup_window(self, window):
         _start = self.start
@@ -3637,6 +3769,9 @@ class _PreloadEventsTraceView(_TraceViewBase):
 
     @property
     def events(self):
+        """
+        Preloaded events as a :class:`TraceEventCheckerBase`.
+        """
         try:
             base_events = self.base_trace.events
         except AttributeError:
@@ -3699,6 +3834,9 @@ class _NamespaceTraceView(_TraceViewBase):
     @property
     @memoized
     def events_namespaces(self):
+        """
+        Namespaces evens will be looked up in.
+        """
         try:
             base_namespaces = self.base_trace.events_namespaces
         except AttributeError:
@@ -3798,7 +3936,7 @@ class _TimeOffsetter(_CacheDataDescEncodable):
         )
 
 
-class _NormalizedTimeTraceView(_TraceViewBase):
+class _NormalizedTimeTraceView(_WindowTraceViewBase):
     def __init__(self, trace, window, **kwargs):
         window = window or (trace.start, None)
         try:
@@ -3815,9 +3953,6 @@ class _NormalizedTimeTraceView(_TraceViewBase):
                 view = self._with_time_offset(view, start)
                 view = view.get_view(**kwargs)
                 super().__init__(view)
-
-                self.start = 0
-                self.end = self.base_trace.end - start
 
     @classmethod
     def _with_time_offset(cls, trace, start):
@@ -3836,6 +3971,14 @@ class _NormalizedTimeTraceView(_TraceViewBase):
     @property
     def endtime(self):
         return self.base_trace.endtime - self._offset
+
+    @property
+    def start(self):
+        return 0
+
+    @property
+    def end(self):
+        return self.base_trace.end - self._offset
 
     @property
     def trace_state(self):
@@ -3931,10 +4074,6 @@ class _CacheDataDesc(Mapping):
 
     .. note:: Once introduced in a container, instances must not be modified,
         directly or indirectly.
-
-    :Attributes:
-        * ``normal_form``: Normal form of the descriptor. Equality is
-          implemented by comparing this attribute.
     """
 
     def __init__(self, spec, fmt):
@@ -3947,6 +4086,10 @@ class _CacheDataDesc(Mapping):
         self.fmt = fmt
         self.spec = spec
         self.normal_form = _CacheDataDescNF.from_spec(self.spec, fmt)
+        """
+        Normal form of the descriptor. Equality is implemented by comparing
+        this attribute.
+        """
 
     def __getitem__(self, key):
         return self.spec[key]
@@ -4583,7 +4726,7 @@ class _TraceCache(Loggable):
                 to_parquet()
             else:
                 try:
-                    plan = data.serialize(format='json')
+                    plan = _df_json_serialize(data)
                 # We failed to serialize the logical plan. This could happen
                 # because it contains references to UDF (e.g. a lambda passed
                 # to Expr.map_elements())
@@ -4665,7 +4808,7 @@ class _TraceCache(Loggable):
                 )
                 plan = json.dumps(plan)
                 plan = io.StringIO(plan)
-                data = pl.LazyFrame.deserialize(plan, format='json')
+                data = _df_json_deserialize(plan)
                 data = _LazyFrameOnDelete.attach_file_cleanup(data, hardlinks)
         else:
             raise ValueError(f'File format not supported "{fmt}" at path: {path}')
@@ -5109,62 +5252,12 @@ class _TraceCache(Loggable):
             }
 
 
-class _TraceProxy(TraceBase):
-    class _TraceNotSet:
-        def __getattribute__(self, attr):
-            raise RuntimeError('The trace instance can only be used after the end of the "with" statement.')
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            pass
-
-    def __init__(self, path):
-        self.__base_trace = self._TraceNotSet()
-        self.__path = path
-        self.__deallocator = _Deallocator(
-            # Delete the file once we are done accessing it
-            f=functools.partial(_file_cleanup, paths=[path]),
-            on_del=True,
-            at_exit=True,
-        )
-
-    def __getattr__(self, attr):
-        return delegate_getattr(self, '_TraceProxy__base_trace', attr)
-
-    def _set_trace(self, trace):
-        self.__base_trace = trace
-
-    def __enter__(self):
-        self.__base_trace.__enter__()
-        return self
-
-    def __exit__(self, *args):
-        try:
-            return self.__base_trace.__exit__(*args)
-        finally:
-            self.__deallocator.run()
-
-    @property
-    def ana(self):
-        return self.__base_trace.ana
-
-    @property
-    def analysis(self):
-        return self.__base_trace.analysis
-
-    def df_event(self, *args, **kwargs):
-        return self.__base_trace.df_event(*args, **kwargs)
-
-    def _internal_df_event(self, *args, **kwargs):
-        return self.__base_trace._internal_df_event(*args, **kwargs)
-
-    def _preload_events(self, *args, **kwargs):
-        return self.__base_trace._preload_events(*args, **kwargs)
-
-
 class _Trace(Loggable, _InternalTraceBase):
+    """
+    Object at the bottom of a :class:`_TraceViewBase` stack.
+
+    It drives the actual trace parser and caches.
+    """
     def _select_userspace(self, source_event, meta_event, df):
         # pylint: disable=unused-argument,no-self-use
 
@@ -5721,6 +5814,12 @@ class _Trace(Loggable, _InternalTraceBase):
     @property
     @memoized
     def cpus_count(self):
+        """
+        Number of CPUs on which data was gathered in that trace.
+
+        This will typically be the number of CPUs on the target, but might
+        sometimes differ depending on the file format of the trace.
+        """
         try:
             return self.plat_info['cpus-count']
         except KeyError:
@@ -5749,8 +5848,6 @@ class _Trace(Loggable, _InternalTraceBase):
                 self.logger.debug(f"Estimated CPU count from trace: {count}")
 
             return count
-
-
 
     def _get_parser(self, events=tuple(), needed_metadata=None):
         cache = self._cache
@@ -5804,20 +5901,19 @@ class _Trace(Loggable, _InternalTraceBase):
 
     @property
     def basetime(self):
-        """
-        First absolute timestamp available in the trace.
-        """
         return self._get_time_range()[0]
 
     @property
     def endtime(self):
-        """
-        Timestamp of when the tracing stopped.
-
-        .. note:: With some parsers, that might be the timestamp of the last
-            recorded event instead if the trace end timestamp was not recorded.
-        """
         return self._get_time_range()[1]
+
+    @property
+    def start(self):
+        return self.basetime
+
+    @property
+    def end(self):
+        return self.endtime
 
     @memoized
     def _get_time_range(self, parser=None):
@@ -6174,16 +6270,14 @@ class _Trace(Loggable, _InternalTraceBase):
         else:
             return True
 
-    @property
-    def start(self):
-        return self.basetime
 
-    @property
-    def end(self):
-        return self.endtime
-
-
-class Trace(TraceBase):
+class Trace(
+    DelegateToAttr(
+        '_Trace__view',
+        [_InternalTraceBase],
+    ),
+    TraceBase,
+):
     """
     This class provides a way to access event dataframes and ties
     together various low-level moving pieces to make that happen.
@@ -6256,17 +6350,6 @@ class Trace(TraceBase):
         the max size is the size of the trace file.
     :type max_swap_size: int or None
 
-    :Attributes:
-        * ``start``: The timestamp of the first trace event in the trace
-        * ``end``: The timestamp of the last trace event in the trace
-        * ``time_range``: Maximum timespan for all collected events
-        * ``window``: Conveniency tuple of ``(start, end)``.
-        * ``available_events``: Events available in the parsed trace, exposed
-          as some kind of set-ish smart container. Querying for event might
-          trigger the parsing of it.
-        * ``ana``: The analysis proxy used as an entry point to run analysis
-          methods on the trace. See :class:`lisa.analysis._proxy.AnalysisProxy`.
-
     :Supporting more events in text parsers:
 
         .. note:: ``trace.dat`` parser can now fully infer the dataframe schema
@@ -6277,20 +6360,20 @@ class Trace(TraceBase):
         event format, but there may be a number of reasons to pass a custom
         event parser:
 
-            * The event format produced by a given kernel differs from the
-              description bundled with the parser, leading to incorrect parse
-              (missing field).
+        * The event format produced by a given kernel differs from the
+          description bundled with the parser, leading to incorrect parse
+          (missing field).
 
-            * The event cannot be parsed in raw format in case text output of
-              ``trace-cmd`` is used, because of a ``const char*`` field displayed
-              as a pointer for example.
+        * The event cannot be parsed in raw format in case text output of
+          ``trace-cmd`` is used, because of a ``const char*`` field displayed
+          as a pointer for example.
 
-              .. seealso:: For events not following the regular field syntax,
-                use :class:`CustomFieldsTxtEventParser`
+          .. seealso:: For events not following the regular field syntax,
+            use :class:`CustomFieldsTxtEventParser`
 
-            * Automatic detection can take a heavy performance toll. This is
-              why parsers needing descriptions will come with pre-defined
-              descritption of most used events.
+        * Automatic detection can take a heavy performance toll. This is
+          why parsers needing descriptions will come with pre-defined
+          descritption of most used events.
 
         Custom event parsers can be passed as extra parameters to the parser,
         which can be set manually::
@@ -6412,6 +6495,7 @@ class Trace(TraceBase):
 
     @property
     @memoized
+    @deprecate(replaced_by=ana, deprecated_in='3.0', removed_in='4.0')
     def analysis(self):
         # Import here to avoid a circular dependency issue at import time
         # with lisa.analysis.base
@@ -6433,9 +6517,6 @@ class Trace(TraceBase):
             df_fmt=df_fmt
         )
 
-    def __getattr__(self, attr):
-        return delegate_getattr(self, '_Trace__view', attr)
-
     @property
     def trace_state(self):
         return (
@@ -6456,12 +6537,6 @@ class Trace(TraceBase):
 
         df = _df_to(df, index='Time', fmt=df_fmt)
         return df
-
-    def _internal_df_event(self, *args, **kwargs):
-        return self.__view._internal_df_event(*args, **kwargs)
-
-    def _preload_events(self, *args, **kwargs):
-        return self.__view._preload_events(*args, **kwargs)
 
     @classmethod
     @contextlib.contextmanager
@@ -6534,6 +6609,103 @@ class Trace(TraceBase):
     @classmethod
     def get_event_sources(cls, *args, **kwargs):
         return _Trace.get_event_sources(*args, **kwargs)
+
+    def _internal_df_event(self, *args, **kwargs):
+        return self.__view._internal_df_event(*args, **kwargs)
+
+    def _preload_events(self, *args, **kwargs):
+        return self.__view._preload_events(*args, **kwargs)
+
+    @property
+    def basetime(self):
+        return self.__view.basetime
+
+    @property
+    def endtime(self):
+        return self.__view.endtime
+
+    @property
+    def start(self):
+        return self.__view.start
+
+    @property
+    def end(self):
+        return self.__view.end
+
+
+class _TraceProxy(
+    DelegateToAttr(
+        '_TraceProxy__base_trace',
+        [Trace],
+    ),
+    TraceBase,
+):
+    class _TraceNotSet:
+        def __getattribute__(self, attr):
+            raise RuntimeError('The trace instance can only be used after the end of the "with" statement.')
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    def __init__(self, path):
+        self.__base_trace = self._TraceNotSet()
+        self.__path = path
+        self.__deallocator = _Deallocator(
+            # Delete the file once we are done accessing it
+            f=functools.partial(_file_cleanup, paths=[path]),
+            on_del=True,
+            at_exit=True,
+        )
+
+    def _set_trace(self, trace):
+        self.__base_trace = trace
+
+    def __enter__(self):
+        self.__base_trace.__enter__()
+        return self
+
+    def __exit__(self, *args):
+        try:
+            return self.__base_trace.__exit__(*args)
+        finally:
+            self.__deallocator.run()
+
+    @property
+    def ana(self):
+        return self.__base_trace.ana
+
+    @property
+    @deprecate(replaced_by=ana, deprecated_in='3.0', removed_in='4.0')
+    def analysis(self):
+        return self.__base_trace.analysis
+
+    def df_event(self, *args, **kwargs):
+        return self.__base_trace.df_event(*args, **kwargs)
+
+    def _internal_df_event(self, *args, **kwargs):
+        return self.__base_trace._internal_df_event(*args, **kwargs)
+
+    def _preload_events(self, *args, **kwargs):
+        return self.__base_trace._preload_events(*args, **kwargs)
+
+    @property
+    def basetime(self):
+        return self.__base_trace.basetime
+
+    @property
+    def endtime(self):
+        return self.__base_trace.endtime
+
+    @property
+    def start(self):
+        return self.__base_trace.start
+
+    @property
+    def end(self):
+        return self.__base_trace.end
 
 
 class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
@@ -6648,7 +6820,7 @@ class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
         If some event requirements have already been defined for it (it has a
         `used_events` attribute, i.e. it has already been decorated), these
         will be combined with the new requirements using an
-        :class`AndTraceEventChecker`.
+        :class:`AndTraceEventChecker`.
         """
         def unwrap_down_to(obj):
             return hasattr(obj, 'used_events')
@@ -7280,7 +7452,7 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
         return self.add_src(src, conf=merged, **kwargs)
 
 
-class CollectorBase(Loggable):
+class CollectorBase(DelegateToAttr('_collector'), Loggable):
     """
     Base class for :class:`devlib.collector.CollectorBase`-based collectors
     using composition.
@@ -7309,9 +7481,6 @@ class CollectorBase(Loggable):
 
     def _install_tools(self, target):
         target.install_tools(self.TOOLS)
-
-    def __getattr__(self, attr):
-        return delegate_getattr(self, '_collector', attr)
 
     def __enter__(self):
         self._collector.__enter__()

@@ -5,6 +5,8 @@
 # full list see the documentation:
 # http://www.sphinx-doc.org/en/master/config
 
+import os
+
 # -- Path setup --------------------------------------------------------------
 
 # If extensions (or modules to document with autodoc) are in another directory,
@@ -14,9 +16,6 @@
 # import os
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
-
-# Get the custom reST directives
-import lisa._doc.helpers
 
 # -- Project information -----------------------------------------------------
 
@@ -35,6 +34,7 @@ today_fmt = '%Y'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'lisa._doc.helpers',
     'sphinx.ext.todo',
 ]
 
@@ -71,3 +71,8 @@ pygments_style = None
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
+
+
+# Signal to lisa.utils.is_running_sphinx() that we are indeed running under
+# sphinx before we import anything
+os.environ['_LISA_DOC_SPHINX_RUNNING'] = '1'

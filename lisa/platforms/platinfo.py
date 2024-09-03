@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""
+Generic auto-detected platform information support.
+"""
 
 import re
 import functools

@@ -25,8 +25,17 @@ import importlib
 import types
 import contextlib
 from pathlib import Path
+import importlib
+from operator import attrgetter
+import pickle
+import shutil
 
 from sphinx.domains.python import PythonDomain
+
+
+# Signal to lisa.utils.is_running_sphinx() that we are indeed running under
+# sphinx before we import anything
+os.environ['_LISA_DOC_SPHINX_RUNNING'] = '1'
 
 # This shouldn't be needed, as using a virtualenv + setup.py should set up the
 # sys.path correctly. However that seems to be half broken on ReadTheDocs, so
@@ -35,34 +44,35 @@ sys.path.insert(0, os.path.abspath('../'))
 
 # Import our packages after modifying sys.path
 import lisa
-from lisa.utils import import_all_submodules, sphinx_nitpick_ignore
+from lisa.utils import sphinx_nitpick_ignore, setup_logging, get_obj_name, DirCache
 from lisa._doc.helpers import (
     autodoc_process_test_method, autodoc_process_analysis_events,
     autodoc_process_analysis_plots, autodoc_process_analysis_methods,
-    autodoc_skip_member_handler,
-    DocPlotConf, get_xref_type, autodoc_pre_make_plots
+    autodoc_skip_member_handler, autodoc_process_inherited_members,
+    autodoc_process_inherited_signature, autodoc_process_bases_handler,
+    DocPlotConf, autodoc_pre_make_plots,
+    intersphinx_warn_missing_reference_handler,
 )
 
-# Do not rely on LISA_HOME as it may not be set and will default to current
-# folder, which is not what we want here.
-HOME = Path(__file__).parent.parent.resolve()
+import devlib
 
-# This ugly hack is required because by default TestCase.__module__ is
-# equal to 'case', so sphinx replaces all of our TestCase uses to
-# unittest.case.TestCase, which doesn't exist in the doc.
-for name, obj in vars(unittest).items():
-    try:
-        m = obj.__module__
-        obj.__module__ = 'unittest' if m == 'unittest.case' else m
-    except Exception:
-        pass
+def prepare(home, enable_plots):
+    # This ugly hack is required because by default TestCase.__module__ is
+    # equal to 'case', so sphinx replaces all of our TestCase uses to
+    # unittest.case.TestCase, which doesn't exist in the doc.
+    for name, obj in vars(unittest).items():
+        try:
+            m = obj.__module__
+            obj.__module__ = 'unittest' if m == 'unittest.case' else m
+        except Exception:
+            pass
 
-def prepare():
+
 
     def run(cmd, **kwargs):
         return subprocess.run(
             cmd,
-            cwd=HOME,
+            cwd=home,
             **kwargs,
         )
 
@@ -86,7 +96,7 @@ def prepare():
     # If LISA_HOME is set, sourcing the script won't work
     source_env.pop('LISA_HOME', None)
 
-    init_env = HOME / 'init_env'
+    init_env = home / 'init_env'
     script = textwrap.dedent(
         f"""
         source {init_env} >&2 &&
@@ -95,18 +105,85 @@ def prepare():
     )
     out = subprocess.check_output(
         ['bash', '-c', script],
-        cwd=HOME,
+        cwd=home,
         # Reset the environment, including LISA_HOME to allow sourcing without
         # any issue
         env=source_env,
     )
     os.environ.update(json.loads(out))
 
-# Only the top-level import has the "builtins" __name__. This prevents
-# re-running prepare() when conf.py is imported by the processes spawned by
-# sphinx
-if __name__ == 'builtins':
-    prepare()
+    # Re-run the notebook to ensure the version of bokeh used is the same as
+    # the one that will be added via html_js_files. Otherwise, the plot display
+    # will be broken.
+    notebooks_in_base = Path(home, 'ipynb')
+    notebooks = [
+        'examples/analysis_plots.ipynb',
+    ]
+    if enable_plots:
+        def populate(key, temp_path):
+            # We pre-generate all the plots, otherwise we would end up running
+            # polars code in a multiprocessing subprocess created by forking
+            # CPython, leading to deadlocks:
+            # https://github.com/sphinx-doc/sphinx/issues/12201
+            hv.extension('bokeh')
+
+            plot_conf_path = Path(home, 'doc', 'plot_conf.yml')
+            plot_conf = DocPlotConf.from_yaml_map(plot_conf_path)
+            plots = autodoc_pre_make_plots(plot_conf)
+            with open(temp_path / 'plots.pickle', 'wb') as f:
+                pickle.dump(plots, f)
+
+            for _path in notebooks:
+                in_path = notebooks_in_base / _path
+                out_path = temp_path / 'ipynb' / _path
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    out_path.unlink()
+                except FileNotFoundError:
+                    pass
+                logging.info(f'Refreshing notebook: {in_path}')
+                subprocess.check_call([
+                    'jupyter',
+                    'nbconvert',
+                    in_path,
+                    '--execute',
+                    '--to=notebook',
+                    f'--output={out_path}'
+                ])
+
+        import holoviews as hv
+        import bokeh
+        import panel as pn
+        import jupyterlab
+
+        dir_cache = DirCache('doc_plots', populate=populate)
+        key = (
+            hv.__version__,
+            bokeh.__version__,
+            pn.__version__,
+            jupyterlab.__version__,
+        )
+        cache_path = dir_cache.get_entry(key)
+        with open(cache_path / 'plots.pickle', 'rb') as f:
+            plots = pickle.load(f)
+
+        for _path in notebooks:
+            shutil.copy2(
+                cache_path / 'ipynb' / _path,
+                Path(home, 'doc', 'workflows', 'ipynb') / _path,
+            )
+
+    else:
+        plots = {}
+        for _path in notebooks:
+            shutil.copy2(
+                notebooks_in_base / _path,
+                Path(home, 'doc', 'workflows', 'ipynb') / _path,
+            )
+
+    return plots
+
+
 
 # -- General configuration ------------------------------------------------
 
@@ -117,6 +194,7 @@ if __name__ == 'builtins':
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'lisa._doc.helpers',
     'sphinx.ext.autodoc',
     'sphinx.ext.doctest',
     'sphinx.ext.intersphinx',
@@ -129,22 +207,17 @@ extensions = [
     'nbsphinx',
 ]
 
-# Fix for the broken flyout ReadTheDocs menu as recommended here:
-# https://github.com/readthedocs/sphinx_rtd_theme/issues/1452#issuecomment-1490504991
-# https://github.com/readthedocs/readthedocs.org/issues/10242
-# https://github.com/readthedocs/sphinx_rtd_theme/issues/1452
-# https://github.com/readthedocs/sphinx_rtd_theme/pull/1448
 RTD = (os.getenv('READTHEDOCS') == 'True')
 if RTD:
-    extensions.append(
-        "sphinxcontrib.jquery"
-    )
+    pass
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
 # The suffix of source filenames.
-source_suffix = '.rst'
+source_suffix = {
+    '.rst': 'restructuredtext',
+}
 
 # The encoding of source files.
 #source_encoding = 'utf-8-sig'
@@ -154,7 +227,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'LISA'
-copyright = '2017, ARM-Software'
+copyright = '2024, ARM-Software'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -206,7 +279,7 @@ pygments_style = 'sphinx'
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'sphinx_rtd_theme'
+html_theme = 'pydata_sphinx_theme'
 
 
 # Allow interactive bokeh plots in the documentation
@@ -221,7 +294,12 @@ else:
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
-#html_theme_options = {}
+
+# For pydata theme
+html_theme_options = {
+    # Increase show_toc_level value to get API listings in sidebar
+    "show_toc_level": 2,
+}
 
 # Add any paths that contain custom themes here, relative to this directory.
 #html_theme_path = []
@@ -397,6 +475,13 @@ autoclass_content = 'both'
 autodoc_member_order = 'bysource'
 
 autodoc_default_options = {
+    # Show the members of the documented entity (e.g. class or module)
+    'members': None,
+    # autodoc_process_inherited_members() will replace docstrings for each
+    # inherited member instance with a stub that links to the definition in the
+    # base class. That sidesteps the issue of the docstring of the inherited
+    # member not being valid reST.
+    'inherited-members': None,
     # Show parent class
     'show-inheritance': None,
     # Show members even if they don't have docstrings
@@ -413,6 +498,7 @@ autodoc_default_options = {
         '__init__',
 
         # Uninteresting
+        '__doc__',
         '__weakref__',
         '__module__',
         '__abstractmethods__',
@@ -420,62 +506,17 @@ autodoc_default_options = {
         '__eq__',
         '__str__',
         '__repr__',
-        '__iter__',
-        '__len__',
         '__dict__',
+        '__annotations__',
+        '__instance_dir__',
     ])
 }
 autodoc_inherit_docstrings = True
 
-ignored_refs = {
-    # They don't have a separate doc yet
-    r'lisa_tests.*',
-
-    # gi.repository is strangely laid out, and the module in which Variant
-    # (claims) to actually be defined in is not actually importable it seems
-    r'gi\..*',
-
-    # Devlib does not use autodoc (for now) and does not use module.qualname
-    # names, which makes all xref to it fail
-    r'devlib.*',
-    r'docutils\.parsers.*',
-    r'ipywidgets.*',
-
-    # Since trappy is not always installed, just hardcode the references we
-    # have since there wont be more in the future.
-    r'trappy.*',
-
-    # All private "things": either having a ._ somewhere in their full name or
-    # starting with an underscore
-    r'(.*\._.*|_.*)',
-
-    # Various LISA classes that cannot be crossed referenced successfully but
-    # that cannot be fixed because of Sphinx limitations and external
-    # constraints on names.
-    r'ITEM_CLS',
-
-    # Python <= 3.8 has a formatting issue in typing.Union[..., None] that
-    # makes it appear as typing.Union[..., NoneType], leading to a broken
-    # reference since the intersphinx inventory of the stdlib does not provide
-    # any link for NoneType.
-    r'NoneType',
-
-    # Sphinx currently fails at finding the target for references like
-    # :class:`typing.List[str]` since it does not seem to have specific support
-    # for the bracketed syntax in that role.
-    r'typing.*',
-
-
-    # Polars intersphinx inventory is incomplete:
-    # https://github.com/pola-rs/polars/issues/7027
-    # https://docs.pola.rs/py-polars/html/objects.inv
-    r'polars.*',
+non_ignored_refs = {
+    r'lisa\..*',
 }
-ignored_refs.update(
-    re.escape(f'{x.__module__}.{x.__qualname__}')
-    for x in sphinx_nitpick_ignore()
-)
-ignored_refs = set(map(re.compile, ignored_refs))
+non_ignored_refs = set(map(re.compile, non_ignored_refs))
 
 
 # Workaround for: https://github.com/jupyter-widgets/ipywidgets/issues/3930
@@ -485,52 +526,58 @@ suppress_warnings = [
 ]
 
 
-class CustomPythonDomain(PythonDomain):
-    def find_obj(self, env, modname, classname, name, type, searchmode=0):
-        refs = super().find_obj(env, modname, classname, name, type, searchmode)
-        if len(refs) == 1:
-            return refs
-        elif any(
-            regex.match(name)
-            for regex in ignored_refs
-        ):
-            refs = super().find_obj(env, modname, classname, 'lisa._doc.helpers.PlaceHolderRef', 'class', 0)
-            assert refs
-            return refs
-        else:
-            return refs
+# Workaround for: https://github.com/sphinx-doc/sphinx/issues/11279
+viewcode_follow_imported_members = False
 
 
 def setup(app):
-    app.add_domain(CustomPythonDomain, override=True)
+    setup_logging(level=logging.INFO)
 
-    # We pre-generate all the plots, otherwise we would end up running polars
-    # code in a multiprocessing subprocess created by forking CPython, leading
-    # to deadlocks:
-    # https://github.com/sphinx-doc/sphinx/issues/12201
-    if int(os.environ.get('LISA_DOC_BUILD_PLOT', '1')):
-        import holoviews as hv
-        hv.extension('bokeh')
+    # Do not rely on LISA_HOME as it may not be set and will default to current
+    # folder, which is not what we want here.
+    home = Path(__file__).parent.parent.resolve()
 
-        plot_conf_path = os.path.join(HOME, 'doc', 'plot_conf.yml')
-        plot_conf = DocPlotConf.from_yaml_map(plot_conf_path)
-        plots = autodoc_pre_make_plots(plot_conf)
-    else:
-        plots = {}
+    enable_plots = bool(int(os.environ.get('LISA_DOC_BUILD_PLOT', '1')))
+
+    plots = prepare(
+        home=home,
+        enable_plots=enable_plots,
+    )
 
     _autodoc_process_analysis_plots_handler = functools.partial(
         autodoc_process_analysis_plots,
-        plots=plots,
+        plots={
+            get_obj_name(x): fig
+            for x, fig in plots.items()
+        }
     )
     _autodoc_skip_member_handler = functools.partial(
         autodoc_skip_member_handler,
         default_exclude_members=autodoc_default_options.get('exclude-members')
     )
+    _intersphinx_warn_missing_reference_handler = functools.partial(
+        intersphinx_warn_missing_reference_handler,
+        non_ignored_refs=non_ignored_refs,
+    )
 
+    # Use a custom class so that a confused user could easily find it back in
+    # the sources.
+    class ExecState:
+        def __init__(self, plots):
+            self.plots = plots
+
+    app.connect('warn-missing-reference', _intersphinx_warn_missing_reference_handler, priority=0)
     app.connect('autodoc-process-docstring', autodoc_process_test_method)
-    app.connect('autodoc-process-docstring', autodoc_process_analysis_events)
     app.connect('autodoc-process-docstring', autodoc_process_analysis_methods)
-    app.connect('autodoc-skip-member',       _autodoc_skip_member_handler)
+    app.connect('autodoc-process-docstring', autodoc_process_analysis_events)
     app.connect('autodoc-process-docstring', _autodoc_process_analysis_plots_handler)
+
+    # Applied at the end to ensure we can just fully replace the docstring content whole
+    app.connect('autodoc-process-docstring', autodoc_process_inherited_members)
+    app.connect('autodoc-process-signature', autodoc_process_inherited_signature)
+    app.connect('autodoc-process-bases', autodoc_process_bases_handler)
+
+    app.connect('autodoc-skip-member', _autodoc_skip_member_handler)
+    app.connect('lisa-exec-state', lambda app: ExecState(plots=plots))
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab:

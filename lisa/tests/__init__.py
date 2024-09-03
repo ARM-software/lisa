@@ -14,5 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""
+Helpers to write tests using LISA.
+
+.. note:: The test we are talking about here are applications using :mod:`lisa`
+    that happen to be testing a system, such as the Linux kernel scheduler.
+    These are not the :mod:`lisa` Python package unit tests.
+"""
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

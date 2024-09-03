@@ -22,7 +22,7 @@ import abc
 import sys
 import itertools
 import argparse
-from collections import namedtuple, deque, defaultdict
+from collections import deque, defaultdict
 import functools
 import json
 import re

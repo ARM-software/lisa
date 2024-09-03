@@ -352,6 +352,9 @@ class FrequencyAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.df_method
     @requires_events('clk_set_rate', 'clk_enable', 'clk_disable')
     def df_peripheral_clock_effective_rate(self, clk_name):
+        """
+        Dataframe of peripheral clock frequencies.
+        """
 
         # Note: the kernel still defines a "clock_*" variant for each of these,
         # but it's not actually used anywhere in the code. The new "clk_*"

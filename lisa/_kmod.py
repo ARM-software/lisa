@@ -780,8 +780,6 @@ class OverlayResource(abc.ABC):
 
 class _FileOverlayBase(OverlayResource):
     """
-    :meta public:
-
     Base class for file overlays.
     """
     pass
@@ -816,8 +814,6 @@ class FileOverlay(_FileOverlayBase):
 
 class _PathOverlayBase(_FileOverlayBase):
     """
-    :meta public:
-
     Base class for path-based overlays.
     """
     # This is racy with write_to(), but we are not trying to make something

@@ -26,7 +26,7 @@ from typing import Any, Union, Generic, TypeVar
 import typeguard
 from collections.abc import Iterable
 
-from lisa.utils import get_cls_name
+from lisa.utils import get_obj_name, _is_typing_hint
 
 class _TypeguardCustom:
     _HINT = Any
@@ -92,22 +92,10 @@ def is_instance(obj, classinfo):
 
 
 def is_hint(obj):
-    """
-    Heuristic to check if a given ``obj`` is a typing hint or anything else.
-    This function will return ``False`` for classes.
-
-    .. warning:: Since there is currently no way to identify hints for sure,
-        the check might return ``False`` even if it is a hint.
-    """
-    module = getattr(obj, '__module__', None)
-
-    # This is a class, so cannot be a hint.
-    if isinstance(obj, type):
-        return issubclass(obj, _TypeguardCustom)
-    elif module in ('typing', 'typing_extensions'):
+    if isinstance(obj, type) and issubclass(obj, _TypeguardCustom):
         return True
     else:
-        return False
+        return _is_typing_hint(obj)
 
 
 @functools.lru_cache(maxsize=None, typed=True)
@@ -123,7 +111,7 @@ def hint_to_class(hint):
     class Stub(metaclass=Meta):
         pass
 
-    name = get_cls_name(hint).split('.', 1)
+    name = get_obj_name(hint).split('.', 1)
     try:
         name = name[1]
     except IndexError:

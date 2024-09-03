@@ -14,7 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from collections import namedtuple
+"""
+``rt-app`` analysis.
+"""
+
+from typing import NamedTuple, Dict
 
 import pandas as pd
 import holoviews as hv
@@ -29,22 +33,38 @@ from lisa.wlgen.rta import RTA, RTAConf
 from lisa.notebook import plot_signal
 
 
-RefTime = namedtuple("RefTime", ['kernel', 'user'])
-"""
-Named tuple to synchronize kernel and userspace (``rt-app``) timestamps.
-"""
+class RefTime(NamedTuple):
+    """
+    Named tuple to synchronize kernel and userspace (``rt-app``) timestamps.
+    """
+    kernel: float
+    user: float
 
 
-PhaseWindow = namedtuple("PhaseWindow", ['id', 'start', 'end', 'properties'])
-"""
-Named tuple with fields:
+class PhaseWindow(NamedTuple):
+    """
+    Time window for the execution of an ``rt-app`` phase.
+    """
 
-    * ``id``: integer ID of the phase or its name.
-    * ``start``: timestamp of the start of the phase
-    * ``end``: timestamp of the end of the phase
-    * ``properties``: properties of the phase, extracted from a
-      :mod:`lisa.wlgen.rta` profile.
-"""
+    id: int
+    """
+    Integer ID of the phase or its name.
+    """
+
+    start: float
+    """
+    Timestamp of the start of the phase.
+    """
+
+    end: float
+    """
+    Timestamp of the end of the phase.
+    """
+
+    properties: Dict[str, object]
+    """
+    Properties of the phase, extracted from a :mod:`lisa.wlgen.rta` profile.
+    """
 
 
 class RTAEventsAnalysis(TraceAnalysisBase):
@@ -122,22 +142,18 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
           * A ``__comm`` column: the actual rt-app trace task name
           * A ``__cpu``  column: the CPU on which the task was running at event
-                                 generation time
+            generation time
           * A ``__pid``  column: the PID of the task
-          * A ``data``   column: the data corresponding to the reported event
-          * An ``event`` column: the event generated
+          * A ``data``   column: the data corresponding to the reported event:
 
-        The ``event`` column can report these events:
+            * the base timestamp used for logfile generated event for the ``clock_ref`` event
+            * ``NaN`` for all the other events
 
-          * ``start``: the start of the rt-app main thread execution
-          * ``end``: the end of the rt-app main thread execution
-          * ``clock_ref``: the time rt-app gets the clock to be used for logfile entries
+          * An ``event`` column: the event generated:
 
-        The ``data`` column reports:
-
-          * the base timestamp used for logfile generated event for the ``clock_ref`` event
-          * ``NaN`` for all the other events
-
+            * ``start``: the start of the rt-app main thread execution
+            * ``end``: the end of the rt-app main thread execution
+            * ``clock_ref``: the time rt-app gets the clock to be used for logfile entries
         """
         return self.trace.df_event('userspace@rtapp_main')
 
@@ -190,16 +206,13 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
           * A ``__comm`` column: the actual rt-app trace task name
           * A ``__cpu``  column: the CPU on which the task was running at event
-                                 generation time
+            generation time
           * A ``__line`` column: the ftrace line numer
           * A ``__pid``  column: the PID of the task
-          * An ``event`` column: the event generated
+          * An ``event`` column: the event generated:
 
-        The ``event`` column can report these events:
-
-          * ``start``: the start of the ``__pid``:``__comm`` task execution
-          * ``end``: the end of the ``__pid``:``__comm`` task execution
-
+            * ``start``: the start of the ``__pid``:``__comm`` task execution
+            * ``end``: the end of the ``__pid``:``__comm`` task execution
         """
         df = self.trace.df_event('userspace@rtapp_task')
         return self._task_filtered(df, task)
@@ -227,19 +240,17 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
           * A  ``__comm`` column: the actual rt-app trace task name
           * A  ``__cpu``  column: the CPU on which the task was running at event
-                                 generation time
+            generation time
           * A  ``__line`` column: the ftrace line numer
           * A  ``__pid``  column: the PID of the task
-          * An ``event``  column: the generated event
+          * An ``event``  column: the generated event:
+
+            * ``start``: the start of the ``__pid``:``__comm`` related event
+            * ``end``: the end of the ``__pid``:``__comm`` related event
+
           * A  ``phase``  column: the phases counter for each ``__pid``:``__comm`` task
           * A  ``phase_loop``  colum: the phase_loops's counter
           * A  ``thread_loop`` column: the thread_loop's counter
-
-        The ``event`` column can report these events:
-
-          * ``start``: the start of the ``__pid``:``__comm`` related event
-          * ``end``: the end of the ``__pid``:``__comm`` related event
-
         """
         df = self.trace.df_event('userspace@rtapp_loop')
         df = self._task_filtered(df, task)
@@ -341,11 +352,11 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         :returns: A :class:`pandas.DataFrame` with index representing the
             start time of a phase and these column:
 
-                * ``phase``: the phase number or its name extracted from
-                  ``wlgen_profile``.
-                * ``duration``: the measured phase duration.
-                * ``properties``: the properties mapping of the phase extracted
-                  from ``wlgen_profile``.
+            * ``phase``: the phase number or its name extracted from
+              ``wlgen_profile``.
+            * ``duration``: the measured phase duration.
+            * ``properties``: the properties mapping of the phase extracted
+              from ``wlgen_profile``.
         """
         # Trace windowing can cut the trace anywhere, so we need to remove the
         # partial loops records to avoid confusion
@@ -404,7 +415,8 @@ class RTAEventsAnalysis(TraceAnalysisBase):
     @df_phases.used_events
     def task_phase_windows(self, task, wlgen_profile=None):
         """
-        Yield the phases of the specified task.
+        Yield a :class:`PhaseWindow` for each rt-app phase of the specified
+        task.
 
         :param task: the rt-app task to filter for
         :type task: int or str or lisa.analysis.tasks.TaskID
@@ -412,14 +424,8 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         :param wlgen_profile: See :meth:`df_phases`.
         :type wlgen_profile: dict(str, lisa.wlgen.rta.RTAPhaseBase) or None
 
-        Yield :class: `namedtuple` reporting:
-
-            * `id` : the iteration ID
-            * `start` : the iteration start time
-            * `end` : the iteration end time
-
-        :return: Generator yielding :class:`PhaseWindow` with
-            start end end timestamps.
+        :return: Generator yielding :class:`PhaseWindow` with start end end
+          timestamps.
         """
         for phase in self.df_phases(task, wlgen_profile=wlgen_profile).itertuples():
             start = phase.Index
@@ -448,7 +454,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
           * A  ``__pid``  column: the PID of the task
           * A  ``phase``  column: the phases counter for each ``__pid``:``__comm`` task
 
-        The ``index`` represents the timestamp of a phase start event.
+          The ``index`` represents the timestamp of a phase start event.
         """
         return self._get_rtapp_phases('start', task, wlgen_profile=wlgen_profile)
 
@@ -470,7 +476,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
           * A  ``__pid``  column: the PID of the task
           * A  ``phase``  column: the phases counter for each ``__pid``:``__comm`` task
 
-        The ``index`` represents the timestamp of a phase end event.
+          The ``index`` represents the timestamp of a phase end event.
         """
         return self._get_rtapp_phases('end', task, wlgen_profile=wlgen_profile)
 
@@ -646,14 +652,14 @@ class RTAEventsAnalysis(TraceAnalysisBase):
           * A  ``__comm`` column: the actual rt-app trace task name
           * A  ``__pid``  column: the PID of the task
           * A ``__cpu``  column: the CPU on which the task was running at event
-                                 generation time
+            generation time
           * A ``__line`` column: the ftrace line numer
           * A ``type`` column: the type of the generated event
           * A ``desc`` column: the mnemonic type of the generated event
           * A ``id`` column: the ID of the resource associated to the event,
-                             e.g. the ID of the fired timer
+            e.g. the ID of the fired timer
 
-        The ``index`` represents the timestamp of the event.
+          The ``index`` represents the timestamp of the event.
         """
         df = self.trace.df_event('userspace@rtapp_event')
         return self._task_filtered(df, task)
@@ -686,21 +692,20 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         :returns: a :class:`pandas.DataFrame` with a set of colums representing
             the stats generated by rt-app after each loop.
 
-
-        .. seealso:: the rt-app provided documentation:
-            https://github.com/scheduler-tools/rt-app/blob/master/doc/tutorial.txt
-
             * A  ``__comm`` column: the actual rt-app trace task name
             * A  ``__pid``  column: the PID of the task
             * A ``__cpu``  column: the CPU on which the task was running at event
-                                    generation time
+              generation time
             * A ``__line`` column: the ftrace line numer
             * A ``type`` column: the type of the generated event
             * A ``desc`` column: the mnemonic type of the generated event
             * A ``id`` column: the ID of the resource associated to the event,
-                                e.g. the ID of the fired timer
+              e.g. the ID of the fired timer
 
-        The ``index`` represents the timestamp of the event.
+            The ``index`` represents the timestamp of the event.
+
+        .. seealso:: the rt-app provided documentation:
+            https://github.com/scheduler-tools/rt-app/blob/master/doc/tutorial.txt
         """
         df = self._get_stats()
         return self._task_filtered(df, task)
@@ -783,13 +788,12 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
             perf_index = \frac{slack}{c_period - c_run}
 
-        where
+        where:
 
-            - ``c_period``: is the configured period for an activation
-            - ``c_run``: is the configured run time for an activation, assuming to
-                        run at the maximum frequency and on the maximum capacity
-                        CPU.
-            - ``slack``: is the measured slack for an activation
+        * ``c_period``: is the configured period for an activation
+        * ``c_run``: is the configured run time for an activation, assuming to
+          run at the maximum frequency and on the maximum capacity CPU.
+        * ``slack``: is the measured slack for an activation
 
         The slack is defined as the different among the activation deadline
         and the actual completion time of the activation.
@@ -872,7 +876,6 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         :type bins: int
 
         .. seealso:: :meth:`plot_perf` for the perf index definition.
-
         """
         task = self.trace.ana.tasks.get_task_id(task)
         name = f'perf index of {task} (us)'

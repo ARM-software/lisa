@@ -14,6 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""
+Target manipulation helpers.
+
+A target is a device such as an android phone that can be manipulated
+programmatically using :class:`lisa.target.Target`.
+"""
 
 from datetime import datetime
 import os
@@ -39,10 +45,10 @@ import typing
 
 import devlib
 from devlib.exception import TargetStableError
-from devlib.utils.misc import which
+from devlib.utils.misc import which, to_identifier
 from devlib.platform.gem5 import Gem5SimulationPlatform
 
-from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath, nullcontext, ExekallTaggable, memoized, destroyablecontextmanager, ContextManagerExit, update_params_from, delegate_getattr
+from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath, nullcontext, ExekallTaggable, memoized, destroyablecontextmanager, ContextManagerExit, update_params_from, delegate_getattr, DelegateToAttr
 from lisa._assets import ASSETS_PATH
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, Configurable, DelegatedLevelKeyDesc, ConfigKeyError
 from lisa._kmod import _KernelBuildEnv, DynamicKmod, _KernelBuildEnvConf
@@ -59,15 +65,22 @@ else:
 
 
 class PasswordKeyDesc(KeyDesc):
+    """
+    :class:`~lisa.conf.KeyDesc` used to describe the target password.
+    """
+
     def pretty_format(self, v):
+        """
+        Hide the password with a generic placeholder.
+        """
         return '<password>'
 
 
 # Make sure all submodules of devlib.module are imported so the classes
 # are all created before we list them
 import_all_submodules(devlib.module)
-_DEVLIB_AVAILABLE_MODULES = {
-    cls.name
+_DEVLIB_AVAILABLE_MODULE_CLASSES = {
+    to_identifier(cls.name): cls
     for cls in get_subclasses(devlib.module.Module)
     if (
         getattr(cls, 'name', None)
@@ -103,7 +116,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
 
     Content of target_conf.yml:
 
-    .. literalinclude:: ../target_conf.yml
+    .. literalinclude:: ../../../../target_conf.yml
         :language: YAML
 
     ::
@@ -194,7 +207,13 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
     }
 
 
-class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
+class Target(
+    DelegateToAttr('target', [devlib.Target]),
+    Loggable,
+    HideExekallID,
+    ExekallTaggable,
+    Configurable,
+):
     """
     Wrap :class:`devlib.target.Target` to provide additional features on top of
     it.
@@ -353,7 +372,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             logger.warning('Will not load cgroups devlib module: target is using systemd, which already uses cgroups')
             devlib_excluded_modules.add('cgroups')
 
-        self._devlib_loadable_modules = _DEVLIB_AVAILABLE_MODULES - devlib_excluded_modules
+        self._devlib_loadable_modules = set(_DEVLIB_AVAILABLE_MODULE_CLASSES.keys()) - devlib_excluded_modules
 
         # Initialize binary tools to deploy
         if tools:
@@ -533,7 +552,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         .. note:: This will attempt to load the module if it's not loaded
             already, and bail out if it fails to load.
         """
-        if module not in _DEVLIB_AVAILABLE_MODULES:
+        if module not in _DEVLIB_AVAILABLE_MODULE_CLASSES.keys():
             raise ValueError(f'"{module}" is not a devlib module')
 
         try:
@@ -558,31 +577,37 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         # If it was not in the loadable list, it
         # has been excluded explicitly
-        if attr in (_DEVLIB_AVAILABLE_MODULES - self._devlib_loadable_modules):
+        if attr in (set(_DEVLIB_AVAILABLE_MODULE_CLASSES.keys()) - self._devlib_loadable_modules):
             # pylint: disable=raise-missing-from
             raise AttributeError(f'Devlib target module {attr} was explicitly excluded, not loading it')
 
-        def get():
-            return delegate_getattr(self, 'target', attr)
+        get = super().__getattr__
 
         try:
-            return get()
+            return get(attr)
         except AttributeError:
             # Load the module on demand
             if attr in self._devlib_loadable_modules:
                 self.logger.info(f'Loading target devlib module {attr}')
                 self.target.install_module(attr)
-                return get()
+                return get(attr)
             # Something else that does not exist ...
             else:
                 raise
+
+    @classmethod
+    def __instance_dir__(cls):
+        return {
+            **super().__instance_dir__(),
+            **_DEVLIB_AVAILABLE_MODULE_CLASSES
+        }
 
     def __dir__(self):
         """
         List our attributes plus the ones from the underlying target, and the
         devlib modules that could be loaded on-demand.
         """
-        attrs = set(super().__dir__()) | set(dir(self.target)) | self._devlib_loadable_modules
+        attrs = set(super().__dir__()) | self._devlib_loadable_modules
         return sorted(attrs)
 
     @classmethod
@@ -1302,7 +1327,9 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
     def remote_func(self, **kwargs):
         """
         Decorates a given function to execute remotely using
-        :meth:`execute_python`::
+        :meth:`execute_python`.
+
+        ::
 
             target = Target(...)
 

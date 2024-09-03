@@ -92,7 +92,7 @@ extras_require["doc"] = [
     # Force ReadTheDocs to use a recent version, rather than the defaults used
     # for old projects.
     "sphinx > 2",
-    "sphinx_rtd_theme >= 0.5.2",
+    "pydata-sphinx-theme",
     "sphinxcontrib-plantuml",
     "nbsphinx",
 

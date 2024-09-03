@@ -68,8 +68,7 @@ reporting, and additional run behaviors.
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 usage: bisector [\-h] [\-\-cli\-options CLI_OPTIONS]
                 {step\-help,run,report,edit,monitor\-server,monitor} ...
 
@@ -101,16 +100,14 @@ optional arguments:
 subcommands:
   {step\-help,run,report,edit,monitor\-server,monitor}
 
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS bisector run
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 usage: bisector run [\-h] [\-\-cli\-options CLI_OPTIONS] [\-o OPTION] [\-\-debug]
                     [\-\-steps STEPS] [\-\-allowed\-bad ALLOWED_BAD] [\-\-skip SKIP]
                     [\-\-only ONLY] [\-\-git\-clean] [\-\-inline CLASS NAME]
@@ -199,16 +196,14 @@ optional arguments:
                         installed.
   \-\-no\-dbus             Disable DBus even when pydbus module is available.
 
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS bisector report
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 usage: bisector report [\-h] [\-\-cli\-options CLI_OPTIONS] [\-o OPTION] [\-\-debug]
                        [\-\-steps STEPS] [\-\-allowed\-bad ALLOWED_BAD]
                        [\-\-skip SKIP] [\-\-only ONLY] [\-\-export EXPORT] [\-\-cache]
@@ -259,8 +254,7 @@ optional arguments:
                         file is modified. This is mostly useful when working
                         with big YAML files that are long to load.
 
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS bisector step\-help
@@ -269,8 +263,7 @@ Steps\-specific options to be used with \fBbisector run \-o\fP and \fBbisector r
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 
 LISA\-test (test)
 \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
@@ -788,16 +781,14 @@ yield (yield)
 
 
 
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS bisector monitor
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 usage: bisector monitor [\-h] [\-\-cli\-options CLI_OPTIONS] [\-\-status]
                         [\-\-prop PROP] [\-\-list]
                         [\-\-pause | \-\-stop | \-\-continue | \-\-kill | \-\-log | \-\-report ... | \-\-notif enable/disable PROPERTY]
@@ -834,16 +825,14 @@ optional arguments:
                         given property changes. \(aqall\(aq will select all
                         properties.
 
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS bisector monitor\-server
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 usage: bisector monitor\-server [\-h] [\-\-cli\-options CLI_OPTIONS]
                                [\-\-notif enable/disable PROPERTY]
 
@@ -865,16 +854,14 @@ optional arguments:
                         given property changes. \(aqall\(aq will select all
                         properties.
 
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SS bisector edit
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 usage: bisector edit [\-h] [\-o OPTION] [\-\-debug] [\-\-steps STEPS] report
 
 Modify the properties of the steps in an existing report.
@@ -898,8 +885,7 @@ optional arguments:
                         classes if necessary. It is otherwise ignored and
                         \-\-option must be used to edit the report.
 
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SH CONFIGURATION
@@ -913,8 +899,7 @@ The YAML file is structured as following:
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 # Top\-level \(dqsteps\(dq key is important as the same file can be used to host other
 # information.
 steps:
@@ -952,8 +937,7 @@ steps:
       use\-systemd\-run: true
       timeout: 3600
       cmd: lisa\-test \(aqOneSmallTask*\(aq
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .sp
@@ -983,8 +967,7 @@ A typical flow of \fBbisector\fP looks like that:
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 # Run the steps and generate a report.
 # systemd\-run will be used for all steps by using \(dq\-o\(dq without specifying a
 step name or category.
@@ -1037,8 +1020,7 @@ bisector report bisector.report.yml.gz \-oexport\-logs=logs
 # \-o <step name or category>.XXXX=YYYY
 # This command will only show iteration #2 for the eas_behaviour step
 bisector report bisector.report.yml.gz \-oeas_behaviour.iterations=2
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .SH REFERENCES

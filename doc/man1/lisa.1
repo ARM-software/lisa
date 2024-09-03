@@ -1,3 +1,4 @@
+'\" t
 .\" Man page generated from reStructuredText.
 .
 .
@@ -44,11 +45,9 @@ In order to use the shell, source the script:
 .INDENT 0.0
 .INDENT 3.5
 .sp
-.nf
-.ft C
+.EX
 source init_env
-.ft P
-.fi
+.EE
 .UNINDENT
 .UNINDENT
 .sp
@@ -104,9 +103,8 @@ subtree. All other options are passed to \fIgit log\fP\&.
 .INDENT 3.5
 Usage: \fBlisa\-jupyter CMD [NETIF [PORT]]\fP
 .TS
-center;
-|l|l|.
-_
+box center;
+l|l.
 T{
 \fICMD\fP
 T}	T{
@@ -125,7 +123,6 @@ T{
 T}	T{
 the tcp port for the server (default: 8888)
 T}
-_
 .TE
 .UNINDENT
 .UNINDENT
@@ -184,9 +181,8 @@ interpolated.
 .sp
 The following environment variables are available:
 .TS
-center;
-|l|l|l|.
-_
+box center;
+l|l|l.
 T{
 EXEKALL_ARTIFACT_ROOT
 T}	T{
@@ -286,7 +282,6 @@ Path to venv to be used by lisa\-install
 T}	T{
 \&.lisa\-venv\-<python version>
 T}
-_
 .TE
 .sp
 If an environment variable is defined prior to sourcing \fBinit_env\fP, it will

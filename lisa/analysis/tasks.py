@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""
+Linux kernel scheduler tasks analysis.
+"""
 
 from enum import Enum
 import itertools
@@ -21,9 +24,9 @@ import warnings
 import typing
 from numbers import Number
 from operator import itemgetter
-from collections import namedtuple
 import re
 import functools
+from typing import NamedTuple, Optional
 
 import numpy as np
 import pandas as pd
@@ -39,7 +42,13 @@ from lisa.notebook import _hv_neutral, plot_signal
 from lisa._typeclass import FromString
 
 
-class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
+# We cannot override __init__ in a NamedTuple so we inherit instead:
+# https://github.com/python/typing/issues/526
+class _TaskID(NamedTuple):
+    pid: Optional[int]
+    comm: Optional[str]
+
+class TaskID(_TaskID):
     """
     Unique identifier of a logical task in a :class:`lisa.trace.Trace`.
 
@@ -51,10 +60,6 @@ class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
         names associated.
     :type comm: str
     """
-
-    # Prevent creation of a __dict__. This allows a more compact representation
-    __slots__ = []
-
     def __init__(self, *args, **kwargs):
         # pylint: disable=unused-argument
         super().__init__()

@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""
+Helpers to write target workloads.
+"""
 
 import os
 from pathlib import Path
@@ -222,8 +225,6 @@ class _WorkloadRunCM(Loggable):
 
 class _WorkloadBase:
     """
-    :meta public:
-
     Dummy base class so that :class:`Workload` is processed by
     ``__init_subclass__`` as well.
     """
@@ -384,9 +385,9 @@ class Workload(_WorkloadBase, PartialInit, Loggable):
 
         If not called manually, it will be called:
 
-            * If the workload is used as a context manager, in
-              ``__enter__``.
-            * If not, in :meth:`run` or :meth:`run_background`.
+        * If the workload is used as a context manager, in
+          ``__enter__``.
+        * If not, in :meth:`run` or :meth:`run_background`.
 
         Calling it manually ahead of time makes can allow less garbage while
         tracing during the execution of the workload.

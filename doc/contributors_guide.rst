@@ -30,6 +30,11 @@ fashion to the typical GitHub workflow:
      "Change branches" link next to "From XXX into main". Click this link and
      select "tooling/lisa" in the "Target branch" project drop down. ⚠️
 
+Merge requests that are primarily constituted of style reformatting will be
+closed without comment unless the matter was discussed previously with the
+maintainer. Note that such discussion will be expected to be carried with
+arguments. Stating opinions or arguments of authority and such will lead to the
+end of the discussion.
 
 How to reach us
 ===============
@@ -51,6 +56,9 @@ code.
 
 Documentation
 =============
+
+Docstring style
++++++++++++++++
 
 Docstring documentation should follow the ReST/Sphinx style. Classes,
 class attributes and public methods must be documented. If deemed
@@ -93,6 +101,18 @@ introduced by ``**Example**::`` and located:
   * In the class docstring if they involve multiple methods of the class.
   * In the method/function otherwise.
 
+How to build
+++++++++++++
+
+- Install ``doc`` optional dependencies of ``lisa`` package (``lisa-install``
+  does that by default)
+- Run:
+
+  .. code:: shell
+
+    lisa-doc-build
+
+- Find the HTML in ``doc/_build/html``
 
 Commits
 =======
@@ -184,18 +204,9 @@ self-tests. It's a nice way to showcase that your code works, and also how it
 works. On top of that, it makes sure that later changes won't break it.
 
 It's possible to write tests that require a live target - see
-:meth:`~tests.utils.create_local_target`. However, as these tests are meant to
-be run by Github Actions as part of our pull-request validation, they have to
-be designed to work on a target with limited privilege.
-
-API
-+++
-
-Utilities
----------
-
-.. automodule:: tests.utils
-   :members:
+``create_local_target()``. However, as these tests are meant to be run by the
+CI as part of our pull-request validation, they have to be designed to work on
+a target with limited privilege.
 
 
 Updating binary tools
@@ -204,5 +215,5 @@ Updating binary tools
 LISA comes with a number of prebuilt static binaries in
 ``lisa/_assets/binaries``. They are all built according to recipes in
 ``tools/recipes/``, and can be re-built and installed using e.g.:
-``lisa-build-asset trace-cmd --native-build``. See ``lisa-build-asset --help``
-for more options.
+``lisa-build-asset trace-cmd``. See ``lisa-build-asset --help`` for more
+options.
