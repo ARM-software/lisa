@@ -46,7 +46,13 @@ Or from an existing :class:`~lisa.trace.Trace` object::
 Then all the dataframe APIs will return :class:`polars.LazyFrame` instances
 instead of :class:`pandas.DataFrame`.
 
-.. seealso:: See the :class:`~lisa.trace.Trace` documentation for more details.
+
+Here are the main entry points in the trace analysis APIs:
+
+* Trace manipulation class: :class:`lisa.trace.Trace`
+* Trace analysis package: :mod:`lisa.analysis`
+* Trace analysis base classes: :mod:`lisa.analysis.base`
+
 
 Available analysis
 ==================
@@ -62,165 +68,47 @@ to study specific trace windows.
     from lisa._doc.helpers import get_analysis_list
     print(get_analysis_list("df"))
 
-Plots
-+++++
 
-When run in a notebook, these plots will be displayed automatically. By default,
-they are also saved in the same directory as your ``trace.dat``
+Gallery
++++++++
 
 .. exec::
-    from lisa._doc.helpers import get_analysis_list
-    print(get_analysis_list("plot"))
+    # Get the state exposed by lisa-exec-state sphinx hook
+    plots = state.plots
 
-API
-===
+    if plots:
+        from itertools import starmap
 
-Trace
-+++++
+        from lisa.analysis.base import TraceAnalysisBase
+        from lisa.utils import get_obj_name, groupby, get_parent_namespace
 
-.. autoclass:: lisa.trace.Trace
-   :members:
-   :inherited-members:
-
-.. automodule:: lisa.trace
-   :members:
-   :exclude-members: Trace, TraceParserBase, EventParserBase, TxtTraceParserBase, MetaTxtTraceParser, TxtTraceParser, SimpleTxtTraceParser, HRTxtTraceParser, SysTraceParser, TxtEventParser, CustomFieldsTxtEventParser, PrintTxtEventParser, TraceDumpTraceParser
-
-Analysis proxy
-++++++++++++++
-
-.. automodule:: lisa.analysis._proxy
-   :members:
-
-Analysis base class
-+++++++++++++++++++
-
-.. automodule:: lisa.analysis.base
-   :members:
-
-Load tracking
-+++++++++++++
-
-.. automodule:: lisa.analysis.load_tracking
-   :members:
-
-CPUs
-++++
-
-.. automodule:: lisa.analysis.cpus
-   :members:
-
-Frequency
-+++++++++
-
-.. automodule:: lisa.analysis.frequency
-   :members:
-
-Tasks
-+++++
-
-.. These two autoclasses should not be necessary, but sphinx doesn't seem
-   to like Enums and refuses to do anything with TaskState unless explicetely
-   told to.
-
-.. autoclass:: lisa.analysis.tasks.StateInt
-   :members:
-
-.. autoclass:: lisa.analysis.tasks.TaskState
-   :members:
-
-.. automodule:: lisa.analysis.tasks
-   :members:
-   :exclude-members: StateInt, TaskState
-
-rt-app
-++++++
-
-.. automodule:: lisa.analysis.rta
-   :members:
-
-Idle
-++++
-
-.. automodule:: lisa.analysis.idle
-   :members:
-
-Latency
-+++++++
-
-.. automodule:: lisa.analysis.latency
-   :members:
-
-Status
-++++++
-
-.. automodule:: lisa.analysis.status
-   :members:
-
-Thermal
-+++++++
-
-.. automodule:: lisa.analysis.thermal
-   :members:
-
-Pixel 6
-+++++++
-
-.. automodule:: lisa.analysis.pixel6
-   :members:
-
-Function profiling
-++++++++++++++++++
-
-.. automodule:: lisa.analysis.functions
-   :members:
-
-Interactive notebook helper
-+++++++++++++++++++++++++++
-
-.. automodule:: lisa.analysis.notebook
-   :members:
+        from lisa._doc.helpers import ana_invocation
 
 
-Trace parsers
-+++++++++++++
+        def make_entry(f, rst_fig):
+            name = get_obj_name(f, style='rst', abbrev=True)
+            rst_fig = rst_fig or 'No plot available'
+            invocation = ana_invocation(f)
+            return f'\n\n{name}\n{"." * len(name)}\n\n{invocation}\n\n{rst_fig}'
 
-.. note:: :class:`lisa.trace.Trace` is the class to use to manipulate a trace
-    file, trace parsers are backend objects that are usually not
-    manipulated by the user.
+        def make_sections(section, entries):
+            entries = sorted(starmap(make_entry, entries))
+            entries = '\n\n'.join(entries)
+            return f'{section}\n{"-" * len(section)}\n\n{entries}'
 
-.. autoclass:: lisa.trace.TraceParserBase
-   :members:
+        def key(item):
+            f, fig  = item
+            ns = get_parent_namespace(f)
+            assert isinstance(ns, type)
+            assert issubclass(ns, TraceAnalysisBase)
+            return ns.name
 
-.. autoclass:: lisa.trace.EventParserBase
-   :members:
+        sections = groupby(plots.items(), key=key)
+        sections = sorted(starmap(make_sections, sections))
+        sections = '\n\n'.join(sections)
 
-.. autoclass:: lisa.trace.TxtTraceParserBase
-   :members:
+        print(sections)
 
-.. autoclass:: lisa.trace.TxtTraceParser
-   :members:
+    else:
+        print('No plots available')
 
-.. autoclass:: lisa.trace.MetaTxtTraceParser
-   :members:
-
-.. autoclass:: lisa.trace.SimpleTxtTraceParser
-   :members:
-
-.. autoclass:: lisa.trace.HRTxtTraceParser
-   :members:
-
-.. autoclass:: lisa.trace.SysTraceParser
-   :members:
-
-.. autoclass:: lisa.trace.TxtEventParser
-   :members:
-
-.. autoclass:: lisa.trace.CustomFieldsTxtEventParser
-   :members:
-
-.. autoclass:: lisa.trace.PrintTxtEventParser
-   :members:
-
-.. autoclass:: lisa.trace.TraceDumpTraceParser
-   :members:

@@ -18,22 +18,8 @@ Available workloads
 ===================
 
 Most of these workloads are based on the :class:`~lisa.wlgen.workload.Workload`
-class, see the documentation for common functionalities.
+class, see the documentation for common functionalities:
 
-Base class
-++++++++++
-
-.. automodule:: lisa.wlgen.workload
-   :members:
-
-rt-app
-++++++
-
-.. automodule:: lisa.wlgen.rta
-   :members:
-
-Sysbench
-++++++++
-
-.. automodule:: lisa.wlgen.sysbench
-   :members:
+  * Base infrastructure: :mod:`lisa.wlgen.workload`
+  * ``rt-app``: :mod:`lisa.wlgen.rta`
+  * ``sysbench``: :mod:`lisa.wlgen.sysbench`

@@ -14,6 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""
+Workload Automation-related helpers.
+"""
+
 from collections.abc import Mapping
 from collections import defaultdict
 import inspect
@@ -141,8 +145,8 @@ class WAOutput(StatsProp, Mapping, Loggable):
     collected are accessible through a :class:`pandas.DataFrame` in "database"
     format:
 
-        * meaningless index
-        * all values are tagged using tag columns
+    * meaningless index
+    * all values are tagged using tag columns
 
     :param path: Path containing a Workload Automation output.
     :type path: str

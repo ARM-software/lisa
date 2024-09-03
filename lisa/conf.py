@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""
+Configuration file management.
+"""
 
 import abc
 import copy
@@ -40,7 +43,7 @@ import typeguard
 import lisa
 from lisa.utils import (
     Serializable, Loggable, get_nested_key, set_nested_key, get_call_site,
-    is_running_sphinx, get_cls_name, HideExekallID, get_subclasses, groupby,
+    is_running_sphinx, get_obj_name, HideExekallID, get_subclasses, groupby,
     import_all_submodules, delegate_getattr
 )
 from lisa._generic import check_type
@@ -49,15 +52,14 @@ from lisa._generic import check_type
 class DeferredValue:
     """
     Wrapper similar to :func:`functools.partial` allowing to defer computation
-    of the value until the key is actually used.
+    of the value until the key is accessed.
 
     Once computed, the deferred value is replaced by the value that was
-    computed. This is useful for values that are very costly to compute, but
-    should be used with care as it means it will usually not be available in
-    the offline :class:`lisa.platforms.platinfo.PlatformInfo` instances. This
-    means that client code such as submodules of ``lisa.analysis`` will
-    typically not have it available (unless :meth:`~MultiSrcConf.eval_deferred`
-    was called) although they might need it.
+    computed. This is useful for values that are very costly to compute.
+
+    .. seealso:: Deferred values can be forcefully computed using
+        :meth:`~MultiSrcConf.eval_deferred`, e.g. to ensure a serialized
+        configuration contains all the values an offline user might need.
     """
 
     def __init__(self, callback, *args, **kwargs):
@@ -144,7 +146,7 @@ class KeyDescBase(abc.ABC):
     This allows defining the structure of the configuration file, in order
     to sanitize user input and generate help snippets used in various places.
     """
-    INDENTATION = 4 * ' '
+    _INDENTATION = 4 * ' '
     _VALID_NAME_PATTERN = r'^[a-zA-Z0-9-<>]+$'
 
     def __init__(self, name, help):
@@ -152,8 +154,19 @@ class KeyDescBase(abc.ABC):
 
         self._check_name(name)
         self.name = name
+        """
+        Name of that key.
+        """
+
         self.help = help
+        """
+        Help description associated with the key.
+        """
+
         self.parent = None
+        """
+        Parent :class:`LevelKeyDesc`.
+        """
 
     @classmethod
     def _check_name(cls, name):
@@ -163,11 +176,10 @@ class KeyDescBase(abc.ABC):
     @property
     def qualname(self):
         """
-        "Qualified" name of the key.
+        Qualified name of the configuration key used for error reporting.
 
         This is a slash-separated path in the config file from the root to that
-        key:
-        <parent qualname>/<name>
+        key following the pattern ``<parent qualname>/<name>``.
         """
         return '/'.join(self.path)
 
@@ -175,6 +187,8 @@ class KeyDescBase(abc.ABC):
     def path(self):
         """
         Path in the config file from the root to that key.
+
+        This path is a list of strings, one item per level.
 
         .. note:: This includes the top-level key name, which must be removed
             before it's fed to :meth:`MultiSrcConf.get_nested_key`.
@@ -249,6 +263,12 @@ class KeyDesc(KeyDescBase):
 
     @property
     def newtype(self):
+        """
+        Unique type associated with that key.
+
+        This allows refering unambiguously to the type of a configuration key,
+        linking directly a type annotation to the value of a specific key.
+        """
         if self._newtype:
             return self._newtype
         else:
@@ -283,8 +303,8 @@ class KeyDesc(KeyDescBase):
             try:
                 check_type(val, classinfo)
             except TypeError as e:
-                classinfo = ' or '.join(get_cls_name(cls) for cls in classinfo)
-                raise TypeError(f'Key "{key}" is an instance of {get_cls_name(type(val))}, but should be instance of {classinfo}: {e}. Help: {self.help}', key)
+                classinfo = ' or '.join(get_obj_name(cls) for cls in classinfo)
+                raise TypeError(f'Key "{key}" is an instance of {get_obj_name(type(val))}, but should be instance of {classinfo}: {e}. Help: {self.help}', key)
 
         # DeferredValue will be checked when they are computed
         if not isinstance(val, DeferredValue):
@@ -323,7 +343,7 @@ class KeyDesc(KeyDescBase):
             prefix=prefix,
             key=key,
             classinfo=' or '.join(
-                get_cls_name(
+                get_obj_name(
                     key_cls,
                     style=style,
                     fully_qualified=False,
@@ -603,6 +623,13 @@ class LevelKeyDesc(KeyDescBase, Mapping):
 
     @property
     def key_desc(self):
+        """
+        Leaf :class:`KeyDescBase` that this level will delegate to in case it
+        is assigned a leaf value.
+
+        This :class:`KeyDescBase` is pointed at by the :attr:`value_path`
+        attribute.
+        """
         path = self.value_path
         if path is None:
             raise AttributeError(f'{self} does not define a value path for direct assignment')
@@ -673,23 +700,14 @@ class LevelKeyDesc(KeyDescBase, Mapping):
             self[key].validate_val(val)
 
     def get_help(self, style=None, last=False):
-        idt = self.INDENTATION
+        idt = '  ' if style == 'rst' else self._INDENTATION
         prefix = '*' if style == 'rst' else ('└' if last else '├')
-        # Nasty hack: adding an empty ResStructuredText comment between levels
-        # of nested list avoids getting extra blank line between list items.
-        # That prevents ResStructuredText from thinking each item must be a
-        # paragraph.
-        suffix = '\n\n..\n\n' if style == 'rst' else '\n'
-        suffix += idt
-        help_ = '{prefix} {key}:{help}{suffix}'.format(
-            prefix=prefix,
-            suffix=suffix,
-            key=self.name,
-            help=' ' + self.help if self.help else '',
-        )
         nl = '\n' + idt
+        _help = ' ' + self.help if self.help else ''
+        suffix = (nl * 2) if style == 'rst' else nl
+        help_ = f'{prefix} {self.name}:{_help}{suffix}'
         last = len(self.children) - 1
-        help_ += nl.join(
+        help_ += suffix.join(
             key_desc.get_help(
                 style=style,
                 last=i == last,
@@ -697,7 +715,7 @@ class LevelKeyDesc(KeyDescBase, Mapping):
             for i, key_desc in enumerate(self.children)
         )
         if style == 'rst':
-            help_ += '\n\n..\n'
+            help_ += '\n'
 
         return help_
 
@@ -819,6 +837,9 @@ class NestedTopLevelKeyDesc(TopLevelKeyDescBase):
     """
 
 class MultiSrcConfABC(Serializable, abc.ABC):
+    """
+    Abstract Base Class of :class:`MultiSrcConf`.
+    """
     _REGISTERED_TOPLEVEL_KEYS = {}
 
     @abc.abstractmethod
@@ -1072,7 +1093,7 @@ class MultiSrcConfABC(Serializable, abc.ABC):
                     Newtype.__name__ = newtype_name
                     Newtype.__qualname__ = f'{cls.__qualname__}.{newtype_name}'
                     Newtype.__module__ = cls.__module__
-                    Newtype.__doc__ = key_desc.help
+                    Newtype.__doc__ = f':meta private:\n\n{key_desc.help}'
                     setattr(cls, newtype_name, Newtype)
 
                     def make_getter(cls, type_, key_desc):
@@ -1202,8 +1223,9 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         configuration.
     """
 
+    @property
     @abc.abstractmethod
-    def STRUCTURE():
+    def STRUCTURE(self):
         """
         Class attribute defining the structure of the configuration file, as a
         instance of :class:`TopLevelKeyDescBase`
@@ -2073,40 +2095,50 @@ class Configurable(abc.ABC):
     Pair a regular class with a configuration class.
 
     The pairing is achieved by inheriting from :class:`Configurable` and
-    setting ``CONF_CLASS`` attribute. The benefits are:
+    setting :attr:`CONF_CLASS` attribute. The benefits are:
 
-        * The docstring of the class is processed as a string template and
-          ``{configurable_params}`` is replaced with a Sphinx-compliant list of
-          parameters. The help and type of each parameter is extracted from the
-          configuration class.
-        * The ``DEFAULT_SRC`` attribute of the configuration class is updated
-          with non-``None`` default values of the class ``__init__`` parameters.
-        * The :meth:`~Configurable.conf_to_init_kwargs` method allows turning a
-          configuration object into a dictionary suitable for passing to
-          ``__init__`` as ``**kwargs``.
-        * The :meth:`~Configurable.check_init_param` method allows checking
-          types of ``__init__`` parameters according to what is specified in the
-          configuration class.
+    * The docstring of the class is processed as a string template and
+      ``{configurable_params}`` is replaced with a Sphinx-compliant list of
+      parameters. The help and type of each parameter is extracted from the
+      configuration class.
+    * The :attr:`~MultiSrcConf.DEFAULT_SRC` attribute of the configuration
+      class is updated with non-``None`` default values of the class
+      ``__init__`` parameters.
+    * The :meth:`~Configurable.conf_to_init_kwargs` method allows turning a
+      configuration object into a dictionary suitable for passing to
+      ``__init__`` as ``**kwargs``.
+    * The :meth:`~Configurable.check_init_param` method allows checking
+      types of ``__init__`` parameters according to what is specified in the
+      configuration class.
 
     Most of the time, the configuration keys and ``__init__`` parameters have
     the same name (modulo underscore/dashes which are handled automatically).
     In that case, the mapping between config keys and ``__init__`` parameters
     is done without user intervention. When that is not the case, the
-    ``INIT_KWARGS_KEY_MAP`` class attribute can be used. Its a dictionary with
-    keys being ``__init__`` parameter names, and values being path to
-    configuration key. That path is a list of strings to take into account
-    sublevels like ``['level-key', 'sublevel', 'foo']``.
+    :attr:`INIT_KWARGS_KEY_MAP` class attribute can be used.
 
     .. note:: A given configuration class must be paired to only one class.
-        Otherwise, the ``DEFAULT_SRC`` conf class attribute will be updated
-        multiple times, leading to unexpected results.
+        Otherwise, the :attr:`~MultiSrcConf.DEFAULT_SRC` conf class attribute
+        will be updated multiple times, leading to unexpected results.
 
     .. note:: Some services offered by :class:`Configurable` are not extended
         to subclasses of a class using it. For example, it would not make sense
-        to update ``DEFAULT_SRC`` using a subclass ``__init__`` parameters.
+        to update :attr:`~MultiSrcConf.DEFAULT_SRC` using a subclass
+        ``__init__`` parameters.
 
     """
     INIT_KWARGS_KEY_MAP = {}
+    """
+    Dictionary of ``__init__`` parameter names to configuration key path.
+
+    That path is a list of strings to take into account sublevels like
+    ``['level-key', 'sublevel', 'foo']``.
+    """
+
+    CONF_CLASS = None
+    """
+    Configuration class associated with the current class.
+    """
 
     @classmethod
     def __init_subclass__(cls, **kwargs):
@@ -2204,7 +2236,7 @@ class Configurable(abc.ABC):
                 type=(
                     'collections.abc.Mapping'
                     if isinstance(key_desc, LevelKeyDesc) else
-                    ' or '.join(get_cls_name(t) for t in key_desc.classinfo)
+                    ' or '.join(get_obj_name(t) for t in key_desc.classinfo)
                 ),
             )
             for param, key_desc

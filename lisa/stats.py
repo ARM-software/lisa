@@ -14,6 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""
+Statistical comparison helpers.
+"""
+
 import uuid
 import functools
 from operator import itemgetter
@@ -174,13 +178,13 @@ class Stats(Loggable):
         tag value is ``None``, the key will only be used for grouping in
         graphs. Comparison will add the following statistics:
 
-            * A 2-sample Komolgorov-Smirnov test ``'ks2samp_test'`` column.
-              This test is non-parametric and checks for difference in
-              distributions. The only assumption is that the distribution is
-              continuous, which should suit almost all use cases
-            * Most statistics will be normalized against the reference group as
-              a difference percentage, except for a few non-normalizable
-              values.
+        * A 2-sample Komolgorov-Smirnov test ``'ks2samp_test'`` column.
+          This test is non-parametric and checks for difference in
+          distributions. The only assumption is that the distribution is
+          continuous, which should suit almost all use cases
+        * Most statistics will be normalized against the reference group as
+          a difference percentage, except for a few non-normalizable
+          values.
 
         .. note:: The group referenced must exist, otherwise unexpected
             behaviours might occur.
@@ -198,9 +202,9 @@ class Stats(Loggable):
     :param agg_cols: Columns to aggregate on. In a sense, the given columns will
         be treated like a compound iteration number. Defaults to:
 
-            * ``iteration`` column if available, otherwise
-            * All the tag columns that are neither the value nor part of the
-              ``ref_group``.
+        * ``iteration`` column if available, otherwise
+        * All the tag columns that are neither the value nor part of the
+          ``ref_group``.
 
     :type agg_cols: list(str)
 
@@ -221,23 +225,23 @@ class Stats(Loggable):
             will be made to guess the most appropriate kind of mean to use
             using the ``mean_kind_col``, ``unit_col`` and ``control_var_col``:
 
-                * The mean itself, as:
+            * The mean itself, as:
 
-                    * ``'mean'`` (arithmetic)
-                    * ``'hmean'`` (harmonic)
-                    * ``'gmean'`` (geometric)
+              * ``'mean'`` (arithmetic)
+              * ``'hmean'`` (harmonic)
+              * ``'gmean'`` (geometric)
 
-                * The Standard Error of the Mean (SEM):
+            * The Standard Error of the Mean (SEM):
 
-                    * ``'sem'`` (arithmetic)
-                    * ``'hse'`` (harmonic)
-                    * ``'gse'`` (geometric)
+              * ``'sem'`` (arithmetic)
+              * ``'hse'`` (harmonic)
+              * ``'gse'`` (geometric)
 
-                * The standard deviation:
+            * The standard deviation:
 
-                    * ``'std'`` (arithmetic)
-                    * ``'hsd'`` (harmonic)
-                    * ``'gsd'`` (geometric)
+              * ``'std'`` (arithmetic)
+              * ``'hsd'`` (harmonic)
+              * ``'gsd'`` (geometric)
 
     :type stats: dict(str, str or collections.abc.Callable)
 

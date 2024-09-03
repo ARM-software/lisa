@@ -16,10 +16,11 @@
 #
 """Classes for modeling and estimating energy usage of CPU systems"""
 
-from collections import namedtuple, OrderedDict
+from collections import OrderedDict
 from itertools import product
 import operator
 import re
+from typing import NamedTuple, Optional
 
 import pandas
 
@@ -70,54 +71,64 @@ class EnergyModelCapacityError(Exception):
     """Used by :meth:`EnergyModel.get_optimal_placements`"""
 
 
-class ActiveState(namedtuple('ActiveState', ['capacity', 'power'])):
-    """Represents power and compute capacity at a given frequency
+class _ActiveState(NamedTuple):
+    capacity: Optional[float]
+    """
+    Relative compute capacity at frequency.
+    """
 
-    :param capacity: Relative compute capacity at frequency
-    :param power: Power usage at frequency
+    power: Optional[float]
+    """
+    Power usage at frequency.
+    """
+
+class ActiveState(_ActiveState):
+    """
+    Represents power and compute capacity at a given frequency
     """
     def __new__(cls, capacity=None, power=None):
-        return super().__new__(cls, capacity, power)
+        return super().__new__(cls, capacity=capacity, power=power)
 
 
 class _CpuTree(Loggable):
     """
-    :meta public:
-
     Internal class. Abstract representation of a CPU topology.
 
     Each node contains either a single CPU or a set of child nodes.
-
-    :Attributes:
-        * ``cpus``: CPUs contained in this node. Includes those of child nodes.
-        * ``cpu``: For convenience, this holds the single CPU contained by leaf
-          nodes. ``None`` for non-leaf nodes.
     """
 
     def __init__(self, cpu, children):
         if (cpu is None) == (children is None):
             raise ValueError('Provide exactly one of: cpu or children')
 
-        self.parent = None
-        #: Test yolo
-        self.cpu = cpu
-
         if cpu is not None:
             #: This is another thingie
-            self.cpus = (cpu,)
-            self.children = []
+            cpus = (cpu,)
+            children = []
         else:
             if len(children) == 0:
                 raise ValueError('children cannot be empty')
-            self.cpus = tuple(sorted({
+            cpus = tuple(sorted({
                 cpu
                 for node in children
                 for cpu in node.cpus
             }))
-            self.children = children
             for child in children:
                 child.parent = self
 
+        self.cpus = cpus
+        """
+        CPUs contained in this node. Includes those of child nodes.
+        """
+
+        self.cpu = cpu
+        """
+        For convenience, this holds the single CPU contained by leaf nodes.
+        ``None`` for non-leaf nodes.
+        """
+
+        self.parent = None
+        self.children = children
         self.name = None
 
     def __repr__(self):
@@ -268,10 +279,6 @@ class PowerDomain(_CpuTree):
     :type cpu:  int
     :param children: Non-empty list of child :class:`PowerDomain` objects
     :type children:  list(PowerDomain)
-
-    :Attributes:
-        * ``cpus`` (`tuple(int)`): CPUs contained in this node. Includes
-          those of child nodes.
     """
 
     def __init__(self, idle_states, cpu=None, children=None):
@@ -306,13 +313,6 @@ class EnergyModel(Serializable, Loggable):
       frequencies must be equal (probably because they share a clock). The
       frequency domains must be a partition of the CPUs.
 
-    :Attributes:
-        * ``cpu_nodes``: List of leaf (CPU) :class`:`EnergyModelNode`
-        * ``cpus``: List of logical CPU numbers in the system
-        * ``capacity_scale``: The relative computational capacity of the most
-          powerful CPU at its highest available frequency. Utilisation is in
-          the interval ``[0, capacity_scale]``.
-
     :param root_node: Root of :class:`EnergyModelNode` tree
     :param root_power_domain: Root of :class:`PowerDomain` tree
     :param freq_domains: Collection of collections of logical CPU numbers
@@ -321,11 +321,11 @@ class EnergyModel(Serializable, Loggable):
     .. note::
       The most signficant shortcomings of the model are:
 
-        1. Voltage domains are assumed to be congruent to frequency domains
+      1. Voltage domains are assumed to be congruent to frequency domains
 
-        2. Idle state power is assumed to be independent of voltage
+      2. Idle state power is assumed to be independent of voltage
 
-        3. Temperature is ignored entirely
+      3. Temperature is ignored entirely
 
     .. _cpu-utils:
 
@@ -352,6 +352,10 @@ class EnergyModel(Serializable, Loggable):
 
     def __init__(self, root_node, root_power_domain, freq_domains):
         self.cpus = root_node.cpus
+        '''
+        List of logical CPU numbers in the system
+        '''
+
         if self.cpus != tuple(range(len(self.cpus))):
             raise ValueError(f'CPU IDs [{self.cpus}] are sparse')
 
@@ -387,6 +391,9 @@ class EnergyModel(Serializable, Loggable):
 
         self.root = root_node
         self.cpu_nodes = sorted_leaves(root_node)
+        '''
+        List of leaf (CPU) :class:`EnergyModelNode`
+        '''
         self.pd = root_power_domain
         self.cpu_pds = sorted_leaves(root_power_domain)
         assert len(self.cpu_pds) == len(self.cpu_nodes)
@@ -395,6 +402,12 @@ class EnergyModel(Serializable, Loggable):
             node.max_capacity
             for node in self.cpu_nodes
         )
+        '''
+        The relative computational capacity of the most powerful CPU at its
+        highest available frequency. Utilisation is in the interval
+        ``[0, capacity_scale]``.
+        '''
+
 
     def _cpus_with_capacity(self, cap):
         """

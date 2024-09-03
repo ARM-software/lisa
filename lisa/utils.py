@@ -34,7 +34,7 @@ import abc
 import copy
 import collections
 from collections.abc import Mapping, Iterable, Hashable
-from collections import OrderedDict
+from collections import OrderedDict, ChainMap
 import contextlib
 import inspect
 import io
@@ -65,6 +65,8 @@ import platform
 import subprocess
 import multiprocessing
 import urllib.request
+import builtins
+import typing
 
 import ruamel.yaml
 from ruamel.yaml import YAML
@@ -137,7 +139,7 @@ del _get_abi
 
 
 TASK_COMM_MAX_LEN = 16 - 1
-"""
+r"""
 Value of ``TASK_COMM_LEN - 1`` macro in the kernel, to account for ``\0``
 terminator.
 """
@@ -233,13 +235,13 @@ class instancemethod:
     """
     Decorator providing a hybrid of a normal method and a classmethod:
 
-        * Like a classmethod, it can be looked up on the class itself, and the
-          class is passed as first parameter. This allows selecting the class
-          "manually" before applying on an instance.
+    * Like a classmethod, it can be looked up on the class itself, and the
+      class is passed as first parameter. This allows selecting the class
+      "manually" before applying on an instance.
 
-        * Like a normal method, it can be looked up on an instance. In that
-          case, the first parameter is the class of the instance and the second
-          parameter is the instance itself.
+    * Like a normal method, it can be looked up on an instance. In that
+      case, the first parameter is the class of the instance and the second
+      parameter is the instance itself.
     """
     def __init__(self, f):
         self.__wrapped__ = classmethod(f)
@@ -303,14 +305,11 @@ class Loggable:
 
     @classmethod
     def get_logger(cls, suffix=None):
-        cls_name = cls.__name__
-        module = inspect.getmodule(cls)
-        if module:
-            name = module.__name__ + '.' + cls_name
-        else:
-            name = cls_name
-        if suffix:
-            name += '.' + suffix
+        """
+        Provides a :class:`logging.Logger` named after ``cls``.
+        """
+        suffix = f'.{suffix}' if suffix else ''
+        name = f'{cls.__module__}.{cls.__qualname__}{suffix}'
         logger = logging.getLogger(name)
         return _WrappedLogger(logger)
 
@@ -475,7 +474,7 @@ class mappable:
         return map(self.__wrapped__, other)
 
 
-def get_subclasses(cls, only_leaves=False, cls_set=None):
+def get_subclasses(cls, only_leaves=False, cls_set=None, mro_order=False):
     """Get all indirect subclasses of the class."""
     if cls_set is None:
         cls_set = set()
@@ -491,41 +490,173 @@ def get_subclasses(cls, only_leaves=False, cls_set=None):
                 }
             cls_set.update(to_be_added)
 
-    return cls_set
+    if mro_order:
+        return _make_mro(cls_set)
+    else:
+        return cls_set
 
 
-def get_cls_name(cls, style=None, fully_qualified=True):
+def _is_typing_hint(obj):
     """
-    Get a prettily-formated name for the class given as parameter
+    Heuristic to check if a given ``obj`` is a typing hint or anything else.
+    This function will return ``False`` for classes.
 
-    :param cls: Class or typing hint to get the name from.
-    :type cls: type
+    .. warning:: Since there is currently no way to identify hints for sure,
+        the check might return ``False`` even if it is a hint.
+    """
+    module = getattr(obj, '__module__', None)
+
+    # This is a class, so cannot be a hint.
+    if isinstance(obj, type):
+        return False
+    elif module in ('typing', 'typing_extensions'):
+        return typing.get_origin(obj) is not None
+    else:
+        return False
+
+
+def get_obj_name(obj, style=None, fully_qualified=True, abbrev=False, name=None):
+    """
+    Get a prettily-formated name for the object given as parameter
+
+    :param obj: Class or module or instance or typing hint to get the name from.
+    :type obj: object
 
     :param style: When "rst", a RestructuredText snippet is returned
     :param style: str
 
+    :param abbrev: If ``True``, a short name will be used.
+    :type abbrev: bool
+
+    :param name: Fully qualified name of the object. It will be used to provide
+        better reST role inference in some cases.
+    :type name: str or None
     """
-    if cls is None:
-        return 'None'
-    else:
-        try:
-            qualname = cls.__qualname__
-        # type annotations like typing.Union[str, int] do not have a __qualname__
-        except AttributeError:
-            name = str(cls)
+    role = get_sphinx_role(obj, name=name)
+
+    def get(obj):
+        if inspect.isroutine(obj):
+            try:
+                proxy = obj.__func__
+            except AttributeError:
+                if isinstance(getattr(obj, '__self__', None), type):
+                    proxy = obj.__self__
+                else:
+                    proxy = obj
+
+            try:
+                name = proxy.__qualname__
+            # Some user-defined callable (__call__ protocol) do not have a
+            # __qualname__
+            except AttributeError:
+                name = '.'.join(
+                    proxy.__call__.__qualname__.split('.')[:-1]
+                )
+                assert name
+
+            mod = inspect.getmodule(proxy)
+        elif isinstance(obj, property):
+            proxy = obj.fget
+            name = proxy.__qualname__
+            mod = inspect.getmodule(proxy)
+        elif obj is None:
+            mod = None
+            name = 'None'
+        elif _is_typing_hint(obj):
+            name = str(obj)
+            assert obj.__module__ == 'typing'
+            name = name[len('typing.'):]
+            mod = typing
         else:
-            if fully_qualified or style == 'rst':
-                mod_name = inspect.getmodule(cls).__name__
-                mod_name = mod_name + '.' if mod_name not in ('builtins', '__main__') else ''
+            mod = inspect.getmodule(obj)
+            # For modules, getmodule() returns the module itself, not its parent
+            mod = None if mod is obj else mod
+
+            try:
+                name = obj.__qualname__
+            except AttributeError:
+                # Some objects like modules don't have a __qualname__ but do have a name
+                try:
+                    name = obj.__name__
+                except AttributeError:
+                    raise ValueError(f'Could not determine the name of object: {obj}')
+
+        return (mod, name)
+
+    _obj = obj
+    while True:
+        try:
+            mod, name = get(_obj)
+        except ValueError as e:
+            try:
+                _obj = _obj.__wrapped__
+            except AttributeError:
+                raise e
             else:
-                mod_name = ''
+                continue
+        else:
+            break
 
-            name = mod_name + cls.__qualname__
+    mod_name = ''
+    if fully_qualified or style == 'rst':
+        mod_name = mod.__name__ if mod is not None else None
+        mod_name = f'{mod_name}.' if mod_name not in (None, 'builtins', '__main__') else ''
 
-        if style == 'rst':
-            name = f':class:`~{name}`'
+    if style == 'rst':
+        name = f'{mod_name}{name}'
+        abbrev = '~' if abbrev and role != 'code' else ''
+        name = f':{role}:`{abbrev}{name}`'
+    else:
+        name = name if abbrev else f'{mod_name}{name}'
 
-        return name
+    return name
+
+
+def get_parent_namespace(obj):
+    """
+    Return the enclosing namespace of ``obj`` (a class or a module).
+    """
+    fullname = get_obj_name(obj)
+    return _get_parent_namespace(fullname)
+
+
+def _get_parent_namespaces(fullname):
+    def _walk_parent_names(compos):
+        """
+        Turns "a.b.c" into [["a", "b", "c"], ["a", "b"], ["a"]]
+        """
+        return list(reversed([
+            '.'.join(x)
+            for x in itertools.accumulate(
+                compos,
+                lambda x, y: [*x, y],
+                initial=[],
+            )
+            if x
+        ]))
+
+    def gen():
+        compos = fullname.split('.')
+        if any(compo == '<locals>' for compo in compos):
+            raise ValueError(f'Cannot resolve the parent namespace of an item located inside a function: {fullname}')
+        else:
+            for _name in _walk_parent_names(compos)[1:]:
+                parent = resolve_dotted_name(_name)
+                if inspect.ismodule(parent) or isinstance(parent, type):
+                    yield (_name, parent)
+
+
+    return list(gen())
+
+
+def _get_parent_namespace(fullname):
+    parents = _get_parent_namespaces(fullname)
+    try:
+        (name, ns), *_ = parents
+    except ValueError:
+        return None
+    else:
+        return ns
 
 
 def get_common_ancestor(classes):
@@ -678,12 +809,56 @@ def _lru_memoized(first_param_maxsize, other_params_maxsize, sig_f):
     return decorator
 
 
-def resolve_dotted_name(name):
-    """Only resolve names where __qualname__ == __name__, i.e the callable is a
-    module-level name."""
-    mod_name, callable_name = name.rsplit('.', 1)
-    mod = importlib.import_module(mod_name)
-    return getattr(mod, callable_name)
+def resolve_dotted_name(name, getattr=getattr):
+    """
+    Resolve a dotted name, importing all modules necessary.
+    """
+
+    def resolve(name):
+        first, *compos = name.split('.')
+
+        try:
+            obj = importlib.import_module(first)
+        except ImportError as e:
+            try:
+                return resolve(f'builtins.{name}')
+            except AttributeError:
+                raise e
+        else:
+            visited = [first]
+            for compo in compos:
+                visited.append(compo)
+                try:
+                    importlib.import_module('.'.join(visited))
+                except ImportError:
+                    pass
+                obj = getattr(obj, compo)
+
+            return obj
+
+    # Attempt a straightforward resolution first, as get_type_hints() will not
+    # resolve e.g. modules.
+    try:
+        return resolve(name)
+    except Exception:
+        # Resolve type hints like "Dict[str, int]"
+        if '[' in name:
+            # Ensure all necessary modules are imported by resolving everything that
+            # looks like a fully qualified name.
+            items = re.findall(r'[a-zA-Z0-9_.]+', name)
+            for item in items:
+                try:
+                    resolve(item)
+                except Exception:
+                    pass
+
+            # Piggy back on get_type_hints() so that it will resolve typing annotations
+            # as well.
+            def f(x: name):
+                pass
+            return typing.get_type_hints(f, globalns=sys.modules, localns={})['x']
+        else:
+            raise
 
 
 def import_all_submodules(pkg, best_effort=False):
@@ -697,19 +872,25 @@ def import_all_submodules(pkg, best_effort=False):
         imported will be silently skipped.
     :type best_effort: bool
     """
-    return _import_all_submodules(pkg.__name__, pkg.__path__, best_effort)
+    try:
+        paths = pkg.__path__
+    except AttributeError:
+        return pkg
+    else:
+        return _import_all_submodules(pkg.__name__, pkg.__path__, best_effort)
 
 
 def _import_all_submodules(pkg_name, pkg_path, best_effort=False):
     modules = []
-    for _, module_name, _ in (
-        pkgutil.walk_packages(pkg_path, prefix=pkg_name + '.')
-    ):
+    # Silence warnings if we hit some deprecated modules
+    with warnings.catch_warnings():
+        warnings.simplefilter(action='ignore')
+
+        for _, module_name, _ in (
+            pkgutil.walk_packages(pkg_path, prefix=pkg_name + '.')
+        ):
             try:
-                # Silence warnings if we hit some deprecated modules
-                with warnings.catch_warnings():
-                    warnings.simplefilter(action='ignore')
-                    module = importlib.import_module(module_name)
+                module = importlib.import_module(module_name)
             except ImportError:
                 if best_effort:
                     pass
@@ -732,7 +913,7 @@ class UnknownTagPlaceholder:
 
 
 def docstring_update(msg):
-    """
+    r"""
     Create a class to inherit from in order to add a snippet of doc at the end
     of the docstring of all direct and indirect subclasses::
 
@@ -759,68 +940,68 @@ class Serializable(
     The following YAML tags are supported on top of what YAML provides out of
     the box:
 
-        * ``!call``: call a Python callable with a mapping of arguments:
+    * ``!call``: call a Python callable with a mapping of arguments:
 
-            .. code-block:: yaml
+      .. code-block:: yaml
 
-                # will execute:
-                # package.module.Class(arg1='foo', arg2='bar', arg3=42)
-                # NB: there is no space after "call:"
-                !call:package.module.Class
-                    arg1: foo
-                    arg2: bar
-                    arg3: 42
+          # will execute:
+          # package.module.Class(arg1='foo', arg2='bar', arg3=42)
+          # NB: there is no space after "call:"
+          !call:package.module.Class
+              arg1: foo
+              arg2: bar
+              arg3: 42
 
-        * ``!include``: include the content of another YAML file. Environment
-          variables are expanded in the given path:
+    * ``!include``: include the content of another YAML file. Environment
+      variables are expanded in the given path:
 
-            .. code-block:: yaml
+      .. code-block:: yaml
 
-                !include /foo/$ENV_VAR/bar.yml
+          !include /foo/$ENV_VAR/bar.yml
 
-          Relative paths are treated as relative to the file in which the
-          ``!include`` tag appears.
+      Relative paths are treated as relative to the file in which the
+      ``!include`` tag appears.
 
-        * ``!include-untrusted``: Similar to ``!include`` but will disable
-          custom tag interpretation when loading the content of the file. This
-          is suitable to load untrusted input. Note that the env var
-          interpolation and the relative path behavior depends on the mode of
-          the YAML parser. This means that the path itself must be trusted, as
-          this could leak environment variable values. Only the content of the
-          included file is treated as untrusted.
+    * ``!include-untrusted``: Similar to ``!include`` but will disable
+      custom tag interpretation when loading the content of the file. This
+      is suitable to load untrusted input. Note that the env var
+      interpolation and the relative path behavior depends on the mode of
+      the YAML parser. This means that the path itself must be trusted, as
+      this could leak environment variable values. Only the content of the
+      included file is treated as untrusted.
 
-        * ``!env``: take the value of an environment variable, and convert
-          it to a Python type:
+    * ``!env``: take the value of an environment variable, and convert
+      it to a Python type:
 
-            .. code-block:: yaml
+      .. code-block:: yaml
 
-                !env:int MY_ENV_VAR
+          !env:int MY_ENV_VAR
 
-            If `interpolate` is used as type, the value will be interpolated
-            using :func:`os.path.expandvars` and the resulting string
-            returned:
+      If `interpolate` is used as type, the value will be interpolated
+      using :func:`os.path.expandvars` and the resulting string
+      returned:
 
-                .. code-block:: yaml
+      .. code-block:: yaml
 
-                    !env:interpolate /foo/$MY_ENV_VAR/bar
+          !env:interpolate /foo/$MY_ENV_VAR/bar
 
-        * ``!var``: reference a module-level variable:
+    * ``!var``: reference a module-level variable:
 
-            .. code-block:: yaml
+      .. code-block:: yaml
 
-                !var package.module.var
+          !var package.module.var
 
-        * ``!untrusted``: Interpret the given string as a YAML snippet, without
-          any of the special constructor being enabled. This provides a way
-          of safely including untrusted input in the YAML document without
-          running the risk of the user being able to use e.g. ``!call``.
+    * ``!untrusted``: Interpret the given string as a YAML snippet, without
+      any of the special constructor being enabled. This provides a way
+      of safely including untrusted input in the YAML document without
+      running the risk of the user being able to use e.g. ``!call``.
 
-            .. code-block:: yaml
+      .. code-block:: yaml
 
-                # Note the "|": this allows having a multiline string, leaving
-                # its interpretation to the untrusted loader.
-                !untrusted |
-                   foo: bar
+          # Note the "|": this allows having a multiline string, leaving
+          # its interpretation to the untrusted loader.
+          !untrusted |
+                 foo: bar
 
     .. note:: Not to be used on its own - instead, your class should inherit
         from this class to gain serialization superpowers.
@@ -830,6 +1011,11 @@ class Serializable(
         'ignored': [],
         'placeholders': {},
     }
+    """
+    Attributes to be treated specially during serialization.
+
+    .. seealso:: :meth:`Serializable.__getstate__`
+    """
 
     YAML_ENCODING = 'utf-8'
     "Encoding used for YAML files"
@@ -1085,18 +1271,18 @@ class Serializable(
         """
         Filter the instance's attributes upon serialization.
 
-        The following keys in :attr:`ATTRIBUTES_SERIALIZATION` can be used to customize the serialized
-        content:
+        The following keys in :attr:`ATTRIBUTES_SERIALIZATION` can be used to
+        customize the serialized content:
 
-            * ``allowed``: list of attribute names to serialize. All other
-              attributes will be ignored and will not be saved/restored.
+        * ``allowed``: list of attribute names to serialize. All other
+          attributes will be ignored and will not be saved/restored.
 
-            * ``ignored``: list of attribute names to not serialize. All other
-              attributes will be saved/restored.
+        * ``ignored``: list of attribute names to not serialize. All other
+          attributes will be saved/restored.
 
-            * ``placeholders``: Map of attribute names to placeholder values.
-              These attributes will not be serialized, and the placeholder
-              value will be used upon restoration.
+        * ``placeholders``: Map of attribute names to placeholder values.
+          These attributes will not be serialized, and the placeholder
+          value will be used upon restoration.
 
         If both ``allowed`` and ``ignored`` are specified, ``ignored`` is
         ignored.
@@ -1126,8 +1312,7 @@ class Serializable(
 
     def __copy__(self):
         """
-        Make sure that copying the class still works as usual, without
-        dropping some attributes by defining __copy__
+        Regular shallow copy operation, without dropping any attributes.
         """
         try:
             return super().__copy__()
@@ -1144,7 +1329,7 @@ def setup_logging(filepath='logging.conf', level=None):
 
     :param filepath: the relative or absolute path of the logging
                      configuration to use. Relative path uses
-                     :attr:`lisa.utils.LISA_HOME` as base folder.
+                     :data:`lisa.utils.LISA_HOME` as base folder.
     :type filepath: str
 
     :param level: Override the conf file and force logging level. Defaults to
@@ -1536,12 +1721,17 @@ def is_monotonic(iterable, decreasing=False):
         return True
 
 
-def fixedpoint(f, init, limit=None):
+def fixedpoint(f, init, limit=None, raise_=True):
     """
     Find the fixed point of a function ``f`` with the initial parameter ``init``.
 
     :param limit: If provided, set a limit on the number of iterations.
     :type limit: int or None
+
+    :param raise_: If ``True``, will raise a :exc:`ValueError` when ``limit``
+        iterations is reached without finding a fixed point. Otherwise, simply
+        return the current value.
+    :type raise_: bool
     """
     if limit is None:
         iterable = itertools.count()
@@ -1556,7 +1746,10 @@ def fixedpoint(f, init, limit=None):
         else:
             prev = new
 
-    raise ValueError('Could not find a fixed point')
+    if raise_:
+        raise ValueError('Could not find a fixed point')
+    else:
+        return prev
 
 
 def get_common_prefix(*iterables):
@@ -1632,10 +1825,9 @@ def unzip_into(n, iterator):
 
         orig_a = [1, 3]
         orig_b = [2, 4]
-        a, b = unzip(zip(orig_a, orig_b))
-        assert a == orig_a
-        assert b == orig_b
-
+        a, b = unzip_into(2, zip(orig_a, orig_b))
+        assert list(a) == list(orig_a)
+        assert list(b) == list(orig_b)
 
     .. note:: ``n`` is needed in order to handle properly the case where an
         empty iterator is passed.
@@ -1793,7 +1985,7 @@ def is_running_sphinx():
     Returns True if the module is imported when Sphinx is running, False
     otherwise.
     """
-    return 'sphinx' in sys.modules
+    return bool(int(os.environ.get('_LISA_DOC_SPHINX_RUNNING', '0')))
 
 
 def is_running_ipython():
@@ -1842,7 +2034,7 @@ def non_recursive_property(f):
     return property(wrapper)
 
 
-def get_short_doc(obj, strip_rst=False):
+def get_short_doc(obj, strip_rst=False, style=None):
     """
     Get the short documentation paragraph at the beginning of docstrings.
 
@@ -1853,10 +2045,22 @@ def get_short_doc(obj, strip_rst=False):
     if docstring:
         docstring = split_paragraphs(docstring)[0]
         docstring = ' '.join(docstring.splitlines())
-        if not docstring.endswith('.'):
-            docstring += '.'
     else:
         docstring = ''
+
+    docstring = docstring.strip()
+
+    if docstring and not docstring.endswith('.'):
+        docstring += '.'
+
+    # Remove :meta ...: info field list, e.g. :meta public:, which we never
+    # want
+    docstring = re.sub(
+        r'^\s*:\s*meta.*$\n?',
+        '',
+        docstring,
+        re.MULTILINE,
+    )
 
     if strip_rst:
         # Remove basic reStructuredText markup
@@ -1989,11 +2193,11 @@ def kwargs_forwarded_to(f, ignore=None):
 
     The signature is modified in the following way:
 
-        * Variable keyword parameters are removed
-        * All the parameters that ``f`` take are added as keyword-only in the
-          decorated function's signature, under the assumption that
-          ``**kwargs`` in the decorated function is used to relay the
-          parameters to ``f``.
+    * Variable keyword parameters are removed
+    * All the parameters that ``f`` take are added as keyword-only in the
+      decorated function's signature, under the assumption that
+      ``**kwargs`` in the decorated function is used to relay the
+      parameters to ``f``.
 
     **Example**::
 
@@ -2147,7 +2351,7 @@ def update_wrapper_doc(func, added_by=None, sig_from=None, description=None, rem
 
         if added_by:
             if callable(added_by):
-                added_by_ = get_sphinx_name(added_by, style='rst')
+                added_by_ = get_obj_name(added_by, style='rst')
             else:
                 added_by_ = added_by
 
@@ -2538,9 +2742,12 @@ def kwargs_dispatcher(f_map, ignore=None, allow_overlap=True):
     return decorator
 
 
-DEPRECATED_MAP = {}
+_DEPRECATED_MAP = {}
 """
 Global dictionary of deprecated classes, functions and so on.
+
+.. warning:: This is updated by :func:`deprecate`, so the content will evolve
+   as modules get imported.
 """
 
 
@@ -2600,7 +2807,12 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
                 with contextlib.suppress(Exception):
                     doc_url = f' (see: {get_doc_url(replaced_by)})'
 
-            replacement_msg = f', use {get_sphinx_name(replaced_by, style=style)} instead{doc_url}'
+            if isinstance(replaced_by, str):
+                _replaced_by = str(replaced_by)
+            else:
+                _replaced_by = get_obj_name(replaced_by, style=style)
+
+            replacement_msg = f', use {_replaced_by} instead{doc_url}'
         else:
             replacement_msg = ''
 
@@ -2609,7 +2821,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
         else:
             removal_msg = ''
 
-        name = get_sphinx_name(deprecated_obj, style=style, abbrev=True)
+        name = get_obj_name(deprecated_obj, style=style, abbrev=True)
         if parameter:
             if style == 'rst':
                 parameter = f'``{parameter}``'
@@ -2630,7 +2842,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
         )
 
     def decorator(obj):
-        obj_name = get_sphinx_name(obj)
+        obj_name = get_obj_name(obj)
 
         if removed_in and current_version >= removed_in:
             raise DeprecationWarning(f'{obj_name} was marked as being removed in version {format_version(removed_in)} but is still present in current version {format_version(current_version)}')
@@ -2706,11 +2918,9 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
 
         extra_doc = textwrap.dedent(
             """
-        .. attention::
+        .. deprecated:: {deprecated_in}
 
-            .. deprecated:: {deprecated_in}
-
-            {msg}
+        {msg}
         """.format(
                 deprecated_in=deprecated_in if deprecated_in else '<unknown>',
                 # The documentation already creates references to the replacement,
@@ -2755,7 +2965,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
         # object, so that what the rest of the world will see is consistent
         # with the 'obj' key
         if register_deprecated_map:
-            DEPRECATED_MAP[obj_name] = {
+            _DEPRECATED_MAP[obj_name] = {
                 'obj': return_obj,
                 'replaced_by': replaced_by,
                 'msg': msg,
@@ -3041,7 +3251,8 @@ class ExekallTaggable:
     @abc.abstractmethod
     def get_tags(self):
         """
-        :return: Dictionary of tags and tag values
+        Dictionary of tags and tag values.
+
         :rtype: dict(str, object)
         """
         return {}
@@ -3220,63 +3431,48 @@ def checksum(file_, method):
     return result()
 
 
-
-def get_sphinx_role(obj):
+def get_sphinx_role(obj, name=None):
     """
     Return the reStructuredText Sphinx role of a given object.
     """
-    if isinstance(obj, type):
-        return 'class'
-    elif callable(obj):
-        if '<locals>' in obj.__qualname__:
+    def get(obj):
+        if isinstance(obj, type):
+            return 'class'
+        elif _is_typing_hint(obj):
             return 'code'
-        elif '.' in obj.__qualname__:
-            return 'meth'
+        elif inspect.ismodule(obj):
+            return 'mod'
+        elif inspect.isgetsetdescriptor(obj) or inspect.isdatadescriptor(obj):
+            return 'attr'
+        elif callable(obj):
+            try:
+                name = obj.__qualname__
+            except AttributeError:
+                return 'func'
+            else:
+                if '<locals>' in name or '<lambda>' in name:
+                    return None
+                elif '.' in name:
+                    return 'meth'
+                else:
+                    return 'func'
         else:
-            return 'func'
-    else:
-        return 'code'
+            return None
 
-def get_sphinx_name(obj, style=None, abbrev=False):
-    """
-    Get a Sphinx-friendly name of an object.
+    role = get(obj) or get(inspect.unwrap(obj))
+    if role is None:
+        if name is None:
+            role = 'code'
+        else:
+            parent = _get_parent_namespace(name)
+            if isinstance(parent, type):
+                role = 'attr'
+            elif inspect.ismodule(parent):
+                role = 'data'
+            else:
+                role = 'code'
 
-    :param obj: The object to take the name from
-    :type obj: object or type
-
-    :param style: If ``rst``, a reStructuredText reference will be returned.
-        Otherwise a bare name is returned.
-    :type style: str or None
-
-    :param abbrev: If ``True``, a short name will be used with ``style='rst'``.
-    :type abbrev: bool
-    """
-    if isinstance(obj, (staticmethod, classmethod)):
-        obj = obj.__func__
-    elif isinstance(obj, property):
-        obj = obj.fget
-
-    try:
-        mod = obj.__module__ + '.'
-    except AttributeError:
-        mod = ''
-
-    try:
-        qualname = obj.__qualname__
-    except AttributeError:
-        qualname = str(obj)
-
-    name = mod + qualname
-
-    if style == 'rst':
-        return ':{}:`{}{}{}`'.format(
-            get_sphinx_role(obj),
-            '~' if abbrev else '',
-            mod, qualname
-        )
-    else:
-        return name
-
+    return role
 
 
 def newtype(cls, name, doc=None, module=None):
@@ -3501,6 +3697,12 @@ class PartialInit(metaclass=_PartialInitMeta):
         """
         def __init__(self, f):
             self.f = f
+            functools.update_wrapper(self, f)
+
+        # Ensure metaprogramming functions like get_obj_name() work properly
+        def __getattr__(self, attr):
+            return delegate_getattr(self, 'f', attr)
+
 
     @classmethod
     def factory(cls, f):
@@ -3693,7 +3895,7 @@ def chain_cm(*fs):
     This is equivalent to::
 
         @contextlib.contextmanager
-        def combined(x):
+        def combined(fs):
             fs = list(reversed(fs))
 
             with fs[0](x) as y:
@@ -3710,7 +3912,7 @@ def chain_cm(*fs):
         @contextlib.contextmanager
         def f(a, b):
             print(f'f a={a} b={b}')
-            yield a * 2
+            yield a + 10
 
         @contextlib.contextmanager
         def g(x):
@@ -3723,8 +3925,8 @@ def chain_cm(*fs):
 
         # Would print:
         #  f a=1 b=2
-        #  g x=2
-        #  final x=2
+        #  g x=11
+        #  final x=11
     """
 
     @contextlib.contextmanager
@@ -3745,14 +3947,14 @@ class DirCache(Loggable):
 
     :param category: Unique name for the cache category. This allows an
         arbitrary number of categories to be used under
-        :const:`lisa.utils.LISA_CACHE_HOME`.
+        :data:`lisa.utils.LISA_CACHE_HOME`.
     :type category: str
 
     :param populate: Callback to populate a new cache entry if none is found.
         It will be passed the following parameters:
 
-            * The key that is being looked up
-            * The path to populate
+        * The key that is being looked up
+        * The path to populate
 
         It must return a subfolder of the passed path to populate, or ``None``,
         which is the same as returning the passed path.
@@ -4166,11 +4368,183 @@ def delegate_getattr(x, delegate_to, attr):
 
     :param attr: Name of the attribute to lookup.
     :type attr: str
-    """
 
+    .. seealso:: :class:`DelegateToAttr`
+    """
     # Prevent infinite recursion by calling the base class __getattr__
     # implementation
     x = super(type(x), x).__getattribute__(delegate_to)
-    return getattr(x, attr)
+
+    # Allow using delegate_getattr() in __getattribute__ implementation where
+    # the attribute being lookedup might be the attribute to delegate to.
+    if attr == delegate_to:
+        return x
+    else:
+        return getattr(x, attr)
+
+
+class _DelegatedBase:
+    pass
+
+
+def DelegateToAttr(attr, attr_classes=None):
+    """
+    Implement delegation of attribute lookup to attribute named ``attr`` on
+    instances of the classes specified by ``attr_classes``.
+
+    :param attr_classes: List of classes delegated to. Note that Liskov
+        substitution is assumed to work, so the documentation will list all
+        items made available by all subclasses of any class specified here.
+        This allows specifying e.g. an :class:`abc.ABC` base and let the
+        documentation reflect what is made available by every possible
+        implementation. This means that there could be a runtime
+        :exc:`AttributeError` when accessing some of these attributes, but it
+        is deemed to be more acceptable than simply not documenting those.
+    :type attr_classes: list(type) or None
+
+    The documentation will list all the attributes and methods that the class
+    gains by delegating to the attribute thanks to ``attr_classes``.
+
+    .. seealso:: :func:`delegate_getattr`
+    """
+
+    delegated_to = attr
+    delegated_to_classes = list(attr_classes or [])
+
+    def is_private(name):
+        return name.startswith('_')
+
+    if delegated_to_classes:
+        of_type = ' or '.join(
+            get_obj_name(_cls, style='rst')
+            for _cls in delegated_to_classes
+            if not is_private(_cls.__qualname__)
+        )
+        of_type = f' of type {of_type}' if of_type else ''
+    else:
+        of_type = ''
+
+    if is_private(delegated_to):
+        pretty = 'a private attribute'
+    else:
+        pretty = f'`self.{delegated_to}`'
+    pretty = f'{pretty}{of_type}'
+
+    class _DelegatedToAttr(_DelegatedBase):
+        _ATTRS_DELEGATED_TO_CLASSES = delegated_to_classes
+
+        def __getattr__(self, attr):
+            try:
+                return delegate_getattr(self, delegated_to, attr)
+            except AttributeError as e:
+                try:
+                    sup = super().__getattr__
+                except AttributeError:
+                    raise e
+                else:
+                    return sup(attr)
+
+        # f-string cannot be used in the docstring syntax, so do it manually.
+        __getattr__.__doc__ = f'Delegate attribute lookup to {pretty}.'
+
+        @classmethod
+        def __instance_dir__(cls):
+            def get_dir(cls):
+                if cls is None:
+                    return {}
+                else:
+                    try:
+                        instance_dir = cls.__instance_dir__
+                    except AttributeError:
+                        return {}
+                    else:
+                        return dict(instance_dir())
+
+            return dict(ChainMap(*(
+                get_dir(cls)
+                for cls in reversed(delegated_to_classes)
+            )))
+
+        def __dir__(self):
+            delegated = getattr(self, delegated_to)
+            return sorted(set(super().__dir__()) | dir(delegated))
+
+    return _DelegatedToAttr
+
+
+@deprecate(deprecated_in='3.0', removed_in='4.0', replaced_by=get_obj_name)
+def get_cls_name(*args, **kwargs):
+    return get_obj_name(**args, **kwargs)
+
+
+@deprecate(deprecated_in='3.0', removed_in='4.0', replaced_by=get_obj_name)
+def get_sphinx_name(*args, **kwargs):
+    return get_obj_name(**args, **kwargs)
+
+
+def _make_mro(classes):
+    def flatten(tree):
+        def go(tree):
+            return itertools.chain.from_iterable(
+                (
+                    [node[0]]
+                    if isinstance(node, tuple) else
+                    go(node)
+                )
+                for node in tree
+            )
+        return list(reversed(list(go(tree))))
+
+    classes = sorted(classes, key=attrgetter('__qualname__'))
+    # Ensure classes appear in inheritance order, so that an MRO can be
+    # established.
+    tree = inspect.getclasstree(classes, unique=True)
+    ordered = flatten(tree)
+    return ordered
+
+
+def _solve_metaclass_conflict(*bases):
+    """
+    Solve the metaclass conflict by making a metaclass inheriting from all the
+    metaclasses.
+    """
+    metaclasses = deduplicate(
+        [
+            type(base)
+            for base in bases
+        ],
+        keep_last=False,
+    )
+    ordered = _make_mro(metaclasses)
+
+    class _Meta(*ordered):
+        pass
+
+    class _Base(*bases, metaclass=_Meta):
+        pass
+
+    return _Base
+
+
+def ffill(iterator, select=lambda x: x is not None, init=None):
+    """
+    Forward fill an iterator with the last selected value.
+
+    :param iterator: Iterator to fill.
+    :type iterator: collections.abc.Iterable
+
+    :param select: Select items to preserve (return ``True``) and items to
+        replace with the last selected value (return ``False``).
+    :type select: collections.abc.Callable
+
+    :param init: Value to use before the first ``select``-ed item.
+    :type init: object
+    """
+    curr = init
+    for x in iterator:
+        if select(x):
+            curr = x
+
+        yield curr
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

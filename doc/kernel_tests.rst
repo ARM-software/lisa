@@ -184,8 +184,4 @@ It can be executed using:
 API
 ===
 
-Base classes
-++++++++++++
-
-.. automodule:: lisa.tests.base
-   :members:
+See :mod:`lisa.tests.base`.

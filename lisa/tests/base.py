@@ -53,7 +53,7 @@ from lisa.target import Target
 from lisa.utils import (
     Serializable, memoized, lru_memoized, ArtifactPath, non_recursive_property,
     update_wrapper_doc, ExekallTaggable, annotations_from_signature,
-    get_sphinx_name, optional_kwargs, group_by_value, kwargs_dispatcher,
+    get_obj_name, optional_kwargs, group_by_value, kwargs_dispatcher,
     dispatch_kwargs, Loggable, kwargs_forwarded_to, docstring_update,
     is_running_ipython,
 )
@@ -439,16 +439,15 @@ class TestBundleMeta(abc.ABCMeta):
 
     Method with a return annotation of :class:`ResultBundleBase` are wrapped to:
 
-        * Update the ``context`` attribute of a returned
-          :class:`ResultBundleBase`
+    * Update the ``context`` attribute of a returned :class:`ResultBundleBase`
 
-        * Add an ``undecided_filter`` attribute, with
-          :meth:`add_undecided_filter` decorator, so that any test method can
-          be used as a pre-filter for another one right away.
+    * Add an ``undecided_filter`` attribute, with :meth:`add_undecided_filter`
+      decorator, so that any test method can be used as a pre-filter for
+      another one right away.
 
-        * Wrap ``_from_target`` to provide a single ``collector`` parameter,
-          built from the composition of the collectors provided by
-          ``_make_collector`` methods in the base class tree.
+    * Wrap ``_from_target`` to provide a single ``collector`` parameter, built
+      from the composition of the collectors provided by ``_make_collector``
+      methods in the base class tree.
 
     If ``_from_target`` is defined in the class but ``from_target`` is not, a
     stub is created and the annotation of ``_from_target`` is copied to the
@@ -589,7 +588,7 @@ class TestBundleMeta(abc.ABCMeta):
 
                     {}
                     """).strip().format(
-                        get_sphinx_name(func, style='rst', abbrev=True),
+                        get_obj_name(func, style='rst', abbrev=True),
                         inspect.getdoc(func),
                     ),
             )
@@ -625,6 +624,12 @@ class TestBundleMeta(abc.ABCMeta):
 
         func.undecided_filter = decorator
         return func
+
+    # Ensure that the methods become recognized as available on classes using
+    # us as a metaclass:
+    # https://docs.python.org/3/library/inspect.html#inspect.getmembers
+    def __dir__(metacls):
+        return super().__dir__() + ['add_undecided_filter']
 
     @classmethod
     def __prepare__(metacls, cls_name, bases, **kwargs):
@@ -1347,7 +1352,7 @@ class FtraceTestBundleBase(TestBundleBase):
     @lru_memoized(first_param_maxsize=5)
     def trace(self):
         """
-        :returns: a :class:`lisa.trace._TraceView`
+        The :class:`~lisa.trace.Trace` for the collected trace.dat file.
 
         All events specified in ``FTRACE_CONF`` are parsed from the trace,
         so it is suitable for direct use in methods.
@@ -1412,6 +1417,9 @@ class TestConfBase(SimpleMultiSrcConf):
     the actual top-level key will be ``test-conf/foo``.
     """
     def __init_subclass__(cls, **kwargs):
+        """
+        :meta private:
+        """
         structure = copy.copy(cls.STRUCTURE)
         structure.levels = ['test-conf', *structure.levels]
         cls.STRUCTURE = structure
@@ -1761,8 +1769,8 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
     @lru_memoized(first_param_maxsize=5)
     def trace(self):
         """
-        :returns: a :class:`lisa.trace._TraceView` cropped to the window given
-            by :meth:`trace_window`.
+        A :class:`lisa.trace.Trace` cropped to the window given by
+        :meth:`trace_window`.
 
         .. seealso:: :attr:`FtraceTestBundleBase.trace`
         """

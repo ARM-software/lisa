@@ -393,7 +393,7 @@ class TestTrace(TraceTestCase):
 
 
 class TestTraceProxy(TraceTestCase):
-    """Smoke tests for LISA's Trace class"""
+    """Smoke tests for LISA's TraceProxy class"""
     def _wrap_trace(self, trace):
         proxy = _TraceProxy(None)
         proxy._set_trace(trace)

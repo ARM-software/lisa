@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""
+Linux kernel idle states analysis.
+"""
 
 from functools import reduce
 import operator

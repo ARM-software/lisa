@@ -13,23 +13,18 @@ Engine
    exekall.engine so jumping to that reference will lead at the right place.
    
 .. automodule:: exekall.valuedb
-   :members:
 
 .. automodule:: exekall.engine
-   :members:
 
 Customization
 =============
 
 .. automodule:: exekall.customization
-   :members:
 
 Utils
 =====
 
 .. automodule:: exekall.utils
-   :members:
 
 .. automodule:: exekall._utils
-   :members:
 

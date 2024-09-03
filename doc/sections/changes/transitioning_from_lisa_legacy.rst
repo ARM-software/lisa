@@ -1,145 +1,3 @@
-**************
-APIs stability
-**************
-.. _api-stability:
-
-APIs inside LISA are split between private and public ones:
-
-  * Public APIs can be expected to stay stable, or undergo a deprecation cycle
-    where they will trigger an :exc:`DeprecationWarning` and be documented as
-    such before being removed. Exceptions to that rule are documented explicitly
-    as such.
-
-  * Private APIs can be changed at all points.
-
-Public APIs consist of classes and functions with names not starting with an
-underscore, defined in modules with a name not starting with an underscore (or
-any of its parent modules or containing class).
-
-Everything else is private.
-
-.. note:: User subclassing is usually more at risk of breakage than other uses
-    of the APIs. Behaviors are usually not restricted to a single method, which
-    means the subclass would have to override multiple of them to preserve
-    important API laws. This is unfortunately not future-proof, as new versions
-    can add new methods that would also require being overridden and kept in
-    sync. If for some reason subclassing is required, please get in touch in the
-    `GitLab issue tracker <https://gitlab.arm.com/tooling/lisa/-/issues>`_
-    before relying on that for production.
-
-.. note:: Instance attributes are considered public following the same
-    convention as functions and classes. Only reading from them is expected in
-    user code though, any attempt to modify or delete them is outside of the
-    bounds of what the public API exposes (unless stated explicitly otherwise).
-    This means that a minor version change could swap an instance attribute for
-    a read-only property. It also means that any problem following the
-    modification of an attribute by a user will not be considered as a bug.
-
-**********
-Versioning
-**********
-
-LISA releases on :ref:`PyPI<setup-pypi>` are done following semantic versioning
-as defined in https://semver.org/. As pointed by `api-stability`_, classes are
-split on the following axes for the purpose of semver tracking:
-
-  * A set of methods and attributes in general: Adding a method entails a minor
-    version bump, even though it can technically cause a breaking change in a
-    user subclass that happened to use the same name.
-
-  * Inheritance tree: the MRO of a class is not considered as part of the stable
-    public API and can therefore change at any point. Classes named ``*Base``
-    can usually be relied on for ``issubclass()`` and ``isinstance()`` but that
-    is not a hard rule. The reason behind that is that even adding a class to
-    the hierarchy can break existing uses of ``isinstance()`` so there is
-    essentially no way of making any change to the inheritance tree that is not
-    a breaking change.
-
-*********
-Changelog
-*********
-
-The changelog cannot be generated on the master branch anymore.
-Please see the `latest documentation <https://tooling.sites.arm.com/lisa/latest/changes.html>`__
-
-****************
-Breaking changes
-****************
-
-Here is a list of commits introducing breaking changes in LISA:
-
-.. exec::
-
-    from lisa.utils import LISA_HOME
-    from lisa._git import find_commits, log
-
-    pattern = 'BREAK'
-
-    repo = LISA_HOME
-    commits = find_commits(repo, grep=pattern)
-    ignored_sha1s = {
-        '30d75656c7ff8a159dd52164269e69eed6dfccad',
-    }
-    for sha1 in commits:
-        if sha1 in ignored_sha1s:
-            continue
-        commit_log = log(repo, ref=sha1, format='%cd%n%H%n%B')
-        entry = '.. code-block:: text\n\n  {}\n'.format(commit_log.replace('\n', '\n  '))
-        print(entry)
-
-***************
-Deprecated APIs
-***************
-
-Here is a list of deprecated APIs in LISA, sorted by version in which they will
-be removed:
-
-.. exec::
-
-    from lisa._doc.helpers import get_deprecated_table
-    print(get_deprecated_table())
-
-
-***************
-Release Process
-***************
-
-Making a new release involves the following steps:
-
-  1. Update ``version_tuple`` in :mod:`lisa.version`.
-
-  2. Ensure LISA as a whole refers to relevant versions of:
-
-     * Alpine Linux in :mod:`lisa._kmod`
-     * Ubuntu in ``Vagrantfile``
-     * Binary dependencies in :mod:`lisa._assets`
-     * Android SDK installed by ``install_base.sh``
-     * Java version used by Android SDK in ``install_base.sh``
-
-  3. Ensure LISA can work with currently published version of devlib.
-
-  4. Create a ``vX.Y.Z`` tag.
-
-  5. Make the Python wheel. See ``tools/make-release.sh`` for some
-     indications on that part.
-
-  6. Install that wheel in a _fresh_ :ref:`Vagrant VM<setup-vagrant>`. Ensure
-     that the VM is reinstalled from scratch and that the vagrant box in use is
-     up to date.
-
-  7. Run ``tools/tests.sh`` in the VM and ensure no deprecated item scheduled
-     for removal in the new version is still present in the sources (should
-     result in import-time exceptions).
-
-  8. Ensure all CIs in use are happy.
-
-  9. Push the ``vX.Y.Z`` tag in the main repo
-
-  10. Update the ``release`` branch to be at the same commit as the ``vX.Y.Z`` tag.
-
-  11. Upload the wheel on PyPI.
-
-
 ******************************
 Transitioning from LISA legacy
 ******************************
@@ -193,16 +51,15 @@ We now mandate the use of absolute imports, which look like this::
   from lisa.trace import Trace
 
 .. tip::
-
-  This can help you figure out what you are really importing:
+  This can help you figure out what you are really importing::
 
     >>> import trace
     >>> print(trace.__path__)
     /usr/lib/python3.5/trace.py
 
-   if that doesn't work you can try
+  If that doesn't work you can try::
 
-   >>> print(xxx.__file__)
+    >>> print(xxx.__file__)
 
 .. warning::
 

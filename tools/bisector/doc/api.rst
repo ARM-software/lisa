@@ -10,5 +10,4 @@ serialized format, new steps constructors must be written in a similar way to
 exisiting ones.
 
 .. automodule:: bisector.main
-   :members:
 
