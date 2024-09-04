@@ -369,23 +369,19 @@ html_theme_options = {
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'LISAdoc'
 
-rst_prolog = """
-.. attention::
+html_theme_options['announcement'] = f'''
+<p>
+<span class="versionmodified deprecated">
+    This documentation was obtained by building the "master" git branch. LISA
+    project has moved to the "main" branch.  The "master" branch is now a
+    mirror of "main" but will eventually be abandonned, please see the
+    <a href="https://tooling.sites.arm.com/lisa/latest">latest
+    documentation</a>.
+</span>
+</p>
 
-    .. raw:: html
-
-        <div style="background-color: #f44336; color: #ffffff;">
-
-    This documentation was obtained by building the "master" git branch.
-    LISA project has moved to the "main" branch.
-    The "master" branch is now a mirror of "main" but will eventually be abandonned, please see the `latest documentation <https://tooling.sites.arm.com/lisa/latest>`__.
-
-    .. raw:: html
-
-        </div>
-"""
-
-
+{html_theme_options.get('announcement', '')}
+'''
 
 # -- Options for LaTeX output ---------------------------------------------
 
