@@ -43,8 +43,6 @@ HWMON
 The ``hwmon`` is a generic Linux kernel subsystem, providing access to hardware
 monitoring components like temperature or voltage/current sensors.
 
-.. TODO:: code snippet
-
 Arm Energy probe (AEP)
 ++++++++++++++++++++++
 
