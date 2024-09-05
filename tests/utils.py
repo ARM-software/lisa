@@ -47,7 +47,7 @@ def create_local_target():
     """
     :returns: A localhost :class:`lisa.target.Target` instance
     """
-    return Target.from_conf(conf=HOST_TARGET_CONF, plat_info=HOST_PLAT_INFO)
+    return Target.from_conf(conf=HOST_TARGET_CONF, plat_info=HOST_PLAT_INFO, lazy_platinfo=True)
 
 
 class StorageTestCase(TestCase):
