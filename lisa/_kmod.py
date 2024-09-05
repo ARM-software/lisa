@@ -1608,28 +1608,30 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
 
         make_vars = build_conf.get('make-variables', {})
 
-        if abi == LISA_HOST_ABI:
-            cross_compiles = ['']
-        else:
+        try:
+            cross_compiles = [make_vars['CROSS_COMPILE']]
+        except KeyError:
             try:
-                cross_compiles = [make_vars['CROSS_COMPILE']]
+                cross_compiles = [os.environ['CROSS_COMPILE']]
             except KeyError:
-                try:
-                    cross_compiles = [os.environ['CROSS_COMPILE']]
-                except KeyError:
-                    if abi == 'arm64':
-                        cross_compiles = ['aarch64-linux-gnu-', 'aarch64-none-linux-gnu-', 'aarch64-none-elf-', 'aarch64-linux-android-', 'aarch64-none-linux-android-']
-                    elif abi == 'armeabi':
-                        cross_compiles = ['arm-linux-gnueabi-', 'arm-none-linux-gnueabi-', 'arm-linux-eabi-', 'arm-none-linux-eabi-', 'arm-none-eabi-']
-                    elif abi == 'x86':
-                        cross_compiles = ['i686-linux-gnu-']
-                    else:
-                        cross_compiles = ['']
+                if abi == 'arm64':
+                    cross_compiles = ['aarch64-linux-gnu-', 'aarch64-none-linux-gnu-', 'aarch64-none-elf-', 'aarch64-linux-android-', 'aarch64-none-linux-android-']
+                elif abi == 'armeabi':
+                    cross_compiles = ['arm-linux-gnueabi-', 'arm-none-linux-gnueabi-', 'arm-linux-eabi-', 'arm-none-linux-eabi-', 'arm-none-eabi-']
+                elif abi == 'x86':
+                    cross_compiles = ['i686-linux-gnu-']
+                else:
+                    cross_compiles = ['']
+                    if abi != LISA_HOST_ABI:
                         logger.error(f'ABI {abi} not recognized, CROSS_COMPILE env var needs to be set')
 
-                    logger.debug(f'CROSS_COMPILE env var not set, assuming "{cross_compiles}"')
+                logger.debug(f'CROSS_COMPILE env var not set, assuming "{cross_compiles}"')
+
+        if abi == LISA_HOST_ABI:
+            cross_compiles.insert(0, '')
 
         cross_compiles = cross_compiles or ['']
+        cross_compiles = deduplicate(cross_compiles, keep_last=False)
 
         # The format of "ccs" dict is:
         # (CC=, CROSS_COMPILE=): <binary name>
