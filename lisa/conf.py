@@ -199,7 +199,7 @@ class KeyDescBase(abc.ABC):
         return self.parent.path + curr
 
     @abc.abstractmethod
-    def get_help(self, style=None, last=False):
+    def get_help(self, style=None, last=False, children=True):
         """
         Get a help message describing the key.
 
@@ -208,6 +208,10 @@ class KeyDescBase(abc.ABC):
 
         :param last: ``True`` if this is the last item in a list.
         :type last: bool
+
+        :param children: If ``True``, include the help of any children of the
+            current level.
+        :type children: bool
         """
 
     @abc.abstractmethod
@@ -310,7 +314,7 @@ class KeyDesc(KeyDescBase):
         if not isinstance(val, DeferredValue):
             checkinstance(key, val, classinfo)
 
-    def get_help(self, style=None, last=False):
+    def get_help(self, style=None, last=False, children=True):
         base_fmt = '{prefix}{key} ({classinfo}){prefixed_help}.'
         if style == 'rst':
             prefix = '* '
@@ -699,21 +703,35 @@ class LevelKeyDesc(KeyDescBase, Mapping):
         for key, val in conf.items():
             self[key].validate_val(val)
 
-    def get_help(self, style=None, last=False):
-        idt = '  ' if style == 'rst' else self._INDENTATION
-        prefix = '*' if style == 'rst' else ('└' if last else '├')
+    def get_help(self, style=None, last=False, children=True):
+        name = self.name
+
+        if style == 'rst':
+            idt = '  '
+            prefix = f'* {name}:'
+        elif style == 'yaml':
+            idt = self._INDENTATION
+            prefix = ''
+        else:
+            idt = self._INDENTATION
+            prefix = '└' if last else '├'
+            prefix = f'{prefix} {name}:'
+
         nl = '\n' + idt
         _help = ' ' + self.help if self.help else ''
         suffix = (nl * 2) if style == 'rst' else nl
-        help_ = f'{prefix} {self.name}:{_help}{suffix}'
-        last = len(self.children) - 1
-        help_ += suffix.join(
-            key_desc.get_help(
-                style=style,
-                last=i == last,
-            ).replace('\n', nl)
-            for i, key_desc in enumerate(self.children)
-        )
+        help_ = f'{prefix}{_help}{suffix}'
+
+        if children:
+            last = len(self.children) - 1
+            help_ += suffix.join(
+                key_desc.get_help(
+                    style=style,
+                    last=i == last,
+                ).replace('\n', nl)
+                for i, key_desc in enumerate(self.children)
+            )
+
         if style == 'rst':
             help_ += '\n'
 
@@ -2033,7 +2051,7 @@ class SimpleMultiSrcConf(MultiSrcConf):
         """
 
         def format_comment(key_desc):
-            comment = key_desc.get_help(style='yaml')
+            comment = key_desc.get_help(style='yaml', children=False)
 
             if comment:
                 return (comment[0].upper() + comment[1:]).strip()
