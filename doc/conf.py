@@ -29,9 +29,9 @@ import importlib
 from operator import attrgetter
 import pickle
 import shutil
+import shlex
 
 from sphinx.domains.python import PythonDomain
-
 
 # Signal to lisa.utils.is_running_sphinx() that we are indeed running under
 # sphinx before we import anything
@@ -45,6 +45,7 @@ sys.path.insert(0, os.path.abspath('../'))
 # Import our packages after modifying sys.path
 import lisa
 from lisa.utils import sphinx_nitpick_ignore, setup_logging, get_obj_name, DirCache
+from lisa.version import VERSION_TOKEN
 from lisa._doc.helpers import (
     autodoc_process_test_method, autodoc_process_analysis_events,
     autodoc_process_analysis_plots, autodoc_process_analysis_methods,
@@ -56,7 +57,45 @@ from lisa._doc.helpers import (
 
 import devlib
 
-def prepare(home, enable_plots):
+
+RTD = (os.environ.get('READTHEDOCS', False) == 'True')
+
+_NO_DEFAULT = object()
+def getvar(name, default=_NO_DEFAULT):
+    try:
+        v = os.environ[name]
+    except KeyError as e:
+        if default is _NO_DEFAULT:
+            raise e
+        else:
+            return default
+    else:
+        if RTD:
+            # TODO: workaround this readthedocs issue:
+            # https://github.com/readthedocs/readthedocs.org/issues/8636
+            def unquote(v):
+                try:
+                    _v = shlex.split(v)
+                # Not quoted in the first place
+                except ValueError:
+                    return v
+                else:
+                    try:
+                        v, = _v
+                    # More than one item, this means the string was not quoted
+                    except ValueError:
+                        return v
+                    else:
+                        return v
+
+            v = unquote(v)
+        return v
+
+
+def prepare(home, enable_plots, outdir):
+    configs = {}
+    outdir = Path(outdir).resolve()
+
     # This ugly hack is required because by default TestCase.__module__ is
     # equal to 'case', so sphinx replaces all of our TestCase uses to
     # unittest.case.TestCase, which doesn't exist in the doc.
@@ -111,6 +150,66 @@ def prepare(home, enable_plots):
         env=source_env,
     )
     os.environ.update(json.loads(out))
+
+
+
+    default_version = getvar('READTHEDOCS_VERSION') if RTD else VERSION_TOKEN
+    doc_version = getvar('LISA_DOC_VERSION', default_version)
+
+    try:
+        unversioned_url = getvar('LISA_DOC_BASE_URL')
+    # Local build
+    except KeyError:
+        base_url = f'file:///{outdir}'
+        versions = [
+            {
+                'name': doc_version,
+                'version': doc_version,
+                'url': base_url,
+            }
+        ]
+    else:
+        unversioned_url = str(unversioned_url).rstrip('/')
+
+        try:
+            versions = getvar('LISA_DOC_ALL_VERSIONS')
+        except KeyError:
+            versions = [doc_version]
+        else:
+            versions = json.loads(versions)
+
+        versions = [
+            {
+                'name': version,
+                'version': version,
+                'url': f'{unversioned_url}/{version}',
+            }
+            for version in versions
+        ]
+        base_url = f'{unversioned_url}/{doc_version}'
+
+    versions_filename = 'versions.json'
+    versions_path = outdir / versions_filename
+    with open(versions_path, 'w') as f:
+        json.dump(versions, f)
+
+    def update_theme_options(existing):
+        existing = existing or {}
+        return {
+            **existing,
+            'switcher': {
+                # TODO: If base_url is a file:/// URL, the browser will forbid
+                # the JS code access to the local file, so the switcher will be
+                # empty. Instead, this can be used:
+                # python -m http.server -d doc/_build/html/
+                'json_url': f'{base_url}/{versions_filename}',
+                'version_match': doc_version,
+            }
+        }
+
+    configs['html_theme_options'] = update_theme_options
+    configs['html_title'] = lambda _: f'LISA {doc_version} documentation'
+
 
     # Re-run the notebook to ensure the version of bokeh used is the same as
     # the one that will be added via html_js_files. Otherwise, the plot display
@@ -181,7 +280,7 @@ def prepare(home, enable_plots):
                 Path(home, 'doc', 'workflows', 'ipynb') / _path,
             )
 
-    return plots
+    return (plots, configs)
 
 
 
@@ -198,18 +297,11 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.doctest',
     'sphinx.ext.intersphinx',
-    'sphinx.ext.todo',
-    'sphinx.ext.coverage',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
-    'sphinx.ext.inheritance_diagram',
     'sphinxcontrib.plantuml',
     'nbsphinx',
 ]
-
-RTD = (os.getenv('READTHEDOCS') == 'True')
-if RTD:
-    pass
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -299,6 +391,7 @@ else:
 html_theme_options = {
     # Increase show_toc_level value to get API listings in sidebar
     "show_toc_level": 2,
+    'navbar_start': ['navbar-logo', 'version-switcher']
 }
 
 # Add any paths that contain custom themes here, relative to this directory.
@@ -537,11 +630,12 @@ def setup(app):
     # folder, which is not what we want here.
     home = Path(__file__).parent.parent.resolve()
 
-    enable_plots = bool(int(os.environ.get('LISA_DOC_BUILD_PLOT', '1')))
+    enable_plots = bool(int(getvar('LISA_DOC_BUILD_PLOT', '1')))
 
-    plots = prepare(
+    plots, configs = prepare(
         home=home,
         enable_plots=enable_plots,
+        outdir=Path(app.outdir),
     )
 
     _autodoc_process_analysis_plots_handler = functools.partial(
@@ -565,6 +659,20 @@ def setup(app):
     class ExecState:
         def __init__(self, plots):
             self.plots = plots
+
+    def update_config(app):
+        conf = {
+            # html_theme_options has already been read from app.config by the
+            # time build-inited is called, so update the app.builder instead:
+            # https://chrisholdgraf.com/blog/2022/sphinx-update-config/
+            'html_theme_options': (app.builder, 'theme_options'),
+        }
+        for k, update in configs.items():
+            _conf, _k  = conf.get(k, (app.config, k))
+            v = getattr(_conf, _k, None)
+            _v = update(v)
+            setattr(_conf, _k, _v)
+    app.connect("builder-inited", update_config)
 
     app.connect('warn-missing-reference', _intersphinx_warn_missing_reference_handler, priority=0)
     app.connect('autodoc-process-docstring', autodoc_process_test_method)

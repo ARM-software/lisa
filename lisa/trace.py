@@ -7858,7 +7858,7 @@ class FtraceCollector(CollectorBase, Configurable):
 
         # trace-cmd start complains if given these events, even though they are
         # valid
-        avoided = set(target.list_directory(target.path.join(tracing_path, 'events', 'ftrace')))
+        avoided = set(target.list_directory(target.path.join(tracing_path, 'events', 'ftrace'), as_root=True))
 
         available = set(
             event.split(':', 1)[1]

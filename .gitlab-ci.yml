@@ -262,6 +262,7 @@ pages:
             upgrade_packages
             audit
 
+            export LISA_DOC_VERSION="$publish_as"
             export LC_ALL=C
             local doctree=$(mktemp -d --suffix "-doctree")
             cd ./doc && sphinx-build -b html -n --no-color -W --keep-going -T -j auto -d "$doctree" . "$out/$publish_as"
@@ -278,6 +279,9 @@ pages:
           fi
       }
 
+      export LISA_DOC_BASE_URL="https://tooling.sites.arm.com/lisa"
+      # Provide the list of versions for the version switcher
+      export LISA_DOC_ALL_VERSIONS='["main", "preview", "master"]'
       fail build_branch main main
       fail build_branch preview preview
       fail build_branch master master
