@@ -64,7 +64,7 @@ import polars.selectors as cs
 
 import devlib
 
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, unzip_into, order_as, DirCache, DelegateToAttr
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, set_nested_key, unzip_into, order_as, DirCache, DelegateToAttr
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df
 from lisa.version import VERSION_TOKEN
@@ -283,10 +283,30 @@ def _logical_plan_update_paths(plan, update_path):
                     else:
                         return paths
 
-                scan['paths'] = [
-                    dispatch_update(paths)
-                    for paths in scan['paths']
+                locs = [
+                    ['paths'],
+                    # Since polars 1.7.0, paths are stored in a new location
+                    ['sources', 'sources', 'Paths']
                 ]
+                for loc in locs:
+                    try:
+                        paths = get_nested_key(scan, loc)
+                    except KeyError as e:
+                        excep = e
+                    else:
+                        excep = None
+                        set_nested_key(
+                            scan,
+                            loc,
+                            [
+                                dispatch_update(_paths)
+                                for _paths in paths
+                            ]
+                        )
+                        break
+                if excep:
+                    raise excep
+
         elif isinstance(obj, str):
             return
         elif isinstance(obj, Iterable):
