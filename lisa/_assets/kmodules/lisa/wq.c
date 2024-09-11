@@ -24,7 +24,7 @@ static void worker(struct work_struct* work) {
 
 struct work_item *start_work(worker_t f, int delay, void *data) {
 	struct work_item *item;
-	struct workqueue_struct *wq = FEATURE(__worqueue)->data;
+	struct workqueue_struct *wq = FEATURE(__workqueue)->data;
 	if (!wq)
 		return NULL;
 
@@ -68,7 +68,7 @@ static int deinit_wq(struct feature *feature) {
 		destroy_workqueue(wq);
 	return 0;
 }
-DEFINE_INTERNAL_FEATURE(__worqueue, init_wq, deinit_wq);
+DEFINE_INTERNAL_FEATURE(__workqueue, init_wq, deinit_wq);
 
 
 /*
@@ -97,7 +97,7 @@ __maybe_unused static int example_init(struct feature *feature) {
 	struct example_data *data;
 	pr_info("Starting worker for feature %s\n", feature->name);
 
-	if (ENABLE_FEATURE(__worqueue))
+	if (ENABLE_FEATURE(__workqueue))
 		return 1;
 
 	data = kmalloc(sizeof(*data), GFP_KERNEL);
@@ -123,7 +123,7 @@ __maybe_unused static int example_deinit(struct feature *feature) {
 		kfree(data);
 	}
 
-	ret |= DISABLE_FEATURE(__worqueue);
+	ret |= DISABLE_FEATURE(__workqueue);
 
 	return ret;
 }

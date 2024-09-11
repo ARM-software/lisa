@@ -147,7 +147,7 @@ static int enable_p6_emeter(struct feature *feature) {
 
 #define HANDLE_ERR(code) if (code) {ret |= code; goto finish;}
 
-	HANDLE_ERR(ENABLE_FEATURE(__worqueue))
+	HANDLE_ERR(ENABLE_FEATURE(__workqueue))
 
 	data = kzalloc(sizeof(*data), GFP_KERNEL);
 	feature->data = data;
@@ -190,7 +190,7 @@ static int disable_p6_emeter(struct feature* feature) {
 	if (data)
 		free_p6_emeter_data(data);
 
-	ret |= DISABLE_FEATURE(__worqueue);
+	ret |= DISABLE_FEATURE(__workqueue);
 
 	return ret;
 };
