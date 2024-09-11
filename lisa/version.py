@@ -22,18 +22,8 @@ import os
 import hashlib
 from subprocess import CalledProcessError
 
+from lisa._version import version_tuple, __version__, format_version, parse_version
 from lisa._git import get_sha1, get_uncommited_patch
-
-version_tuple = (3, 1, 0)
-
-def format_version(version):
-    return '.'.join(str(part) for part in version)
-
-
-def parse_version(version):
-    return tuple(int(part) for part in version.split('.'))
-
-__version__ = format_version(version_tuple)
 
 def _compute_version_token():
     plain_version_token = f'v{format_version(version_tuple)}'
@@ -66,6 +56,7 @@ def _compute_version_token():
         return f'git-{sha1}{patch_sha1}'
     else:
         return plain_version_token
+
 
 VERSION_TOKEN = _compute_version_token()
 """
