@@ -41,7 +41,7 @@ typedef struct emeter_buffer_private {
 
 static struct file *open_file(int *error, const char *path, umode_t mode)
 {
-	struct file* file;
+	struct file *file;
 	file = filp_open(path, mode, 0);
 	if (IS_ERR_OR_NULL(file)) {
 		pr_err("Could not open %s: %li\n", path, file ? PTR_ERR(file) : 0);
@@ -62,10 +62,16 @@ static void close_file(int *error, struct file *file)
 	}
 }
 
-static void write_str(struct file *file, char *str)
+static void write_str(int *error, struct file *file, char *str)
 {
-	if (file) {
-		kernel_write(file, str, strlen(str) + 1, 0);
+	ssize_t ret = -ENOENT;
+
+	if (file)
+		ret = kernel_write(file, str, strlen(str) + 1, 0);
+
+	if (ret < 0) {
+		pr_err("Could not write string: %zi\n", ret);
+		*error |= 1;
 	}
 }
 
@@ -133,15 +139,15 @@ static int p6_emeter_worker(void *data) {
 }
 
 
-static int enable_p6_emeter(struct feature* feature) {
+static int enable_p6_emeter(struct feature *feature) {
 	struct p6_emeter_data *data = NULL;
-	struct file* sample_file = NULL;
+	struct file *sample_file = NULL;
 	struct file *rate_file = NULL;
 	int ret = 0;
 
 #define HANDLE_ERR(code) if (code) {ret |= code; goto finish;}
 
-	HANDLE_ERR(ENABLE_FEATURE(__worqueue))
+	HANDLE_ERR(ENABLE_FEATURE(__workqueue))
 
 	data = kzalloc(sizeof(*data), GFP_KERNEL);
 	feature->data = data;
@@ -152,12 +158,12 @@ static int enable_p6_emeter(struct feature* feature) {
 	 *an updated value every 8 hardware periods
 	 */
 	rate_file = open_file(&ret, POWER_METER_RATE_FILE_0, O_WRONLY);
-	write_str(rate_file, "500\n");
+	write_str(&ret, rate_file, "500\n");
 	close_file(&ret, rate_file);
 	HANDLE_ERR(ret);
 
 	rate_file = open_file(&ret, POWER_METER_RATE_FILE_1, O_WRONLY);
-	write_str(rate_file, "500\n");
+	write_str(&ret, rate_file, "500\n");
 	close_file(&ret, rate_file);
 	HANDLE_ERR(ret);
 
@@ -184,7 +190,7 @@ static int disable_p6_emeter(struct feature* feature) {
 	if (data)
 		free_p6_emeter_data(data);
 
-	ret |= DISABLE_FEATURE(__worqueue);
+	ret |= DISABLE_FEATURE(__workqueue);
 
 	return ret;
 };
