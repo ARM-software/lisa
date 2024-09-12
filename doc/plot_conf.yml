@@ -76,12 +76,7 @@ doc-plot-conf:
     plots:
         # Default values for the other entries
         default:
-            plat_info: *plat_info0
             trace: *trace0
-            wlgen_profile: *wlgen_profile0
-            task: *task0
-            cpu: *cpu0
-            cluster: *cluster0
 
         TasksAnalysis.plot_task_residency:
             kwargs:
