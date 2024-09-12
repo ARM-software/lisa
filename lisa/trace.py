@@ -2203,7 +2203,7 @@ class TxtTraceParserBase(TraceParserBase):
 
         elif event in ('ipi_entry', 'ipi_exit'):
             df = df.with_columns(
-                pl.col('reason').str.strip_chars('()')
+                pl.col('reason').cast(pl.String).str.strip_chars('()').cast(pl.Categorical)
             )
 
         return df
