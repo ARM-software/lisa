@@ -35,7 +35,7 @@ with open('README.rst', 'r') as f:
 with open('LICENSE.txt', 'r') as f:
     license_txt = f.read()
 
-with open("lisa/version.py") as f:
+with open("lisa/_version.py") as f:
     version_globals = dict()
     exec(f.read(), version_globals)
     lisa_version = version_globals['__version__']
