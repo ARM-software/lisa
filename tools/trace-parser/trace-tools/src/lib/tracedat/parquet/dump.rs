@@ -233,6 +233,7 @@ pub fn dump_events<R, FTimestamp>(
     only_events: Option<Vec<String>>,
     row_group_size: usize,
     compression: Compression,
+    max_errors: usize,
 ) -> Result<Metadata, DynMultiError>
 where
     FTimestamp: FnMut(Timestamp) -> Timestamp,
@@ -339,7 +340,7 @@ where
                     };
                     let state = if select {
                         let state = {
-                            ReadState::new(header, event_desc, chunk_size, &event_desc.name, make_props_builder(), scope)
+                            ReadState::new(header, event_desc, chunk_size, &event_desc.name, make_props_builder(), scope, max_errors)
                         };
 
                         let state = EventCtx::Selected(SharedState::new(state));
@@ -565,7 +566,7 @@ where
 
         let mut errors = Vec::new();
         let mut push_global_err = |err: Result<(), MainError>| if let Err(err) = err {
-            errors.push(err);
+            limited_append(&mut errors, err, max_errors);
         };
 
         // Even if there were some errors, we should have pushed some None values so that all
@@ -698,6 +699,7 @@ pub fn dump_metadata<R, W>(
     reader: Box<R>,
     writer: W,
     keys: Option<Vec<String>>,
+    max_errors: usize,
 ) -> Result<(), DynMultiError>
 where
     W: Write,
@@ -720,6 +722,7 @@ where
             Some(vec![]),
             0,
             Compression::UNCOMPRESSED,
+            max_errors,
         )?
     } else {
         Metadata {
@@ -860,6 +863,7 @@ struct ReadState<'scope, 'scopeenv> {
     variant: ReadStateVariant<'scope>,
     chunk_size: usize,
     scope: &'scope Scope<'scopeenv>,
+    max_errors: usize,
 }
 
 type MetaEventEntry<'scope> =
@@ -895,6 +899,7 @@ where
         name: &str,
         props_builder: WriterPropertiesBuilder,
         scope: &'scope Scope<'scopeenv>,
+        max_errors: usize,
     ) -> Result<Self, MainError> {
         let (full_schema, fields_schema) = Self::make_event_desc_schemas(header, event_desc)?;
         let clock = header.clock();
@@ -953,7 +958,7 @@ where
         // TODO: figure out if it's worth setting set_data_page_size_limit()
         let options = ArrowWriterOptions::new().with_properties(props_builder.build());
 
-        let state = TableState::new(full_schema, fields_schema, options, chunk_size, name, scope)?;
+        let state = TableState::new(full_schema, fields_schema, options, chunk_size, name, scope, max_errors)?;
 
         let variant = match event_desc.name.deref() {
             event_name @ "bprint" => {
@@ -987,6 +992,7 @@ where
             variant,
             scope,
             chunk_size,
+            max_errors,
         })
     }
 
@@ -1177,6 +1183,7 @@ where
                                             self.chunk_size,
                                             &meta_event_name,
                                             self.scope,
+                                            self.max_errors,
                                         ) {
                                             Ok(state) => EventCtx::Selected(Ok((
                                                 RefCell::new(state),
@@ -1441,6 +1448,7 @@ impl<'scope> TableState<'scope> {
         chunk_size: usize,
         name: &str,
         scope: &'scope Scope,
+        max_errors: usize,
     ) -> Result<Self, MainError> {
         let full_schema = Arc::new(full_schema);
         let (fixed_cols, field_cols) = Self::make_cols(name, &fields_schema, chunk_size)?;
@@ -1469,7 +1477,7 @@ impl<'scope> TableState<'scope> {
             name: name.to_string(),
             handle,
             path,
-            errors: TableErrors::new(),
+            errors: TableErrors::new(max_errors),
             nr_rows: 0,
             chunk_size,
 
@@ -1569,24 +1577,26 @@ impl<'scope> TableState<'scope> {
 #[derive(Debug)]
 struct TableErrors {
     errors: Vec<MainError>,
+    max_errors: usize,
 }
 
-// Cap the amount of errors accumulated so we don't end up with ridiculously large memory
-// consumption or JSON files
-const MAX_EVENT_ERRORS: usize = 64 * 1024;
+fn limited_append<T>(vec: &mut Vec<T>, x: T, max_errors: usize) {
+    if vec.len() <= max_errors {
+        vec.push(x);
+    }
+}
 
 impl TableErrors {
-    fn new() -> Self {
-        TableErrors { errors: Vec::new() }
+    fn new(max_errors: usize) -> Self {
+        TableErrors {
+            errors: Vec::new(),
+            max_errors,
+        }
     }
     fn extend_errors<I: IntoIterator<Item = Result<(), MainError>>>(&mut self, iter: I) {
-        let mut len = self.errors.len();
         for res in iter.into_iter() {
             if let Err(err) = res {
-                if len <= MAX_EVENT_ERRORS {
-                    len += 1;
-                    self.errors.push(err);
-                }
+                limited_append(&mut self.errors, err, self.max_errors);
             }
         }
     }

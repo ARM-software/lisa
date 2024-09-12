@@ -102,6 +102,11 @@ enum Command {
         //       memory consumption.
         #[arg(long, default_value_t=1024 * 1024)]
         row_group_size: usize,
+
+        // Cap the amount of errors accumulated so we don't end up with ridiculously large memory
+        // consumption or JSON files
+        #[arg(long, default_value_t=256)]
+        max_errors: usize,
     },
     CheckHeader {
         #[arg(long, value_name = "TRACE")]
@@ -119,6 +124,11 @@ enum Command {
 
         #[arg(long, value_name = "KEY")]
         key: Option<Vec<String>>,
+
+        // Cap the amount of errors accumulated so we don't end up with ridiculously large memory
+        // consumption or JSON files
+        #[arg(long, default_value_t=256)]
+        max_errors: usize,
     },
 }
 
@@ -220,6 +230,7 @@ where
             unique_timestamps,
             compression,
             row_group_size,
+            max_errors,
             ..
         } => {
             let (header, reader) = open_trace(trace)?;
@@ -246,6 +257,7 @@ where
                 event.clone(),
                 *row_group_size,
                 compression,
+                *max_errors,
             ) {
                 Ok(metadata) => Ok(metadata.dump(File::create("meta.json")?)?),
                 Err(err) => Err(err),
@@ -255,9 +267,9 @@ where
             let (header, _) = open_trace(trace)?;
             check_header(&header, out)
         }
-        Command::Metadata { trace, key, .. } => {
+        Command::Metadata { trace, key, max_errors, .. } => {
             let (header, reader) = open_trace(trace)?;
-            dump_metadata(&header, reader, out, key.clone())
+            dump_metadata(&header, reader, out, key.clone(), *max_errors)
         }
     }
 }
