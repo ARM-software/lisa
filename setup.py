@@ -136,7 +136,10 @@ if __name__ == "__main__":
             "holoviews >= 1.17",
             "panel",
             "colorcet",
-            "polars >= 1.0.0, < 2.0.0",
+            # Force <1.7.0 until some issues are figured out:
+            # * problem on readthedocs
+            # * categorical issue: https://github.com/pola-rs/polars/issues/18717
+            "polars >= 1.0.0, < 2.0.0, < 1.7.0",
             # Pandas >= 1.0.0 has support for new nullable dtypes
             # Pandas 1.2.0 has broken barplots:
             # https://github.com/pandas-dev/pandas/issues/38947
