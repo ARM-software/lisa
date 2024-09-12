@@ -22,7 +22,7 @@ use crate::error::DynMultiError;
 
 pub fn check_header<W: Write>(header: &Header, mut out: W) -> Result<(), DynMultiError> {
     for desc in header.event_descs() {
-        writeln!(&mut out, "Checking event \"{}\" format:", desc.name)?;
+        writeln!(&mut out, "Checking event \"{}\" (ID {}) format:", desc.name, desc.id)?;
 
         let raw_fmt = std::str::from_utf8(desc.raw_fmt()?)?;
         writeln!(&mut out, "{raw_fmt}")?;
