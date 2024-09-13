@@ -78,9 +78,10 @@ use crate::{
     str::Str,
 };
 
-/// Type alias for a memory address contained in the trace. We cannot use [usize] since this would
-/// represent a memory address on the host running the parser, which may be of a different
-/// architecture than the system that produced the trace.
+/// Type alias for a memory address contained in the trace.
+///
+/// We cannot use [usize] since this would represent a memory address on the host running the
+/// parser, which may be of a different architecture than the system that produced the trace.
 pub type Address = u64;
 /// Type alias for an offset in memory. This provides more helpful signatures than using [Address]
 /// for everything.

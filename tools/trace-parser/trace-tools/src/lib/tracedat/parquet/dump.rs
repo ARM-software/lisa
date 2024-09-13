@@ -958,7 +958,15 @@ where
         // TODO: figure out if it's worth setting set_data_page_size_limit()
         let options = ArrowWriterOptions::new().with_properties(props_builder.build());
 
-        let state = TableState::new(full_schema, fields_schema, options, chunk_size, name, scope, max_errors)?;
+        let state = TableState::new(
+            full_schema,
+            fields_schema,
+            options,
+            chunk_size,
+            name,
+            scope,
+            max_errors,
+        )?;
 
         let variant = match event_desc.name.deref() {
             event_name @ "bprint" => {

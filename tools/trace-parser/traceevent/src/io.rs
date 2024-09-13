@@ -115,7 +115,7 @@ pub trait BorrowingRead: BorrowingReadCore {
         P: for<'b> Fn(
             &'b [u8],
         )
-            -> IResult<&'b [u8], O, NomError<E, nom::error::VerboseError<&[u8]>>>,
+            -> IResult<&'b [u8], O, NomError<E, nom::error::VerboseError<&'b [u8]>>>,
         E: for<'b> FromParseError<&'b [u8], nom::error::VerboseError<&'b [u8]>> + Debug,
     {
         let buf = self.read(count)?;

@@ -1334,7 +1334,7 @@ fn parse_record<'a>(
 
 impl PrintFmtStr {
     /// Determine a [VBinDecoder] for each argument to a printk-style format string.
-    fn vbin_decoders<'a>(&'a self, header: &'a Header) -> &Vec<VBinDecoder> {
+    fn vbin_decoders<'a>(&'a self, header: &'a Header) -> &'a Vec<VBinDecoder> {
         let abi = header.kernel_abi();
         let char_signedness = abi.char_signedness;
         #[allow(clippy::type_complexity)]

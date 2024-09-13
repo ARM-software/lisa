@@ -105,7 +105,7 @@ enum Command {
 
         // Cap the amount of errors accumulated so we don't end up with ridiculously large memory
         // consumption or JSON files
-        #[arg(long, default_value_t=256)]
+        #[arg(long, default_value_t = 256)]
         max_errors: usize,
     },
     CheckHeader {
@@ -127,7 +127,7 @@ enum Command {
 
         // Cap the amount of errors accumulated so we don't end up with ridiculously large memory
         // consumption or JSON files
-        #[arg(long, default_value_t=256)]
+        #[arg(long, default_value_t = 256)]
         max_errors: usize,
     },
 }
@@ -267,7 +267,12 @@ where
             let (header, _) = open_trace(trace)?;
             check_header(&header, out)
         }
-        Command::Metadata { trace, key, max_errors, .. } => {
+        Command::Metadata {
+            trace,
+            key,
+            max_errors,
+            ..
+        } => {
             let (header, reader) = open_trace(trace)?;
             dump_metadata(&header, reader, out, key.clone(), *max_errors)
         }
