@@ -4248,14 +4248,22 @@ def subprocess_log(cmd, level=None, name=None, logger=None, **kwargs):
 
     :Variable keyword arguments: Forwarded to :class:`subprocess.Popen`.
     """
+    def crop(max_len, s, cropped_len=None):
+        cropped_len = cropped_len or max_len // 2
+        if len(s) > max_len:
+            middle = ' [...] '
+            half = (cropped_len - len(middle)) // 2
+            return s[:half] + middle + s[-half:]
+        else:
+            return s
+
     if isinstance(cmd, str):
         pretty_cmd = cmd
     else:
         pretty_cmd = ' '.join(map(shlex.quote, map(str, cmd)))
 
-    if not name:
-        crop = 20
-        name = pretty_cmd[:crop] + ('...' if len(pretty_cmd) > crop else '')
+    name = name or crop(20, pretty_cmd)
+    pretty_cmd  = crop(80 * 10, pretty_cmd, cropped_len=80)
 
     logger = logger or logging.getLogger()
     logger = logger.getChild(name)

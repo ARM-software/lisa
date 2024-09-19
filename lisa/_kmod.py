@@ -176,7 +176,7 @@ class KmodVersionError(Exception):
     pass
 
 
-_ALPINE_DEFAULT_VERSION = '3.20.0'
+_ALPINE_DEFAULT_VERSION = '3.20.3'
 _ALPINE_ROOTFS_URL = 'https://dl-cdn.alpinelinux.org/alpine/v{minor}/releases/{arch}/alpine-minirootfs-{version}-{arch}.tar.gz'
 _ALPINE_PACKAGE_INFO_URL = 'https://pkgs.alpinelinux.org/package/v{version}/{repo}/{arch}/{package}'
 
@@ -320,7 +320,7 @@ def _kbuild_make_cmd(path, targets, cc, make_vars):
         )
     ]
 
-    nr_cpus = int(os.cpu_count() * 1.5)
+    nr_cpus = os.cpu_count()
 
     cmd = ['make', f'-j{nr_cpus}', '-C', path, '--', *formatted_vars, *targets]
 
@@ -354,6 +354,36 @@ def _clang_version(cc, env):
         raise ValueError(f'Could not determine version of {cc}')
 
 
+def _install_rust(rust_spec, run_cmd):
+    rust_version = rust_spec['version']
+    components = sorted(rust_spec.get('components', []))
+    crates = rust_spec.get('crates', {})
+
+    rustup_home = str(rust_spec['rustup_home'])
+    cargo_home = str(rust_spec['cargo_home'])
+    cargo_bin = str(Path(cargo_home) / 'bin')
+
+    def run(cmd):
+        cmd = f'export PATH={cargo_bin}:$PATH RUSTC_BOOTSTRAP=1 RUSTUP_INIT_SKIP_PATH_CHECK=yes RUSTUP_HOME={quote(rustup_home)} CARGO_HOME={quote(cargo_home)} && {cmd}'
+        run_cmd(['sh', '-c', cmd])
+
+    # Install rustup
+    with urllib.request.urlopen('https://sh.rustup.rs') as response:
+        script = response.read()
+    script = script.decode('utf-8')
+    run(f'sh -c {quote(script)} -- -y --no-modify-path --default-toolchain none')
+
+    # Install rust toolchain
+    components = ' '.join(
+        f'--component={quote(compo)}'
+        for compo in components
+    )
+    run(f"rustup toolchain install {quote(rust_version)} --profile minimal {components}")
+
+    for crate, crate_spec in sorted(crates.items()):
+        run(f"cargo +{rust_version} install --locked --version {quote(crate_spec['version'])} {quote(crate)}")
+
+
 def _resolve_alpine_version(version):
     version = version or _ALPINE_DEFAULT_VERSION
 
@@ -364,7 +394,7 @@ def _resolve_alpine_version(version):
 
 
 @destroyablecontextmanager
-def _make_build_chroot(cc, cross_compile, abi, bind_paths=None, version=None, overlay_backend=None, packages=None):
+def _make_build_chroot(cc, cross_compile, abi, bind_paths=None, version=None, overlay_backend=None, packages=None, rust_spec=None):
     """
     Create a chroot folder ready to be used to build a kernel.
     """
@@ -405,6 +435,9 @@ def _make_build_chroot(cc, cross_compile, abi, bind_paths=None, version=None, ov
                 'perl',
                 'pahole',
                 'git',
+
+                # This is needed by the LISA kernel module
+                'jq',
             ]
 
             if is_clang(cc):
@@ -456,6 +489,7 @@ def _make_build_chroot(cc, cross_compile, abi, bind_paths=None, version=None, ov
             packages=packages,
             bind_paths=bind_paths,
             overlay_backend=overlay_backend,
+            rust_spec=rust_spec,
         ) as chroot:
             try:
                 yield chroot
@@ -464,7 +498,7 @@ def _make_build_chroot(cc, cross_compile, abi, bind_paths=None, version=None, ov
 
 
 @destroyablecontextmanager
-def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overlay_backend='overlayfs'):
+def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overlay_backend='overlayfs', rust_spec=None):
     logger = logging.getLogger(f'{__name__}.alpine_chroot')
 
     def mount_binds(chroot, bind_paths, mount=True):
@@ -509,12 +543,23 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
 
         shutil.copy('/etc/resolv.conf', path / 'etc' / 'resolv.conf')
 
+        def run_cmd(cmd):
+            cmd = _make_build_chroot_cmd(path, cmd)
+            _subprocess_log(cmd, logger=logger, level=logging.DEBUG)
+
         def install_packages(packages):
             if packages:
-                cmd = _make_build_chroot_cmd(path, ['apk', 'add', *sorted(set(packages))])
-                _subprocess_log(cmd, logger=logger, level=logging.DEBUG)
+                run_cmd(['apk', 'add', *sorted(set(packages))])
+
+        def install_rust():
+            if rust_spec:
+                _install_rust(
+                    rust_spec=rust_spec,
+                    run_cmd=run_cmd,
+                )
 
         install_packages(packages)
+        install_rust()
 
     abi = abi or LISA_HOST_ABI
     use_qemu = abi != LISA_HOST_ABI
@@ -2222,6 +2267,13 @@ class KmodSrc(Loggable):
         will be created using a checksum of the sources.
     :type name: str or None
     """
+
+    _RUST_SPEC = None
+    """
+    Rust version and components to install in the build environment.
+    """
+
+
     def __init__(self, src, name=None):
         def encode(x):
             if isinstance(x, str):
@@ -2242,7 +2294,10 @@ class KmodSrc(Loggable):
         return {
             name: content
             for name, content in self.src.items()
-            if name.endswith('.c') or name.endswith('.h')
+            if any(
+                name.endswith(extension)
+                for extension in ('.c', '.h', '.rs')
+            )
         }
 
     @property
@@ -2347,7 +2402,7 @@ class KmodSrc(Loggable):
 
             for name, content in src.items():
                 file_path = mod_path / name
-                file_path.parent.mkdir(exist_ok=True)
+                file_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(file_path, 'wb') as f:
                     f.write(content)
 
@@ -2380,6 +2435,7 @@ class KmodSrc(Loggable):
             else:
                 return filenames[0]
 
+        rust_spec = self._RUST_SPEC or {}
         if build_conf['build-env'] == 'alpine':
             settings = build_conf['build-env-settings']['alpine']
             alpine_version = settings.get('version', None)
@@ -2387,6 +2443,24 @@ class KmodSrc(Loggable):
 
             @contextlib.contextmanager
             def cmd_cm():
+                if rust_spec:
+                    rust_home = Path('/opt/rust')
+                    rustup_home = rust_home / 'rustup'
+                    cargo_home = rust_home / 'cargo'
+                    _rust_spec = {
+                        **rust_spec,
+                        'rustup_home': rustup_home,
+                        'cargo_home': cargo_home,
+                    }
+                    rust_env = {
+                        'RUSTUP_HOME': rustup_home,
+                        'CARGO_HOME': cargo_home,
+                        'RUST_VERSION': rust_spec['version'],
+                    }
+                else:
+                    rust_env = {}
+                    _rust_spec = None
+
                 with _make_build_chroot(
                     cc=cc.name,
                     cross_compile=cross_compile,
@@ -2395,6 +2469,7 @@ class KmodSrc(Loggable):
                     overlay_backend=build_conf['overlay-backend'],
                     version=alpine_version,
                     packages=alpine_packages,
+                    rust_spec=_rust_spec,
                 ) as chroot:
                     # Do not use a CM here to avoid choking on permission
                     # issues. Since the chroot itself will be entirely
@@ -2403,17 +2478,53 @@ class KmodSrc(Loggable):
                     cmd = make_cmd(
                         tree_path=tree_path,
                         mod_path=f'/{mod_path.relative_to(chroot)}',
-                        make_vars=make_vars,
+                        make_vars={
+                            **make_vars,
+                            **rust_env,
+                        }
                     )
                     yield (mod_path, _make_build_chroot_cmd(chroot, cmd))
         elif build_conf['build-env'] == 'host':
+            def install_rust(rust_spec):
+                def populate(key, path):
+                    rust_spec = {
+                        **dict(key),
+                        'rustup_home': path / 'rustup',
+                        'cargo_home': path / 'cargo',
+                    }
+                    _install_rust(
+                        rust_spec=rust_spec,
+                        run_cmd=lambda cmd: _subprocess_log(cmd, logger=logger, level=logging.DEBUG)
+                    )
+
+                dir_cache = DirCache(
+                    category='rust_home',
+                    populate=populate,
+                )
+                key = sorted(rust_spec.items())
+                cache_path = dir_cache.get_entry(key)
+                return cache_path
+
             @contextlib.contextmanager
             def cmd_cm():
+                if rust_spec:
+                    rust_home = install_rust(rust_spec)
+                    rust_env = {
+                        'RUSTUP_HOME': rust_home / 'rustup',
+                        'CARGO_HOME': rust_home / 'cargo',
+                        'RUST_VERSION': rust_spec['version'],
+                    }
+                else:
+                    rust_env = {}
+
                 with tempfile.TemporaryDirectory() as mod_path:
                     cmd = make_cmd(
                         tree_path=tree_path,
                         mod_path=mod_path,
-                        make_vars=make_vars,
+                        make_vars={
+                            **make_vars,
+                            **rust_env,
+                        },
                     )
 
                     yield (mod_path, cmd)
@@ -2744,7 +2855,7 @@ class DynamicKmod(Loggable):
         Unload the module from the target.
         """
         mod = quote(self.mod_name)
-        execute = self.target.execute
+        execute = lambda cmd: self.target.execute(cmd, as_root=True)
 
         try:
             execute(f'rmmod {mod}')
@@ -2845,6 +2956,19 @@ class FtraceDynamicKmod(DynamicKmod):
         })
 
 
+class _LISADynamicKmodSrc(KmodSrc):
+    _RUST_SPEC = dict(
+        version='1.81.0',
+        components=[
+            # rust-docs to list the C public API (pub #[no_mangle] functions)
+            # to avoid exporting a thousand symbols from Rust libcore.
+            'rust-docs',
+            # rust-src for -Zbuild-std
+            'rust-src',
+        ]
+    )
+
+
 class LISADynamicKmod(FtraceDynamicKmod):
     """
     Module providing ftrace events used in various places by :mod:`lisa`.
@@ -2918,7 +3042,7 @@ class LISADynamicKmod(FtraceDynamicKmod):
             )
             logger.debug(f'Variable sources checksum of the {cls.__qualname__} module: {extra_checksum}')
 
-        src = KmodSrc.from_path(path, extra=extra, name=mod_name)
+        src = _LISADynamicKmodSrc.from_path(path, extra=extra, name=mod_name)
         return cls(
             target=target,
             src=src,
