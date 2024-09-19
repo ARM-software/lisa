@@ -1538,18 +1538,14 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         def priority_to(cc):
             def prio(_cc, _cross_compile):
                 cc_prio = 0 if cc in _cc.name else 1
-                prio = (
+                return (
                     cc_prio,
                     get_cross_compile_prio(_cross_compile)
-                )
-                return (
-                    prio,
-                    prio == (0, 0)
                 )
             return prio
 
         def no_priority():
-            return lambda _cc, _cross_compile: (0, True)
+            return lambda _cc, _cross_compile: 0
 
         # If we can't get more precise info, select anything we can
         cc_priority = no_priority()
@@ -1594,11 +1590,10 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                             else:
                                 return (3,)
 
-                        prio = (
+                        return (
                             prio(cc),
                             get_cross_compile_prio(cross_compile)
                         )
-                        return (prio, prio == ((0, 0), 0))
             else:
                 try:
                     proc_version = target.read_value('/proc/version')
@@ -1613,28 +1608,30 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
 
         make_vars = build_conf.get('make-variables', {})
 
-        if abi == LISA_HOST_ABI:
-            cross_compiles = ['']
-        else:
+        try:
+            cross_compiles = [make_vars['CROSS_COMPILE']]
+        except KeyError:
             try:
-                cross_compiles = [make_vars['CROSS_COMPILE']]
+                cross_compiles = [os.environ['CROSS_COMPILE']]
             except KeyError:
-                try:
-                    cross_compiles = [os.environ['CROSS_COMPILE']]
-                except KeyError:
-                    if abi == 'arm64':
-                        cross_compiles = ['aarch64-linux-gnu-', 'aarch64-none-linux-gnu-', 'aarch64-none-elf-', 'aarch64-linux-android-', 'aarch64-none-linux-android-']
-                    elif abi == 'armeabi':
-                        cross_compiles = ['arm-linux-gnueabi-', 'arm-none-linux-gnueabi-', 'arm-linux-eabi-', 'arm-none-linux-eabi-', 'arm-none-eabi-']
-                    elif abi == 'x86':
-                        cross_compiles = ['i686-linux-gnu-']
-                    else:
-                        cross_compiles = ['']
+                if abi == 'arm64':
+                    cross_compiles = ['aarch64-linux-gnu-', 'aarch64-none-linux-gnu-', 'aarch64-none-elf-', 'aarch64-linux-android-', 'aarch64-none-linux-android-']
+                elif abi == 'armeabi':
+                    cross_compiles = ['arm-linux-gnueabi-', 'arm-none-linux-gnueabi-', 'arm-linux-eabi-', 'arm-none-linux-eabi-', 'arm-none-eabi-']
+                elif abi == 'x86':
+                    cross_compiles = ['i686-linux-gnu-']
+                else:
+                    cross_compiles = ['']
+                    if abi != LISA_HOST_ABI:
                         logger.error(f'ABI {abi} not recognized, CROSS_COMPILE env var needs to be set')
 
-                    logger.debug(f'CROSS_COMPILE env var not set, assuming "{cross_compiles}"')
+                logger.debug(f'CROSS_COMPILE env var not set, assuming "{cross_compiles}"')
+
+        if abi == LISA_HOST_ABI:
+            cross_compiles.insert(0, '')
 
         cross_compiles = cross_compiles or ['']
+        cross_compiles = deduplicate(cross_compiles, keep_last=False)
 
         # The format of "ccs" dict is:
         # (CC=, CROSS_COMPILE=): <binary name>
@@ -1795,8 +1792,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             raise ValueError(f'Could not detect which CROSS_COMPILE value to use')
 
         ideal_cc, ideal_cross_compile = ccs[0]
-        cc_is_perfect = cc_priority(cc, cross_compile)[1]
-        if str(cc) != str(ideal_cc) or ideal_cross_compile != cross_compile or not cc_is_perfect:
+        if str(cc) != str(ideal_cc) or ideal_cross_compile != cross_compile:
             logger.warning(f'Could not find ideal CC={ideal_cc} and CROSS_COMPILE={ideal_cross_compile} but found CC={cc} and CROSS_COMPILE={cross_compile} instead. Results may vary from working fine to crashing the kernel')
 
         return (cc, cross_compile, cc_key)
