@@ -687,7 +687,7 @@ class EnergyModel(Serializable, Loggable):
         cpu_active_time = []
         for cpu, node in enumerate(self.cpu_nodes):
             assert (cpu,) == node.cpus
-            cap = node.active_states[freqs[cpu]].capacity
+            cap = node.active_states[int(freqs[cpu])].capacity
             cpu_active_time.append(min(float(cpu_utils[cpu]) / cap, 1.0))
 
         return self._estimate_from_active_time(cpu_active_time,
