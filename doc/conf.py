@@ -30,6 +30,7 @@ from operator import attrgetter
 import pickle
 import shutil
 import shlex
+from urllib.parse import urlparse
 
 from sphinx.domains.python import PythonDomain
 
@@ -195,17 +196,20 @@ def prepare(home, enable_plots, outdir):
 
     def update_theme_options(existing):
         existing = existing or {}
-        return {
-            **existing,
-            'switcher': {
-                # TODO: If base_url is a file:/// URL, the browser will forbid
-                # the JS code access to the local file, so the switcher will be
-                # empty. Instead, this can be used:
-                # python -m http.server -d doc/_build/html/
-                'json_url': f'{base_url}/{versions_filename}',
-                'version_match': doc_version,
+        # TODO: If base_url is a file:/// URL, the browser will forbid
+        # the JS code access to the local file, so the switcher will be
+        # empty. Instead, this can be used:
+        # python -m http.server -d doc/_build/html/
+        if urlparse(base_url).scheme == 'file':
+            return existing
+        else:
+            return {
+                **existing,
+                'switcher': {
+                    'json_url': f'{base_url}/{versions_filename}',
+                    'version_match': doc_version,
+                }
             }
-        }
 
     configs['html_theme_options'] = update_theme_options
     configs['html_title'] = lambda _: f'LISA {doc_version} documentation'
