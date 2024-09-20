@@ -1,3 +1,21 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Copyright (C) 2024, ARM Limited and contributors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! Pretty print ftrace events according to their printk-style format string.
+
 use core::{
     cmp::Ordering,
     fmt,
@@ -31,6 +49,7 @@ use crate::{
     str::{InnerStr, Str},
 };
 
+/// Parsed printk-style format string.
 #[derive(Debug, Clone)]
 pub struct PrintFmtStr {
     pub atoms: Vec<PrintAtom>,
@@ -60,6 +79,7 @@ impl Ord for PrintFmtStr {
     }
 }
 
+/// Wrap a [io::Write] to also have a [fmt::Write] implementation writing UTF-8.
 pub struct StringWriter<W> {
     inner: W,
 }
@@ -97,6 +117,7 @@ impl<W: io::Write> fmt::Write for StringWriter<W> {
     }
 }
 
+/// Track how many bytes have been written to an [fmt::Write] object.
 struct TrackedWriter<W> {
     inner: W,
     count: usize,
@@ -118,6 +139,7 @@ impl<W: fmt::Write> fmt::Write for TrackedWriter<W> {
     }
 }
 
+/// [fmt::Write] implementation that just discards the input.
 struct SinkWriter;
 
 impl fmt::Write for SinkWriter {
@@ -127,7 +149,8 @@ impl fmt::Write for SinkWriter {
     }
 }
 
-#[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
+/// Main error type when printing ftrace events.
+#[derive(thiserror::Error, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum PrintError {
     #[error("Dynamic width in printf format is missing")]
@@ -187,6 +210,8 @@ convert_err_impl!(EvalError, InterpError, PrintError);
 convert_err_impl!(CompileError, InterpError, PrintError);
 convert_err_impl!(fmt::Error, FmtError, PrintError);
 
+/// Wrapped [Value] ready to be interpolated in an [PrintFmtStr] along with its `width` and
+/// `precision` printk-style modifiers.
 pub struct PrintArg<'a> {
     pub width: Option<usize>,
     pub precision: Option<usize>,
@@ -194,6 +219,18 @@ pub struct PrintArg<'a> {
 }
 
 impl PrintFmtStr {
+    /// Parse a printk-style format string.
+    #[inline]
+    pub fn try_new(header: &Header, fmt: &[u8]) -> Result<Self, PrintFmtError> {
+        print_fmt_parser::<crate::parser::NomError<PrintFmtError, nom::error::VerboseError<_>>>(
+            header.kernel_abi(),
+        )
+        .parse_finish(fmt)
+    }
+
+    /// Interpolate the provided values and write the result to `out`.
+    ///
+    /// Each [Value] will be wrapped in an appropriate [PrintArg] according to the format string.
     pub fn interpolate_values<'v, 'ee, E, W, I, EE>(
         &self,
         header: &'v Header,
@@ -249,6 +286,8 @@ impl PrintFmtStr {
         self.interpolate_into::<PrintError, _, _, _>(header, env, out, print_values)
     }
 
+    /// Same as [PrintFmtStr::interpolate_values] but decodes the values from a buffer created by
+    /// the kernel function `vbin_printf()`.
     pub fn interpolate_vbin<'v, 'ee, W, EE>(
         &self,
         header: &'v Header,
@@ -268,6 +307,7 @@ impl PrintFmtStr {
         )
     }
 
+    /// Same as [PrintFmtStr::interpolate_values] but takes already-created [PrintArg] values.
     fn interpolate_into<'v, 'ee, E, W, I, EE>(
         &self,
         header: &'v Header,
@@ -721,6 +761,7 @@ pub enum VBinSpecifier {
     Str,
 }
 
+/// Width specifier of a printk-style format string.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PrintWidth {
     Unmodified,
@@ -728,6 +769,7 @@ pub enum PrintWidth {
     Dynamic,
 }
 
+/// Precision specifier of a printk-style format string.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PrintPrecision {
     Unmodified,
@@ -736,21 +778,22 @@ pub enum PrintPrecision {
 }
 
 bitflags! {
+    /// Flags specifier of a printk-style format string.
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
     pub struct PrintFlags: u8 {
-        // #
+        /// #
         const BasePrefix = 1;
 
-        // -
+        /// -
         const LeftJustify = 2;
 
-        // +
+        /// +
         const PositiveSign = 4;
 
-        // space
+        /// space
         const SignPlaceholder = 8;
 
-        // 0
+        /// 0
         const ZeroPad = 16;
     }
 }
@@ -762,6 +805,10 @@ pub enum HexBufferSeparator {
     N,
 }
 
+/// Specifier of a printk-style format string.
+///
+/// The kernel supports many more specifiers than the standard libc to print various kind of kernel
+/// values.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PrintSpecifier {
     Hex,
@@ -797,10 +844,14 @@ pub enum PrintSpecifier {
     VaFormat,
 }
 
+/// Atom of a printk-style format string.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PrintAtom {
+    /// A fixed string is e.g. "foobar" where no non-escaped % appears
     Fixed(String),
+    /// Variable atoms specify how to interpolate a runtime value into the format string.
     Variable {
+        /// How to decode a value from a vbin_printf()-formatted buffer
         vbin_spec: VBinSpecifier,
         print_spec: PrintSpecifier,
         flags: PrintFlags,
@@ -871,7 +922,8 @@ impl PrintAtom {
     }
 }
 
-#[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
+/// Errors detected when parsing a printk-style format string.
+#[derive(thiserror::Error, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum PrintFmtError {
     #[error("Expected string literal: {0:?}")]
@@ -1301,7 +1353,7 @@ where
                     let mut merged = Vec::with_capacity(atoms.len());
                     atoms
                         .iter()
-                        .group_by(|x| matches!(x, PrintAtom::Fixed(_)))
+                        .chunk_by(|x| matches!(x, PrintAtom::Fixed(_)))
                         .into_iter()
                         .map(|(key, group)| {
                             if key {
@@ -1327,14 +1379,6 @@ where
         );
         parser.parse(input)
     }
-}
-
-#[inline]
-pub fn parse_print_fmt(header: &Header, fmt: &[u8]) -> Result<PrintFmtStr, PrintFmtError> {
-    print_fmt_parser::<crate::parser::NomError<PrintFmtError, nom::error::VerboseError<_>>>(
-        header.kernel_abi(),
-    )
-    .parse_finish(fmt)
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 #! /bin/bash
 
-ALPINE_VERSION=v3.19
+ALPINE_VERSION=v3.20
 ALPINE_BUILD_DEPENDENCIES=(bash git curl musl-dev clang lld)
 BROKEN_CROSS_COMPILATION=0
 

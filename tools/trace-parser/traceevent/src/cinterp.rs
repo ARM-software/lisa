@@ -1,3 +1,39 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Copyright (C) 2024, ARM Limited and contributors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! `C` language interpreter.
+//!
+//! The interpreter implemented in this module is used for:
+//! 1. Simplifying and validating field types when they involve constant expressions (e.g. array
+//!    size)
+//! 2. Interpreting the printk-style format string arguments used to pretty-print ftrace events.
+//!
+//! # Limitations
+//!
+//! * The interpreter only supports expressions. Statements such as loops etc are not supported.
+//! * Limited pointer arithmetic: the C language support for arrays based on pointer arithmetic
+//!   makes writing a symbolic interpreter challenging. This interpreter assumes the code will no
+//!   play tricks such as converting a 1D array into a 3D array an just lookup item 0.
+//! * Limited pointer cast support: ISO C is actually quite conservative in the casts that do not
+//!   lead to undefined behavior. We take a similar approach. All pointer casts are simplified
+//!   symbolically and implementation-defined behavior might not match what a typical C compiler
+//!   might give (e.g. target endianness may not be observed as expected when illegally casting
+//!   pointers between incompatible integer types).
+//!
+
 use core::{fmt, num::Wrapping, ops::Deref};
 use std::{string::String as StdString, sync::Arc};
 
@@ -8,7 +44,7 @@ use crate::{
     array::Array,
     buffer::BufferError,
     cparser,
-    cparser::{ArrayKind, Expr, ExtensionMacroKind, Type},
+    cparser::{ArrayKind, Expr, ExtensionMacroKind, ParseEnv, Type},
     error::convert_err_impl,
     header::{Abi, Address, Endianness, FileSize, Header, Identifier, LongSize, Signedness},
     print::{PrintError, PrintFmtError},
@@ -16,7 +52,10 @@ use crate::{
     str::Str,
 };
 
-#[derive(Error, Debug, Clone, PartialEq, Eq)]
+/// Errors while compiling.
+///
+/// See also: [EvalError] and [InterpError]
+#[derive(Error, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum CompileError {
     #[error("Cannot this handle expression in its context: {0:?}")]
@@ -45,9 +84,15 @@ pub enum CompileError {
 
     #[error("The field \"{0}\" does not exist")]
     UnknownField(String),
+
+    #[error("Values of this type cannot be decoded from a buffer: {0:?}")]
+    NonDecodableType(Type),
 }
 
-#[derive(Error, Debug, Clone, PartialEq, Eq)]
+/// Errors while evaluating an expression.
+///
+/// See also: [CompileError] and [InterpError]
+#[derive(Error, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum EvalError {
     #[error("Illegal type of value: {}", match .0 {
@@ -94,7 +139,10 @@ convert_err_impl!(BufferError, BufferError, EvalError);
 convert_err_impl!(PrintFmtError, PrintFmtError, EvalError);
 convert_err_impl!(PrintError, PrintError, EvalError);
 
-#[derive(Error, Debug, Clone, PartialEq, Eq)]
+/// Generic interpreter-related error type.
+///
+/// See also: [CompileError] and [EvalError]
+#[derive(Error, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum InterpError {
     #[error("Could not compile: {0}")]
     CompileError(Box<CompileError>),
@@ -104,7 +152,7 @@ pub enum InterpError {
 convert_err_impl!(EvalError, EvalError, InterpError);
 convert_err_impl!(CompileError, CompileError, InterpError);
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum SockAddrFamily {
     Ipv4,
     Ipv6,
@@ -121,14 +169,18 @@ impl SockAddrFamily {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// Kind of socket address.
+///
+/// See also [SockAddr].
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SockAddrKind {
     Full,
     Ipv4AddrOnly,
     Ipv6AddrOnly,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// In-kernel socket address value.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SockAddr<'a> {
     family: SockAddrFamily,
     kind: SockAddrKind,
@@ -153,6 +205,7 @@ macro_rules! get_array {
 }
 
 impl<'a> SockAddr<'a> {
+    /// Create a [SockAddr] from the in-kernel byte encoding.
     #[inline]
     pub fn from_bytes(
         data: &'a [u8],
@@ -178,10 +231,10 @@ impl<'a> SockAddr<'a> {
         })
     }
 
-    // Format of the structs described at:
-    // https://www.gnu.org/software/libc/manual/html_node/Internet-Address-Formats.html
-    // The order of struct members is different in the kernel struct.
-
+    /// Attempt to convert `self` to a [std::net::SocketAddr].
+    ///
+    /// This could fail if the socket address is not a full IPv4 or IPv6 socket address, including
+    /// port information. For example, a Unix domain socket will not be converted successfully.
     pub fn to_socketaddr(&self) -> Result<std::net::SocketAddr, SockAddrError> {
         match (&self.kind, &self.family) {
             (SockAddrKind::Full, SockAddrFamily::Ipv4) => {
@@ -254,6 +307,9 @@ impl<'a> SockAddr<'a> {
 impl<'a> fmt::Display for SockAddr<'a> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        // Format of the structs described at:
+        // https://www.gnu.org/software/libc/manual/html_node/Internet-Address-Formats.html The
+        // order of struct members is different in the kernel struct.
         match self.to_socketaddr() {
             Ok(addr) => fmt::Display::fmt(&addr, f),
             Err(err) => write!(f, "ERROR<{err:?}>"),
@@ -261,7 +317,10 @@ impl<'a> fmt::Display for SockAddr<'a> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// Kernel bitmap value.
+///
+/// bitmaps are used for some types such as `cpumask_t`.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Bitmap<'a> {
     data: &'a [u8],
     pub(crate) chunk_size: LongSize,
@@ -377,11 +436,10 @@ impl<'a> BitmapIterator<'a> {
         }
     }
 
-    #[inline]
-    pub fn as_chunks(&'a mut self) -> impl Iterator<Item = u64> + 'a {
-        core::iter::from_fn(move || self.next_chunk())
-    }
-
+    /// Iterate over bytes in the bitmap.
+    ///
+    /// Endianness is controlled such that the first bit in the bitmap is the first bit of the
+    /// first chunk.
     #[inline]
     pub fn as_bytes(&'a mut self) -> impl Iterator<Item = u8> + 'a {
         let mut curr = None;
@@ -406,6 +464,8 @@ impl<'a> BitmapIterator<'a> {
         })
     }
 
+    /// Iterate over each bit in the bitmap, with a `true` value if the bit is set, `false`
+    /// otherwise.
     #[inline]
     pub fn as_bits(&'a mut self) -> impl Iterator<Item = bool> + 'a {
         let mut curr = None;
@@ -460,57 +520,96 @@ impl<'a> Iterator for BitmapIterator<'a> {
     }
 }
 
-// Pointers fall into 3 categories:
-// 1. Pointers to unknown values. They are represented by an Value::U64Scalar at
-//    runtime.
-// 2. Pointers to known arrays, e.g. char* pointing at string constants. They
-//    are represented by Value::XXArray at runtime.
-// 3. Pointers to known scalar values: this does not happen often in trace.dat.
-//    They are only currently supported when appearing in "*&x" that gets
-//    simplified into "x", or as &x (evaluates to a symbolic address).
-
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// Runtime value manipulated by the `C` interpeter.
+///
+/// # Integers
+///
+/// Integers are all represented by 64 bits signed ([Value::I64Scalar]) and unsigned
+/// ([Value::U64Scalar]) values. The original size of the `C` type is available at the [Type] level
+/// so there is little need to actually limit the value range itself.
+///
+/// # Pointers
+///
+/// `C` pointers fall into a few categories:
+/// 1. Pointers to known arrays are represented by an array value at runtime (e.g.
+///    [Value::U8Array]).
+/// 2. `char *` values are represented by [Value::Str]. Such value will act as being
+///    null-terminated and can only represent valid UTF-8.
+/// 3. Pointers to known scalar values: this does not happen often in ftrace.  They are currently
+///    only supported when appearing in `*&x` that gets simplified into `x`, or `&x` that is
+///    represented by a symbolic address [Value::Addr].
+/// 4. Pointers to unknown values. They are represented as an [Value::U64Scalar] at runtime.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Value<'a> {
+    /// Unsigned integer value.
     U64Scalar(u64),
+    /// Signed integer value.
     I64Scalar(i64),
 
-    // Similar to U8Array but will act as a null-terminated string, and is
-    // guaranteed to be utf-8 encoded.
+    /// Similar to [Value::U8Array] but will act as a null-terminated string, and is
+    /// guaranteed to be utf-8 encoded.
     Str(Str<'a>),
 
+    /// Array of unsigned 8 bits integers.
     U8Array(Array<'a, u8>),
+    /// Array of signed 8 bits integers.
     I8Array(Array<'a, i8>),
 
+    /// Array of unsigned 16 bits integers.
     U16Array(Array<'a, u16>),
+    /// Array of signed 16 bits integers.
     I16Array(Array<'a, i16>),
 
+    /// Array of unsigned 32 bits integers.
     U32Array(Array<'a, u32>),
+    /// Array of signed 32 bits integers.
     I32Array(Array<'a, i32>),
 
+    /// Array of unsigned 64 bits integers.
     U64Array(Array<'a, u64>),
+    /// Array of signed 64 bits integers.
     I64Array(Array<'a, i64>),
 
-    // Variable, usually REC, and usually erased at compile time when it appears
-    // in the pattern REC->foobar
+    /// Variable with unknown value. In ftrace format string arguments, it is used for `REC`, which
+    /// is usually replaced by an event field access when it appears in the pattern
+    /// `REC->myeventfield`.
     Variable(Identifier),
 
-    // Symbolic address of a value
+    /// Symbolic address of a value. Not much can be done with it apart from dereferencing it.
     Addr(ScratchBox<'a, Value<'a>>),
 
-    // Kernel bitmap, such as cpumask_t
+    /// Kernel bitmap, such as `cpumask_t`
     Bitmap(Bitmap<'a>),
 
-    // Kernel struct sockaddr. We don't use std::net::SockAddr as we need to be
-    // able to represent any socket type the kernel can handle, which goes
-    // beyond IP. Also, we want a zero-copy value.
+    /// Kernel `struct sockaddr`.
+    ///
+    /// We don't use [std::net::SocketAddr] as we need to be able to represent any socket type the
+    /// kernel can handle, which goes beyond `IP`.
     SockAddr(SockAddr<'a>),
 
-    // Used for runtime decoding of event field values.
+    /// Value that could not be decoded to a more specific type. This will allow the consumer deal
+    /// with the decoding, but provide limited support inside this library (e.g. in terms of
+    /// printing).
+    /// Any consumer relying on such value needs to keep up to date as new versions of this library
+    /// might provide a more specific [Value] variant at some point and stop returning a
+    /// [Value::Raw] for a given [Type].
     Raw(Arc<Type>, Array<'a, u8>),
+
+    /// When nothing else is more appropriate, a value can simply be unknown.
     Unknown,
 }
 
 impl<'a> Value<'a> {
+    /// Treat the value as a pointer and try to dereference it in the `env` evaluation environment.
+    ///
+    /// * [Value::Addr] layer will be removed.
+    /// * [Value::Str] layer will stay as-is. `char *` values are represented by a [Value::Str] at
+    ///   runtime and dereferencing them is expected to provide the actual char array, which is
+    ///   also represented by the same [Value::Str]. If we treated such `char *` deref as returning
+    ///   the first character of the string, we would forever loose the knowledge that this char is
+    ///   the first char of a string, and any subsequent operation on the value (such as getting
+    ///   its address to form a "new" string) would not work as expected.
+    /// * Similarly to [Value::Str] all array variants stay equal to themselves.
     #[inline]
     pub fn deref_ptr<'ee, EE>(&'a self, env: &'ee EE) -> Result<Value<'a>, EvalError>
     where
@@ -539,6 +638,8 @@ impl<'a> Value<'a> {
         }
     }
 
+    /// Iterate over the bytes of array-like values, including [Value::Raw].
+    /// [Value::Str] iterator will yield the null terminator of the C string.
     pub fn to_bytes(&self) -> Option<impl IntoIterator<Item = u8> + '_> {
         use Value::*;
 
@@ -567,6 +668,7 @@ impl<'a> Value<'a> {
         }))
     }
 
+    /// Convert char array values to a [&str].
     pub fn to_str(&self) -> Option<&str> {
         macro_rules! from_array {
             ($s:expr) => {
@@ -589,6 +691,10 @@ impl<'a> Value<'a> {
         }
     }
 
+    /// Create a static value, which is sometimes necessary to store in some containers.
+    ///
+    /// Some [Value] variants are only available as a data-borrowing flavor and are not convertible
+    /// to a `'static` value.
     pub fn into_static(self) -> Result<Value<'static>, Value<'a>> {
         use Value::*;
 
@@ -632,6 +738,9 @@ impl<'a> Value<'a> {
         }
     }
 
+    /// Treat the value as an array and lookup the `i` item in it.
+    ///
+    /// [Value::U64Scalar] and [Value::I64Scalar] are treated as pointers.
     fn get<EE: EvalEnv<'a> + ?Sized>(self, env: &'a EE, i: usize) -> Result<Value<'a>, EvalError> {
         let (derefed, val) = match self {
             Value::U64Scalar(addr) => (true, env.deref_static(addr)?),
@@ -724,28 +833,31 @@ impl<'a> fmt::Display for Value<'a> {
     }
 }
 
-pub trait ParseEnv: Send + Sync {
-    fn field_typ(&self, id: &str) -> Result<Type, CompileError>;
-    fn abi(&self) -> &Abi;
-}
-
+/// Compilation environment.
 pub trait CompileEnv<'ce>: EvalEnv<'ce> + ParseEnv
 where
     Self: 'ce,
 {
+    /// Provide an [Evaluator] that will give the value of the `id` event field when evaluated.
     fn field_getter(&self, id: &str) -> Result<Box<dyn Evaluator>, CompileError>;
 }
 
+/// Evaluation environment.
 pub trait EvalEnv<'ee>
 where
     Self: 'ee + Send + Sync,
 {
-    // fn field_getter<EE: EvalEnv>(&self, id: &str) -> Result<Box<dyn Fn(&EE) -> Result<Value, EvalError>>, CompileError>;
+    /// Dereference a static value at the given address.
+    ///
+    /// This could for example be a string in the string table stored in the header.
     fn deref_static(&self, _addr: u64) -> Result<Value<'_>, EvalError>;
+    /// Binary content of the current event record being processed.
     fn event_data(&self) -> Result<&[u8], EvalError>;
 
+    /// [ScratchAlloc] available while interpreting an expression.
     fn scratch(&self) -> &ScratchAlloc;
 
+    /// Current [Header].
     fn header(&self) -> Result<&Header, EvalError>;
 }
 
@@ -795,7 +907,7 @@ impl<'ce, 'ceref> CompileEnv<'ceref> for &'ceref (dyn CompileEnv<'ce> + 'ce) {
     }
 }
 
-pub struct BasicEnv<'pe, PE: ?Sized> {
+pub(crate) struct BasicEnv<'pe, PE: ?Sized> {
     scratch: ScratchAlloc,
     penv: &'pe PE,
 }
@@ -854,12 +966,15 @@ where
     }
 }
 
+/// [EvalEnv] used to manipulate [Value] (e.g. call [Value::deref_ptr]) in the context of a given
+/// event record.
 pub struct BufferEnv<'a> {
     scratch: &'a ScratchAlloc,
     header: &'a Header,
     data: &'a [u8],
 }
 impl<'a> BufferEnv<'a> {
+    /// Create a [BufferEnv] from the given event record buffer `data`.
     pub fn new(scratch: &'a ScratchAlloc, header: &'a Header, data: &'a [u8]) -> Self {
         BufferEnv {
             scratch,
@@ -889,8 +1004,10 @@ impl<'ee> EvalEnv<'ee> for BufferEnv<'ee> {
     }
 }
 
-pub struct ArithInfo<'a> {
+/// Arithmetic information about a [Type]
+pub(crate) struct ArithInfo<'a> {
     typ: &'a Type,
+    /// type rank as defined in the C standard
     rank: u32,
     width: FileSize,
     signed: Type,
@@ -914,12 +1031,13 @@ impl<'a> ArithInfo<'a> {
 }
 
 impl Type {
+    /// Returns `true` if the type is an arithmetic type.
     #[inline]
-    pub fn is_arith(&self) -> bool {
+    pub(crate) fn is_arith(&self) -> bool {
         self.arith_info().is_some()
     }
 
-    pub fn arith_info(&self) -> Option<ArithInfo> {
+    pub(crate) fn arith_info(&self) -> Option<ArithInfo> {
         let typ = self.resolve_wrapper();
 
         use Type::*;
@@ -956,7 +1074,8 @@ impl Type {
         }
     }
 
-    pub fn promote(self) -> Type {
+    /// Integer promotion
+    pub(crate) fn promote(self) -> Type {
         match self.arith_info() {
             Some(info) => {
                 if info.width <= 32 {
@@ -973,6 +1092,8 @@ impl Type {
         }
     }
 
+    /// Access the nested inner type of an [Type::Typedef] or the underlying integer type of an
+    /// [Type::Enum].
     pub fn resolve_wrapper(&self) -> &Self {
         match self {
             Type::Typedef(typ, _) | Type::Enum(typ, _) => typ.resolve_wrapper(),
@@ -980,6 +1101,7 @@ impl Type {
         }
     }
 
+    /// Decay an [Type::Array] to a [Type::Pointer].
     pub fn decay_to_ptr(self) -> Type {
         match self {
             Type::Array(typ, ..) => Type::Pointer(typ),
@@ -1079,6 +1201,7 @@ where
 }
 
 impl Type {
+    /// Byte-size of the type.
     pub fn size(&self, abi: &Abi) -> Result<FileSize, CompileError> {
         let typ = self.resolve_wrapper();
         use Type::*;
@@ -1117,6 +1240,7 @@ impl Type {
 }
 
 impl Expr {
+    /// Typecheck the expression and return its [Type].
     pub fn typ<PE>(&self, penv: &PE) -> Result<Type, CompileError>
     where
         PE: ParseEnv + ?Sized,
@@ -1254,6 +1378,7 @@ impl Expr {
     }
 }
 
+/// Evaluate an expression to a [Value] when given an evaluation environment [EvalEnv].
 pub trait Evaluator: Send + Sync {
     fn eval<'eeref, 'ee>(
         &self,
@@ -1277,7 +1402,7 @@ where
 
 // TODO: the day Rust infers correctly HRTB for closures, this won't be necessary anymore
 #[inline]
-pub fn new_dyn_evaluator<F>(f: F) -> Box<dyn Evaluator>
+pub(crate) fn new_dyn_evaluator<F>(f: F) -> Box<dyn Evaluator>
 where
     F: for<'ee, 'eeref> Fn(&'eeref (dyn EvalEnv<'ee> + 'eeref)) -> Result<Value<'eeref>, EvalError>
         + Send
@@ -1288,6 +1413,11 @@ where
 }
 
 impl Expr {
+    /// Evaluate the expression assuming it is a constant expression.
+    ///
+    /// Note that this will evaluate any expression that does not need extra input from an
+    /// [EvalEnv] (such as an event field value). This covers more than what is considered a const
+    /// expr in C.
     pub fn eval_const<T, F>(self, abi: &Abi, f: F) -> T
     where
         F: for<'a> FnOnce(Result<Value<'a>, InterpError>) -> T,
@@ -1300,6 +1430,9 @@ impl Expr {
         f(eval())
     }
 
+    /// Simplify the expression into a normal form.
+    ///
+    /// Some basic expression rewriting will be done, along with constant folding.
     pub fn simplify<'ce, CE>(self, cenv: &'ce CE) -> Expr
     where
         CE: CompileEnv<'ce>,
@@ -1339,6 +1472,11 @@ impl Expr {
         }
     }
 
+    /// Compile the expression to an [Evaluator] that will then be used to actually evaluate the
+    /// expression in a given [EvalEnv].
+    ///
+    /// This staged compilation/evaluation system saves a lot of computation time when evaluating
+    /// the same expression over and over again.
     pub fn compile<'ce, CE>(self, cenv: &'ce CE) -> Result<Box<dyn Evaluator>, CompileError>
     where
         CE: CompileEnv<'ce>,

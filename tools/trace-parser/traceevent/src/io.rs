@@ -1,3 +1,21 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Copyright (C) 2024, ARM Limited and contributors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! IO layer.
+
 use core::{
     fmt::Debug,
     mem::size_of,
@@ -32,31 +50,59 @@ fn file2mem(x: FileOffset) -> MemOffset {
         .expect("Could not convert FileOffset to MemOffset")
 }
 
-// This trait unfortunately is not (yet) object-safe, but since it does not require Self to be
-// Sized we are probably not too far away from it:
-// https://github.com/rust-lang/rust/issues/47649
+/// Core operations of a I/O input type that can be consumed by this library.
+///
+/// Emphasis is put on:
+/// 1. Zero-copy operation. Readers that have to create copy will manage an intenal buffer and
+///    still expose references.
+/// 2. Being able to safely seek in the input at multiple locations at once without having to
+///    re-open the input multiple times. This is required in order to parse each CPU buffer
+///    concurrently, so that events can be re-ordered into a single stream of event.
+/// 3. Being eventually object-safe. It currently is not since [BorrowingReadCore::abs_seek] takes
+///    a [`Box<Self>`] but that restriction might be lifted one day as [`Box<Self>`] does not
+///    require [Self] to be [Sized].
+///
+/// Note: This trait unfortunately is not (yet) object-safe, but since it does not require Self to
+/// be Sized we are probably not too far away from it:
+/// `<https://github.com/rust-lang/rust/issues/47649>`
 pub trait BorrowingReadCore {
-    fn clear_buffer(&mut self);
+    /// Read the specified number of bytes
     fn read(&mut self, count: MemSize) -> io::Result<&[u8]>;
+    /// Read a null-terminated C-style string.
     fn read_null_terminated(&mut self) -> io::Result<&[u8]>;
 
+    /// Clone the object.
     fn try_clone(&self) -> io::Result<Box<Self>>;
+    /// Seek to an absolute location in the input.
+    ///
+    /// This consumes `self` to allow efficient implementations and prevent re-use of the original
+    /// object that would now read from a different unexpected location.
     fn abs_seek(
         self: Box<Self>,
         offset: FileOffset,
         len: Option<FileSize>,
     ) -> io::Result<Box<Self>>;
 
+    /// Combine [BorrowingReadCore::try_clone] and [BorrowingReadCore::abs_seek]
     #[inline]
     fn clone_and_seek(&self, offset: FileOffset, len: Option<FileSize>) -> io::Result<Box<Self>> {
         self.try_clone()?.abs_seek(offset, len)
     }
 }
 
-// It is not possible to make that trait object-safe as methods take generic parameters, but since
-// they all have default implementation, it would be possible to implement that trait for "dyn
-// BorrowingReadCore".
+/// Convenience functions on top of [BorrowingReadCore].
+///
+/// Most consumers of this library will interact with this trait rather than [BorrowingReadCore].
+///
+/// Note: It is not possible to make that trait object-safe as methods take generic parameters, but
+/// since they all have default implementation, it would be possible to implement that trait for
+/// `dyn BorrowingReadCore`.
 pub trait BorrowingRead: BorrowingReadCore {
+    /// Apply a nom parser over a buffer starting at the current location and spanning `count`
+    /// bytes.
+    ///
+    /// The outer [Result] layer deals with I/O errors, the inner layer reflects whether the parser
+    /// was succeeded or not.
     #[inline]
     fn parse<P, O, E>(&mut self, count: MemSize, mut parser: P) -> io::Result<Result<O, E>>
     where
@@ -69,13 +115,14 @@ pub trait BorrowingRead: BorrowingReadCore {
         P: for<'b> Fn(
             &'b [u8],
         )
-            -> IResult<&'b [u8], O, NomError<E, nom::error::VerboseError<&[u8]>>>,
+            -> IResult<&'b [u8], O, NomError<E, nom::error::VerboseError<&'b [u8]>>>,
         E: for<'b> FromParseError<&'b [u8], nom::error::VerboseError<&'b [u8]>> + Debug,
     {
         let buf = self.read(count)?;
         Ok(parser.parse_finish(buf))
     }
 
+    /// Read an integer from the input.
     #[inline]
     fn read_int<T>(&mut self, endianness: Endianness) -> io::Result<T>
     where
@@ -84,8 +131,12 @@ pub trait BorrowingRead: BorrowingReadCore {
         DecodeBinary::decode(self.read(size_of::<T>())?, endianness)
     }
 
+    /// Read a given tag (sequence of integers, typically ASCII string) from the input.
+    ///
+    /// The outer [Result] layer deals with I/O errors, the inner layer reflects whether the tag
+    /// was recognized or not.
     #[inline]
-    fn read_tag<'b, T, E>(&mut self, tag: T, or: E) -> io::Result<Result<(), E>>
+    fn read_tag<'b, T>(&mut self, tag: T) -> io::Result<Result<(), ()>>
     where
         T: IntoIterator<Item = &'b u8>,
         T::IntoIter: ExactSizeIterator,
@@ -93,17 +144,13 @@ pub trait BorrowingRead: BorrowingReadCore {
         let tag = tag.into_iter();
         let buff = self.read(tag.len())?;
         let eq = buff.iter().eq(tag);
-        Ok(if eq { Ok(()) } else { Err(or) })
+        Ok(if eq { Ok(()) } else { Err(()) })
     }
 }
 
 impl<T: BorrowingReadCore> BorrowingRead for T {}
 
 // impl<'a> BorrowingReadCore for &'a mut dyn BorrowingReadCore {
-//     #[inline]
-//     fn clear_buffer(&mut self) {
-//         (*self).clear_buffer()
-//     }
 //     #[inline]
 //     fn read(&mut self, count: MemSize) -> io::Result<&[u8]> {
 //         (*self).read(count)
@@ -149,7 +196,7 @@ impl<T: BorrowingReadCore> BorrowingRead for T {}
 //     }
 
 //     #[inline]
-//     fn read_tag<'b, T, E>(&mut self, tag: T, or: E) -> io::Result<Result<(), E>>
+//     fn read_tag<'b, T>(&mut self, tag: T) -> io::Result<Result<(), ()>>
 //     where
 //         T: IntoIterator<Item = &'b u8>,
 //         T::IntoIter: ExactSizeIterator,
@@ -163,9 +210,8 @@ impl<T: BorrowingReadCore> BorrowingRead for T {}
 //     }
 // }
 
-/// Newtype wrapper for &[u8] that allows zero-copy operations from
-/// [`BorrowingReadCore`]. It is similar to what [`Cursor`] provides to [`Read`].
-
+/// Newtype wrapper for [`AsRef<[u8]>`] that allows zero-copy operations from [BorrowingReadCore].
+/// It is similar to what [std::io::Cursor] provides to [std::io::Read].
 #[derive(Clone)]
 pub struct BorrowingCursor<T> {
     inner: T,
@@ -236,9 +282,6 @@ where
     T: AsRef<[u8]> + Clone,
 {
     #[inline]
-    fn clear_buffer(&mut self) {}
-
-    #[inline]
     fn read(&mut self, count: MemSize) -> io::Result<&[u8]> {
         self.advance(count)
     }
@@ -287,10 +330,6 @@ where
         }
     }
 }
-
-/////////////
-// Memory map
-/////////////
 
 struct Mmap {
     // Offset in the file matching the beginning of the memory area
@@ -438,6 +477,9 @@ impl<T> MmapFileInner<T> {
     }
 }
 
+/// Uses mmap to provide a [BorrowingRead]
+///
+/// In cases where the mmap syscall fails, it will transparently fallback to read syscalls.
 pub struct MmapFile<T> {
     inner: MmapFileInner<T>,
     scratch: ScratchAlloc,
@@ -490,17 +532,17 @@ impl<T> MmapFile<T> {
             })
         }
     }
+
+    #[inline]
+    fn clear_buffer(&mut self) {
+        self.scratch.reset()
+    }
 }
 
 impl<T> BorrowingReadCore for MmapFile<T>
 where
     T: AsRawFd + Read + Seek,
 {
-    #[inline]
-    fn clear_buffer(&mut self) {
-        self.scratch.reset()
-    }
-
     #[inline]
     fn read(&mut self, count: MemSize) -> io::Result<&[u8]> {
         self.clear_buffer();
@@ -681,18 +723,10 @@ where
     }
 }
 
-// libtraceevent deals with it by keeping a loaded page for each CPU buffer. The page either comes from:
-// * a mmap (not necessarily the whole file, it can deal with a small bit)
-// * a simple seek + read + seek sequence to load a page in memory.
-//
-// This means it cannot consume a non-seek fd (tested with cat trace.dat | trace-cmd report /dev/stdin).
-//
-// This allows efficient access that avoids seeking all the time (only a few
-// seeks to load a whole page), and there is one read buffer for each CPU buffer
-// (as opposed to a single BufReader that would never preload the right piece of
-// info since it would be shared for multiple offsets).
-//
-
+/// [BorrowingRead] equivalent to using a [BufReader] on top of a [Read] object.
+///
+/// This implementation will efficiently buffer reads and seeks so that a single opened file can be
+/// used even though multiple readers are trying to read from separate areas.
 pub struct BorrowingBufReader<T> {
     inner: BufReader<CursorReader<T>>,
     consume: MemSize,
@@ -735,6 +769,11 @@ where
     }
 
     #[inline]
+    fn clear_buffer(&mut self) {
+        self.scratch.reset();
+    }
+
+    #[inline]
     fn consume(&mut self) {
         self.inner.consume(self.consume);
         self.consume = 0;
@@ -746,11 +785,6 @@ impl<T> BorrowingReadCore for BorrowingBufReader<T>
 where
     T: Read + Seek,
 {
-    #[inline]
-    fn clear_buffer(&mut self) {
-        self.scratch.reset();
-    }
-
     #[inline]
     fn read(&mut self, count: MemSize) -> io::Result<&[u8]> {
         self.consume();

@@ -1,3 +1,24 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Copyright (C) 2024, ARM Limited and contributors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! Custom string type that fits all use cases inside this crate.
+//!
+//! The main reason for a custom type are the various ownership models supported and using
+//! [smartstring::alias::String] internally where possible.
+
 use core::{
     borrow::Borrow,
     cmp::Ordering,
@@ -14,11 +35,13 @@ use crate::{
     scratch::{OwnedScratchBox, OwnedScratchBox_as_dyn, ScratchAlloc},
 };
 
+/// String type with various ownership model available.
 #[derive(Debug, Clone)]
 pub struct Str<'a> {
     pub(crate) inner: InnerStr<'a>,
 }
 
+/// Alias for a [Memo]-ized string.
 type StrProcedure<'a> = Memo<
     String,
     OwnedScratchBox<'a, dyn StringProducer>,
@@ -40,8 +63,11 @@ impl<'a> Clone for OwnedScratchBox<'a, dyn StringProducer> {
     }
 }
 
+/// Lazily produce a string by writing it to a [fmt::Write] object.
 pub trait StringProducer: Send + Sync {
+    /// Write the string to `out`
     fn write(&self, out: &mut dyn fmt::Write);
+    /// Clone the producer.
     fn clone_box<'a>(&self, alloc: &'a ScratchAlloc) -> OwnedScratchBox<'a, dyn StringProducer>
     where
         Self: 'a;
@@ -115,16 +141,24 @@ impl<'a> Str<'a> {
         }
     }
 
+    /// Create a [`Str<'static>`] and optimize the result for cheap cloning.
     #[inline]
     pub fn into_static(self) -> Str<'static> {
-        Str {
-            inner: InnerStr::Owned(match self.inner {
-                InnerStr::Owned(s) => s,
-                InnerStr::Borrowed(s) => (*s).into(),
-                InnerStr::Arc(s) => (&*s).into(),
-                InnerStr::Procedural(p) => p.into_owned(),
-            }),
-        }
+        let inner = match self.inner {
+            InnerStr::Arc(s) => InnerStr::Arc(s),
+            _ => {
+                let s: &str = self.deref();
+                // smartstring will keep strings smaller than 23 bytes directly in the value rather
+                // than allocating on the heap. It's cheap to clone and will not create unnecessary
+                // atomic writes memory traffic.
+                if s.len() <= 23 {
+                    InnerStr::Owned(s.into())
+                } else {
+                    InnerStr::Arc(Arc::from(s))
+                }
+            }
+        };
+        Str { inner }
     }
 }
 

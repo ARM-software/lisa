@@ -1,4 +1,23 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Copyright (C) 2024, ARM Limited and contributors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! Fast arena memory allocator
+
 use core::{
+    cmp::Ordering,
     fmt::{Debug, Formatter},
     marker::PhantomData,
     mem::ManuallyDrop,
@@ -10,6 +29,7 @@ use std::{io, sync::Arc};
 use bumpalo::{boxed::Box as BumpaloBox, collections::Vec as BumpaloVec, Bump};
 use thread_local::ThreadLocal;
 
+/// Allocator used for quick processing that will not need persistent memory allocation.
 pub struct ScratchAlloc {
     pub(crate) bump: ThreadLocal<Bump>,
 }
@@ -33,11 +53,6 @@ impl ScratchAlloc {
             bump.reset()
         }
     }
-
-    #[inline]
-    pub fn move_inside<T: NoopDrop>(&self, x: T) -> &mut T {
-        OwnedScratchBox::new_in(x, self).leak()
-    }
 }
 
 impl AsRef<ScratchAlloc> for ScratchAlloc {
@@ -53,13 +68,16 @@ impl Default for ScratchAlloc {
     }
 }
 
+/// Equivalent of [Box] with extra flexibility in ownership, at the expense of being able to move
+/// out of the box.
 #[derive(Clone)]
 pub enum ScratchBox<'a, T: 'a + ?Sized, A = &'a ScratchAlloc>
 where
     A: 'a + AsRef<ScratchAlloc>,
 {
+    /// Owned box, allocated inside a [ScratchAlloc]
     Owned(OwnedScratchBox<'a, T, A>),
-    Borrowed(&'a T),
+    /// Owned but shared and cheap to clone.
     Arc(Arc<T>),
 }
 
@@ -77,6 +95,9 @@ impl<'a, T, A> ScratchBox<'a, T, A>
 where
     A: 'a + AsRef<ScratchAlloc>,
 {
+    /// Move `value` in the `alloc` [ScratchAlloc].
+    ///
+    /// This results into an [ScratchBox::Owned] variant.
     #[inline]
     pub fn new_in(value: T, alloc: A) -> ScratchBox<'a, T, A> {
         ScratchBox::Owned(OwnedScratchBox::new_in(value, alloc))
@@ -89,11 +110,12 @@ where
     {
         match self {
             ScratchBox::Owned(owned) => ScratchBox::Arc(Arc::new(owned.into_inner())),
-            ScratchBox::Borrowed(x) => ScratchBox::Arc(Arc::new(x.clone())),
             ScratchBox::Arc(rc) => ScratchBox::Arc(rc),
         }
     }
 
+    /// Get the inner value, which may imply a [Clone::clone] operation for some [ScratchBox]
+    /// variants.
     #[inline]
     pub fn into_inner(self) -> T
     where
@@ -101,7 +123,6 @@ where
     {
         match self {
             ScratchBox::Owned(owned) => owned.into_inner(),
-            ScratchBox::Borrowed(x) => x.clone(),
             ScratchBox::Arc(rc) => rc.deref().clone(),
         }
     }
@@ -117,7 +138,6 @@ where
     fn deref(&self) -> &Self::Target {
         match self {
             ScratchBox::Owned(owned) => owned,
-            ScratchBox::Borrowed(x) => x,
             ScratchBox::Arc(rc) => rc,
         }
     }
@@ -155,7 +175,27 @@ where
 
 impl<'a, T: Eq + ?Sized, A> Eq for ScratchBox<'a, T, A> where A: 'a + AsRef<ScratchAlloc> {}
 
-// Box
+impl<'a, T: PartialOrd + ?Sized, A> PartialOrd<Self> for ScratchBox<'a, T, A>
+where
+    A: 'a + AsRef<ScratchAlloc>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.deref().partial_cmp(other.deref())
+    }
+}
+
+impl<'a, T: Ord + ?Sized, A> Ord for ScratchBox<'a, T, A>
+where
+    A: 'a + AsRef<ScratchAlloc>,
+{
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.deref().cmp(other.deref())
+    }
+}
+
+/// Owned value allocated inside a [ScratchAlloc]
 pub struct OwnedScratchBox<'a, T: 'a + ?Sized, A = &'a ScratchAlloc> {
     // BumpaloBox<'_, T> is unfortunately invariant in T even though it should be covariant, like std::boxed::Box<T>:
     // https://github.com/fitzgen/bumpalo/issues/170
@@ -220,6 +260,7 @@ where
     }
 }
 
+/// Create an [OwnedScratchBox] containing a `dyn Trait` value.
 macro_rules! OwnedScratchBox_as_dyn {
     ($expr:expr, $trait:path) => {{
         fn make<T: $trait, A: ::core::clone::Clone>(
@@ -247,8 +288,8 @@ macro_rules! OwnedScratchBox_as_dyn {
 pub(crate) use OwnedScratchBox_as_dyn;
 
 /// Marker trait for types that don't have any Drop implementation, so not using
-/// core::mem::forget() on them will not lead to any nasty effect (memory leak,
-/// locks unreleased etc.).
+/// [core::mem::forget] on them will not lead to any nasty effect (memory leak, locks unreleased
+/// etc.).
 pub trait NoopDrop {}
 macro_rules! nodrop_impl {
     ($($typ:ty),*) => {
@@ -373,7 +414,7 @@ impl<'a, T: PartialEq + ?Sized, A> PartialEq<Self> for OwnedScratchBox<'a, T, A>
 
 impl<'a, T: Eq + ?Sized, A> Eq for OwnedScratchBox<'a, T, A> {}
 
-// Vec
+/// [ScratchVec] is to [Vec] what [ScratchBox] is to [Box]
 pub struct ScratchVec<'a, T: 'a>(BumpaloVec<'a, T>);
 
 impl<'a, T> ScratchVec<'a, T> {

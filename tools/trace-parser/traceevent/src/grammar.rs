@@ -1,3 +1,21 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Copyright (C) 2024, ARM Limited and contributors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! Layer on top of nom to deal with left-recursive grammar using the packrat technique.
+
 use core::cell::RefCell;
 use std::rc::Rc;
 
@@ -9,6 +27,10 @@ use crate::{
     scratch::{OwnedScratchBox, ScratchAlloc},
 };
 
+/// Span of input for the grammar.
+///
+/// We use [LocatedSpan] library in order to attach a context to the grammar. This allows us to
+/// store an allocator and our packrat state.
 pub type Span<'i, G> = LocatedSpan<
     &'i [u8],
     (
@@ -24,9 +46,13 @@ pub struct LocatedState<State> {
     pub pos: usize,
 }
 
+/// Grammar extended with packrat to allow left-recursion.
 pub trait PackratGrammar {
+    /// Custom parsing context that will be accessible from any grammar rule.
     type Ctx<'i>: 'i;
+    /// Packrat parser state
     type State<'i>;
+    /// Error type that can be returned by parsing rules
     type Error;
 
     #[inline]
@@ -34,6 +60,8 @@ pub trait PackratGrammar {
         input.extra.0
     }
 
+    /// Parsing rule that consumes no input but returns a reference to the [Self::Ctx] custom
+    /// context.
     #[allow(clippy::type_complexity)]
     #[inline]
     fn grammar_ctx<'i, E>(
@@ -44,6 +72,7 @@ pub trait PackratGrammar {
         }
     }
 
+    /// Create a fresh [Span] out of an input buffer and a context reference.
     fn make_span<'i>(input: &'i [u8], ctx: &'i Self::Ctx<'i>) -> Span<'i, Self>
     where
         Self::State<'i>: Default + Clone,
@@ -61,6 +90,9 @@ pub trait PackratGrammar {
         LocatedSpan::new_extra(input, ctx)
     }
 
+    /// Apply a parsing rule to the given input and context.
+    ///
+    /// Returns the remaining unparsed buffer along with the output of the parsing rule.
     #[inline]
     fn apply_rule<'i, 'p, O, E, P>(
         mut rule: P,
@@ -95,6 +127,9 @@ pub trait PackratGrammar {
     }
 }
 
+/// On-going parsing action at a given input location.
+///
+/// This allows the packrat parser to parse left-recursive rules.
 #[derive(Default, Clone)]
 pub enum PackratAction<'a, T> {
     // Keep that variant as the first, so that its discriminant is (probably) 0
@@ -123,6 +158,7 @@ macro_rules! __if_set_else {
 
 pub(crate) use __if_set_else;
 
+/// This macro allows the user to create a packrat grammar using lighter syntax.
 // Allow defining grammar production rules with most of the boilerplate
 // removed and automatic context() added
 macro_rules! grammar {

@@ -999,12 +999,14 @@ class TraceDumpTraceParser(TraceParserBase):
     """
 
     _STEAL_FILES = True
+    _MAX_ERRORS = 256
 
     @kwargs_forwarded_to(TraceParserBase.__init__)
     def __init__(self, path, events, needed_metadata=None, **kwargs):
         super().__init__(events=events, needed_metadata=needed_metadata, **kwargs)
         self._trace_path = str(Path(path).resolve())
         self._metadata = {}
+        self._trace_format = 'tracedat'
 
     def __enter__(self):
         temp_dir = self._temp_dir
@@ -1021,6 +1023,7 @@ class TraceDumpTraceParser(TraceParserBase):
         if events or events is _ALL_EVENTS:
             meta = self._make_parquets(
                 path=path,
+                trace_format=self._trace_format,
                 events=events,
                 temp_dir=temp_dir
             )
@@ -1033,6 +1036,7 @@ class TraceDumpTraceParser(TraceParserBase):
         elif needed_metadata:
             meta = self._make_metadata(
                 path=path,
+                trace_format=self._trace_format,
                 temp_dir=temp_dir,
                 needed_metadata=needed_metadata,
             )
@@ -1134,11 +1138,13 @@ class TraceDumpTraceParser(TraceParserBase):
         return meta
 
     @classmethod
-    def _make_metadata(cls, path, temp_dir, needed_metadata):
+    def _make_metadata(cls, path, trace_format, temp_dir, needed_metadata):
         stdout = cls._run(
             cli_args=(
                 'metadata',
                 '--trace', path,
+                '--trace-format', trace_format,
+                '--max-errors', str(cls._MAX_ERRORS),
                 *(
                     arg
                     for key in sorted(set(needed_metadata or []))
@@ -1150,7 +1156,7 @@ class TraceDumpTraceParser(TraceParserBase):
         return cls._process_metadata(json.loads(stdout))
 
     @classmethod
-    def _make_parquets(cls, events, path, temp_dir):
+    def _make_parquets(cls, events, path, trace_format, temp_dir):
         # Let the parser parse all available events
         if events is _ALL_EVENTS:
             events = []
@@ -1169,6 +1175,8 @@ class TraceDumpTraceParser(TraceParserBase):
             cli_args=(
                 'parquet',
                 '--trace', path,
+                '--trace-format', trace_format,
+                '--max-errors', str(cls._MAX_ERRORS),
                 '--compression', 'lz4',
                 '--unique-timestamps',
                 *events,
