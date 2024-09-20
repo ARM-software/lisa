@@ -9,7 +9,6 @@ __pycache__
 /tools/android-sdk-linux
 *.pid
 server.url
-/vagrant
 /tools/wa_user_directory/dependencies
 /src/buildroot
 custom_requirements.txt

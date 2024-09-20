@@ -127,41 +127,6 @@ practices, which includes a ``setup.py`` script, and a
 editable mode (including those that are not developped in that repository, but
 still included for convenience).
 
-Virtual machine installation
-----------------------------
-.. _setup-vagrant:
-
-LISA provides a Vagrant recipe which automates the generation of a
-VirtualBox based virtual machine pre-configured to run LISA. To generate and
-use such a virtual machine you need:
-
-- `VirtualBox <https://www.virtualbox.org/wiki/Downloads>`__
-- `Vagrant <https://www.vagrantup.com/downloads.html>`__
-
-Once these two components are available on your machine, issue these commands:
-
-.. code:: shell
-
-  git clone https://gitlab.arm.com/tooling/lisa
-  cd lisa
-  vagrant up
-
-This last command builds and executes the VM according to the description provided
-by the Vagrant file available in the root folder of the LISA source tree.
-
-Once the VM installation is complete, you can access that VM with:
-
-.. code:: shell
-
-  vagrant ssh
-
-.. important:: In order to work around a
-  `Vagrant bug <https://github.com/hashicorp/vagrant/issues/12057>`_, all the
-  dependencies of LISA are installed in non-editable mode inside the VM. This
-  means that using `git pull` must be followed by a `lisa-install` if any of the
-  dependencies in `external/` are updated.
-
-
 Target installation
 +++++++++++++++++++
 

@@ -21,11 +21,6 @@ In order to use the shell, source the script:
 
    source init_env
 
-.. note::
-
-   This is done automatically by vagrant, so you don't have to issue this
-   command after doing a ``vagrant ssh``
-
 .. tip:: Run ``man lisa`` to see an overview of the provided LISA commands.
 
 
