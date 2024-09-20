@@ -19,7 +19,7 @@
 # Script to install the depenencies for LISA on an Ubuntu-like system.
 
 # This is intended to be used for setting up containers and virtual machines to
-# run LISA (e.g. for CI infrastructure or for Vagrant installation).
+# run LISA (e.g. for CI infrastructure or for docker installation).
 # This can also work for a fresh LISA install on a workstation.
 
 # Read standard /etc/os-release file and extract the needed field lsb_release
@@ -186,7 +186,7 @@ usage() {
     echo "Usage: $0 [--help] [--cleanup-android-sdk] [--install-android-tools]
     [--install-android-platform-tools] [--install-doc-extras]
     [--install-tests-extra] [--install-bisector-dbus] [--install-toolchains]
-    [--install-vagrant] [--install-all]"
+    [--install-all]"
     cat << EOF
 
 Install distribution packages and other bits that don't fit in the Python
@@ -249,22 +249,6 @@ for arg in "${args[@]}"; do
         apt_packages+=(autopoint autoconf libtool bison flex cmake)
         # gettext for autopoint
         pacman_packages+=(gettext autoconf libtool bison cmake)
-
-        handled=1
-        ;;&
-
-    "--install-vagrant" | "--install-all")
-        # Only install the package if we are not already inside the VM to save
-        # some install time
-        vm=$(systemd-detect-virt 2>/dev/null) || true
-        if [[ $vm == 'oracle' ]] ; then
-            echo "VirtualBox detected, not installing virtualbox apt packages" >&2
-        elif [[ $HOST_ARCH == 'aarch64' ]]; then
-            echo "VirtualBox not supported on $HOST_ARCH" >&2
-        else
-            apt_packages+=(vagrant virtualbox)
-            pacman_packages+=(vagrant virtualbox virtualbox-host-dkms)
-        fi
 
         handled=1
         ;;&

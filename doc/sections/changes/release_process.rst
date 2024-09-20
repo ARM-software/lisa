@@ -21,9 +21,8 @@ Making a new release involves the following steps:
 5. Make the Python wheel. See ``tools/make-release.sh`` for some
    indications on that part.
 
-6. Install that wheel in a _fresh_ :ref:`Vagrant VM<setup-vagrant>`. Ensure
-   that the VM is reinstalled from scratch and that the vagrant box in use is
-   up to date.
+6. Install that wheel in a _fresh_ environment. Ensure that the VM is
+   reinstalled from scratch.
 
 7. Run ``tools/tests.sh`` in the VM and ensure no deprecated item scheduled
    for removal in the new version is still present in the sources (should

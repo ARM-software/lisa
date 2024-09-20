@@ -240,14 +240,7 @@ function lisa-install {
     # installation source of any package
     local requirements=(custom_requirements.txt)
 
-    if [[ $(whoami) == "vagrant" ]]; then
-        # Special set of requirements to workaround vagrant issue:
-        # https://github.com/hashicorp/vagrant/issues/12057
-        requirements+=(
-            vagrant_requirements.txt
-            devmode_extra_requirements.txt
-        )
-    elif [[ "$LISA_DEVMODE" == 1 ]]; then
+    if [[ "$LISA_DEVMODE" == 1 ]]; then
         # This set of requirements will install all the shipped dependencies
         # in editable mode
         requirements+=(
@@ -395,7 +388,7 @@ function _lisa-jupyter-start {
         return 1
     fi
 
-    # Check required port is available (e.g. Vagrant could using the same port)
+    # Check required port is available
     if netstat -nlt | grep $PORT &>/dev/null; then
         echo
         echo "ERROR: required port [$PORT] already in use"
@@ -431,16 +424,7 @@ function _lisa-jupyter-stop {
 
 function lisa-jupyter {
     CMD=${1:-start}
-
-    if [[ -z "$2" && $USER == vagrant && -e /vagrant/shell/lisa_shell ]]; then
-        # NETIF not set and we are in a vagrant environment.  Default to
-        # the ethernet interface as loopback won't let you connect from your
-        # host machine.
-        NETIF=$(ip route | awk '/default/ { print $5 }')
-    else
-        NETIF=${2:-lo}
-    fi
-
+    NETIF=${2:-lo}
     PORT=${3:-8888}
     echo
     case "$CMD" in
