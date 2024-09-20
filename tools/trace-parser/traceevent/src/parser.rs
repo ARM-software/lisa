@@ -1,4 +1,22 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Copyright (C) 2024, ARM Limited and contributors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/// Various parsing-related utility functions.
 use core::{
+    cmp::Ordering,
     fmt::{Debug, Display, Formatter},
     ops::Range,
 };
@@ -21,6 +39,8 @@ impl<E, I> FromParseError<I, E> for () {
     fn from_parse_error(_input: I, _err: &E) -> Self {}
 }
 
+/// Parse error including a backtrace of nested [nom::error::VerboseErrorKind] along with their
+/// source location.
 #[derive(Clone, PartialEq)]
 pub struct VerboseParseError {
     input: String,
@@ -69,12 +89,43 @@ impl VerboseParseError {
 
 impl Eq for VerboseParseError {}
 
+impl PartialOrd<Self> for VerboseParseError {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for VerboseParseError {
+    #[inline]
+    fn cmp<'a>(&'a self, other: &'a Self) -> Ordering {
+        let key = |x: &'a Self| -> (&'a _, _) {
+            (
+                &x.input,
+                x.errors
+                    .iter()
+                    .map(|(range, kind)| {
+                        (
+                            range.start,
+                            range.end,
+                            // ErrorKind does not have PartialOrd and Ord implem
+                            format!("{kind:?}"),
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        };
+        key(self).cmp(&key(other))
+    }
+}
+
 impl Debug for VerboseParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), core::fmt::Error> {
         write!(f, "VerboseParseError {{{self}}}",)
     }
 }
 
+/// Display the parse error with its "context backtrace".
 impl Display for VerboseParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), core::fmt::Error> {
         let input = self.input.as_str();
@@ -119,13 +170,15 @@ pub struct NomError<T, E> {
 
 impl<T, E> NomError<T, E> {
     #[inline]
-    fn from_inner<I>(inner: E) -> Self
-    where
-        T: FromParseError<I, E>,
-    {
+    fn from_inner(inner: E) -> Self {
         NomError { data: None, inner }
     }
 
+    /// Convert error to a [nom::IResult], either by calling `convert` and passing it `self.data`
+    /// if any data is available, or using [nom::error::ErrorKind::Fail] otherwise.
+    ///
+    /// This allows transparent handling of the case where the error had user-provided error data,
+    /// or if the error originated from nom itself and therefore has no data registered.
     pub fn into_external<I, O, T2, F, E2>(self, input: I, mut convert: F) -> nom::IResult<I, O, E2>
     where
         F: FnMut(T) -> T2,
@@ -213,6 +266,9 @@ pub fn to_str(s: &[u8]) -> StdString {
 // Parsers
 //////////////////////
 
+/// Parse an ASCII hexadecimal unsigned integer in the input.
+///
+/// This does not parse any leading `0x` prefix, the user is responsible for that.
 pub fn hex_u64<I, E>(input: I) -> nom::IResult<I, u64, E>
 where
     E: ParseError<I>,
@@ -239,7 +295,11 @@ where
 // Generic combinators
 //////////////////////
 
+/// Extend [nom::Parser] with some methods.
 pub trait NomParserExt<I, O, E, NE>: nom::Parser<I, O, NomError<E, NE>> {
+    /// Parse the input and return a simple [Result]
+    ///
+    /// The parser is expected to consume all input, otherwise an error will be returned.
     #[inline]
     fn parse_finish(&mut self, input: I) -> Result<O, E>
     where
@@ -260,6 +320,8 @@ pub trait NomParserExt<I, O, E, NE>: nom::Parser<I, O, NomError<E, NE>> {
 
 impl<I, O, E, NE, P> NomParserExt<I, O, E, NE> for P where P: nom::Parser<I, O, NomError<E, NE>> {}
 
+/// Help debugging the `inner` [nom::Parser] by printing `name`, the input, the output and the
+/// remaining input every time the parser is called.
 #[allow(unused)]
 pub fn print<I, O, E, P>(name: &'static str, mut inner: P) -> impl nom::Parser<I, O, E>
 where
@@ -271,7 +333,7 @@ where
     move |input: I| {
         let (i, x) = inner.parse(input.clone())?;
         println!(
-            "{name} input={:?} out={x:?} new_input={:?}",
+            "{name} input={:?} out={x:?} remaining={:?}",
             to_str(input.as_ref()),
             to_str(i.as_ref())
         );
@@ -279,6 +341,7 @@ where
     }
 }
 
+/// Wraps a [nom::Parser] to parse optional whitespaces before and after.
 pub fn lexeme<I, O, E, P>(inner: P) -> impl nom::Parser<I, O, E>
 where
     E: ParseError<I>,
@@ -290,6 +353,7 @@ where
     delimited(multispace0, inner, multispace0)
 }
 
+/// Wraps a [nom::Parser] to parse parenthesis around it.
 pub fn parenthesized<I, O, E, P>(parser: P) -> impl nom::Parser<I, O, E>
 where
     P: nom::Parser<I, O, E>,
@@ -306,6 +370,11 @@ where
     delimited(lexeme(char('(')), parser, lexeme(char(')')))
 }
 
+/// Similar [nom::combinator::map_res] but does not backtrack in case `f` returns an error.
+///
+/// This allows correct error handling for all cases where the grammar is non-ambiguous and `f` is
+/// doing semantic checking. In such situation, a semantic error is not expected to trigger a
+/// backtrack in the parser, leading to much worse error messages.
 pub fn map_res_cut<I: Clone, O1, O2, E: FromExternalError<I, E2>, E2, F, G>(
     mut parser: F,
     mut f: G,
@@ -354,6 +423,8 @@ where
 //     }
 // }
 
+/// Returns a parser that will succeed without consuming any input and will return the return value
+/// of `f()`.
 pub fn success_with<F, I, O, E>(mut f: F) -> impl FnMut(I) -> nom::IResult<I, O, E>
 where
     F: FnMut() -> O,
@@ -362,6 +433,7 @@ where
     move |input: I| Ok((input, f()))
 }
 
+/// Craft an [nom::IResult] error from the given error and input.
 #[inline]
 pub fn error<I, O, E, E2>(input: I, err: E) -> nom::IResult<I, O, E2>
 where
@@ -374,6 +446,7 @@ where
     )))
 }
 
+/// Craft an [nom::IResult] failure from the given error and input.
 #[inline]
 pub fn failure<I, O, E, E2>(input: I, err: E) -> nom::IResult<I, O, E2>
 where

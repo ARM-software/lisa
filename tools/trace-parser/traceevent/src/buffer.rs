@@ -1,3 +1,21 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Copyright (C) 2024, ARM Limited and contributors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! trace.dat CPU buffer decoding.
+
 use core::{
     cell::UnsafeCell,
     fmt::{Debug, Formatter},
@@ -19,7 +37,7 @@ use smartstring::alias::String;
 use crate::{
     array,
     cinterp::{Bitmap, BufferEnv, CompileError, SockAddr, SockAddrKind, Value},
-    closure::make_closure_coerce_type,
+    closure::{closure, make_closure_coerce_type},
     compress::Decompressor,
     cparser::{ArrayKind, DynamicKind, Type},
     error::convert_err_impl,
@@ -35,13 +53,20 @@ use crate::{
     str::Str,
 };
 
-// Keep a BTreeMap for fast lookup and to avoid huge Vec allocation in case
-// some event ids are very large. Since most traces will contain just a few
-// types of events, build up the smallest mapping as it goes.
+/// Keeps an [EventId] <-> ([EventDesc], [Ctx]) mapping so we can quickly access the decoder for
+/// each event record as we encounter it in the buffer.
 struct EventDescMap<'h, Ctx, MakeCtx> {
     header: &'h Header,
-    cold_map: BTreeMap<EventId, &'h EventDesc>,
+    /// [BTreeMap] for fast lookup and to avoid huge Vec allocation in case some event ids are very
+    /// large. Since most traces will contain just a few types of events, build up the smallest
+    /// mapping as it goes. This will speed up further the lookup.
     hot_map: BTreeMap<EventId, (&'h EventDesc, Ctx)>,
+    /// Cold [BTreeMap] that contains all the [EventId] that did not appear so far in the trace.
+    /// This keeps them out of the way to increase lookup speed in `hot_map`.
+    cold_map: BTreeMap<EventId, &'h EventDesc>,
+    /// Make a user-defined [Ctx] object for every event type that is encountered in the trace.
+    /// That context can be used to hold e.g. a parquet file handler to dump the event in it. This
+    /// saves the user from having to maintain a separate map.
     make_ctx: Arc<Mutex<MakeCtx>>,
 }
 
@@ -89,8 +114,14 @@ where
     }
 }
 
+/// This is the main user-facing struct that represents an event record.
+///
+/// Almost all operations are lazy (e.g. event fields decoding), so efficient user-side filtering
+/// can be implemented.
 pub struct EventVisitor<'i, 'h, 'edm, MakeCtx, Ctx = ()> {
+    /// Binary buffer containing the undecoded event in the ftrace buffer.
     pub data: &'i [u8],
+    /// Reference to the [Header] of the trace the event was defined in.
     pub header: &'h Header,
 
     pub timestamp: Timestamp,
@@ -159,18 +190,25 @@ impl<'i, 'h, 'edm, MakeCtx, Ctx> EventVisitor<'i, 'h, 'edm, MakeCtx, Ctx> {
         }
     }
 
+    pub fn scratch(&self) -> &ScratchAlloc {
+        self.scratch
+    }
+
+    /// Compile-time check that we are covariant in 'i1
     fn __check_covariance_i<'i1>(self) -> EventVisitor<'i1, 'h, 'edm, MakeCtx, Ctx>
     where
         'i: 'i1,
     {
         self
     }
+    /// Compile-time check that we are covariant in 'h1
     fn __check_covariance_h<'h1>(self) -> EventVisitor<'i, 'h1, 'edm, MakeCtx, Ctx>
     where
         'h: 'h1,
     {
         self
     }
+    /// Compile-time check that we are covariant in 'edm1
     fn __check_covariance_edm<'edm1>(self) -> EventVisitor<'i, 'h, 'edm1, MakeCtx, Ctx>
     where
         'edm: 'edm1,
@@ -179,7 +217,7 @@ impl<'i, 'h, 'edm, MakeCtx, Ctx> EventVisitor<'i, 'h, 'edm, MakeCtx, Ctx> {
     }
 }
 
-// Capture a lifetime syntactically to avoid E0700 when using impl in return position
+/// Capture a lifetime syntactically to avoid E0700 when using impl in return position
 pub trait CaptureLifetime<'a> {}
 impl<T: ?Sized> CaptureLifetime<'_> for T {}
 
@@ -294,28 +332,26 @@ where
     pub fn buffer_env(&self) -> BufferEnv {
         BufferEnv::new(self.scratch, self.header, self.data)
     }
-
-    #[inline]
-    pub fn vbin_fields<'a>(
-        &self,
-        print_fmt: &'a PrintFmtStr,
-        data: &'a [u32],
-    ) -> impl IntoIterator<Item = Result<PrintArg<'a>, BufferError>>
-    where
-        'h: 'a,
-        'i: 'a,
-    {
-        print_fmt.vbin_fields(self.header, self.scratch, data)
-    }
 }
 
-pub trait FieldDecoder: Send + Sync {
+/// Represent a decoder for a specific field type in an event.
+///
+/// This trait exists mostly to help HRTB inference when manipulating decoding functions for which
+/// it is implemented.
+pub(crate) trait FieldDecoder: Send + Sync {
+    /// Decode a [Value] for the represented field.
+    ///
+    /// # Arguments
+    /// * `event_data` - Data of the entire event record. This is necessary as some field types
+    ///   might need access to arbitrary part of the event beyond the small area dedicated to the
+    ///   field, such as `__data_loc` fields.
+    /// * Specific area of `event_data` that contains the field value to be decoded.
     fn decode<'d>(
         &self,
         event_data: &'d [u8],
         field_data: &'d [u8],
         header: &'d Header,
-        bump: &'d ScratchAlloc,
+        scratch: &'d ScratchAlloc,
     ) -> Result<Value<'d>, BufferError>;
 }
 
@@ -335,43 +371,19 @@ where
         event_data: &'d [u8],
         field_data: &'d [u8],
         header: &'d Header,
-        bump: &'d ScratchAlloc,
+        scratch: &'d ScratchAlloc,
     ) -> Result<Value<'d>, BufferError> {
-        self(event_data, field_data, header, bump)
-    }
-}
-
-impl FieldDecoder for () {
-    fn decode<'d>(
-        &self,
-        _event_data: &'d [u8],
-        _field_data: &'d [u8],
-        _header: &'d Header,
-        _bump: &'d ScratchAlloc,
-    ) -> Result<Value<'d>, BufferError> {
-        Err(BufferError::NoDecoder)
+        self(event_data, field_data, header, scratch)
     }
 }
 
 impl Type {
     #[allow(clippy::type_complexity)]
     #[inline]
-    pub fn make_decoder(
+    pub(crate) fn make_decoder(
         &self,
         header: &Header,
-    ) -> Result<
-        Box<
-            dyn for<'d> Fn(
-                    &'d [u8],
-                    &'d [u8],
-                    &'d Header,
-                    &'d ScratchAlloc,
-                ) -> Result<Value<'d>, BufferError>
-                + Send
-                + Sync,
-        >,
-        CompileError,
-    > {
+    ) -> Result<Arc<dyn FieldDecoder>, CompileError> {
         use Type::*;
 
         let dynamic_decoder = |kind: &DynamicKind| -> Box<
@@ -410,52 +422,68 @@ impl Type {
             }
         };
 
+        macro_rules! make_decoder {
+            ($closure:expr) => {
+                Arc::new(closure!(
+                                                    (
+                                                        for<'d> Fn(
+                                                            &'d [u8],
+                                                            &'d [u8],
+                                                            &'d Header,
+                                                            &'d ScratchAlloc,
+                                                        )
+                                                        -> Result<Value<'d>, BufferError>
+                                                    ),
+                                                    $closure
+                                                ))
+            };
+        }
         match self {
-            Void => Ok(Box::new(|_, _, _, _| Ok(Value::Unknown))),
-            Bool => Ok(Box::new(move |_data, field_data, header, _| {
+            Void => Ok(make_decoder!(|_, _, _, _| Ok(Value::Unknown))),
+            Bool => Ok(make_decoder!(move |_data, field_data, header, _| {
                 Ok(Value::U64Scalar(
                     header.kernel_abi().parse_u8(field_data)?.1.into(),
                 ))
             })),
-            U8 => Ok(Box::new(move |_data, field_data, header, _| {
+            U8 => Ok(make_decoder!(move |_data, field_data, header, _| {
                 Ok(Value::U64Scalar(
                     header.kernel_abi().parse_u8(field_data)?.1.into(),
                 ))
             })),
-            I8 => Ok(Box::new(move |_data, field_data, header, _| {
+            I8 => Ok(make_decoder!(move |_data, field_data, header, _| {
                 Ok(Value::I64Scalar(
                     (header.kernel_abi().parse_u8(field_data)?.1 as i8).into(),
                 ))
             })),
 
-            U16 => Ok(Box::new(move |_data, field_data, header, _| {
+            U16 => Ok(make_decoder!(move |_data, field_data, header, _| {
                 Ok(Value::U64Scalar(
                     header.kernel_abi().parse_u16(field_data)?.1.into(),
                 ))
             })),
-            I16 => Ok(Box::new(move |_data, field_data, header, _| {
+            I16 => Ok(make_decoder!(move |_data, field_data, header, _| {
                 Ok(Value::I64Scalar(
                     (header.kernel_abi().parse_u16(field_data)?.1 as i16).into(),
                 ))
             })),
 
-            U32 => Ok(Box::new(move |_data, field_data, header, _| {
+            U32 => Ok(make_decoder!(move |_data, field_data, header, _| {
                 Ok(Value::U64Scalar(
                     header.kernel_abi().parse_u32(field_data)?.1.into(),
                 ))
             })),
-            I32 => Ok(Box::new(move |_data, field_data, header, _| {
+            I32 => Ok(make_decoder!(move |_data, field_data, header, _| {
                 Ok(Value::I64Scalar(
                     (header.kernel_abi().parse_u32(field_data)?.1 as i32).into(),
                 ))
             })),
 
-            U64 => Ok(Box::new(move |_data, field_data, header, _| {
+            U64 => Ok(make_decoder!(move |_data, field_data, header, _| {
                 Ok(Value::U64Scalar(
                     header.kernel_abi().parse_u64(field_data)?.1,
                 ))
             })),
-            I64 => Ok(Box::new(move |_data, field_data, header, _| {
+            I64 => Ok(make_decoder!(move |_data, field_data, header, _| {
                 Ok(Value::I64Scalar(
                     header.kernel_abi().parse_u64(field_data)?.1 as i64,
                 ))
@@ -477,20 +505,20 @@ impl Type {
                             "cpumask_t" | "dma_cap_mask_t" | "nodemask_t" | "pnp_irq_mask_t"
                         ) =>
                     {
-                        Ok(Box::new(
+                        Ok(make_decoder!(
                             move |data, field_data: &[u8], header: &Header, scratch| {
                                 let field_data = decoder(data, field_data, header, scratch)?;
                                 Ok(Value::Bitmap(Bitmap::from_bytes(
                                     field_data,
                                     header.kernel_abi(),
                                 )))
-                            },
+                            }
                         ))
                     }
 
                     // As described in:
                     // https://bugzilla.kernel.org/show_bug.cgi?id=217532
-                    Type::Typedef(_, id) if id.deref() == "sockaddr_t" => Ok(Box::new(
+                    Type::Typedef(_, id) if id.deref() == "sockaddr_t" => Ok(make_decoder!(
                         move |data, field_data: &[u8], header: &Header, scratch| {
                             let field_data = decoder(data, field_data, header, scratch)?;
                             Ok(Value::SockAddr(SockAddr::from_bytes(
@@ -498,14 +526,14 @@ impl Type {
                                 header.kernel_abi().endianness,
                                 SockAddrKind::Full,
                             )?))
-                        },
+                        }
                     )),
 
                     // Any other dynamic scalar type is unknown, so just provide
                     // the raw buffer to consumers.
                     _ => {
                         let typ = Arc::from(typ.clone());
-                        Ok(Box::new(move |data, field_data, header, scratch| {
+                        Ok(make_decoder!(move |data, field_data, header, scratch| {
                             let field_data = decoder(data, field_data, header, scratch)?;
                             Ok(Value::Raw(
                                 Arc::clone(&typ),
@@ -521,17 +549,19 @@ impl Type {
                 let array_decoder =
                     Type::Array(typ.clone(), ArrayKind::Fixed(Ok(0))).make_decoder(header)?;
 
-                Ok(Box::new(move |data, field_data, header, scratch| {
-                    let array_data = data_decoder(data, field_data, header, scratch)?;
-                    array_decoder.decode(data, array_data, header, scratch)
-                }))
+                Ok(make_decoder!(
+                    (move |data, field_data, header, scratch| {
+                        let array_data = data_decoder(data, field_data, header, scratch)?;
+                        array_decoder.decode(data, array_data, header, scratch)
+                    })
+                ))
             }
 
             Array(typ, ArrayKind::ZeroLength) => {
                 let decoder =
                     Type::Array(typ.clone(), ArrayKind::Fixed(Ok(0))).make_decoder(header)?;
 
-                Ok(Box::new(move |data, field_data, header, scratch| {
+                Ok(make_decoder!(move |data, field_data, header, scratch| {
                     let offset: usize = field_data.as_ptr() as usize - data.as_ptr() as usize;
                     // Currently, ZLA fields are buggy as we cannot know the
                     // true data size. Instead, we get this aligned size,
@@ -549,7 +579,10 @@ impl Type {
                 macro_rules! parse_scalar {
                     ($ctor:tt, $item_ty:ty, $parse_item:ident) => {{
                         if header.kernel_abi().endianness.is_native() {
-                            Box::new(move |_data, field_data: &[u8], header, scratch| {
+                            make_decoder!(move |_data,
+                                                field_data: &[u8],
+                                                header: &Header,
+                                                scratch| {
                                 match bytemuck::try_cast_slice(field_data) {
                                     Ok(slice) => Ok(Value::$ctor(array::Array::Borrowed(slice))),
                                     // Data is either misaligned or the array
@@ -570,7 +603,10 @@ impl Type {
                                 }
                             })
                         } else {
-                            Box::new(move |_data, field_data: &[u8], header, scratch| {
+                            make_decoder!(move |_data,
+                                                field_data: &[u8],
+                                                header: &Header,
+                                                scratch| {
                                 let mut vec = ScratchVec::with_capacity_in(
                                     field_data.len() / item_size,
                                     scratch,
@@ -579,17 +615,9 @@ impl Type {
                                     Ok(slice) => {
                                         vec.extend(slice.into_iter().map(|x| x.swap_bytes()));
 
-                                        // Leak the bumpalo's Vec, which is fine because
+                                        // Leak the ScratchVec, which is fine because
                                         // we will deallocate it later by calling
-                                        // ScratchAlloc::reset(). Note that Drop impl for items
-                                        // will _not_ run.
-                                        //
-                                        // In order for them to run, we would need to
-                                        // return an Vec<> instead of a slice, which
-                                        // will be possible one day when the unstable
-                                        // allocator_api becomes stable so we can
-                                        // allocate a real Vec<> in the ScratchAlloc and simply
-                                        // return it.
+                                        // ScratchAlloc::reset().
                                         Ok(Value::$ctor(array::Array::Borrowed(vec.leak())))
                                     }
                                     // Data is either misaligned or the array
@@ -633,15 +661,11 @@ impl Type {
                     _ => Err(CompileError::InvalidArrayItem(typ.deref().clone())),
                 }
             }
-            typ => {
-                let typ = Arc::new(typ.clone());
-                Ok(Box::new(move |_data, field_data, _, _| {
-                    Ok(Value::Raw(
-                        Arc::clone(&typ),
-                        array::Array::Borrowed(field_data),
-                    ))
-                }))
-            }
+            Type::Unknown
+            | Type::Variable(_)
+            | Type::Struct { .. }
+            | Type::Union { .. }
+            | Type::Function { .. } => Err(CompileError::NonDecodableType(self.clone())),
         }
     }
 }
@@ -697,36 +721,20 @@ impl<'a, Ctx, MakeCtx> Ord for BufferItem<'a, Ctx, MakeCtx> {
     }
 }
 
+/// An ftrace per-CPU buffer.
 pub struct Buffer<'i, 'h> {
-    header: &'h Header,
     pub id: BufferId,
+
+    header: &'h Header,
     page_size: MemSize,
     reader: Box<dyn BufferBorrowingRead<'i> + Send>,
-}
-
-impl<'i, 'h> Buffer<'i, 'h> {
-    // Keep BufferBorrowingRead an implementation detail for now in case we
-    // need something more powerful than BufferBorrowingRead in the future.
-    pub fn new<I: BorrowingRead + Send + 'i>(
-        id: BufferId,
-        reader: I,
-        page_size: MemSize,
-        header: &'h Header,
-    ) -> Self {
-        Buffer {
-            id,
-            reader: Box::new(reader),
-            page_size,
-            header,
-        }
-    }
 }
 
 impl HeaderV7 {
     pub(crate) fn buffers<'i, 'h, 'a, I>(
         &'a self,
         header: &'h Header,
-        input: Box<I>,
+        #[allow(clippy::boxed_local)] input: Box<I>,
     ) -> Result<Vec<Buffer<'i, 'h>>, BufferError>
     where
         'a: 'i + 'h,
@@ -790,7 +798,7 @@ impl HeaderV6 {
     pub(crate) fn buffers<'i, 'h, 'a: 'i + 'h, I: BorrowingRead + Send + 'i>(
         &'a self,
         header: &'h Header,
-        input: Box<I>,
+        #[allow(clippy::boxed_local)] input: Box<I>,
     ) -> Result<Vec<Buffer<'i, 'h>>, BufferError> {
         let nr_cpus = self.nr_cpus;
         let abi = &self.kernel_abi;
@@ -864,6 +872,17 @@ unsafe fn transmute_lifetime_mut<'b, T: ?Sized>(x: &mut T) -> &'b mut T {
     core::mem::transmute(x)
 }
 
+/// Parse the flyrecord buffers.
+///
+/// # Arguments
+///
+/// * `buffer` - Iterator of [Buffer] to consume. The event stream from each buffer will be merged
+///   into a single timestamp-ordered event stream.
+/// * `f` - Closure called for each parsed event. The [EventVisitor] passed to it is a zero-copy
+///   proxy object that allows lazily decoding everything related to the event occurence, so that
+///   cheap filtering can be implemented without having to decode all fields.
+/// * `make_ctx` - Closure to make per-event user context. The context will then be memoized and
+///   accessible via [EventVisitor::event_ctx].
 pub fn flyrecord<'i, 'h, R, F, IntoIter, MakeCtx, Ctx>(
     buffers: IntoIter,
     mut f: F,
@@ -988,7 +1007,8 @@ where
     }
 }
 
-#[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
+/// Errors happening during [Buffer] decoding.
+#[derive(thiserror::Error, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum BufferError {
     #[error("Header contains not ring buffer reference")]
@@ -1014,9 +1034,6 @@ pub enum BufferError {
 
     #[error("Unknown socket family code: {0}")]
     UnknownSockAddrFamily(u16),
-
-    #[error("No decoder for that field")]
-    NoDecoder,
 
     #[error("I/O error while loading data: {0}")]
     IoError(Box<io::ErrorKind>),
@@ -1217,9 +1234,13 @@ where
     Ok(Some((data, timestamp, recoverable_err)))
 }
 
+/// An ftrace buffer is constituted of records, not all of them representing an event.
 #[derive(Debug)]
 enum BufferRecord<'a> {
+    /// An ftrace event binary data.
     Event(&'a [u8]),
+    /// A timestamp record, used to (re)set the current full [u64] timestamp, allowing
+    /// space-efficient delta encoding in the [BufferRecord::Event] records.
     #[allow(dead_code)]
     Timestamp(Timestamp),
     #[allow(dead_code)]
@@ -1312,7 +1333,8 @@ fn parse_record<'a>(
 }
 
 impl PrintFmtStr {
-    fn vbin_decoders<'a>(&'a self, header: &'a Header) -> &Vec<VBinDecoder> {
+    /// Determine a [VBinDecoder] for each argument to a printk-style format string.
+    fn vbin_decoders<'a>(&'a self, header: &'a Header) -> &'a Vec<VBinDecoder> {
         let abi = header.kernel_abi();
         let char_signedness = abi.char_signedness;
         #[allow(clippy::type_complexity)]
@@ -1494,6 +1516,7 @@ impl PrintFmtStr {
     }
 }
 
+/// Decoder for a value encoded by the `vbin_printf()` kernel function.
 #[derive(Clone)]
 pub struct VBinDecoder {
     atom: PrintAtom,

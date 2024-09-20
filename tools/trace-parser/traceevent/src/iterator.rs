@@ -1,3 +1,19 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Copyright (C) 2024, ARM Limited and contributors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use core::{
     cmp::{Ordering, Reverse},
     fmt::{Debug, Error, Formatter},
@@ -5,7 +21,7 @@ use core::{
 };
 use std::collections::BinaryHeap;
 
-pub struct SavedIterator<I>
+struct SavedIterator<I>
 where
     I: Iterator,
 {
@@ -77,7 +93,7 @@ where
 impl<I> MergedIterator<I>
 where
     I: IntoIterator,
-    SavedIterator<<I as IntoIterator>::IntoIter>: Ord,
+    <I as IntoIterator>::Item: Ord,
 {
     pub fn new<II: IntoIterator<Item = I>>(iterators: II) -> Option<Self> {
         let mut iterators = iterators.into_iter().map(|i| i.into_iter());
@@ -98,10 +114,15 @@ where
     }
 }
 
+/// Merge multiple iterators into a single stream of [Ord] items, smallest first.
+///
+/// This implementation guarantees that a given source iterator will not have its [Iterator::next]
+/// called before the next [Iterator::next] call to the [MergedIterator]. This is useful in unsafe
+/// code that needs this extra invariant.
 impl<I> Iterator for MergedIterator<I>
 where
     I: IntoIterator,
-    SavedIterator<<I as IntoIterator>::IntoIter>: Ord,
+    <I as IntoIterator>::Item: Ord,
 {
     type Item = I::Item;
 
