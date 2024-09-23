@@ -30,6 +30,7 @@ from devlib.exception import TargetStableError
 from lisa.utils import Loggable, Serializable, memoized, groupby, get_subclasses, deprecate, grouper
 from lisa.datautils import df_deduplicate
 from lisa.analysis.frequency import FrequencyAnalysis
+from lisa.analysis.idle import IdleAnalysis
 
 
 
@@ -847,11 +848,12 @@ class EnergyModel(Serializable, Loggable):
         return LegacyEnergyModel.from_target(*args, **kwargs)
 
     @FrequencyAnalysis.df_cpus_frequency.used_events
+    @IdleAnalysis.df_cpus_idle.used_events
     def estimate_from_trace(self, trace):
         """
         Estimate the energy consumption of the system by looking at a trace
 
-        Usese the EAS energy model data, and the idle and DVFS conditions
+        It uses the EAS energy model data, and the idle and DVFS conditions
         reported in the trace, to estimate the energy usage of the system at
         every given moment.
 
