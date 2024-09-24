@@ -1934,6 +1934,10 @@ class TxtTraceParserBase(TraceParserBase):
         except KeyError:
             df = self._lazily_parse_event(event, parser, self._skeleton_df)
 
+        import sys
+        print(5555555, VERSION_TOKEN, file=sys.stderr)
+        print(111, _df_json_serialize(df), file=sys.stderr)
+
         # Everything resides in memory anyway, so make that clear to the _Trace
         # infrastructure so it does not accidentally tries to serialize a
         # LazyFrame as a huge JSON.
