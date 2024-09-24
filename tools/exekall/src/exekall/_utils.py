@@ -558,7 +558,7 @@ def infer_mod_name(python_src, package_roots=None, excep_handler=None):
             else:
                 break
         else:
-            raise ValueError('Could not find {python_src} in any of the package roots: {package_roots}')
+            raise ValueError(f'Could not find {python_src} in any of the package roots: {package_roots}')
 
     # Pick the longest path of both
     paths = [module_path1, module_path2]
