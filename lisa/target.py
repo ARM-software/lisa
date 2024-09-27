@@ -289,7 +289,7 @@ class Target(
     }
 
     def __init__(self, kind, name='<noname>', tools=[], res_dir=None,
-        plat_info=None, lazy_platinfo=False, workdir=None, device=None, host=None, port=None,
+        plat_info=None, lazy_platinfo=True, workdir=None, device=None, host=None, port=None,
         username=None, password=None, keyfile=None, strict_host_check=None,
         devlib_platform=None, devlib_excluded_modules=[], devlib_file_xfer=None,
         wait_boot=True, wait_boot_timeout=10, kernel_src=None, kmod_build_env=None,
