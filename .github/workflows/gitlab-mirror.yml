@@ -31,7 +31,7 @@ jobs:
           set -x
 
           cd target-repo || exit 1
-          git remote add gitlab git@git.gitlab.arm.com:tooling/lisa.git
+          git remote add gitlab https://git.gitlab.arm.com/tooling/lisa.git
 
           function mirror() {
               local ref=$1
