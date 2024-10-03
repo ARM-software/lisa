@@ -26,7 +26,7 @@ from lisa._version import version_tuple, __version__, format_version, parse_vers
 from lisa._git import get_sha1, get_uncommited_patch
 
 def _compute_version_token():
-    plain_version_token = f'v{format_version(version_tuple)}-FOOBAR'
+    plain_version_token = f'v{format_version(version_tuple)}'
 
     forced = os.getenv('_LISA_FORCE_VERSION_TOKEN')
 
