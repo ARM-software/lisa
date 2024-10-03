@@ -259,7 +259,6 @@ pages:
             set +e
             source ./init_env || return 1
             set -e
-            upgrade_packages
             audit
 
             export LISA_DOC_VERSION="$publish_as"
