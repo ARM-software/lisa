@@ -514,7 +514,7 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
             _subprocess_log(cmd, logger=logger, level=logging.DEBUG)
 
     def populate(key, path, init_cache=True):
-        version, alpine_arch, packages = key
+        version, alpine_arch, packages, rust_spec = key
         path = path.resolve()
 
         # Packages have already been installed, so we can speed things up a
@@ -551,7 +551,7 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
             if packages:
                 run_cmd(['apk', 'add', *sorted(set(packages))])
 
-        def install_rust():
+        def install_rust(rust_spec):
             if rust_spec:
                 _install_rust(
                     rust_spec=rust_spec,
@@ -559,7 +559,7 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
                 )
 
         install_packages(packages)
-        install_rust()
+        install_rust(rust_spec)
 
     abi = abi or LISA_HOST_ABI
     use_qemu = abi != LISA_HOST_ABI
@@ -595,6 +595,7 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
         version,
         alpine_arch,
         sorted(set(packages or [])),
+        rust_spec,
     )
     cache_path = dir_cache.get_entry(key)
     with _overlay_folders([cache_path], backend=overlay_backend) as path:
@@ -2502,8 +2503,8 @@ class KmodSrc(Loggable):
                     populate=populate,
                 )
                 key = sorted(rust_spec.items())
-                cache_path = dir_cache.get_entry(key)
-                return cache_path
+                rust_home = dir_cache.get_entry(key)
+                return rust_home
 
             @contextlib.contextmanager
             def cmd_cm():
