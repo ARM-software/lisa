@@ -501,18 +501,20 @@ def _make_build_chroot(cc, cross_compile, abi, bind_paths=None, version=None, ov
 def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overlay_backend='overlayfs', rust_spec=None):
     logger = logging.getLogger(f'{__name__}.alpine_chroot')
 
-    def in_chroot(chroot_path, path):
+    def reroot(new_root, path):
         path = Path(path)
         assert path.is_absolute()
         path = path.relative_to('/')
-        return chroot_path / path
+        return new_root / path
 
     def mount_binds(chroot, bind_paths, mount=True):
         for src, dst in bind_paths.items():
-            dst = in_chroot(chroot, dst)
+            src = Path(src)
+            dst = reroot(chroot, dst)
             # This will be unmounted by the destroy script
             if mount:
-                dst.mkdir(parents=True, exist_ok=True)
+                for p in (src, dst):
+                    p.mkdir(parents=True, exist_ok=True)
                 cmd = ['mount', '--rbind', '--', src, dst]
             else:
                 cmd = ['umount', '-nl', '--', dst]
@@ -525,7 +527,7 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
         cmd = _make_build_chroot_cmd(chroot_path, cmd)
         run_cmd_host(cmd)
 
-    def populate(key, path, stage='init-chroot'):
+    def populate(key, path, stage='init'):
         version, alpine_arch, packages = key
         path = path.resolve()
         run_cmd = lambda cmd: run_cmd_chroot(path, cmd)
@@ -535,11 +537,11 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
                 run_cmd(['apk', 'add', *sorted(set(packages))])
 
         def enable_network():
-            shutil.copy('/etc/resolv.conf', in_chroot(path, Path('/etc/resolv.conf')))
+            shutil.copy('/etc/resolv.conf', reroot(path, '/etc/resolv.conf'))
 
         # Packages have already been installed, so we can speed things up a
         # bit
-        if stage == 'init-chroot':
+        if stage == 'init':
             version = list(map(str, version))
             minor = '.'.join(version[:2])
             version = '.'.join(version)
@@ -560,23 +562,10 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
                     _tar_extractall(f, path=path)
             enable_network()
             install_packages(packages)
-        elif stage == 'after-bind-mounts':
+        elif stage == 'finalize':
             enable_network()
-            if rust_spec:
-                # FIXME: this marker file is messy, we should probably make DirCache evolve to handle that staged used case better.
-                marker_file = in_chroot(path, rust_spec['cargo_home']) / 'not_installed'
-                if marker_file.exists():
-                    _install_rust(
-                        rust_spec=rust_spec,
-                        run_cmd=run_cmd,
-                    )
-                    # Delete the marker file once we have successfully
-                    # finished, so that we don't accidentally mark an
-                    # interrupted install as completed
-                    marker_file.unlink()
         else:
             raise ValueError(f'Unknown stage: {stage}')
-
 
     abi = abi or LISA_HOST_ABI
     use_qemu = abi != LISA_HOST_ABI
@@ -605,45 +594,63 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
         alpine_arch,
         sorted(set(packages or [])),
     )
-    cache_path = dir_cache.get_entry(key)
+    chroot = dir_cache.get_entry(key)
 
-    bind_paths = bind_paths or {}
+    base_bind_paths = {
+        '/proc': '/proc',
+        '/sys': '/sys',
+        '/dev': '/dev',
+    }
 
-    def pre_populate_rust(key, path):
-        # As a first step, we get the cache location so we can bind mount it
-        # and then we will populate it once the chroot is setup.
-        for sub in ('rustup', 'cargo'):
-            (path / sub).mkdir(parents=True)
-
-        (path / 'cargo' / 'not_installed').touch()
-
-    rust_dir_cache = DirCache(
-        category='rust_for_alpine_chroot',
-        populate=pre_populate_rust,
-    )
+    lowers = [chroot]
     if rust_spec:
-        rust_key = (alpine_arch, rust_spec)
+        def populate_rust(key, path):
+            rust_spec, *_ = key
+
+            # Install Rust inside a folder that will be overlay-mounted at the
+            # root of the chroot. The rustup_home and cargo_home asked by the
+            # user will be the paths inside the chroot.
+            homes = {
+                reroot(path, v): v
+                for k, v in rust_spec.items()
+                if k in ('rustup_home', 'cargo_home')
+            }
+            _bind_paths = {**base_bind_paths, **homes}
+            try:
+                # Mount the Rust install homes inside the chroot before
+                # installing it, with all commands running inside the activated
+                # chroot.
+                mount_binds(chroot, _bind_paths)
+                _install_rust(
+                    rust_spec=rust_spec,
+                    run_cmd=lambda cmd: run_cmd_chroot(chroot, cmd),
+                )
+            finally:
+                mount_binds(chroot, _bind_paths, mount=False)
+
+        rust_dir_cache = DirCache(
+            category='rust_for_alpine_chroot',
+            populate=populate_rust,
+        )
+        # Add the Alpine key to the Rust key, so that the Rust install is
+        # allowed to depend on the state of the Alpine install (e.g. packages
+        # being installed or not).
+        rust_key = (rust_spec, key)
         rust_home = rust_dir_cache.get_entry(rust_key)
-        bind_paths.update({
-            rust_home / 'rustup': rust_spec['rustup_home'],
-            rust_home / 'cargo': rust_spec['cargo_home'],
-        })
+        lowers.append(rust_home)
 
     # Bind a host path (key) to a path inside the chroot (value). Values have
     # to be absolute paths.
     bind_paths = {
-        '/proc': '/proc',
-        '/sys': '/sys',
-        '/dev': '/dev',
-        **bind_paths,
+        **base_bind_paths,
+        **(bind_paths or {})
     }
-    with _overlay_folders([cache_path], backend=overlay_backend) as path:
-        # We need to "repopulate" the overlay in order to get a working
-        # system with /etc/resolv.conf etc
+    with _overlay_folders(lowers, backend=overlay_backend) as path:
         try:
             mount_binds(path, bind_paths)
-
-            populate(key, path, stage='after-bind-mounts')
+            # We always need to "repopulate" the overlay in order to get a
+            # working system with /etc/resolv.conf etc
+            populate(key, path, stage='finalize')
             yield path
         except ContextManagerExit:
             mount_binds(path, bind_paths, mount=False)
