@@ -435,9 +435,6 @@ def _make_build_chroot(cc, cross_compile, abi, bind_paths=None, version=None, ov
                 'perl',
                 'pahole',
                 'git',
-
-                # This is needed by the LISA kernel module
-                'jq',
             ]
 
             if is_clang(cc):
