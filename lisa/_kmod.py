@@ -501,10 +501,15 @@ def _make_build_chroot(cc, cross_compile, abi, bind_paths=None, version=None, ov
 def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overlay_backend='overlayfs', rust_spec=None):
     logger = logging.getLogger(f'{__name__}.alpine_chroot')
 
+    def in_chroot(chroot_path, path):
+        path = Path(path)
+        assert path.is_absolute()
+        path = path.relative_to('/')
+        return chroot_path / path
+
     def mount_binds(chroot, bind_paths, mount=True):
         for src, dst in bind_paths.items():
-            dst = Path(dst).resolve()
-            dst = (chroot / dst.relative_to('/')).resolve()
+            dst = in_chroot(chroot, dst)
             # This will be unmounted by the destroy script
             if mount:
                 dst.mkdir(parents=True, exist_ok=True)
@@ -513,13 +518,28 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
                 cmd = ['umount', '-nl', '--', dst]
             _subprocess_log(cmd, logger=logger, level=logging.DEBUG)
 
-    def populate(key, path, init_cache=True):
-        version, alpine_arch, packages, rust_spec = key
+    def run_cmd_host(cmd):
+        _subprocess_log(cmd, logger=logger, level=logging.DEBUG)
+
+    def run_cmd_chroot(chroot_path, cmd):
+        cmd = _make_build_chroot_cmd(chroot_path, cmd)
+        run_cmd_host(cmd)
+
+    def populate(key, path, stage='init-chroot'):
+        version, alpine_arch, packages = key
         path = path.resolve()
+        run_cmd = lambda cmd: run_cmd_chroot(path, cmd)
+
+        def install_packages(packages):
+            if packages:
+                run_cmd(['apk', 'add', *sorted(set(packages))])
+
+        def enable_network():
+            shutil.copy('/etc/resolv.conf', in_chroot(path, Path('/etc/resolv.conf')))
 
         # Packages have already been installed, so we can speed things up a
         # bit
-        if init_cache:
+        if stage == 'init-chroot':
             version = list(map(str, version))
             minor = '.'.join(version[:2])
             version = '.'.join(version)
@@ -538,28 +558,25 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
 
                 with tarfile.open(tar_path, 'r') as f:
                     _tar_extractall(f, path=path)
-        else:
-            packages = []
-
-        shutil.copy('/etc/resolv.conf', path / 'etc' / 'resolv.conf')
-
-        def run_cmd(cmd):
-            cmd = _make_build_chroot_cmd(path, cmd)
-            _subprocess_log(cmd, logger=logger, level=logging.DEBUG)
-
-        def install_packages(packages):
-            if packages:
-                run_cmd(['apk', 'add', *sorted(set(packages))])
-
-        def install_rust(rust_spec):
+            enable_network()
+            install_packages(packages)
+        elif stage == 'after-bind-mounts':
+            enable_network()
             if rust_spec:
-                _install_rust(
-                    rust_spec=rust_spec,
-                    run_cmd=run_cmd,
-                )
+                # FIXME: this marker file is messy, we should probably make DirCache evolve to handle that staged used case better.
+                marker_file = in_chroot(path, rust_spec['cargo_home']) / 'not_installed'
+                if marker_file.exists():
+                    _install_rust(
+                        rust_spec=rust_spec,
+                        run_cmd=run_cmd,
+                    )
+                    # Delete the marker file once we have successfully
+                    # finished, so that we don't accidentally mark an
+                    # interrupted install as completed
+                    marker_file.unlink()
+        else:
+            raise ValueError(f'Unknown stage: {stage}')
 
-        install_packages(packages)
-        install_rust(rust_spec)
 
     abi = abi or LISA_HOST_ABI
     use_qemu = abi != LISA_HOST_ABI
@@ -578,33 +595,55 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
         if not binfmt_path.exists():
             raise ValueError(f'Alpine chroot is setup for {qemu_arch} architecture but QEMU userspace emulation is not installed on the host (missing {binfmt_path})')
 
-    alpine_arch = _abi_to_alpine_arch(abi)
     dir_cache = DirCache(
         category='alpine_chroot',
         populate=populate,
     )
-
-    bind_paths = {
-        '/proc': '/proc',
-        '/sys': '/sys',
-        '/dev': '/dev',
-        **(bind_paths or {}),
-    }
-
+    alpine_arch =_abi_to_alpine_arch(abi)
     key = (
         version,
         alpine_arch,
         sorted(set(packages or [])),
-        rust_spec,
     )
     cache_path = dir_cache.get_entry(key)
+
+    bind_paths = bind_paths or {}
+
+    def pre_populate_rust(key, path):
+        # As a first step, we get the cache location so we can bind mount it
+        # and then we will populate it once the chroot is setup.
+        for sub in ('rustup', 'cargo'):
+            (path / sub).mkdir(parents=True)
+
+        (path / 'cargo' / 'not_installed').touch()
+
+    rust_dir_cache = DirCache(
+        category='rust_for_alpine_chroot',
+        populate=pre_populate_rust,
+    )
+    if rust_spec:
+        rust_key = (alpine_arch, rust_spec)
+        rust_home = rust_dir_cache.get_entry(rust_key)
+        bind_paths.update({
+            rust_home / 'rustup': rust_spec['rustup_home'],
+            rust_home / 'cargo': rust_spec['cargo_home'],
+        })
+
+    # Bind a host path (key) to a path inside the chroot (value). Values have
+    # to be absolute paths.
+    bind_paths = {
+        '/proc': '/proc',
+        '/sys': '/sys',
+        '/dev': '/dev',
+        **bind_paths,
+    }
     with _overlay_folders([cache_path], backend=overlay_backend) as path:
         # We need to "repopulate" the overlay in order to get a working
         # system with /etc/resolv.conf etc
         try:
             mount_binds(path, bind_paths)
 
-            populate(key, path, init_cache=False)
+            populate(key, path, stage='after-bind-mounts')
             yield path
         except ContextManagerExit:
             mount_binds(path, bind_paths, mount=False)
@@ -798,7 +837,7 @@ def _overlay_folders(lowers, backend, upper=None, copy_filter=None):
         elif backend == 'copy':
             action = do_copy
         else:
-            raise ValueError(f'Unknwon overlay backend "{backend}"')
+            raise ValueError(f'Unknown overlay backend "{backend}"')
 
         with dirs_cm() as dirs:
             with action(dirs) as mnt:
@@ -1376,7 +1415,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     for runners in cmds
                 ]
         else:
-            raise ValueError('Unknwon build-env kind: {build_env}')
+            raise ValueError('Unknown build-env kind: {build_env}')
 
         try:
             config_path = os.environ['KCONFIG_CONFIG']
@@ -2530,7 +2569,7 @@ class KmodSrc(Loggable):
 
                     yield (mod_path, cmd)
         else:
-            raise ValueError('Unknwon build-env kind: {build_env}')
+            raise ValueError('Unknown build-env kind: {build_env}')
 
         env = _KernelBuildEnv._make_toolchain_env_from_conf(build_conf)
         with cmd_cm() as (mod_path, cmd):
