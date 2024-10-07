@@ -1042,6 +1042,7 @@ class _KernelBuildEnvConf(SimpleMultiSrcConf):
 
     def _get_key(self):
         return (
+            self.get('overlay-backend'),
             self.get('build-env'),
             self.get('build-env-settings').to_map(),
             sorted(self.get('make-variables', {}).items()),
