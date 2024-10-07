@@ -34,7 +34,9 @@ fn with_size<F: FnOnce(usize) -> *mut u8>(layout: Layout, f: F) -> *mut u8 {
     // For sizes which are a power of two, the kmalloc() alignment is also guaranteed to be at
     // least the respective size.
     if align <= 8 || (size.is_power_of_two() && align <= size) {
-        f(layout.size())
+        let ptr = f(layout.size());
+        assert!((ptr as usize % align) == 0);
+        ptr
     } else {
         pr_info!("Rust: cannot allocate memory with alignment > 8");
         core::ptr::null_mut()

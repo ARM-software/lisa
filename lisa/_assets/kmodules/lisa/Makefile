@@ -111,11 +111,10 @@ $(RUST_OBJECT): $(RUST_TARGET_DIR)
 	cd $(RUST_SRC) && $(call cargo_cmd,rustdoc --target-dir $(RUST_TARGET_DIR) -- -Zunstable-options --output-format json)
 
 	# Get the list of exported symbols (pub with #[no_mangle] attribute) from the rustdoc JSON
-	cat $(RUST_TARGET_DIR)/doc/lisakmod.json | jq '.index[] | select(.attrs[] | contains("#[no_mangle]")) | .name' -r > $(RUST_SYMBOLS)
+	python3 "$(MODULE_SRC)/rustdoc_symbols.py" --rustdoc-json $(RUST_TARGET_DIR)/doc/lisakmod.json  --out-symbols-plain $(RUST_SYMBOLS) --out-symbols-lds $(RUST_SYMBOLS_LDS)
 	cat $(RUST_SYMBOLS)
 
 	# Prelink the archive into a single object file.
-	sed -ne 's/\(.*\)/EXTERN(\1)/p' $(RUST_SYMBOLS) > $(RUST_SYMBOLS_LDS)
 	$(LD) $(KBUILD_LDFLAGS) --gc-sections -T $(RUST_SYMBOLS_LDS) -nostdlib -r -o $(RUST_OBJECT) --whole-archive $(RUST_TARGET_DIR)/target/release/liblisakmod.a
 
 	# Only keep as GLOBAL symbols the ones that are to be exported (and the
