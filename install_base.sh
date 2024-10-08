@@ -254,7 +254,8 @@ for arg in "${args[@]}"; do
         ;;&
 
     "--install-kernel-build-dependencies" | "--install-all")
-        apt_packages+=(build-essential gcc bc bison flex libssl-dev libncurses5-dev libelf-dev)
+        apt_packages+=(build-essential gcc bc bison flex libssl-dev libncurses5-dev libelf-dev pahole)
+
         handled=1
         ;;&
 

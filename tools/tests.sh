@@ -39,8 +39,20 @@ echo "Starting documentation pedantic build ..."
 lisa-doc-build
 
 echo "Checking that the man pages are up to date ..."
-
 if ! git diff --exit-code doc/man1/; then
     echo "Please regenerate man pages in doc/man1 and commit them"
     exit 1
 fi
+
+echo "Checking that the kernel module Rust bindings are up to date ..."
+(
+	cd "$LISA_HOME/lisa/_assets/kmodules/lisa/" || exit 1
+	make_rust_bindings="make refresh-rust-bindings"
+
+	$make_rust_bindings
+	if ! git diff --exit-code .; then
+		echo "Please regenerate Rust bindings: $make_rust_bindings"
+		exit 1
+	fi
+)
+

@@ -26,6 +26,17 @@ else
 	IN_TREE_BUILD := 1
 endif
 
+# Kbuild
+ifneq ($(KERNELRELEASE),)
+	MODULE_OBJ := $(obj)
+	KERNEL_SRC ?= $(srctree)
+# Kbuild in-tree build
+ifeq ($(IN_TREE_BUILD),1)
+	MODULE_SRC ?= $(srctree)/$(src)
+# Kbuild out-of-tree build
+else
+	MODULE_SRC ?= $(src)
+endif
 # This did not lie:
 # https://tooling.sites.arm.com/lisa/latest/setup.html#manual-module-setup-warning2
 # Maintaining a patch to get in-tree build will be the least of your worries
@@ -44,17 +55,6 @@ endif
 # maintain the patch if you are motivated enough to deal with that. Pull
 # requests to fix issues related to in-tree build are welcome, *provided that
 # they were tested in normal flow as well*.
-
-# Kbuild
-ifneq ($(KERNELRELEASE),)
-	MODULE_OBJ := $(obj)
-	KERNEL_SRC ?= $(srctree)
-ifeq ($(IN_TREE_BUILD),1)
-	MODULE_SRC ?= $(srctree)/$(src)
-# Kbuild out-of-tree build
-else
-	MODULE_SRC ?= $(src)
-endif
 # non-Kbuild
 else
 	MODULE_SRC ?= $(PWD)
@@ -62,13 +62,94 @@ else
 	KERNEL_SRC ?= /lib/modules/`uname -r`/build
 endif
 
+GENERATED := $(MODULE_OBJ)/generated
+$(GENERATED):
+	rm -r "$@" 2>&1 || true
+	mkdir -p "$@"
+clean-files := $(GENERATED)
+
+RUST_VERSION ?= nightly
+RUSTFLAGS := -Clinker=rust-lld -Clink-self-contained=y -Clto=n -Crelocation-model=static -Cno-redzone=y -Csoft-float=y -Ctarget-cpu=generic -Cforce-frame-pointers=y -Ccodegen-units=1 -Zfunction-sections=y
+
+RUST_SRC := $(MODULE_SRC)/rust
+RUST_LDS := $(RUST_SRC)/rust.lds
+RUST_GENERATED := $(GENERATED)/rust
+RUST_OBJECT := $(RUST_GENERATED)/rust.o
+RUST_OBJECT_CMD := $(RUST_GENERATED)/.rust.o.cmd
+RUST_CBINDGEN_HEADER := $(RUST_SRC)/cbindgen.h
+
+RUSTUP_HOME ?= $(HOME)/.rustup
+CARGO_HOME ?= $(HOME)/.cargo
+
+RUST_BUILD_DIR := $(RUST_GENERATED)/build
+RUST_SYMBOLS := $(RUST_BUILD_DIR)/exported.list
+RUST_SYMBOLS_LDS := $(RUST_BUILD_DIR)/exported.lds
+RUST_TARGET_DIR := $(RUST_BUILD_DIR)/target
+RUST_CBINDGEN_BIN := $(CARGO_HOME)/bin/cbindgen
+
+# Enable RUSTC_BOOTSTRAP=1 so we can use nightly features on any toolchain,
+# including stable ones. This allows using the more tested stable binaries.
+rust_cmd = export RUSTC_BOOTSTRAP=1 PATH="$(CARGO_HOME)/bin:$$PATH" RUSTUP_HOME=$(RUSTUP_HOME) CARGO_HOME=$(CARGO_HOME) && $(1)
+cargo_cmd = $(call rust_cmd,cargo +$(RUST_VERSION) $(1))
+
+$(RUST_GENERATED): $(GENERATED)
+	mkdir -p "$@"
+
+$(RUST_BUILD_DIR): $(RUST_GENERATED)
+	mkdir -p "$@"
+
+$(RUST_TARGET_DIR): $(RUST_BUILD_DIR)
+	mkdir -p "$@"
+
+# Build the rust code into a static archive, then prelink it into an object
+# file and filter the symbols to only keep as GLOBAL the exported pub
+# #[no_mangle] ones. This avoids having tons of GLOBAL symbols from core lib.
+$(RUST_OBJECT): $(RUST_TARGET_DIR)
+	# Build the crate into a static library
+	cd $(RUST_SRC) && export RUSTFLAGS="$(RUSTFLAGS)" && $(call cargo_cmd,build --target-dir $(RUST_TARGET_DIR) --release --target=$(RUST_SRC)/rustc_targets/$(ARCH)/target.json -Zbuild-std=core$(comma)alloc)
+	# Generate the documentation JSON that we will use to extract symbols to keep
+	cd $(RUST_SRC) && $(call cargo_cmd,rustdoc --target-dir $(RUST_TARGET_DIR) -- -Zunstable-options --output-format json)
+
+	# Get the list of exported symbols (pub with #[no_mangle] attribute) from the rustdoc JSON
+	python3 "$(MODULE_SRC)/rustdoc_symbols.py" --rustdoc-json $(RUST_TARGET_DIR)/doc/lisakmod.json  --out-symbols-plain $(RUST_SYMBOLS) --out-symbols-lds $(RUST_SYMBOLS_LDS)
+	cat $(RUST_SYMBOLS)
+
+	# Prelink the archive into a single object file.
+	$(LD) $(KBUILD_LDFLAGS) --gc-sections -T $(RUST_SYMBOLS_LDS) -nostdlib -r -o $(RUST_OBJECT) --whole-archive $(RUST_TARGET_DIR)/target/release/liblisakmod.a
+
+	# Only keep as GLOBAL symbols the ones that are to be exported (and the
+	# undefined ones to be provided by C code)
+	$(OBJCOPY) --keep-global-symbols $(RUST_SYMBOLS) $(RUST_OBJECT)
+
+	# Provide the pre-built .o to Kbuild
+	cp $(RUST_OBJECT) $(RUST_OBJECT)_shipped
+	touch $(RUST_OBJECT_CMD)
+
+genbin: $(RUST_OBJECT)
+
+$(RUSTUP_HOME):
+	$(call rust_cmd,curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --default-toolchain none)
+
+$(CARGO_HOME): $(RUSTUP_HOME)
+	$(call rust_cmd,rustup install nightly --profile=minimal)
+
+$(RUST_CBINDGEN_BIN): $(CARGO_HOME)
+	$(call cargo_cmd,install --locked cbindgen)
+
+# This is for the benefit of the user and CI to generate the file to be
+# committed if it does not exist yet.
+refresh-rust-bindings: $(RUST_CBINDGEN_BIN)
+	cd $(RUST_SRC) && $(call rust_cmd,cbindgen --config $(RUST_SRC)/cbindgen.toml --lang c --crate lisakmod --output $(RUST_CBINDGEN_HEADER))
+
+$(RUST_SYMBOLS): $(RUST_OBJECT)
+
 # kbuild part of makefile. Only Kbuild-related targets should be used here to
 # avoid any sort of clash.
 ifneq ($(KERNELRELEASE),)
 
 LISA_KMOD_NAME ?= lisa
 obj-m := $(LISA_KMOD_NAME).o
-$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o introspection_data.o debugfs.o
+$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o introspection_data.o rust/runtime.o rust/validate.o generated/rust/rust.o
 
 # -fno-stack-protector is needed to possibly undefined __stack_chk_guard symbol
 ccflags-y := "-I$(MODULE_SRC)" -std=gnu11 -fno-stack-protector -Wno-declaration-after-statement -Wno-error
@@ -77,20 +158,14 @@ ccflags-y := "-I$(MODULE_SRC)" -std=gnu11 -fno-stack-protector -Wno-declaration-
 # file regardless of the kernel config.
 CFLAGS_introspection_data.o := -g3 -gno-split-dwarf -gdwarf -fno-eliminate-unused-debug-types
 
-GENERATED := $(MODULE_OBJ)/generated
 FEATURES_LDS := $(MODULE_SRC)/features.lds
 SYMBOLS_LDS := $(GENERATED)/symbols.lds
-
-clean-files := $(GENERATED)
-
-$(GENERATED):
-	mkdir -p "$@"
 
 SYMBOL_NAMESPACES_H := $(GENERATED)/symbol_namespaces.h
 MODULE_VERSION_H := $(GENERATED)/module_version.h
 KALLSYMS := $(GENERATED)/kallsyms
 
-ldflags-y += -T $(FEATURES_LDS)
+ldflags-y += -T $(FEATURES_LDS) -T $(RUST_LDS)
 
 ifeq ($(IN_TREE_BUILD),1)
 ccflags-y += -I$(srctree) -D_IN_TREE_BUILD
@@ -160,21 +235,20 @@ $(MODULE_VERSION_H): $(GENERATED)
 	printf "#define LISA_MODULE_VERSION \"" >> $@
 	# Show the content of the folder to debug mismatching sha1sum issues
 	ls -laR $(MODULE_SRC)
-	export LC_ALL=C && (cd $(MODULE_SRC) && find -type f '(' -name '*.c' -or -name '*.h' -or -name '*.txt' -or -name '*.json' -or -name '*.py' -or -name '*.sh' -or -name '*.lds' -or -name 'Makefile' -or -name 'vmlinux' -or -name 'kallsyms' ')' -and -not -path './generated/*' -and -not -path './__pycache__/*' | xargs sha1sum) | sort | sha1sum | cut -d' ' -f1 | tr -d '\n' >> $@
+	export LC_ALL=C && (cd $(MODULE_SRC) && find -type f '(' -name '*.c' -or -name '*.h' -or -name '*.rs' -or -name '*.toml' -or -name '*.txt' -or -name '*.json' -or -name '*.md' -or -name '*.py' -or -name '*.sh' -or -name '*.lds' -or -name 'Makefile' -or -name 'vmlinux' -or -name 'kallsyms' ')' -and -not -path './generated/*' -and -not -path './__pycache__/*' | xargs sha1sum) | sort | sha1sum | cut -d' ' -f1 | tr -d '\n' >> $@
 	printf "\"\n" >> $@
 
 
 $(KALLSYMS): $(GENERATED)
 	cat $(MODULE_SRC)/kallsyms > $@ || $(NM) $(_REAL_VMLINUX) > $@ || touch $@
 
-
 # Make all object files depend on the generated sources
-$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(INTROSPECTION_DATA_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H) $(SYMBOLS_LDS)
+$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(INTROSPECTION_DATA_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H) $(SYMBOLS_LDS) $(RUST_CBINDGEN_HEADER)
 
 # Non-Kbuild part
 else
 
-.PHONY: all build install clean
+.PHONY: all build install clean refresh-rust-bindings
 
 all: install
 
