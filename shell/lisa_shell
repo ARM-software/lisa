@@ -175,8 +175,8 @@ function lisa-venv-activate {
 }
 
 function lisa-venv-deactivate {
-    if type deactivate &>/dev/null; then
-        echo "Deactivating LISA Python venv ($LISA_VENV_PATH) ..."
+    if [[ ! -z "$VIRTUAL_ENV" ]]; then
+        echo "Deactivating Python venv ($VIRTUAL_ENV) ..."
         deactivate
     fi
 }
