@@ -29,8 +29,12 @@ def git(repo, *args):
         # Avoid storing UID/GID in the index. Otherwise, we end up invalidating
         # the entire index when running under a user namespace where the
         # current user got remapped on root.
-         '-c', 'core.checkStat=minimal',
-        '-C', repo,
+        '-c', 'core.checkStat=minimal',
+        # It is critical to use an absolute path here, as path operation in git
+        # seem to be lexical based on that root. By using a resolved path, we
+        # ensure that there is an easy-to-get canonical form for such
+        # parameters.
+        '-C', str(Path(repo).resolve()),
         *args
     )).decode(errors='backslashreplace')
 
@@ -68,15 +72,19 @@ def get_sha1(repo, ref='HEAD'):
     """
     return git(repo, 'rev-list', '-1', ref).strip()
 
-def get_uncommited_patch(repo, include_binary=True):
+def get_uncommited_patch(repo, include_binary=True, path=None):
     """
     Return the patch of non commited changes, both staged and not staged yet.
 
     :param include_binary: If ``True``, include the diff for binary files.
     :type include_binary: bool
+
+    :param path: Path to consider, rather than the entire repo.
+    :type path: str or pathlib.Path
     """
     text = ['--text'] if include_binary else []
-    return git(repo, 'diff', *text, 'HEAD')
+    path = ['--', str(Path(path).resolve())] if path else []
+    return git(repo, 'diff', *text, 'HEAD', *path)
 
 def get_commit_message(repo, ref='HEAD', notes_ref='refs/notes/commits', format='%s'):
     """
