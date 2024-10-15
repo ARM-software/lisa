@@ -177,7 +177,9 @@ function lisa-venv-activate {
 function lisa-venv-deactivate {
     if [[ ! -z "$VIRTUAL_ENV" ]]; then
         echo "Deactivating Python venv ($VIRTUAL_ENV) ..."
-        deactivate
+        # Under vscode, deactivate starts a bash process at the end, so we want
+        # it to exit. Normal deactivate script ignores stdin.
+        echo 'exit 0' | deactivate
     fi
 }
 
