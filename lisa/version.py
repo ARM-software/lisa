@@ -41,7 +41,9 @@ def _compute_version_token():
 
         try:
             sha1 = get_sha1(repo)
-            patch = get_uncommited_patch(repo)
+            # Get uncommitted content of the LISA sources only, not the entire
+            # repo as it would include things like target_conf.yml
+            patch = get_uncommited_patch(repo, path='lisa/')
         # Git is not installed, just use the regular version
         except (FileNotFoundError, CalledProcessError):
             return plain_version_token
