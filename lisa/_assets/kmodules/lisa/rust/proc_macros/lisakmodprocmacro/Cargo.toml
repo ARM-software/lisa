@@ -1,0 +1,8 @@
+[package]
+name = "lisakmodprocmacro"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lisakmodprocmacro_macro = { path = "../lisakmodprocmacro_macro" }
+const_format = "0.2"

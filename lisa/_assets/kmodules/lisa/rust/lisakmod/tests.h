@@ -2,8 +2,8 @@
 #ifndef RUST_VALIDATE_H
 #define RUST_VALIDATE_H
 
-#include "rust/cbindgen.h"
+#include "rust/lisakmod//cbindgen.h"
 
-int rust_validate(void);
+int rust_tests(void);
 
 #endif /* RUST_VALIDATE_H */

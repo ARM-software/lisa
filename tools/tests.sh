@@ -44,15 +44,18 @@ if ! git diff --exit-code doc/man1/; then
     exit 1
 fi
 
-echo "Checking that the kernel module Rust bindings are up to date ..."
-(
-	cd "$LISA_HOME/lisa/_assets/kmodules/lisa/" || exit 1
-	make_rust_bindings="make refresh-rust-bindings"
+# FIXME: cbindgen does not work on our source anymore due to that issue:
+# https://github.com/mozilla/cbindgen/issues/993
+#
+# echo "Checking that the kernel module Rust bindings are up to date ..."
+# (
+	# cd "$LISA_HOME/lisa/_assets/kmodules/lisa/" || exit 1
+	# make_rust_bindings="make refresh-rust-bindings"
 
-	$make_rust_bindings
-	if ! git diff --exit-code .; then
-		echo "Please regenerate Rust bindings: $make_rust_bindings"
-		exit 1
-	fi
-)
+	# $make_rust_bindings
+	# if ! git diff --exit-code .; then
+		# echo "Please regenerate Rust bindings: $make_rust_bindings"
+		# exit 1
+	# fi
+# )
 

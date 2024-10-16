@@ -8,6 +8,8 @@ crate-type = ["staticlib"]
 
 [dependencies]
 # hashbrown = "0.15"
+lisakmodprocmacro = { path = "../proc_macros/lisakmodprocmacro" }
+paste = "1.0"
 
 [profile.release]
 panic = 'abort'
