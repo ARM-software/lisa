@@ -83,7 +83,7 @@ CARGO_HOME ?= $(HOME)/.cargo
 
 RUST_BUILD_DIR := $(RUST_GENERATED)/build
 RUST_SYMBOLS := $(RUST_BUILD_DIR)/exported.list
-RUST_SYMBOLS_LDS := $(RUST_BUILD_DIR)/exported.lds
+RUST_SYMBOLS_CLI := $(RUST_BUILD_DIR)/exported.cli
 RUST_TARGET_DIR := $(RUST_BUILD_DIR)/target
 RUST_CBINDGEN_BIN := $(CARGO_HOME)/bin/cbindgen
 
@@ -111,11 +111,15 @@ $(RUST_OBJECT): $(RUST_TARGET_DIR)
 	cd $(RUST_SRC) && $(call cargo_cmd,rustdoc --target-dir $(RUST_TARGET_DIR) -- -Zunstable-options --output-format json)
 
 	# Get the list of exported symbols (pub with #[no_mangle] attribute) from the rustdoc JSON
-	python3 "$(MODULE_SRC)/rustdoc_symbols.py" --rustdoc-json $(RUST_TARGET_DIR)/doc/lisakmod.json  --out-symbols-plain $(RUST_SYMBOLS) --out-symbols-lds $(RUST_SYMBOLS_LDS)
+	python3 "$(MODULE_SRC)/rustdoc_symbols.py" --rustdoc-json $(RUST_TARGET_DIR)/doc/lisakmod.json  --out-symbols-plain $(RUST_SYMBOLS) --out-symbols-cli $(RUST_SYMBOLS_CLI)
 	cat $(RUST_SYMBOLS)
 
 	# Prelink the archive into a single object file.
-	$(LD) $(KBUILD_LDFLAGS) --gc-sections -T $(RUST_SYMBOLS_LDS) -nostdlib -r -o $(RUST_OBJECT) --whole-archive $(RUST_TARGET_DIR)/target/release/liblisakmod.a
+	$(LD) --version
+	# Use --undefined CLI parameters in $(RUST_SYMBOLS_CLI) instead of
+	# EXTERN() command in a linker script since older GNU ld version seem
+	# to ignore the EXTERN() command with --gc-sections.
+	$(LD) $(KBUILD_LDFLAGS) $$(cat $(RUST_SYMBOLS_CLI)) --gc-sections -nostdlib -r -o $(RUST_OBJECT) --whole-archive $(RUST_TARGET_DIR)/target/release/liblisakmod.a
 
 	# Only keep as GLOBAL symbols the ones that are to be exported (and the
 	# undefined ones to be provided by C code)
