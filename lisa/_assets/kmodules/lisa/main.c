@@ -4,7 +4,7 @@
 #include "main.h"
 #include "features.h"
 #include "introspection.h"
-#include "rust/validate.h"
+#include "rust/lisakmod/tests.h"
 #include "generated/module_version.h"
 /* Import all the symbol namespaces that appear to be defined in the kernel
  * sources so that we won't trigger any warning
@@ -34,7 +34,7 @@ static int __init modinit(void) {
 		return -EPROTO;
 	}
 
-	ret = rust_validate();
+	ret = rust_tests();
 	if (ret) {
 		pr_err("Lisa module Rust support validation failed: %i\n", ret);
 		return -EINVAL;

@@ -71,12 +71,14 @@ clean-files := $(GENERATED)
 RUST_VERSION ?= nightly
 RUSTFLAGS := -Clinker=rust-lld -Clink-self-contained=y -Clto=n -Crelocation-model=static -Cno-redzone=y -Csoft-float=y -Ctarget-cpu=generic -Cforce-frame-pointers=y -Ccodegen-units=1 -Zfunction-sections=y
 
-RUST_SRC := $(MODULE_SRC)/rust
+RUST_SRC := $(MODULE_SRC)/rust/lisakmod
 RUST_LDS := $(RUST_SRC)/rust.lds
 RUST_GENERATED := $(GENERATED)/rust
 RUST_OBJECT := $(RUST_GENERATED)/rust.o
 RUST_OBJECT_CMD := $(RUST_GENERATED)/.rust.o.cmd
-RUST_CBINDGEN_HEADER := $(RUST_SRC)/cbindgen.h
+RUST_CBINDGEN_H := $(RUST_SRC)/cbindgen.h
+RUST_C_SHIMS_H := $(RUST_GENERATED)/rust_c_shims.h
+RUST_C_SHIMS_DIR := $(RUST_GENERATED)/rust_c_shims
 
 RUSTUP_HOME ?= $(HOME)/.rustup
 CARGO_HOME ?= $(HOME)/.cargo
@@ -104,22 +106,36 @@ $(RUST_TARGET_DIR): $(RUST_BUILD_DIR)
 # Build the rust code into a static archive, then prelink it into an object
 # file and filter the symbols to only keep as GLOBAL the exported pub
 # #[no_mangle] ones. This avoids having tons of GLOBAL symbols from core lib.
-$(RUST_OBJECT): $(RUST_TARGET_DIR)
+$(RUST_OBJECT) $(RUST_C_SHIMS_H): $(RUST_TARGET_DIR)
 	# Build the crate into a static library
 	cd $(RUST_SRC) && export RUSTFLAGS="$(RUSTFLAGS)" && $(call cargo_cmd,build --target-dir $(RUST_TARGET_DIR) --release --target=$(RUST_SRC)/rustc_targets/$(ARCH)/target.json -Zbuild-std=core$(comma)alloc)
 	# Generate the documentation JSON that we will use to extract symbols to keep
-	cd $(RUST_SRC) && $(call cargo_cmd,rustdoc --target-dir $(RUST_TARGET_DIR) -- -Zunstable-options --output-format json)
+	cd $(RUST_SRC) && $(call cargo_cmd,rustdoc --release --target-dir $(RUST_TARGET_DIR) -- -Zunstable-options --output-format json)
 
 	# Get the list of exported symbols (pub with #[no_mangle] attribute) from the rustdoc JSON
-	python3 "$(MODULE_SRC)/rustdoc_symbols.py" --rustdoc-json $(RUST_TARGET_DIR)/doc/lisakmod.json  --out-symbols-plain $(RUST_SYMBOLS) --out-symbols-cli $(RUST_SYMBOLS_CLI)
+	python3 "$(MODULE_SRC)/rustdoc_symbols.py" --rustdoc-json $(RUST_TARGET_DIR)/doc/lisakmod.json --out-symbols-plain $(RUST_SYMBOLS) --out-symbols-cli $(RUST_SYMBOLS_CLI)
 	cat $(RUST_SYMBOLS)
 
 	# Prelink the archive into a single object file.
-	$(LD) --version
+	$(LD) $(KBUILD_LDFLAGS) -nostdlib -r -o $(RUST_OBJECT) --whole-archive $(RUST_TARGET_DIR)/target/release/liblisakmod.a
+
+	# Extract the C shims created by our inlinec Rust module from the
+	# binary, so they can be compiled and linked later.
+	mkdir -p "$(RUST_C_SHIMS_DIR)"
+	touch $(RUST_C_SHIMS_DIR)/empty
+	$(OBJDUMP) -h $(RUST_OBJECT) | awk '{ print $$2 }' | grep '^.binstore.c_shims.' | xargs -n1 sh -c '$(OBJCOPY) --dump-section=$$0=$(RUST_C_SHIMS_DIR)/shim_$$0 $(RUST_OBJECT)'
+	LC_ALL=C cat $(RUST_C_SHIMS_DIR)/* > $(RUST_C_SHIMS_H)
+	cat $(RUST_C_SHIMS_H) | if which clang-format 2>&1 1>/dev/null; then clang-format; else cat; fi
+
+	# Garbage collect unused sections in the object file, after we have
+	# extracted the binstore sections (otherwise they get discarded).
+	#
 	# Use --undefined CLI parameters in $(RUST_SYMBOLS_CLI) instead of
 	# EXTERN() command in a linker script since older GNU ld version seem
 	# to ignore the EXTERN() command with --gc-sections.
-	$(LD) $(KBUILD_LDFLAGS) $$(cat $(RUST_SYMBOLS_CLI)) --gc-sections -nostdlib -r -o $(RUST_OBJECT) --whole-archive $(RUST_TARGET_DIR)/target/release/liblisakmod.a
+	$(LD) --version
+	$(LD) $(KBUILD_LDFLAGS) $$(cat $(RUST_SYMBOLS_CLI)) --gc-sections -nostdlib -r -o $(RUST_OBJECT)_gced $(RUST_OBJECT)
+	mv $(RUST_OBJECT)_gced $(RUST_OBJECT)
 
 	# Only keep as GLOBAL symbols the ones that are to be exported (and the
 	# undefined ones to be provided by C code)
@@ -143,7 +159,7 @@ $(RUST_CBINDGEN_BIN): $(CARGO_HOME)
 # This is for the benefit of the user and CI to generate the file to be
 # committed if it does not exist yet.
 refresh-rust-bindings: $(RUST_CBINDGEN_BIN)
-	cd $(RUST_SRC) && $(call rust_cmd,cbindgen --config $(RUST_SRC)/cbindgen.toml --lang c --crate lisakmod --output $(RUST_CBINDGEN_HEADER))
+	cd $(RUST_SRC) && $(call rust_cmd,cbindgen --config $(RUST_SRC)/cbindgen.toml --lang c --crate lisakmod --output $(RUST_CBINDGEN_H))
 
 $(RUST_SYMBOLS): $(RUST_OBJECT)
 
@@ -153,7 +169,7 @@ ifneq ($(KERNELRELEASE),)
 
 LISA_KMOD_NAME ?= lisa
 obj-m := $(LISA_KMOD_NAME).o
-$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o introspection_data.o rust/runtime.o rust/validate.o generated/rust/rust.o
+$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o introspection_data.o rust/lisakmod/runtime.o rust/lisakmod/tests.o generated/rust/rust.o
 
 # -fno-stack-protector is needed to possibly undefined __stack_chk_guard symbol
 ccflags-y := "-I$(MODULE_SRC)" -std=gnu11 -fno-stack-protector -Wno-declaration-after-statement -Wno-error
@@ -247,7 +263,7 @@ $(KALLSYMS): $(GENERATED)
 	cat $(MODULE_SRC)/kallsyms > $@ || $(NM) $(_REAL_VMLINUX) > $@ || touch $@
 
 # Make all object files depend on the generated sources
-$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(INTROSPECTION_DATA_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H) $(SYMBOLS_LDS) $(RUST_CBINDGEN_HEADER)
+$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(INTROSPECTION_DATA_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H) $(SYMBOLS_LDS) $(RUST_CBINDGEN_H) $(RUST_C_SHIMS_H)
 
 # Non-Kbuild part
 else
