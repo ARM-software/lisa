@@ -31,6 +31,7 @@ import lisa._btf as btf
 
 
 def process_btf(out, path, introspect, internal_type_prefix, define_typ_names):
+    internal_type_prefix = internal_type_prefix or ''
     with open(path, 'rb') as f:
         data = f.read()
 
