@@ -21,6 +21,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
+from shlex import quote
 
 
 def main():
@@ -31,7 +32,7 @@ def main():
 
     parser.add_argument('--rustdoc-json', help='JSON file to parse', required=True)
     parser.add_argument('--out-symbols-plain', help='File to write the symbol list, one per line')
-    parser.add_argument('--out-symbols-lds', help='File to write the symbol list as a linker script, one symbol per line in an EXTERN(symbol) command')
+    parser.add_argument('--out-symbols-cli', help='File to write the symbol list as ld CLI --undefined options')
 
     args = parser.parse_args()
     path = Path(args.rustdoc_json)
@@ -53,9 +54,9 @@ def main():
         content = '\n'.join(symbols) + '\n'
         Path(path).write_text(content)
 
-    if (path := args.out_symbols_lds):
-        content = '\n'.join((
-            f'EXTERN({sym})'
+    if (path := args.out_symbols_cli):
+        content = ' '.join((
+            f'--undefined {quote(sym)}'
             for sym in symbols
         )) + '\n'
         Path(path).write_text(content)
