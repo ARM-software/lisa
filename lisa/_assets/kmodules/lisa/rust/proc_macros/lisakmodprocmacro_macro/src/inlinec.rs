@@ -113,12 +113,15 @@ pub fn cfunc(_attrs: RustcTokenStream, code: RustcTokenStream) -> Result<RustcTo
     // span.line == 0, so we workaround that by just emitting a line!() call. This is not as
     // precise though.
     // https://github.com/dtolnay/proc-macro2/issues/402
-    // let pre_c_code_line = pre_c_code.span().start().line;
-    // let c_code_line = c_code.span().start().line;
-    // let post_c_code_line = post_c_code.span().start().line;
-    let pre_c_code_line = quote! { line!() };
-    let c_code_line = quote! { line!() };
-    let post_c_code_line = quote! { line!() };
+    // EDIT: the issue is fixed, let's keep the workaround at hand in case it is needed again as
+    // this was originally disabled because the rustc API was in flux.
+    //
+    // let pre_c_code_line = quote! { line!() };
+    // let c_code_line = quote! { line!() };
+    // let post_c_code_line = quote! { line!() };
+    let pre_c_code_line = pre_c_code.span().start().line;
+    let c_code_line = c_code.span().start().line;
+    let post_c_code_line = post_c_code.span().start().line;
 
     let name = input.name;
     let f_ret_ty = input.f_ret_ty;
@@ -260,8 +263,9 @@ pub fn cfunc(_attrs: RustcTokenStream, code: RustcTokenStream) -> Result<RustcTo
                 #c_proto, ";\n",
                 // Definition
                 #c_proto,
-                "{\n", #c_code, "\n}",
-                "\n",
+                "{\n#line ", #c_code_line, " \"", file!(), "\"\n",
+                #c_code,
+                "\n}\n",
                 "#line ", #post_c_code_line, " \"", file!(), "\"\n",
                 #post_c_code,
                 "\n",
