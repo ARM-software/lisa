@@ -1,5 +1,2 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-
-pub use const_format;
-
-pub mod inlinec;
+pub use lisakmod_macros_proc::concatcp;
