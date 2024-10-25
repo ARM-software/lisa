@@ -2315,7 +2315,7 @@ class SignalDesc:
         # for traces before the events from the lisa module got renamed to
         # lisa__<event>
         from lisa.trace import _NamespaceTraceView
-        events = _NamespaceTraceView._do_expand_namespaces(event, namespaces=('lisa', None))
+        events = _NamespaceTraceView._do_expand_namespaces(event, namespaces=('lisa__', None))
 
         for event in events:
             try:

@@ -2896,7 +2896,7 @@ class _InternalTraceBase(abc.ABC):
         :param events_namespaces: List of namespaces of the requested events.
             Each namespace will be tried in order until the event is found. The
             ``None`` namespace can be used to specify no namespace. The full
-            event name is formed with ``<namespace>__<event>``.
+            event name is formed with ``<namespace><event>``.
         :type events_namespaces: list(str or None)
 
         :param events: Preload the given events when creating the view. This
@@ -3698,7 +3698,7 @@ class _NamespaceTraceView(_TraceViewBase):
     @memoized
     def events_namespaces(self):
         """
-        Namespaces evens will be looked up in.
+        Namespaces events will be looked up in.
         """
         try:
             base_namespaces = self.base_trace.events_namespaces
@@ -3731,15 +3731,10 @@ class _NamespaceTraceView(_TraceViewBase):
 
         def expand_namespace(event, namespace):
             if namespace:
-                if namespace.endswith('_'):
-                    ns_prefix = namespace
-                else:
-                    ns_prefix = f'{namespace}__'
-
-                if event.startswith(ns_prefix):
+                if event.startswith(namespace):
                     return event
                 else:
-                    return f'{ns_prefix}{event}'
+                    return f'{namespace}{event}'
             else:
                 return event
 
@@ -6291,7 +6286,7 @@ class Trace(
         normalize_time=False,
         strict_events=False,
         events=None,
-        events_namespaces=('lisa', None),
+        events_namespaces=('lisa__', None),
 
         sanitization_functions=None,
         write_swap=None,
@@ -7449,7 +7444,7 @@ class FtraceCollector(CollectorBase, Configurable):
     TOOLS = ['trace-cmd']
     _COMPOSITION_ORDER = 0
 
-    def __init__(self, target, *, events=None, functions=None, buffer_size=10240, output_path=None, autoreport=False, trace_clock=None, saved_cmdlines_nr=8192, tracer=None, kmod_auto_load=True, events_namespaces=('lisa', None), **kwargs):
+    def __init__(self, target, *, events=None, functions=None, buffer_size=10240, output_path=None, autoreport=False, trace_clock=None, saved_cmdlines_nr=8192, tracer=None, kmod_auto_load=True, events_namespaces=('lisa__', None), **kwargs):
 
         kconfig = target.plat_info['kernel']['config']
         if not kconfig.get('FTRACE'):
