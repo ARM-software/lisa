@@ -17,22 +17,46 @@
 # limitations under the License.
 #
 
-from warnings import catch_warnings
+import os
+import sys
+import subprocess
+import importlib.metadata
+
+def check_polars():
+    # Import in a separate process to resist coredumps due to illegal
+    # instructions (e.g. SSE on old CPUs).
+    completed = subprocess.run(
+        [sys.executable, '-c', 'import polars'],
+        # Resist coredump
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        env={
+            **os.environ,
+            # Ensure we have warnings enabled.
+            'PYTHONWARNINGS': 'always',
+        }
+    )
+    out = completed.stdout
+
+    # Get the version without importing the package. This avoids coredumps.
+    version = importlib.metadata.version('polars')
+
+    out = out.decode().lower().replace('\n', ' ')
+    old_cpu = 'cpu' in out and 'feature' in out
+    return (old_cpu, version)
+
 
 def main():
-    with catch_warnings(record=True) as ws:
-        import polars
-
-    version = polars.__version__
-
-    assert ws is not None
-    w = ' '.join(
-        str(w.message)
-        for w in ws
-    )
-    w = w.lower()
-
-    old_cpu = 'cpu' in w and 'feature' in w
+    try:
+        importlib.metadata.version('polars-lts-cpu')
+    except importlib.metadata.PackageNotFoundError:
+        old_cpu, version = check_polars()
+    # If we have polars-lts-cpu installed, we assume it is for good reasons
+    # because we have an old cpu.
+    else:
+        old_cpu = True
+        version = importlib.metadata.version('polars-lts-cpu')
 
     if old_cpu:
         pkg = 'polars-lts-cpu'
