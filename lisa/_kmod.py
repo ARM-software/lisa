@@ -135,6 +135,7 @@ from collections.abc import Mapping
 import typing
 import fnmatch
 import sys
+from enum import IntEnum
 
 from elftools.elf.elffile import ELFFile
 
@@ -1627,18 +1628,15 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
 
         def priority_to(cc):
             def prio(_cc, _cross_compile):
-                cc_prio = 0 if cc in _cc.name else 1
+                cc_prio = 0 if (cc and cc in _cc.name) else 1
                 return (
                     cc_prio,
                     get_cross_compile_prio(_cross_compile)
                 )
             return prio
 
-        def no_priority():
-            return lambda _cc, _cross_compile: 0
-
         # If we can't get more precise info, select anything we can
-        cc_priority = no_priority()
+        cc_priority = priority_to(None)
 
         if target:
             config = target.config.typed_config
@@ -1652,33 +1650,65 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     clang_version = clang_version // 10_000
                     is_host_env = build_conf['build-env'] == 'host'
 
-                    def version_key(version):
-                        return (
-                            0 if version >= clang_version else 1,
-                            # Try the versions closest to the one we
-                            # want
-                            abs(clang_version - version)
-                        )
-
                     def cc_priority(cc, cross_compile):
                         def prio(cc):
+                            # Firstly, we give priority to anything that is
+                            # clang.
+                            class Kind(IntEnum):
+                                IS_CLANG = 0
+                                NOT_CLANG = 1
+
+                            # We then choose higher versions over lower
+                            # versions as there is more chance to have all the
+                            # required features and C extensions.
+                            class Version(IntEnum):
+                                HIGHER_VERSION = 0
+                                LOWER_VERSION = 1
+                                UNKNOWN_VERSION = 2
+
+                            # As a tie-breaker, if we have to choose between
+                            # "clang" and "clang-XYZ" when both --version
+                            # report to be XYZ, use "clang".  This improves
+                            # compat with GKI prebuilt toolchains that ships a
+                            # mix of clang-XYZ and clang binaries, but only
+                            # unversioned names for the rest of the tools.
+                            class Name(IntEnum):
+                                UNVERSIONED_NAME = 0
+                                VERSIONED_NAME = 1
+
+                            def version_key(version):
+                                if version:
+                                    return (
+                                        Version.HIGHER_VERSION if version >= clang_version else Version.LOWER_VERSION,
+                                        # Try the versions closest to the one we
+                                        # want
+                                        abs(clang_version - version)
+                                    )
+                                else:
+                                    return (Version.UNKNOWN_VERSION,)
+
                             if 'clang' in cc.name:
                                 version = re.search(r'[0-9]+', cc.name)
                                 if version is None:
+                                    convention = Name.UNVERSIONED_NAME
                                     if is_host_env:
                                         try:
                                             version, *_ = _clang_version(cc, env=env)
                                         except ValueError:
-                                            return (2,)
-                                        else:
-                                            return version_key(version)
+                                            version = None
                                     else:
-                                        return (2,)
+                                        # This is the only choice since the
+                                        # file name gives no clue and we cannot
+                                        # run the binary (by definition, as it
+                                        # is not the host environment).
+                                        version = None
                                 else:
+                                    convention = Name.VERSIONED_NAME
                                     version = int(version.group(0))
-                                    return version_key(version)
+
+                                return (Kind.IS_CLANG, version_key(version), convention)
                             else:
-                                return (3,)
+                                return (Kind.NOT_CLANG,)
 
                         return (
                             prio(cc),
