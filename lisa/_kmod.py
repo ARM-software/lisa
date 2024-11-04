@@ -136,6 +136,7 @@ import typing
 import fnmatch
 import sys
 from enum import IntEnum
+import traceback
 
 from elftools.elf.elffile import ELFFile
 
@@ -447,8 +448,12 @@ def _make_build_chroot(cc, cross_compile, abi, bind_paths=None, version=None, ov
                     'lld',
                 ])
 
+            return packages
+
+        def resolve_toolchain_packages(cc, cross_compile):
+            maybe_qemu = False
             try:
-                _packages = _find_alpine_cc_packages(
+                toolchain_packages = _find_alpine_cc_packages(
                     version=version,
                     abi=abi,
                     cc=cc,
@@ -457,16 +462,19 @@ def _make_build_chroot(cc, cross_compile, abi, bind_paths=None, version=None, ov
             except ValueError:
                 # We could not find the cross compilation toolchain, so
                 # fallback on the non-cross toolchain and use QEMU
-                _packages = [cc]
+                toolchain_packages = [cc]
                 # clang is always a cross compilation, toolchain so we
                 # would not need QEMU for that
                 maybe_qemu = not is_clang(cc)
 
-            packages.extend(_packages)
+            return (toolchain_packages, maybe_qemu)
 
-            return (maybe_qemu, packages)
+        if packages is None:
+            toolchain_packages, maybe_qemu = resolve_toolchain_packages(cc, cross_compile)
+            packages = default_packages(cc) + toolchain_packages
+        else:
+            _, maybe_qemu = resolve_toolchain_packages(cc, cross_compile)
 
-        maybe_qemu, packages = default_packages(cc) if packages is None else packages
         use_qemu = (
             maybe_qemu and
             # Since clang binaries support cross compilation without issues,
@@ -1627,7 +1635,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                 return 0
 
         def priority_to(cc):
-            def prio(_cc, _cross_compile):
+            def prio(build_env, _cc, _cross_compile):
                 cc_prio = 0 if (cc and cc in _cc.name) else 1
                 return (
                     cc_prio,
@@ -1648,9 +1656,8 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     cc_priority = priority_to('clang')
                 else:
                     clang_version = clang_version // 10_000
-                    is_host_env = build_conf['build-env'] == 'host'
 
-                    def cc_priority(cc, cross_compile):
+                    def cc_priority(build_env, cc, cross_compile):
                         def prio(cc):
                             # Firstly, we give priority to anything that is
                             # clang.
@@ -1668,13 +1675,25 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
 
                             # As a tie-breaker, if we have to choose between
                             # "clang" and "clang-XYZ" when both --version
-                            # report to be XYZ, use "clang".  This improves
-                            # compat with GKI prebuilt toolchains that ships a
-                            # mix of clang-XYZ and clang binaries, but only
-                            # unversioned names for the rest of the tools.
-                            class Name(IntEnum):
-                                UNVERSIONED_NAME = 0
-                                VERSIONED_NAME = 1
+                            # report to be XYZ, use "clang".
+
+                            if build_env == 'host':
+                                # This improves compat with GKI prebuilt
+                                # toolchains that ships a mix of clang-XYZ and
+                                # clang binaries, but only unversioned names
+                                # for the rest of the tools.
+                                class Name(IntEnum):
+                                    UNVERSIONED_NAME = 0
+                                    VERSIONED_NAME = 1
+                            elif build_env == 'alpine':
+                                # On Alpine, we always want to pick the named
+                                # version if we can, as it will always match
+                                # better what we want if it is available.
+                                class Name(IntEnum):
+                                    VERSIONED_NAME = 0
+                                    UNVERSIONED_NAME = 1
+                            else:
+                                raise ValueError(f'Unknown build environment: {build_env}')
 
                             def version_key(version):
                                 if version:
@@ -1691,7 +1710,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                                 version = re.search(r'[0-9]+', cc.name)
                                 if version is None:
                                     convention = Name.UNVERSIONED_NAME
-                                    if is_host_env:
+                                    if build_env == 'host':
                                         try:
                                             version, *_ = _clang_version(cc, env=env)
                                         except ValueError:
@@ -1797,7 +1816,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         # with
         def key(item):
             (cc, cross_compile) = item
-            return cc_priority(cc, cross_compile)
+            return cc_priority(build_conf['build-env'], cc, cross_compile)
 
         ccs = deduplicate(ccs, keep_last=False)
         ccs = sorted(ccs, key=key)
@@ -1967,13 +1986,16 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         build_conf, cc, cross_compile, cc_key, _abi = cls._resolve_conf(build_conf, abi=abi, target=target)
         assert _abi == abi
 
+        class LoaderNotSelected(ValueError):
+            pass
+
         @contextlib.contextmanager
         def from_installed_headers():
             """
             Get the kernel tree from /lib/modules
             """
             if build_conf['build-env'] == 'alpine':
-                raise ValueError(f'Building from /lib/modules is not supported with the Alpine build environment as /lib/modules might not be self contained (i.e. symlinks pointing outside)')
+                raise LoaderNotSelected(f'Building from /lib/modules is not supported with the Alpine build environment as /lib/modules might not be self contained (i.e. symlinks pointing outside)')
             else:
                 if isinstance(target.conn, LocalConnection):
                     # We could use this instead, except that Ubuntu does not have
@@ -2008,11 +2030,11 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                                 ).hexdigest()
                             )
                         else:
-                            raise ValueError(f'{target_path} is not a folder')
+                            raise LoaderNotSelected(f'{target_path} is not a folder')
                     else:
-                        raise ValueError(f'The chosen compiler ({cc}) is different from the one used to build the kernel ({proc_version}), /lib/modules/ tree will not be used')
+                        raise LoaderNotSelected(f'The chosen compiler ({cc}) is different from the one used to build the kernel ({proc_version}), /lib/modules/ tree will not be used')
                 else:
-                    raise ValueError(f'Building from /lib/modules/.../build/ is only supported for local targets')
+                    raise LoaderNotSelected(f'Building from /lib/modules/.../build/ is only supported for local targets')
 
         @contextlib.contextmanager
         def _from_target_sources(pull, **kwargs):
@@ -2040,7 +2062,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                 f'{conf}=y'
                 for conf in configs
             )
-            return ValueError(f'Needs {configs}')
+            return LoaderNotSelected(f'Needs {configs}')
 
         def from_sysfs_headers():
             """
@@ -2088,7 +2110,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             Purely from the tree passed by the user.
             """
             if tree_path is None:
-                raise ValueError('Use tree_path != None to build from a user-provided tree')
+                raise LoaderNotSelected('Use tree_path != None to build from a user-provided tree')
             else:
                 # We still need to run make modules_prepare on the provided
                 # tree
@@ -2111,6 +2133,12 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     spec = cm.__enter__()
                 except Exception as e:
                     logger.debug(f'Failed to load kernel tree using loader {loader.__name__}: {e.__class__.__name__}: {e}')
+                    # If the exception is coming from the guts of the
+                    # machinery, we want a backtrace for easier debugging.
+                    if not isinstance(e, LoaderNotSelected):
+                        logger.debug(
+                            ''.join(traceback.format_tb(e.__traceback__))
+                        )
                     exceps.append((loader, e))
                 else:
                     logger.debug(f'Loaded kernel tree using loader {loader.__name__}')
