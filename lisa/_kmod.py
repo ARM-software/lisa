@@ -447,8 +447,12 @@ def _make_build_chroot(cc, cross_compile, abi, bind_paths=None, version=None, ov
                     'lld',
                 ])
 
+            return packages
+
+        def resolve_toolchain_packages(cc, cross_compile):
+            maybe_qemu = False
             try:
-                _packages = _find_alpine_cc_packages(
+                toolchain_packages = _find_alpine_cc_packages(
                     version=version,
                     abi=abi,
                     cc=cc,
@@ -457,16 +461,19 @@ def _make_build_chroot(cc, cross_compile, abi, bind_paths=None, version=None, ov
             except ValueError:
                 # We could not find the cross compilation toolchain, so
                 # fallback on the non-cross toolchain and use QEMU
-                _packages = [cc]
+                toolchain_packages = [cc]
                 # clang is always a cross compilation, toolchain so we
                 # would not need QEMU for that
                 maybe_qemu = not is_clang(cc)
 
-            packages.extend(_packages)
+            return (toolchain_packages, maybe_qemu)
 
-            return (maybe_qemu, packages)
+        if packages is None:
+            toolchain_packages, maybe_qemu = resolve_toolchain_packages(cc, cross_compile)
+            packages = default_packages(cc) + toolchain_packages
+        else:
+            _, maybe_qemu = resolve_toolchain_packages(cc, cross_compile)
 
-        maybe_qemu, packages = default_packages(cc) if packages is None else packages
         use_qemu = (
             maybe_qemu and
             # Since clang binaries support cross compilation without issues,
