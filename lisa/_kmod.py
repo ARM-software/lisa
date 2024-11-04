@@ -136,6 +136,7 @@ import typing
 import fnmatch
 import sys
 from enum import IntEnum
+import traceback
 
 from elftools.elf.elffile import ELFFile
 
@@ -1985,13 +1986,16 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         build_conf, cc, cross_compile, cc_key, _abi = cls._resolve_conf(build_conf, abi=abi, target=target)
         assert _abi == abi
 
+        class LoaderNotSelected(ValueError):
+            pass
+
         @contextlib.contextmanager
         def from_installed_headers():
             """
             Get the kernel tree from /lib/modules
             """
             if build_conf['build-env'] == 'alpine':
-                raise ValueError(f'Building from /lib/modules is not supported with the Alpine build environment as /lib/modules might not be self contained (i.e. symlinks pointing outside)')
+                raise LoaderNotSelected(f'Building from /lib/modules is not supported with the Alpine build environment as /lib/modules might not be self contained (i.e. symlinks pointing outside)')
             else:
                 if isinstance(target.conn, LocalConnection):
                     # We could use this instead, except that Ubuntu does not have
@@ -2026,11 +2030,11 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                                 ).hexdigest()
                             )
                         else:
-                            raise ValueError(f'{target_path} is not a folder')
+                            raise LoaderNotSelected(f'{target_path} is not a folder')
                     else:
-                        raise ValueError(f'The chosen compiler ({cc}) is different from the one used to build the kernel ({proc_version}), /lib/modules/ tree will not be used')
+                        raise LoaderNotSelected(f'The chosen compiler ({cc}) is different from the one used to build the kernel ({proc_version}), /lib/modules/ tree will not be used')
                 else:
-                    raise ValueError(f'Building from /lib/modules/.../build/ is only supported for local targets')
+                    raise LoaderNotSelected(f'Building from /lib/modules/.../build/ is only supported for local targets')
 
         @contextlib.contextmanager
         def _from_target_sources(pull, **kwargs):
@@ -2058,7 +2062,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                 f'{conf}=y'
                 for conf in configs
             )
-            return ValueError(f'Needs {configs}')
+            return LoaderNotSelected(f'Needs {configs}')
 
         def from_sysfs_headers():
             """
@@ -2106,7 +2110,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             Purely from the tree passed by the user.
             """
             if tree_path is None:
-                raise ValueError('Use tree_path != None to build from a user-provided tree')
+                raise LoaderNotSelected('Use tree_path != None to build from a user-provided tree')
             else:
                 # We still need to run make modules_prepare on the provided
                 # tree
@@ -2129,6 +2133,12 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     spec = cm.__enter__()
                 except Exception as e:
                     logger.debug(f'Failed to load kernel tree using loader {loader.__name__}: {e.__class__.__name__}: {e}')
+                    # If the exception is coming from the guts of the
+                    # machinery, we want a backtrace for easier debugging.
+                    if not isinstance(e, LoaderNotSelected):
+                        logger.debug(
+                            ''.join(traceback.format_tb(e.__traceback__))
+                        )
                     exceps.append((loader, e))
                 else:
                     logger.debug(f'Loaded kernel tree using loader {loader.__name__}')
