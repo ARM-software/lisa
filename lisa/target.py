@@ -340,6 +340,7 @@ class Target(
         kmod_build_env, kmod_make_vars, kmod_overlay_backend,
     ):
         self._uuid = uuid.uuid4().hex
+        self._user_res_dir = res_dir
 
         # Set it temporarily to avoid breaking __getattr__
         self._devlib_loadable_modules = set()
@@ -348,19 +349,6 @@ class Target(
         super().__init__()
         logger = self.logger
         self.name = name
-
-        res_dir = res_dir if res_dir else self._get_res_dir(
-            root=os.path.join(LISA_HOME, RESULT_DIR),
-            relative='',
-            name=f'{self.__class__.__qualname__}-{self.name}',
-            append_time=True,
-            symlink=True
-        )
-
-        self._res_dir = res_dir
-        os.makedirs(self._res_dir, exist_ok=True)
-        if os.listdir(self._res_dir):
-            raise ValueError(f'res_dir must be empty: {self._res_dir}')
 
         self._installed_tools = set()
         self.target = target
@@ -432,9 +420,7 @@ class Target(
         if name:
             plat_info.add_src('target-conf', dict(name=name))
 
-        rta_calib_res_dir = ArtifactPath.join(self._res_dir, 'rta_calib')
-        os.makedirs(rta_calib_res_dir, exist_ok=True)
-        plat_info.add_target_src(self, rta_calib_res_dir, **kwargs)
+        plat_info.add_target_src(self, **kwargs)
         self.plat_info = plat_info
 
     def __getstate__(self):
@@ -454,6 +440,22 @@ class Target(
         self.__dict__.update(dct)
         self._init_plat_info(deferred=True)
         self._kmod_build_env = None
+
+    @property
+    def _res_dir(self):
+        res_dir = self._user_res_dir if self._user_res_dir else self._get_res_dir(
+            root=os.path.join(LISA_HOME, RESULT_DIR),
+            relative='',
+            name=f'{self.__class__.__qualname__}-{self.name}',
+            append_time=True,
+            symlink=True
+        )
+
+        os.makedirs(res_dir, exist_ok=True)
+        if os.listdir(res_dir):
+            raise ValueError(f'res_dir must be empty: {self._res_dir}')
+
+        return res_dir
 
     def get_kmod(self, mod_cls=DynamicKmod, **kwargs):
         """
