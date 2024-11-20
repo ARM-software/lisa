@@ -2074,8 +2074,26 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                 except Exception:
                     raise missing_configs(('CONFIG_IKCONFIG_PROC',))
 
+
+                target_kernel_sha1 = target.plat_info['kernel']['version'].sha1
+                if target_kernel_sha1 is None:
+                    kheaders_key = None
+                else:
+                    with open(temp / 'config.gz', 'rb') as f:
+                        config_checksum = checksum(f, 'sha256')
+                    kheaders_key = (
+                        target_kernel_sha1,
+                        config_checksum,
+                    )
+
                 try:
-                    target.cached_pull('/sys/kernel/kheaders.tar.xz', str(temp), via_temp=True, as_root=True)
+                    target.cached_pull(
+                        '/sys/kernel/kheaders.tar.xz',
+                        str(temp),
+                        via_temp=True,
+                        as_root=True,
+                        key=kheaders_key,
+                    )
                 except Exception:
                     raise missing_configs(('CONFIG_IKHEADERS',))
 
@@ -3094,6 +3112,10 @@ class LISADynamicKmod(FtraceDynamicKmod):
 
         with tempfile.NamedTemporaryFile() as f:
             try:
+                # We do not attempt to cache the BTF blob beyond the lifetime
+                # of the target object. Any mistake in the caching key would
+                # result in incredibly hard-to-debug issues due to mismatching
+                # memory layout.
                 target.cached_pull(btf_path, f.name, via_temp=True, as_root=True)
             except FileNotFoundError:
                 raise FileNotFoundError(f'Could not find {btf_path} on the target. Ensure you compiled your kernel using CONFIG_DEBUG_INFO=y CONFIG_DEBUG_INFO_BTF=y CONFIG_DEBUG_INFO_REDUCED=n')
