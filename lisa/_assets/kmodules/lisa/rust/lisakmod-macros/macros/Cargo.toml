@@ -1,10 +1,10 @@
 [package]
-name = "lisakmodprocmacro_macro"
+name = "lisakmod_macros_proc"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-syn = { version = "2.0", default-features = false, features = ["proc-macro", "parsing", "printing", "full", "clone-impls", "extra-traits"]}
+syn = { version = "2.0", default-features = false, features = ["proc-macro", "parsing", "printing", "full", "clone-impls"]}
 quote = { version = "1.0", default-features = false }
 proc-macro2 = { version = "1.0", default-features = false, features = ["span-locations"]}
 getrandom = {version = "0.2", default-features = false }

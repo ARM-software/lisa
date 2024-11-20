@@ -3061,11 +3061,8 @@ class FtraceDynamicKmod(DynamicKmod):
 
 class _LISADynamicKmodSrc(KmodSrc):
     _RUST_SPEC = dict(
-        version='1.81.0',
+        version='1.82.0',
         components=[
-            # rust-docs to list the C public API (pub #[no_mangle] functions)
-            # to avoid exporting a thousand symbols from Rust libcore.
-            'rust-docs',
             # rust-src for -Zbuild-std
             'rust-src',
         ]

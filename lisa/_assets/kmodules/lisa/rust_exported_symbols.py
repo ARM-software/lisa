@@ -18,37 +18,50 @@
 #
 
 import argparse
-import json
 from pathlib import Path
-import sys
 from shlex import quote
+import subprocess
+import os
 
 
 def main():
     parser = argparse.ArgumentParser("""
-    Parse the JSON output of rustdoc --output-format=json and extract the
-    exported C symbols.
+    Get the list of exported Rust functions to make it available to C code (and
+    not garbage collect these entry points it when linking).
     """)
 
-    parser.add_argument('--rustdoc-json', help='JSON file to parse', required=True)
+    parser.add_argument('--rust-object', help='Built Rust object file', required=True)
     parser.add_argument('--out-symbols-plain', help='File to write the symbol list, one per line')
     parser.add_argument('--out-symbols-cli', help='File to write the symbol list as ld CLI --undefined options')
 
     args = parser.parse_args()
-    path = Path(args.rustdoc_json)
 
-    with open(path, 'r') as f:
-        data = json.load(f)
-
-    items = [
-        item
-        for item in data['index'].values()
-        if '#[no_mangle]' in item['attrs']
-    ]
-    symbols = sorted(
-        item['name']
-        for item in items
+    nm = os.environ.get('NM', 'nm')
+    out = subprocess.check_output(
+        [nm, '-gj', args.rust_object],
     )
+
+    # For each symbol we want to export in Rust, we create a companion symbol
+    # with a prefix that we pick up here. There unfortunately seems to be no
+    # cleaner way to convey the list of exported symbols from Rust code as of
+    # 2024.
+    prefix = b'__export_rust_symbol_'
+    def parse(sym):
+        if sym.startswith(prefix):
+            sym = sym[len(prefix):]
+            return sym.decode()
+        else:
+            return None
+
+    symbols = sorted(
+        sym
+        for _sym in out.split()
+        if (sym := parse(_sym))
+    )
+
+    sep = '\n  '
+    pretty_symbols = sep.join(symbols)
+    print(f'Found exported symbols:{sep}{pretty_symbols}')
 
     if (path := args.out_symbols_plain):
         content = '\n'.join(symbols) + '\n'

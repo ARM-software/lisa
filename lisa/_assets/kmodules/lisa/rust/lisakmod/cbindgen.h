@@ -7,5 +7,3 @@
 
 extern uint64_t myc_callback(uint64_t x);
 
-uint64_t do_rust_tests(void) ;
-

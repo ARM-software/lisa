@@ -44,27 +44,27 @@ impl core::fmt::Write for __DmesgWriter {
         self.state = DmesgWriterState::Cont;
 
         #[cfunc]
-        unsafe fn printk(level: u8, msg: *const u8, len: usize) {
+        fn printk<'a>(level: u8, msg: &[u8]) {
             "#include <main.h>";
 
             r#"
-                #define HANDLE(level, f) case level: f("%.*s", (int)len, msg); break;
-                switch (level) {
-                    HANDLE(0, pr_emerg);
-                    HANDLE(1, pr_alert);
-                    HANDLE(2, pr_crit);
-                    HANDLE(3, pr_err);
-                    HANDLE(4, pr_warn);
-                    HANDLE(5, pr_notice);
-                    HANDLE(6, pr_info);
-                    HANDLE(7, pr_debug);
-                    HANDLE(8, pr_cont);
-                }
-                #undef HANDLE
+            #define HANDLE(level, f) case level: f("%.*s", (int)msg.len, msg.data); break;
+            switch (level) {
+                HANDLE(0, pr_emerg);
+                HANDLE(1, pr_alert);
+                HANDLE(2, pr_crit);
+                HANDLE(3, pr_err);
+                HANDLE(4, pr_warn);
+                HANDLE(5, pr_notice);
+                HANDLE(6, pr_info);
+                HANDLE(7, pr_debug);
+                HANDLE(8, pr_cont);
+            }
+            #undef HANDLE
             "#
         }
 
-        unsafe { printk(level as u8, s.as_ptr(), s.len()) }
+        printk(level as u8, s.as_bytes());
         Ok(())
     }
 }

@@ -2,6 +2,6 @@
 PROVIDE(__builtin_copysignq = 0);
 
 SECTIONS {
-	/* Remove binstore sections that we created in lisakmodprocmacro::inlinec Rust module */
+	/* Remove binstore sections that we created in lisakmod_macros::inlinec Rust module */
 	/DISCARD/ : { *(.binstore.*) }
 }

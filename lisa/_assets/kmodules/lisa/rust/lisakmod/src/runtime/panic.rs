@@ -52,10 +52,10 @@ impl fmt::Write for SliceWriter<'_> {
 #[allow(dead_code)]
 fn _panic(info: &core::panic::PanicInfo) -> ! {
     #[cfunc]
-    unsafe fn panic(msg: *const u8, len: usize) {
+    fn panic<'a>(msg: &'a [u8]) {
         r#"
-        if (msg && len) {
-            panic("Rust panic: %.*s", (int)len, msg);
+        if (msg.data && msg.len) {
+            panic("Rust panic: %.*s", (int)msg.len, msg.data);
         } else {
             panic("Rust panic with no message");
         }
@@ -74,7 +74,7 @@ fn _panic(info: &core::panic::PanicInfo) -> ! {
             }
         }
     };
-    unsafe { panic(out.as_ptr(), out.len()) };
+    panic(out);
 
     #[allow(clippy::empty_loop)]
     loop {}

@@ -4,8 +4,8 @@
 #include "main.h"
 #include "features.h"
 #include "introspection.h"
-#include "rust/lisakmod/tests.h"
 #include "generated/module_version.h"
+#include "rust/lisakmod/bindings.h"
 /* Import all the symbol namespaces that appear to be defined in the kernel
  * sources so that we won't trigger any warning
  */
@@ -23,6 +23,8 @@ MODULE_PARM_DESC(features, "Comma-separated list of features to enable. Availabl
 static void modexit(void) {
 	if (deinit_features())
 		pr_err("Some errors happened while unloading LISA kernel module\n");
+
+	rust_mod_exit();
 }
 
 static int __init modinit(void) {
@@ -34,9 +36,9 @@ static int __init modinit(void) {
 		return -EPROTO;
 	}
 
-	ret = rust_tests();
+	ret = rust_mod_init();
 	if (ret) {
-		pr_err("Lisa module Rust support validation failed: %i\n", ret);
+		pr_err("Lisa module Rust code failed to initialize properly: %i\n", ret);
 		return -EINVAL;
 	}
 
