@@ -1,10 +1,13 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
 use alloc::alloc::handle_alloc_error;
-use core::alloc::{GlobalAlloc, Layout};
+use core::{
+    alloc::{GlobalAlloc, Layout},
+    ffi::c_void,
+};
 
 use crate::{
-    inlinec::{cfunc, get_c_macro},
+    inlinec::{c_eval, cfunc},
     runtime::printk::pr_err,
 };
 
@@ -12,7 +15,7 @@ struct KernelAllocator;
 
 #[inline]
 fn with_size<F: FnOnce(usize) -> *mut u8>(layout: Layout, f: F) -> *mut u8 {
-    let minalign = || get_c_macro!("linux/slab.h", ARCH_KMALLOC_MINALIGN, usize);
+    let minalign = || c_eval!("linux/slab.h", "ARCH_KMALLOC_MINALIGN", usize);
 
     let size = layout.size();
     let align = layout.align();
@@ -24,7 +27,10 @@ fn with_size<F: FnOnce(usize) -> *mut u8>(layout: Layout, f: F) -> *mut u8 {
         ptr
     } else {
         // Do not panic as this would create UB
-        pr_err!("Rust: cannot allocate memory with alignment > {minalign} and a size {size} that is not a power of two", minalign=minalign());
+        pr_err!(
+            "Rust: cannot allocate memory with alignment > {minalign} and a size {size} that is not a power of two",
+            minalign = minalign()
+        );
         core::ptr::null_mut()
     }
 }
@@ -32,6 +38,9 @@ fn with_size<F: FnOnce(usize) -> *mut u8>(layout: Layout, f: F) -> *mut u8 {
 /// This function is guaranteed to return the pointer given by the kernel's kmalloc() without
 /// re-aligning it in any way. This makes it suitable to pass to kfree() without knowing the
 /// original layout.
+///
+/// Note that any layout is admissible here, including if layout.size() == 0 unlike when going
+/// through the GlobalAlloc API.
 #[inline]
 pub fn kmalloc(layout: Layout) -> *mut u8 {
     #[cfunc]
@@ -46,12 +55,12 @@ pub fn kmalloc(layout: Layout) -> *mut u8 {
 #[inline]
 pub unsafe fn kfree<T: ?Sized>(ptr: *mut T) {
     #[cfunc]
-    unsafe fn dealloc(ptr: *mut u8) {
+    unsafe fn dealloc(ptr: *mut c_void) {
         "#include <linux/slab.h>";
 
         "return kfree(ptr);"
     }
-    unsafe { dealloc(ptr as *mut u8) }
+    unsafe { dealloc(ptr as *mut c_void) }
 }
 
 unsafe impl GlobalAlloc for KernelAllocator {

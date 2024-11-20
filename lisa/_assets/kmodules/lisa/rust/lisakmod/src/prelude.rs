@@ -1,9 +1,12 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-pub use crate::{inlinec::cfunc, runtime::kbox::KBox};
+pub use crate::{
+    inlinec::{cexport, cfunc},
+    runtime::kbox::KBox,
+};
 
 #[allow(unused_imports)]
 pub(crate) use crate::{
-    inlinec::get_c_macro,
+    inlinec::c_eval,
     runtime::printk::{pr_err, pr_info},
 };

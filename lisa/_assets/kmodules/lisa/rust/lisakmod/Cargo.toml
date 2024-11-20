@@ -1,15 +1,16 @@
+cargo-features = ["edition2024"]
+
 [package]
 name = "lisakmod"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [lib]
 crate-type = ["staticlib"]
 
 [dependencies]
 # hashbrown = "0.15"
-lisakmodprocmacro = { path = "../proc_macros/lisakmodprocmacro" }
-paste = "1.0"
+lisakmod_macros = { path = "../lisakmod-macros" }
 
 [profile.release]
 panic = 'abort'

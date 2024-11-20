@@ -71,6 +71,8 @@ clean-files := $(GENERATED)
 RUST_VERSION ?= nightly
 RUSTFLAGS := -Clinker=rust-lld -Clink-self-contained=y -Clto=n -Crelocation-model=static -Cno-redzone=y -Csoft-float=y -Ctarget-cpu=generic -Cforce-frame-pointers=y -Ccodegen-units=1 -Zfunction-sections=y
 
+LISA_EVAL_C := $(MODULE_SRC)/lisa-eval-c.sh
+
 RUST_SRC := $(MODULE_SRC)/rust/lisakmod
 RUST_LDS := $(RUST_SRC)/rust.lds
 RUST_GENERATED := $(GENERATED)/rust
@@ -78,6 +80,7 @@ RUST_OBJECT := $(RUST_GENERATED)/rust.o
 RUST_OBJECT_CMD := $(RUST_GENERATED)/.rust.o.cmd
 RUST_CBINDGEN_H := $(RUST_SRC)/cbindgen.h
 RUST_C_SHIMS_H := $(RUST_GENERATED)/rust_c_shims.h
+RUST_C_SHIMS_C := $(RUST_GENERATED)/rust_c_shims.c
 RUST_C_SHIMS_DIR := $(RUST_GENERATED)/rust_c_shims
 
 RUSTUP_HOME ?= $(HOME)/.rustup
@@ -89,9 +92,20 @@ RUST_SYMBOLS_CLI := $(RUST_BUILD_DIR)/exported.cli
 RUST_TARGET_DIR := $(RUST_BUILD_DIR)/target
 RUST_CBINDGEN_BIN := $(CARGO_HOME)/bin/cbindgen
 
+# Export c_flags so that lisa-eval-c.sh can compile a C source with the
+# appropriate flags. Trying to pass down $(c_flags) via parameters or
+# manually-exported env var triggers a nightmare of shell quoting as some of
+# the compiler flags have quotes that are significant (e.g. ARM64_ASM_ARCH that
+# needs to have double quotes in the value to be a well-formed C string
+# literal).
+#
+# We need to expand the values once to mimic what seems to be happening in
+# Kbuild.
+export LISA_EVAL_C_CFLAGS=$(shell echo $(c_flags))
+
 # Enable RUSTC_BOOTSTRAP=1 so we can use nightly features on any toolchain,
 # including stable ones. This allows using the more tested stable binaries.
-rust_cmd = export RUSTC_BOOTSTRAP=1 PATH="$(CARGO_HOME)/bin:$$PATH" RUSTUP_HOME=$(RUSTUP_HOME) CARGO_HOME=$(CARGO_HOME) && $(1)
+rust_cmd = chmod +x '$(LISA_EVAL_C)' && export RUSTC_BOOTSTRAP=1 PATH="$(CARGO_HOME)/bin:$$PATH" 'RUSTUP_HOME=$(RUSTUP_HOME)' 'CARGO_HOME=$(CARGO_HOME)' 'LISA_EVAL_C=$(LISA_EVAL_C)' && $(1)
 cargo_cmd = $(call rust_cmd,cargo +$(RUST_VERSION) $(1))
 
 $(RUST_GENERATED): $(GENERATED)
@@ -106,26 +120,24 @@ $(RUST_TARGET_DIR): $(RUST_BUILD_DIR)
 # Build the rust code into a static archive, then prelink it into an object
 # file and filter the symbols to only keep as GLOBAL the exported pub
 # #[no_mangle] ones. This avoids having tons of GLOBAL symbols from core lib.
-$(RUST_OBJECT) $(RUST_C_SHIMS_H): $(RUST_TARGET_DIR)
+$(RUST_OBJECT) $(RUST_C_SHIMS_H) $(RUST_C_SHIMS_C): $(RUST_TARGET_DIR)
 	# Build the crate into a static library
 	cd $(RUST_SRC) && export RUSTFLAGS="$(RUSTFLAGS)" && $(call cargo_cmd,build --target-dir $(RUST_TARGET_DIR) --release --target=$(RUST_SRC)/rustc_targets/$(ARCH)/target.json -Zbuild-std=core$(comma)alloc)
-	# Generate the documentation JSON that we will use to extract symbols to keep
-	cd $(RUST_SRC) && $(call cargo_cmd,rustdoc --release --target-dir $(RUST_TARGET_DIR) -- -Zunstable-options --output-format json)
-
-	# Get the list of exported symbols (pub with #[no_mangle] attribute) from the rustdoc JSON
-	python3 "$(MODULE_SRC)/rustdoc_symbols.py" --rustdoc-json $(RUST_TARGET_DIR)/doc/lisakmod.json --out-symbols-plain $(RUST_SYMBOLS) --out-symbols-cli $(RUST_SYMBOLS_CLI)
-	cat $(RUST_SYMBOLS)
 
 	# Prelink the archive into a single object file.
 	$(LD) $(KBUILD_LDFLAGS) -nostdlib -r -o $(RUST_OBJECT) --whole-archive $(RUST_TARGET_DIR)/target/release/liblisakmod.a
 
+	# Get the list of exported symbols
+	python3 "$(MODULE_SRC)/rust_exported_symbols.py" --rust-object $(RUST_OBJECT) --out-symbols-plain $(RUST_SYMBOLS) --out-symbols-cli $(RUST_SYMBOLS_CLI)
+
 	# Extract the C shims created by our inlinec Rust module from the
 	# binary, so they can be compiled and linked later.
 	mkdir -p "$(RUST_C_SHIMS_DIR)"
-	touch $(RUST_C_SHIMS_DIR)/empty
-	$(OBJDUMP) -h $(RUST_OBJECT) | awk '{ print $$2 }' | grep '^.binstore.c_shims.' | xargs -n1 sh -c '$(OBJCOPY) --dump-section=$$0=$(RUST_C_SHIMS_DIR)/shim_$$0 $(RUST_OBJECT)'
-	LC_ALL=C cat $(RUST_C_SHIMS_DIR)/* > $(RUST_C_SHIMS_H)
-	cat $(RUST_C_SHIMS_H) | if which clang-format 2>&1 1>/dev/null; then clang-format; else cat; fi
+	touch $(RUST_C_SHIMS_DIR)/shim_.binstore.c.header. $(RUST_C_SHIMS_DIR)/shim_.binstore.c.code.
+	$(OBJDUMP) -h $(RUST_OBJECT) | awk '{ print $$2 }' | grep '^.binstore.c.' | xargs -n1 sh -c '$(OBJCOPY) --dump-section $$0=$(RUST_C_SHIMS_DIR)/shim_$$0 $(RUST_OBJECT) /dev/null'
+	LC_ALL=C cat $(RUST_C_SHIMS_DIR)/shim_.binstore.c.header.* > $(RUST_C_SHIMS_H)
+	LC_ALL=C cat $(RUST_C_SHIMS_DIR)/shim_.binstore.c.code.* > $(RUST_C_SHIMS_C)
+	cat $(RUST_C_SHIMS_H) $(RUST_C_SHIMS_C) | if which clang-format 2>&1 1>/dev/null; then clang-format; else cat; fi
 
 	# Garbage collect unused sections in the object file, after we have
 	# extracted the binstore sections (otherwise they get discarded).
@@ -255,7 +267,7 @@ $(MODULE_VERSION_H): $(GENERATED)
 	printf "#define LISA_MODULE_VERSION \"" >> $@
 	# Show the content of the folder to debug mismatching sha1sum issues
 	ls -laR $(MODULE_SRC)
-	export LC_ALL=C && (cd $(MODULE_SRC) && find -type f '(' -name '*.c' -or -name '*.h' -or -name '*.rs' -or -name '*.toml' -or -name '*.txt' -or -name '*.json' -or -name '*.md' -or -name '*.py' -or -name '*.sh' -or -name '*.lds' -or -name 'Makefile' -or -name 'vmlinux' -or -name 'kallsyms' ')' -and -not -path './generated/*' -and -not -path './__pycache__/*' | xargs sha1sum) | sort | sha1sum | cut -d' ' -f1 | tr -d '\n' >> $@
+	export LC_ALL=C && (cd $(MODULE_SRC) && find -type f '(' -name '*.c' -or -name '*.h' -or -name '*.rs' -or -name '*.toml' -or -name '*.lock' -or -name '*.txt' -or -name '*.json' -or -name '*.md' -or -name '*.py' -or -name '*.sh' -or -name '*.lds' -or -name 'Makefile' -or -name 'vmlinux' -or -name 'kallsyms' ')' -and -not -path './generated/*' -and -not -path './__pycache__/*' | xargs sha1sum) | sort | sha1sum | cut -d' ' -f1 | tr -d '\n' >> $@
 	printf "\"\n" >> $@
 
 
@@ -263,7 +275,7 @@ $(KALLSYMS): $(GENERATED)
 	cat $(MODULE_SRC)/kallsyms > $@ || $(NM) $(_REAL_VMLINUX) > $@ || touch $@
 
 # Make all object files depend on the generated sources
-$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(INTROSPECTION_DATA_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H) $(SYMBOLS_LDS) $(RUST_CBINDGEN_H) $(RUST_C_SHIMS_H)
+$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(INTROSPECTION_DATA_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H) $(SYMBOLS_LDS) $(RUST_CBINDGEN_H) $(RUST_C_SHIMS_H) $(RUST_C_SHIMS_C)
 
 # Non-Kbuild part
 else
