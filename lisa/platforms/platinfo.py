@@ -23,6 +23,7 @@ import functools
 import contextlib
 from collections.abc import Mapping
 import typing
+import warnings
 
 from lisa.utils import HideExekallID, group_by_value, memoized
 from lisa.conf import (
@@ -136,7 +137,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
     ))
     """Some keys have a reserved meaning with an associated type."""
 
-    def add_target_src(self, target, rta_calib_res_dir, src='target', only_missing=True, **kwargs):
+    def add_target_src(self, target, rta_calib_res_dir=None, src='target', only_missing=True, **kwargs):
         """
         Add source from a live :class:`lisa.target.Target`.
 
@@ -158,6 +159,10 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         :Variable keyword arguments: Forwarded to
             :class:`lisa.conf.MultiSrcConf.add_src`.
         """
+
+        if rta_calib_res_dir is not None:
+            warnings.warn('rta_calib_res_dir parameter is deprecated and must be set to None', DeprecationWarning)
+
         info = {
             'nrg-model': lambda: EnergyModel.from_target(target),
             'kernel': {
