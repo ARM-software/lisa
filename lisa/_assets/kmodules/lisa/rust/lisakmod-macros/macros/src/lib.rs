@@ -24,8 +24,8 @@ pub fn cexport(attrs: TokenStream, code: TokenStream) -> TokenStream {
 }
 
 #[proc_macro]
-pub fn c_constant(args: TokenStream) -> TokenStream {
-    convert(inlinec::c_constant(args.into()))
+pub fn cconstant(args: TokenStream) -> TokenStream {
+    convert(inlinec::cconstant(args.into()))
 }
 
 #[proc_macro]
@@ -36,4 +36,9 @@ pub fn export_symbol(args: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn concatcp(args: TokenStream) -> TokenStream {
     convert(misc::concatcp(args.into()))
+}
+
+#[proc_macro_attribute]
+pub fn cstatic(attrs: TokenStream, code: TokenStream) -> TokenStream {
+    convert(inlinec::cstatic(attrs.into(), code.into()))
 }

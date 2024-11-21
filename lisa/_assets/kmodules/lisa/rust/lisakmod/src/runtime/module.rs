@@ -13,7 +13,7 @@ new_static_mutex!(
     None
 );
 
-#[cexport(link_name("rust_mod_init"))]
+#[cexport(export_name = "rust_mod_init")]
 pub fn rust_mod_init() -> c_int {
     let mut iterator = Box::new(module_main());
     let ret = iterator.next().expect("Main iterator did not yield once");
@@ -30,7 +30,7 @@ pub fn rust_mod_init() -> c_int {
     }
 }
 
-#[cexport(link_name("rust_mod_exit"))]
+#[cexport(export_name = "rust_mod_exit")]
 pub fn rust_mod_exit() {
     let mut iterator = MAIN_ITERATOR.lock();
     let iterator = iterator

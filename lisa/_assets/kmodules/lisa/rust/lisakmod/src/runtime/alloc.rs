@@ -7,7 +7,7 @@ use core::{
 };
 
 use crate::{
-    inlinec::{c_eval, cfunc},
+    inlinec::{cconstant, cfunc},
     runtime::printk::pr_err,
 };
 
@@ -15,21 +15,20 @@ struct KernelAllocator;
 
 #[inline]
 fn with_size<F: FnOnce(usize) -> *mut u8>(layout: Layout, f: F) -> *mut u8 {
-    let minalign = || c_eval!("linux/slab.h", "ARCH_KMALLOC_MINALIGN", usize);
+    let minalign: usize = cconstant!("#include <linux/slab.h>", "ARCH_KMALLOC_MINALIGN").unwrap_or(1);
 
     let size = layout.size();
     let align = layout.align();
     // For sizes which are a power of two, the kmalloc() alignment is also guaranteed to be at
     // least the respective size.
-    if (size.is_power_of_two() && align <= size) || (align <= minalign()) {
+    if (size.is_power_of_two() && align <= size) || (align <= minalign) {
         let ptr = f(layout.size());
         assert_eq!((ptr as usize % align), 0);
         ptr
     } else {
         // Do not panic as this would create UB
         pr_err!(
-            "Rust: cannot allocate memory with alignment > {minalign} and a size {size} that is not a power of two",
-            minalign = minalign()
+            "Rust: cannot allocate memory with alignment > {minalign} and a size {size} that is not a power of two"
         );
         core::ptr::null_mut()
     }

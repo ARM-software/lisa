@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
-use lisakmod_macros::inlinec::c_constant;
+use lisakmod_macros::inlinec::cconstant;
 
 // #[cfunc]
 // fn myfunc(x: u64, y: u64) -> u8 {
@@ -55,7 +55,7 @@ fn test_cfunc() {
 
     macro_rules! mymac {
         ($header:literal, $ty:literal) => {
-            c_constant!(("#include <", $header, ">"), ("sizeof(", $ty, ")"), "8")
+            cconstant!(("#include <", $header, ">"), ("sizeof(", $ty, ")")).unwrap_or(8)
         };
     }
     assert_eq!(mymac!("linux/kobject.h", "int"), 8);
