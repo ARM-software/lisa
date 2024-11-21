@@ -42,13 +42,14 @@ from types import ModuleType, FunctionType
 from operator import itemgetter
 import warnings
 import typing
+import uuid
 
 import devlib
 from devlib.exception import TargetStableError
 from devlib.utils.misc import which, to_identifier
 from devlib.platform.gem5 import Gem5SimulationPlatform
 
-from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath, nullcontext, ExekallTaggable, memoized, destroyablecontextmanager, ContextManagerExit, update_params_from, delegate_getattr, DelegateToAttr
+from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath, nullcontext, ExekallTaggable, memoized, destroyablecontextmanager, ContextManagerExit, update_params_from, delegate_getattr, DelegateToAttr, DirCache
 from lisa._assets import ASSETS_PATH
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, Configurable, DelegatedLevelKeyDesc, ConfigKeyError
 from lisa._kmod import _KernelBuildEnv, DynamicKmod, _KernelBuildEnvConf
@@ -338,6 +339,9 @@ class Target(
         tools, plat_info, lazy_platinfo, devlib_excluded_modules, kernel_src,
         kmod_build_env, kmod_make_vars, kmod_overlay_backend,
     ):
+        self._uuid = uuid.uuid4().hex
+        self._user_res_dir = res_dir
+
         # Set it temporarily to avoid breaking __getattr__
         self._devlib_loadable_modules = set()
 
@@ -345,19 +349,6 @@ class Target(
         super().__init__()
         logger = self.logger
         self.name = name
-
-        res_dir = res_dir if res_dir else self._get_res_dir(
-            root=os.path.join(LISA_HOME, RESULT_DIR),
-            relative='',
-            name=f'{self.__class__.__qualname__}-{self.name}',
-            append_time=True,
-            symlink=True
-        )
-
-        self._res_dir = res_dir
-        os.makedirs(self._res_dir, exist_ok=True)
-        if os.listdir(self._res_dir):
-            raise ValueError(f'res_dir must be empty: {self._res_dir}')
 
         self._installed_tools = set()
         self.target = target
@@ -382,10 +373,6 @@ class Target(
         self._init_plat_info(plat_info, name, deferred=lazy_platinfo, fallback=True)
 
         logger.info(f'Effective platform information:\n{self.plat_info}')
-        cache_dir = Path(self._res_dir).resolve() / '.lisa' / 'cache'
-        cache_dir.mkdir(parents=True)
-        self._cache_dir = cache_dir
-
         self._kmod_build_env = None
 
         def _make_kernel_build_env_spec(*args, **kwargs):
@@ -433,9 +420,7 @@ class Target(
         if name:
             plat_info.add_src('target-conf', dict(name=name))
 
-        rta_calib_res_dir = ArtifactPath.join(self._res_dir, 'rta_calib')
-        os.makedirs(rta_calib_res_dir, exist_ok=True)
-        plat_info.add_target_src(self, rta_calib_res_dir, **kwargs)
+        plat_info.add_target_src(self, **kwargs)
         self.plat_info = plat_info
 
     def __getstate__(self):
@@ -455,6 +440,22 @@ class Target(
         self.__dict__.update(dct)
         self._init_plat_info(deferred=True)
         self._kmod_build_env = None
+
+    @property
+    def _res_dir(self):
+        res_dir = self._user_res_dir if self._user_res_dir else self._get_res_dir(
+            root=os.path.join(LISA_HOME, RESULT_DIR),
+            relative='',
+            name=f'{self.__class__.__qualname__}-{self.name}',
+            append_time=True,
+            symlink=True
+        )
+
+        os.makedirs(res_dir, exist_ok=True)
+        if os.listdir(res_dir):
+            raise ValueError(f'res_dir must be empty: {self._res_dir}')
+
+        return res_dir
 
     def get_kmod(self, mod_cls=DynamicKmod, **kwargs):
         """
@@ -495,27 +496,47 @@ class Target(
             self._kmod_build_env = mod.kernel_build_env
         return mod
 
-    def cached_pull(self, src, dst, **kwargs):
+
+    def cached_pull(self, src, dst, key=None, **kwargs):
         """
         Same as ``lisa.target.Target.pull`` but will cache the file in the
         ``target.res_dir`` folder, based on the source path.
 
+        :param key: Cache key to check against when deciding to pull the file :
+            again. If ``None``, the file will be pulled once in the lifetime of the
+            :class:`Target` instance it is called on.
+        :type key: object or None
+
         :Variable keyword arguments: Forwarded to ``Target.pull``.
         """
-        cache = (self._cache_dir / 'pull')
-        cache.mkdir(parents=True, exist_ok=True)
 
-        m = hashlib.sha256()
-        m.update(src.encode('utf-8'))
-        key = m.hexdigest()
-        cached_path = cache / key / os.path.basename(src)
+        def populate(key, path):
+            src, kwargs, meta = key
+            self.pull(src, path / 'data', **kwargs)
 
-        if not cached_path.exists():
-            self.pull(src, cached_path, **kwargs)
+        dir_cache = DirCache(
+            category='target_pull',
+            populate=populate,
+        )
+
+        src = Path(src)
+        dst = Path(dst)
+
+        key = self._uuid if key is None else key
+        key = (src, kwargs, str(key))
+        cached_path = dir_cache.get_entry(key) / 'data'
 
         if cached_path.is_dir():
-            shutil.copytree(cached_path, dst)
+            # We would need to mirror devlib.target.Target.pull() behavior
+            # (when the destination exists as a folder, as a file, or does not
+            # exist yet) for folders, which is more complex and we don't really
+            # need it for now.
+            raise NotImplementedError('Folders are not supported in cached_pull() for now')
         else:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            if dst.is_dir():
+                dst = dst / src.name
+
             shutil.copy2(cached_path, dst)
 
     @property

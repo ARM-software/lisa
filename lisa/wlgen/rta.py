@@ -886,7 +886,7 @@ class RTA(Workload):
 
     @classmethod
     def _do_calibrate(cls, target, res_dir):
-        res_dir = res_dir if res_dir else target .get_res_dir(
+        res_dir = res_dir if res_dir else target.get_res_dir(
             "rta_calib", symlink=False
         )
         logger = cls.get_logger()
