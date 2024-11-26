@@ -190,16 +190,7 @@ opaque_type!(pub struct CMutex, "struct mutex", "linux/mutex.h");
 
 enum AllocatedCMutex {
     KBox(Pin<KBox<UnsafeCell<CMutex>>>),
-    // FIXME: introduce #[cstatic] to allow defining a static global with C code, the same way we
-    // have #[cfunc]. This would be restricted to types that are FfiType + IntoFfi<FfiType=Self> +
-    // FromFfi<FfiType=Self>
-
-    // Mutexes in static variables have to be defined in C code using the DEFINE_MUTEX() macro.
-    // Unfortunately, that means we can't get their address directly in Rust, as that would require
-    // having an equivalent of #[cfunc] for other values than functions, which would be doable but
-    // extra work. Instead, we can just make a C function that declares a static mutex inside it
-    // and returns its address.
-    Static(fn() -> Pin<&'static UnsafeCell<CMutex>>),
+    Static(Pin<&'static UnsafeCell<CMutex>>),
 }
 
 impl AllocatedCMutex {
@@ -207,7 +198,7 @@ impl AllocatedCMutex {
     fn as_pin_ref(&self) -> Pin<&UnsafeCell<CMutex>> {
         match self {
             AllocatedCMutex::KBox(c_mutex) => c_mutex.as_ref(),
-            AllocatedCMutex::Static(f) => f(),
+            AllocatedCMutex::Static(c_mutex) => *c_mutex,
         }
     }
 }
@@ -216,18 +207,26 @@ macro_rules! new_static_mutex {
     ($vis:vis $name:ident, $ty:ty, $data:expr) => {
         $vis static $name: $crate::runtime::sync::Mutex<$ty> =
             $crate::runtime::sync::Mutex::__internal_from_ref($data, {
-                #[$crate::inlinec::cfunc]
-                fn get_static_mutex() -> ::core::pin::Pin<
-                    &'static ::core::cell::UnsafeCell<$crate::runtime::sync::CMutex>,
-                > {
-                    "#include <linux/mutex.h>";
-
-                    r#"
-                    static DEFINE_MUTEX(mutex);
-                    return &mutex;
-                    "#
+                #[$crate::inlinec::cstatic]
+                static STATIC_MUTEX: $crate::runtime::sync::CMutex = (
+                    "#include <linux/mutex.h>",
+                    "DEFINE_MUTEX(STATIC_VARIABLE);"
+                );
+                unsafe {
+                    ::core::pin::Pin::new_unchecked(
+                        // SAFETY: Similarly to UnsafeCell::from_mut(), we convert &T to &UnsafeCell<T>.
+                        // UnsafeCell::from_mut() requires a &mut, which is not possible for a
+                        // static variable in Rust 2024 edition however. Requiring an &mut provides
+                        // the assurance that no other reference is floating around, which is
+                        // necessary for the operation to be sound. Here, it is guaranteed as
+                        // nothing else has access to our static variable and we do not leak any
+                        // &T.
+                        //
+                        // Also, UnsafeCell<T> and T have the same memory layout, and no &T or &mut
+                        // T can escape here as STATIC_MUTEX is only reachable here.
+                        &*( &STATIC_MUTEX as *const _ as *const ::core::cell::UnsafeCell<_>)
+                    )
                 }
-                get_static_mutex
             });
     };
 }
@@ -265,9 +264,9 @@ impl<T> Mutex<T> {
     }
 
     #[inline]
-    pub const fn __internal_from_ref(x: T, f: fn() -> Pin<&'static UnsafeCell<CMutex>>) -> Self {
+    pub const fn __internal_from_ref(x: T, c_mutex: Pin<&'static UnsafeCell<CMutex>>) -> Self {
         Mutex {
-            c_mutex: AllocatedCMutex::Static(f),
+            c_mutex: AllocatedCMutex::Static(c_mutex),
             data: UnsafeCell::new(x),
         }
     }

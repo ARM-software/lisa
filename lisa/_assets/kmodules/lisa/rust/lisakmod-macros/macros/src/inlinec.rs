@@ -6,8 +6,8 @@ use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use syn::{
     parse::Parse, parse_quote, punctuated::Punctuated, spanned::Spanned, token, Abi, Attribute,
-    Error, Expr, ExprGroup, ExprLit, ExprTuple, FnArg, Generics, Ident, ItemFn, Lit, LitStr, Meta,
-    Pat, ReturnType, Stmt, StmtMacro, Token, Type, Visibility,
+    Error, Expr, ExprGroup, ExprLit, ExprTuple, FnArg, Generics, Ident, ItemFn, ItemStatic, Lit,
+    LitStr, Meta, Pat, Path, ReturnType, Stmt, StmtMacro, Token, Type, Visibility,
 };
 
 use crate::misc::{concatcp, get_random};
@@ -85,21 +85,21 @@ impl Parse for CFuncInput {
             snippets.push(quote! {#snippet});
         }
 
-        let c_code = match snippets.len() {
-            1 => Ok((
+        let c_code = match &snippets[..] {
+            [code] => Ok((
                 None,
-                Some(snippets[0].clone()),
-                None,
-            )),
-            2 => Ok((
-                Some(snippets[0].clone()),
-                Some(snippets[1].clone()),
+                Some(code.clone()),
                 None,
             )),
-            3 => Ok((
-                Some(snippets[0].clone()),
-                Some(snippets[1].clone()),
-                Some(snippets[2].clone()),
+            [pre, code] => Ok((
+                Some(pre.clone()),
+                Some(code.clone()),
+                None,
+            )),
+            [pre, code, post] => Ok((
+                Some(pre.clone()),
+                Some(code.clone()),
+                Some(post.clone()),
             )),
             _ => Err(Error::new(span, "An inline C function must contain either a single string expression with the C code in it or two string expressions (one output before the function and one for the body)."))
         }?;
@@ -134,26 +134,13 @@ fn make_c_func(
     let (c_out, c_header_out, rust_out) =
         _make_c_func(rust_name, c_name, f_generics, f_args, f_ret_ty, c_code)?;
 
-    let outs = [c_out, c_header_out];
-    let sections = [
-        format!(".binstore.c.code.{}", c_name),
-        format!(".binstore.c.header.{}", c_name),
+    let c_out = [
+        make_c_out(c_out, &format!(".binstore.c.code.{}", c_name))?,
+        make_c_out(c_header_out, &format!(".binstore.c.header.{}", c_name))?,
     ];
 
     Ok(quote! {
-        // Store the C function in a section of the binary, that will be extracted by the
-        // module Makefile and compiled separately as C code.
-        #(
-            const _: () = {
-                const CODE_SLICE: &[u8] = #outs.as_bytes();
-                const CODE_LEN: usize = CODE_SLICE.len();
-
-                #[link_section = #sections ]
-                #[used]
-                static CODE: [u8; CODE_LEN] = ::lisakmod_macros::private::misc::slice_to_array::<{CODE_LEN}>(CODE_SLICE);
-            };
-        )*
-
+        #(#c_out)*
         #rust_out
     })
 }
@@ -311,7 +298,7 @@ fn _make_c_func(
 
     let rust_out = match rust_name {
         Some(rust_name) => quote! {
-            extern "C" {
+            unsafe extern "C" {
                 #[link_name = #c_name_str]
                 fn #rust_name #f_generics(#rust_extern_args) -> <#f_ret_ty as ::lisakmod_macros::inlinec::FfiType>::FfiType #f_where;
             }
@@ -375,7 +362,7 @@ pub fn cfunc(_attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Erro
     Ok(out)
 }
 
-pub fn c_constant(args: TokenStream) -> Result<TokenStream, Error> {
+pub fn cconstant(args: TokenStream) -> Result<TokenStream, Error> {
     let span = Span::call_site();
     let args = syn::parse::Parser::parse2(Punctuated::<Expr, Token![,]>::parse_terminated, args)?;
 
@@ -402,16 +389,15 @@ pub fn c_constant(args: TokenStream) -> Result<TokenStream, Error> {
         .map(parse_arg)
         .collect::<Result<Vec<_>, _>>()?;
 
-    let (headers, expr, default) = if args.len() == 3 {
-        Ok((args[0].clone(), args[1].clone(), args[2].clone()))
-    } else {
-        Err(Error::new(
+    let (headers, expr) = match &args[..] {
+        [headers, expr] => Ok((headers, expr)),
+        _ => Err(Error::new(
             span,
-            "Expected 3 string literals: the header #includes, the expression, and a default value (as a C expression string) when no C toolchain is available (e.g. when running cargo check).",
+            "Expected 2 string literals: the header #includes and the C constant expression evaluate.",
         ))
     }?;
 
-    let out = match std::env::var("LISA_EVAL_C") {
+    let (out, static_assert) = match std::env::var("LISA_EVAL_C") {
         Ok(cmd) => {
             use std::process::Command;
             let mut cmd = Command::new(cmd);
@@ -425,27 +411,29 @@ pub fn c_constant(args: TokenStream) -> Result<TokenStream, Error> {
 
             let out = std::str::from_utf8(&out.stdout)
                 .map_err(|_| Error::new(span, "Could not decode toolchain output"))?;
-            out.trim().to_owned()
+            let assert_cond = concatcp(quote! {"(", #expr, ") == (", #out, ")"})?;
+            let out = syn::parse_str::<Expr>(out.trim())?;
+            (
+                quote! {Some(#out)},
+                quote! {
+                    // Ensure that the constant value we got from the compiler matches what we will get in
+                    // the real world when running the code.
+                    ::lisakmod_macros::inlinec::c_static_assert!(
+                        #headers,
+                        #assert_cond
+                    );
+                },
+            )
         }
-        Err(_) => default.to_owned(),
+        Err(_) => (quote! {None}, quote! {}),
     };
 
-    let out_expr = syn::parse_str::<Expr>(&out)?;
-    let assert_cond = concatcp(quote! {
-        "(", #expr, ") == (", #out, ")"
-    })?;
-    let out = quote! {
+    Ok(quote! {
         {
-            // Ensure that the constant value we got from the compiler matches what we will get in
-            // the real world when running the code.
-            ::lisakmod_macros::inlinec::c_static_assert!(
-                #headers,
-                #assert_cond
-            );
-            #out_expr
+            #static_assert
+            #out
         }
-    };
-    Ok(out)
+    })
 }
 
 struct CExportInput {
@@ -459,39 +447,98 @@ impl Parse for CExportInput {
     }
 }
 
-struct CExportAttrs {
-    link_name: Option<String>,
+struct CAttrs {
+    export_name: Option<String>,
+    no_mangle: bool,
 }
 
-impl Parse for CExportAttrs {
+fn path_to_string(path: &Path) -> String {
+    path.segments
+        .iter()
+        .map(|seg| seg.ident.to_string())
+        .collect::<Vec<_>>()
+        .join("::")
+}
+
+impl Parse for CAttrs {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let attrs = Punctuated::<Meta, Token![,]>::parse_terminated(input)?;
 
-        let mut link_name = None;
+        let unknown = |span| Err(Error::new(span, "Unknown argument".to_string()));
+
+        let mut export_name = None;
+        let mut no_mangle = false;
         for attr in attrs {
             match attr {
-                Meta::List(ml) => match ml.path.get_ident() {
-                    Some(ident) => match &*ident.to_string() {
-                        "link_name" => {
-                            link_name = Some(syn::parse2::<LitStr>(ml.tokens)?.value());
+                // Meta::List(ml) => match ml.path.get_ident() {
+                // Some(ident) => match &*ident.to_string() {
+                // "export_name" => {
+                // export_name = Some(syn::parse2::<LitStr>(ml.tokens)?.value());
+                // }
+                // _ => return unknown(ml.span()),
+                // },
+                // _ => return unknown(ml.span()),
+                // },
+                Meta::List(ml) => return unknown(ml.span()),
+                Meta::Path(path) => {
+                    let span = path.span();
+                    let path = path_to_string(&path);
+                    match &*path {
+                        "no_mangle" => {
+                            no_mangle = true;
                         }
-                        name => {
-                            return Err(Error::new(ml.span(), format!("Unknown argument: {name}")))
-                        }
-                    },
-                    _ => return Err(Error::new(ml.span(), "Invalid argument name".to_string())),
-                },
-                attr => return Err(Error::new(attr.span(), "Unknown argument".to_string())),
+                        _ => return unknown(span),
+                    }
+                }
+
+                Meta::NameValue(name_value) => {
+                    let path = path_to_string(&name_value.path);
+                    let span = name_value.span();
+                    let expr = name_value.value;
+                    match &*path {
+                        "export_name" => match expr {
+                            Expr::Lit(lit) => match lit.lit {
+                                Lit::Str(lit) => {
+                                    export_name = Some(lit.value());
+                                }
+                                lit => {
+                                    return Err(Error::new(
+                                        lit.span(),
+                                        "Expected string literal".to_string(),
+                                    ))
+                                }
+                            },
+                            expr => {
+                                return Err(Error::new(
+                                    expr.span(),
+                                    "Expected string literal".to_string(),
+                                ))
+                            }
+                        },
+                        _ => return unknown(span),
+                    };
+                }
             }
         }
 
-        Ok(CExportAttrs { link_name })
+        if export_name.is_some() && no_mangle {
+            Err(Error::new(
+                input.span(),
+                "\"no_mangle\" and \"export_name\" attributes cannot be specified at the same time"
+                    .to_string(),
+            ))
+        } else {
+            Ok(CAttrs {
+                export_name,
+                no_mangle,
+            })
+        }
     }
 }
 
 pub fn cexport(attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Error> {
     let input = syn::parse2::<CExportInput>(code)?;
-    let attrs = syn::parse2::<CExportAttrs>(attrs)?;
+    let attrs = syn::parse2::<CAttrs>(attrs)?;
     let mut item_fn = input.item_fn;
     let f_args = get_f_args(&item_fn)?;
     let f_ret_ty = get_f_ret_ty(&item_fn)?;
@@ -567,10 +614,13 @@ pub fn cexport(attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Err
     let mut export_markers = vec![_export_symbol(rust_name)?];
 
     // Give a unique name to the actual C function generated by default, so it cannot conflict with
-    // anything else. It will appear as "name" in the Rust universe thanks to the #[link_name]
+    // anything else. It will appear as "name" in the Rust universe thanks to the #[export_name]
     // attribute.
-    let c_name = match attrs.link_name {
-        None => format!("__lisa_c_shim_{name}_{}", get_random()),
+    let c_name = match attrs.export_name {
+        None => match attrs.no_mangle {
+            true => name.to_string(),
+            false => format!("__lisa_c_shim_{name}_{}", get_random()),
+        },
         Some(name) => {
             export_markers.push(_export_symbol(format_ident!("{name}"))?);
             name
@@ -600,8 +650,9 @@ pub fn cexport(attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Err
         #c_out
 
         // The Rust function needs to be callable by the C code, so we need a non-mangled name.
-        // However, we already added a unique cookie to that name, so there is no risk of clash.
-        #[no_mangle]
+        // However, we already added a unique cookie to its name if we want to keep it private, so
+        // there is no risk of clash.
+        #[unsafe(no_mangle)]
         #item_fn
     };
     Ok(out)
@@ -618,8 +669,179 @@ fn _export_symbol(ident: Ident) -> Result<TokenStream, Error> {
     Ok(quote! {
         const _:() = {
             #[used]
-            #[no_mangle]
+            #[unsafe(no_mangle)]
             static #marker: () = ();
         };
+    })
+}
+
+fn make_c_out(c_code: TokenStream, section: &str) -> Result<TokenStream, Error> {
+    Ok(quote! {
+        const _: () = {
+            const CODE_SLICE: &[u8] = #c_code.as_bytes();
+            const CODE_LEN: usize = CODE_SLICE.len();
+
+            // Store the C function in a section of the binary, that will be extracted by the
+            // module Makefile and compiled separately as C code.
+            #[link_section = #section ]
+            #[used]
+            static CODE: [u8; CODE_LEN] = ::lisakmod_macros::private::misc::slice_to_array::<{CODE_LEN}>(CODE_SLICE);
+        };
+    })
+}
+
+struct CStaticInput {
+    name: Ident,
+    c_code: (
+        Option<TokenStream>,
+        Option<TokenStream>,
+        Option<TokenStream>,
+    ),
+    static_attrs: Vec<Attribute>,
+    ty: Type,
+    vis: Visibility,
+}
+
+impl Parse for CStaticInput {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let item_static: ItemStatic = input.parse()?;
+        let span = item_static.span();
+        let static_attrs = item_static.attrs;
+        let name = item_static.ident;
+        let ty = *item_static.ty;
+        let vis = item_static.vis;
+
+        let snippets = match *item_static.expr {
+            Expr::Tuple(ExprTuple { elems, .. }) => {
+                let mut snippets = Vec::new();
+                for item in elems {
+                    snippets.push(match item {
+                        Expr::Lit(lit) => match lit.lit {
+                            Lit::Str(lit) => Ok(quote! {#lit}),
+                            lit => Err(Error::new(
+                                lit.span(),
+                                "Expected string literal or macro invocation",
+                            )),
+                        },
+                        Expr::Macro(mac) => Ok(quote! {#mac}),
+                        expr => Err(Error::new(
+                            expr.span(),
+                            "Expected string literal or macro invocation",
+                        )),
+                    }?);
+                }
+                Ok(snippets)
+            }
+            expr => Err(Error::new(
+                expr.span(),
+                "C static must be defined by a tuple of string constants",
+            )),
+        }?;
+
+        let c_code = match &snippets[..] {
+            [code] => Ok((
+                None,
+                Some(code.clone()),
+                None,
+            )),
+            [pre, code] => Ok((
+                Some(pre.clone()),
+                Some(code.clone()),
+                None,
+            )),
+            [pre, code, post] => Ok((
+                Some(pre.clone()),
+                Some(code.clone()),
+                Some(post.clone()),
+            )),
+            _ => Err(Error::new(span, "An inline C static must contain either a single string expression with the C code in it or two string expressions (one output before the function and one for the definition). The C macro STATIC_VARIABLE must be used to refer to the name of the C variable."))
+        }?;
+
+        Ok(Self {
+            name,
+            c_code,
+            static_attrs,
+            ty,
+            vis,
+        })
+    }
+}
+
+pub fn cstatic(attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Error> {
+    let input = syn::parse2::<CStaticInput>(code)?;
+    let attrs = syn::parse2::<CAttrs>(attrs)?;
+
+    let name = input.name;
+    let static_attrs = input.static_attrs;
+    let ty = input.ty;
+    let vis = input.vis;
+    let (pre_c_code, c_code, post_c_code) = input.c_code;
+
+    let empty = quote! {""};
+    let (pre_c_code, pre_c_code_line) = match &pre_c_code {
+        Some(tokens) => (tokens, tokens.span().start().line),
+        None => (&empty, 0),
+    };
+
+    let c_code_line = match &c_code {
+        Some(tokens) => tokens.span().start().line,
+        None => pre_c_code_line,
+    };
+    let (post_c_code, post_c_code_line) = match &post_c_code {
+        Some(tokens) => (tokens, tokens.span().start().line),
+        None => (&empty, c_code_line),
+    };
+
+    let pre_c_code_line = pre_c_code_line.to_string();
+    let c_code_line = c_code_line.to_string();
+    let post_c_code_line = post_c_code_line.to_string();
+
+    let c_name = match attrs.export_name {
+        None => match attrs.no_mangle {
+            true => name.to_string(),
+            false => format!("__lisa_c_shim_{name}_{}", get_random()),
+        },
+        Some(name) => name,
+    };
+
+    let section = format!(".binstore.c.code.{}", c_name);
+    let c_out = concatcp(quote! {
+        "#define STATIC_VARIABLE ", #c_name, "\n",
+        "\n#line ", #pre_c_code_line, " \"", file!(), "\"\n",
+        #pre_c_code,
+        "\n#line ", #c_code_line, " \"", file!(), "\"\n",
+        #c_code,
+
+        // Check that the variable created by the user has the correct type by taking its address
+        // in a pointer to the type we expect.
+        "\n#define DECLARATOR PTR_TY_DECL(", #c_name, "_type_check)\n",
+        "static  __attribute__ ((unused)) ", <#ty as ::lisakmod_macros::inlinec::FfiType>::C_DECL, " = &", #c_name, ";\n",
+        "#undef DECLARATOR",
+
+        "\n#line ", #post_c_code_line, " \"", file!(), "\"\n",
+        #post_c_code,
+        "#undef STATIC_VARIABLE\n"
+    })?;
+
+    let c_out = make_c_out(c_out, &section)?;
+
+    Ok(quote! {
+        #c_out
+
+        const _: () = {
+            const fn check_ffi_type<T>()
+            where
+                T: ::lisakmod_macros::inlinec::FfiType<FfiType = T>,
+                T: ::lisakmod_macros::inlinec::FromFfi,
+                T: ::lisakmod_macros::inlinec::IntoFfi
+            {}
+            check_ffi_type::<#ty>();
+        };
+
+        unsafe extern "C" {
+            #[link_name = #c_name]
+            #(#static_attrs)*
+            #vis static #name: #ty;
+        }
     })
 }
