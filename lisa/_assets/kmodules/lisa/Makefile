@@ -69,7 +69,7 @@ $(GENERATED):
 clean-files := $(GENERATED)
 
 RUST_VERSION ?= nightly
-RUSTFLAGS := -Clinker=rust-lld -Clink-self-contained=y -Clto=n -Crelocation-model=static -Cno-redzone=y -Csoft-float=y -Ctarget-cpu=generic -Cforce-frame-pointers=y -Ccodegen-units=1 -Zfunction-sections=y
+RUSTFLAGS := -Clinker=rust-lld -Clink-self-contained=y -Clto=n -Crelocation-model=static -Cno-redzone=y -Ctarget-cpu=generic -Cforce-frame-pointers=y -Ccodegen-units=1 -Zfunction-sections=y
 
 LISA_EVAL_C := $(MODULE_SRC)/lisa-eval-c.sh
 

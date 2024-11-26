@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-use alloc::{boxed::Box, sync::Arc};
+use alloc::{boxed::Box, string::String, sync::Arc};
 use core::{
     cell::UnsafeCell,
     convert::Infallible,
@@ -15,7 +15,13 @@ use crate::{
     {container_of, mut_container_of},
 };
 
-opaque_type!(struct CKObj, "struct kobject", "linux/kobject.h");
+opaque_type!(
+    struct CKObj,
+    "struct kobject",
+    "linux/kobject.h",
+    attr_by_value {fn state_in_sysfs(&self) -> bool},
+    attr_by_value {fn ktype(&self) -> &CKObjType},
+);
 opaque_type!(struct CKObjType, "struct kobj_type", "linux/kobject.h");
 
 // SAFETY: CKObjType is a plain-old-data struct, there is nothing in there that can't be shared
@@ -83,10 +89,12 @@ impl KObjType {
     }
 }
 
+// SAFETY: repr(transparent) is relied on to convert a *const CKObj into a *const KObjectInner.
 #[repr(transparent)]
 struct KObjectInner {
     c_kobj: UnsafeCell<CKObj>,
-    // CKObj contains a pointer to CKObjType, so we reflect that dependency here.
+    // CKObj contains a pointer to CKObjType, so we reflect that dependency here. This is probably
+    // not very useful.
     _phantom: PhantomData<KObjType>,
 }
 
@@ -94,16 +102,6 @@ struct KObjectInner {
 // struct kobject. Not all of struct kobject is thread-safe, but the API we expose should.
 unsafe impl Send for KObjectInner {}
 unsafe impl Sync for KObjectInner {}
-
-const _: () = {
-    // This is relied on in order to be able transmute a CKObj pointer to a KObjectInner pointer so
-    // we can manipulate foreign kobjects, such as the sysfs root folder for the module in
-    // /sys/module/lisa/
-    //
-    // If that assertion is not true anymore because we need to store metadata in KObjectInner, we
-    // would need to add a level of indirection.
-    assert!(core::mem::size_of::<KObjectInner>() == core::mem::size_of::<CKObj>());
-};
 
 impl KObjectInner {
     pub fn new(kobj_type: Arc<KObjType>) -> AllocatedKObjectInner {
@@ -145,7 +143,31 @@ impl KObjectInner {
         Box::into_pin(unsafe { new.assume_init() })
     }
 
+    #[inline]
+    fn with_c_kobj<T, F>(&self, f: F) -> T
+    where
+        F: for<'a> FnOnce(&'a CKObj) -> T,
+    {
+        // SAFETY: The reference passed to f() cannot be leaked by f() since it has a rank-2 type
+        // (HRTB). The closure has to work for _any_ lifetime, so it cannot make any assumption
+        // about that lifetime, and in particular, it cannot claim it returns a value with that
+        // lifetime since the lifetime in question is unknown at the point the closure is defined
+        // (it is only known inside here).
+        let c_kobj = unsafe { &*self.c_kobj.get() };
+        f(c_kobj)
+    }
+
     fn from_c_kobj(c_kobj: *mut CKObj) -> *mut KObjectInner {
+        const {
+            // This is relied on in order to be able transmute a CKObj pointer to a KObjectInner
+            // pointer so we can manipulate foreign kobjects, such as the sysfs root folder for the
+            // module in /sys/module/lisa/
+            //
+            // If that assertion was not true anymore because we needed to store metadata in
+            // KObjectInner, we would need to add a level of indirection.
+            assert!(core::mem::size_of::<KObjectInner>() == core::mem::size_of::<CKObj>());
+        };
+
         // SAFETY: it is safe to do that since we check that KObjectInner is exactly the same size
         // as CKObj and has repr(transparent)
         c_kobj as *mut KObjectInner
@@ -163,6 +185,11 @@ impl KObjectInner {
             "#
         }
         kobj_refcount(self.c_kobj.get()).into()
+    }
+
+    #[inline]
+    fn is_in_sysfs(&self) -> bool {
+        self.with_c_kobj(|c_kobj| c_kobj.state_in_sysfs())
     }
 
     unsafe fn update_refcount(&self, increase: bool) {
@@ -199,17 +226,8 @@ impl KObjectInner {
     }
 
     fn kobj_type(&self) -> &KObjType {
-        #[cfunc]
-        fn kobj_kobj_type(kobj: *const CKObj) -> *const CKObjType {
-            r#"
-            #include <linux/kobject.h>
-            "#;
+        let c_kobj_type = self.with_c_kobj(|c_kobj| c_kobj.ktype() as *const CKObjType);
 
-            r#"
-            return kobj->ktype;
-            "#
-        }
-        let c_kobj_type = kobj_kobj_type(self.c_kobj.get());
         // SAFETY: All the CKObjType we manipulate are part of a KObjType, so it is safe to cast
         // back.
         unsafe {
@@ -229,7 +247,33 @@ impl Drop for KObjectInner {
     }
 }
 
-pub struct KObject {
+mod private {
+    pub trait Sealed {}
+}
+pub trait KObjectState: private::Sealed {}
+
+struct SysfsSpec {
+    name: String,
+    parent: Option<KObject<Finalized>>,
+}
+
+#[derive(Default)]
+pub struct Init {
+    sysfs: Option<SysfsSpec>,
+}
+impl private::Sealed for Init {}
+impl KObjectState for Init {}
+
+#[derive(Default)]
+pub struct Finalized {}
+impl private::Sealed for Finalized {}
+impl KObjectState for Finalized {}
+
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum Error {}
+
+pub struct KObject<State: KObjectState> {
     // Use a pointer, so Rust does not make any assumption on the validity of the pointee. This
     // simplifies the drop flow.
     //
@@ -237,14 +281,19 @@ pub struct KObject {
     // from an AllocatedKObjectInner and re-materalized as such when de-allocating). However,
     // Pin<Ptr> requires Ptr: Deref for anything interesting so we can't actually use it here.
     inner: *const KObjectInner,
+    state: State,
 }
 
-// SAFETY: KObject is just a reference to a KObjectInner, so it is safe to pass it around threads.
-unsafe impl Send for KObject {}
+// SAFETY: Nothing in KObject cares about what thread it is on, so it can be sent around without
+// issues.
+unsafe impl<State: KObjectState> Send for KObject<State> {}
+// SAFETY: In the Finalized state, all APIs are as thread-safe as KObjectInner is. In the Init
+// state, we are not thread safe as there is some builder state maintained in the KObject
+unsafe impl Sync for KObject<Finalized> {}
 
-impl KObject {
+impl KObject<Init> {
     #[inline]
-    pub fn new(kobj_type: Arc<KObjType>) -> KObject {
+    pub fn new(kobj_type: Arc<KObjType>) -> Self {
         let inner = KObjectInner::new(kobj_type);
         // SAFETY: Nothing in the public KObject API allows moving out the KObjectInner pointed at,
         // since that KObjectInner could be shared by any number of KObject instances, just like
@@ -254,45 +303,31 @@ impl KObject {
         let inner = unsafe { Pin::into_inner_unchecked(inner) };
         KObject {
             inner: Box::into_raw(inner),
+            state: Default::default(),
         }
     }
 
-    #[inline]
-    pub fn module_root() -> KObject {
-        let c_kobj = c_eval!("linux/kobject.h", "&THIS_MODULE->mkobj.kobj", *mut CKObj);
-        let inner = KObjectInner::from_c_kobj(c_kobj);
-        // SAFETY: We assume that the pointer we got is valid as it is comming from a well-known
-        // kernel API.
-        let inner = unsafe { inner.as_ref().unwrap() };
-        KObject::from_inner(inner)
-    }
-
-    fn from_inner(inner: &KObjectInner) -> Self {
-        inner.incref();
-        KObject { inner }
-    }
-
-    fn inner(&self) -> &KObjectInner {
-        // SAFETY: Since we hold a kref reference, we know we are pointing at valid memory.
-        unsafe { self.inner.as_ref().unwrap() }
-    }
-
-    fn c_kobj(&self) -> *mut CKObj {
-        self.inner().c_kobj.get()
-    }
-
-    // FIXME: We need to prevent the following sequence:
-    // a=new()
-    // b=new()
-    // a.add(parent=Some(a), name=bar)
-    // b.add(parent=None, name=foo)
-    //
-    // This is because we can apparently only add children under a parent that has been added
-    // already, we cannot build the hierarchy "virtually" before attaching it via a top-level add.
-    pub fn add<'a, 'parent, 'name>(&'a self, parent: Option<&'parent Self>, name: &'name str)
-    where
+    pub fn add<'a, 'parent, 'name>(
+        &'a mut self,
+        parent: Option<&'parent KObject<Finalized>>,
+        name: &'name str,
+    ) where
         'parent: 'a,
     {
+        // FIXME: should we return an error or panic ?
+        if let Some(parent) = parent {
+            assert!(
+                parent.inner().is_in_sysfs(),
+                "The parent of KObject \"{name}\" was not added to sysfs"
+            );
+        }
+        self.state.sysfs = Some(SysfsSpec {
+            name: name.into(),
+            parent: parent.cloned(),
+        });
+    }
+
+    pub fn finalize(self) -> Result<KObject<Finalized>, Error> {
         #[cfunc]
         unsafe fn kobj_add(kobj: *mut CKObj, parent: *mut CKObj, name: &[u8]) -> Result<(), c_int> {
             r#"
@@ -304,16 +339,49 @@ impl KObject {
             return kobject_add(kobj, parent, "%.*s", (int)name.len, name.data);
             "#
         }
-        let parent: *mut CKObj = match parent {
-            Some(parent) => parent.c_kobj(),
-            None => core::ptr::null_mut(),
-        };
-        unsafe { kobj_add(self.c_kobj(), parent, name.as_bytes()) }
-            .expect("Failed to call kobject_add()");
+        if let Some(spec) = &self.state.sysfs {
+            let parent = match &spec.parent {
+                None => core::ptr::null_mut(),
+                Some(parent) => parent.c_kobj(),
+            };
+            unsafe { kobj_add(self.c_kobj(), parent, spec.name.as_bytes()) }
+                .expect("Call to kobject_add() failed");
+        }
+        Ok(KObject::from_inner(self.inner()))
     }
 }
 
-impl Drop for KObject {
+impl KObject<Finalized> {
+    fn from_inner(inner: &KObjectInner) -> Self {
+        inner.incref();
+        KObject {
+            inner,
+            state: Default::default(),
+        }
+    }
+    #[inline]
+    pub fn sysfs_module_root() -> Self {
+        let c_kobj = c_eval!("linux/kobject.h", "&THIS_MODULE->mkobj.kobj", *mut CKObj);
+        let inner = KObjectInner::from_c_kobj(c_kobj);
+        // SAFETY: We assume that the pointer we got is valid as it is comming from a well-known
+        // kernel API.
+        let inner = unsafe { inner.as_ref().unwrap() };
+        Self::from_inner(inner)
+    }
+}
+
+impl<State: KObjectState> KObject<State> {
+    fn inner(&self) -> &KObjectInner {
+        // SAFETY: Since we hold a kref reference, we know we are pointing at valid memory.
+        unsafe { self.inner.as_ref().unwrap() }
+    }
+
+    fn c_kobj(&self) -> *mut CKObj {
+        self.inner().c_kobj.get()
+    }
+}
+
+impl<State: KObjectState> Drop for KObject<State> {
     fn drop(&mut self) {
         // SAFETY: We increased the refcount when created, so we decrease it when dropped. The
         // release implementation of KObjType will take care of freeing the memory if needed.
@@ -325,7 +393,9 @@ impl Drop for KObject {
     }
 }
 
-impl Clone for KObject {
+// Only implement clone for the Finalized state so that we do not accidentally call kobject_add()
+// twice on the same underlying "struct kobject".
+impl Clone for KObject<Finalized> {
     fn clone(&self) -> Self {
         // SAFETY: self.inner is always valid as long as a KObject points to it.
         let inner = unsafe { self.inner.as_ref().unwrap() };

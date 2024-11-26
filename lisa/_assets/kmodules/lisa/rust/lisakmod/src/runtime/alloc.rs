@@ -15,7 +15,8 @@ struct KernelAllocator;
 
 #[inline]
 fn with_size<F: FnOnce(usize) -> *mut u8>(layout: Layout, f: F) -> *mut u8 {
-    let minalign: usize = cconstant!("#include <linux/slab.h>", "ARCH_KMALLOC_MINALIGN").unwrap_or(1);
+    let minalign: usize =
+        cconstant!("#include <linux/slab.h>", "ARCH_KMALLOC_MINALIGN").unwrap_or(1);
 
     let size = layout.size();
     let align = layout.align();

@@ -248,11 +248,17 @@ fn test_8() {
     pr_info!("Rust: test_8");
     use crate::runtime::sysfs::{KObjType, KObject};
 
-    let root = KObject::module_root();
+    let root = KObject::sysfs_module_root();
 
     let kobj_type = Arc::new(KObjType::new());
-    let kobject = KObject::new(kobj_type.clone());
-    let kobject2 = KObject::new(kobj_type.clone());
+    let mut kobject = KObject::new(kobj_type.clone());
+    let mut kobject2 = KObject::new(kobj_type.clone());
+
     kobject.add(Some(&root), "foo");
+    let kobject = kobject.finalize().expect("Could not finalize kobject");
+
     kobject2.add(Some(&kobject), "bar");
+    let kobject2 = kobject2.finalize().expect("Could not finalize kobject");
+
+    drop(kobject2);
 }

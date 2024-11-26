@@ -3079,7 +3079,7 @@ class FtraceDynamicKmod(DynamicKmod):
 
 class _LISADynamicKmodSrc(KmodSrc):
     _RUST_SPEC = dict(
-        version='1.82.0',
+        version='1.83.0',
         components=[
             # rust-src for -Zbuild-std
             'rust-src',
