@@ -320,8 +320,12 @@ class TasksAnalysis(TraceAnalysisBase):
             df = df.collect()
 
         def finalize(df, key_col):
+            assert len(df.columns) == 2
             # Aggregate the values for each key and convert to python types
-            return dict(df.rows_by_key(key_col))
+            return {
+                key: [x[0] for x in values]
+                for key, values in df.rows_by_key(key_col).items()
+            }
 
         name_to_pid = finalize(df, 'name')
         pid_to_name = finalize(df, 'pid')
