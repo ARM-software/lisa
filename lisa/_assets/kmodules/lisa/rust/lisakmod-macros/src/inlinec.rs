@@ -12,7 +12,7 @@ use core::{
     ptr::{null, null_mut, NonNull},
 };
 
-pub use lisakmod_macros_proc::{c_constant, cexport, cfunc};
+pub use lisakmod_macros_proc::{cconstant, cexport, cfunc, cstatic};
 
 pub trait FfiType {
     // TODO: if and when Rust gains const trait methods, we can just define a const function to
@@ -817,22 +817,25 @@ impl FromFfi for Result<(), Infallible> {
     }
 }
 
-pub struct Align<const N: usize>(<Self as GetAligned>::Aligned)
-where
-    Self: GetAligned;
-
-pub trait GetAligned {
-    type Aligned;
+// Combine both alignment and size so that the resulting type can be used in a repr(C) parent
+// struct. Otherwise, we would end up having to either:
+// * Use a ZST for alignment, which cannot be repr(C) as of 25/11/2024
+// * Use repr(transparent) instead of repr(C), but then we have more than one field with non-zero
+//   size or non-1 alignment.
+pub trait GetAlignedData<const SIZE: usize, const ALIGN: usize> {
+    type AlignedData;
 }
 
 macro_rules! make_getaligned {
     ($($align:tt),*) => {
         $(
             const _:() = {
+                #[repr(C)]
                 #[repr(align($align))]
-                pub struct Aligned;
-                impl GetAligned for Align<$align> {
-                    type Aligned = Aligned;
+                pub struct AlignedData<const SIZE: usize>([u8; SIZE]);
+
+                impl<const SIZE: usize> GetAlignedData<SIZE, $align> for () {
+                    type AlignedData = AlignedData<SIZE>;
                 }
             };
         )*
@@ -906,29 +909,40 @@ macro_rules! __internal_opaque_type {
     ($vis:vis struct $name:ident, $c_name:literal, $c_header:literal) => {
         // Model opaque types as recommended in the Rustonomicon:
         // https://doc.rust-lang.org/nomicon/ffi.html#representing-opaque-structs
-        #[repr(C)]
+        // On top of that recipe, we add:
+        // * A way to get the correct alignment using C compile-time reflection.
+        // * repr(transparent), so that the FFI-safe warning is satisfied in all use cases. This
+        //   way, we guarantee that the struct has only one non-ZST member, and its ABI is that of
+        //   this member. The member in question is an array of u8, which is FFI-safe.
+        #[repr(transparent)]
         $vis struct $name {
-            _data: [
-                u8;
-                $crate::inlinec::c_constant!(
-                    ("#include <", $c_header, ">"),
-                    ("sizeof (", $c_name, ")"),
-                    "1"
-                )
-            ],
             // Since we cannot make Opaque types aligned with a simple attribute
             // (#[repr(align(my_macro!()))] is rejected since my_macro!() is not an integer
             // literal), we add a zero-sized member that allows specifying the alignment as a
             // generic const parameter.
-            _align: $crate::inlinec::Align<{
-                $crate::inlinec::c_constant!(
-                    ("#include <", $c_header, ">"),
-                    ("_Alignof (", $c_name, ")"),
-                    "1"
-                )
-            }>,
-            _marker:
-                ::core::marker::PhantomData<(*mut u8, ::core::marker::PhantomPinned)>,
+            _data: <
+                () as $crate::inlinec::GetAlignedData<
+                    {
+                        match $crate::inlinec::cconstant!(
+                            ("#include <", $c_header, ">"),
+                            ("sizeof (", $c_name, ")"),
+                        ) {
+                            Some(x) => x,
+                            None => 1,
+                        }
+                    },
+                    {
+                        match $crate::inlinec::cconstant!(
+                            ("#include <", $c_header, ">"),
+                            ("_Alignof (", $c_name, ")"),
+                        ) {
+                            Some(x) => x,
+                            None => 1,
+                        }
+                    }
+                >
+            >::AlignedData,
+            _marker: ::core::marker::PhantomData<(*mut u8, ::core::marker::PhantomPinned)>,
         }
 
         // Double check that the we did not fumble the Rust struct layout somehow.
@@ -940,8 +954,7 @@ macro_rules! __internal_opaque_type {
                     ::core::mem::align_of::<B>(),
                 )
             }
-            let (size, _): (usize, usize) = member_layout(|x: &$name| &x._data);
-            let (_, align): (usize, usize) = member_layout(|x: &$name| &x._align);
+            let (size, align): (usize, usize) = member_layout(|x: &$name| &x._data);
             // Check alignment first as a wrong alignment will likely impact the overal size as
             // well due to different padding.
             assert!(
@@ -958,7 +971,23 @@ macro_rules! __internal_opaque_type {
 
         use $crate::inlinec::Opaque as _;
         impl $crate::inlinec::Opaque for $name {}
+        impl $crate::inlinec::FfiType for $name {
+            type FfiType = $name;
+            const C_DECL: &'static str = $crate::misc::concatcp!("BUILTIN_TY_DECL(", $c_name, ", DECLARATOR)");
+        }
 
+        impl $crate::inlinec::FromFfi for $name {
+            #[inline]
+            unsafe fn from_ffi(x: Self::FfiType) -> Self {
+                x
+            }
+        }
+        impl $crate::inlinec::IntoFfi for $name {
+            #[inline]
+            fn into_ffi(self) -> Self::FfiType {
+                self
+            }
+        }
     };
 }
 // Since the macro is tagged with #[macro_export], it will be exposed in the crate namespace

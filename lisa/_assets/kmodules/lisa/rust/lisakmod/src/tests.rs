@@ -56,7 +56,7 @@ fn test_4() {
 
     let minalign = c_eval!("linux/slab.h", "ARCH_KMALLOC_MINALIGN", usize);
     // Check we don't get any C compilation error with duplicated code.
-    let minalign2 = c_eval!("linux/slab.h", "ARCH_KMALLOC_MINALIGN", usize);
+    let minalign2: usize = cconstant!("#include <linux/slab.h>", "ARCH_KMALLOC_MINALIGN").unwrap();
     assert_eq!(minalign, minalign2);
     assert!(minalign >= 8);
 }

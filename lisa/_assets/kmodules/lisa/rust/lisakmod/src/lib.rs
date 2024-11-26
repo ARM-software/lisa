@@ -2,6 +2,7 @@
 #![no_std]
 #![no_builtins]
 #![feature(gen_blocks)]
+#![feature(const_pin)]
 
 extern crate alloc;
 
