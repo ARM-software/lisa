@@ -139,8 +139,9 @@ if __name__ == "__main__":
             # Avoid:
             # polars 1.7.0, 1.7.1: https://github.com/pola-rs/polars/issues/18719
             # Require:
-            # polars 1.15.0: https://github.com/pola-rs/polars/issues/19994
-            "polars >= 1.15.0, < 2.0.0",
+            # polars >= 1.15.0: https://github.com/pola-rs/polars/issues/19994
+            # polars >= 1.16.0: https://github.com/pola-rs/polars/issues/20000
+            "polars >= 1.16.0, < 2.0.0",
             # Pandas >= 1.0.0 has support for new nullable dtypes
             # Pandas 1.2.0 has broken barplots:
             # https://github.com/pandas-dev/pandas/issues/38947
