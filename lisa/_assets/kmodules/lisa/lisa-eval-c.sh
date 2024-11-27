@@ -30,7 +30,26 @@ CC=${CC:=cc}
 NM=${NM:=nm}
 
 if ("$CC" --version | grep -i clang) &>/dev/null; then
-    clang_args=(-Wno-error=unused-command-line-argument)
+    clang_args=(
+        # Some CLI args are not used in our simple invocation (e.g. some
+        # linker-related things), so we don't want that to become a hard error.
+        -Wno-error=unused-command-line-argument
+
+        # If LTO is enabled, clang will emit LLVM bitcode file instead of object files.
+        # It turns out llvm-nm is broken and reports 0 size for the symbols
+        # when passed an LLVM bitcode file:
+        # https://github.com/llvm/llvm-project/issues/33743
+        #
+        # Consequently, we need to either disable LTO or convince clang to
+        # still emit an ELF object file with LLVM bitcode in a section instead.
+        # This can be done with -ffat-lto-objects, but that option is only
+        # available starting from clang 18. For compat with older versions, we
+        # disable LTO, and we also disable CFI sanitizer since it requires LTO.
+        # Note that CFI is similar but not the same as the kCFI sanitizer that
+        # kernels >= 6.1 exploit. kCFI can be enabled independently of LTO.
+        -fno-lto
+        -fno-sanitize=cfi
+    )
 fi
 
 # All -I are relative to the kernel tree root, so we need to run from there.
