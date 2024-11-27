@@ -54,7 +54,7 @@ class Pixel6Analysis(TraceAnalysisBase):
         """
         Get the power meter readings across the trace.
 
-        :retuns: A :class:`pandas.DataFrame` with:
+        :returns: A :class:`pandas.DataFrame` with:
 
             * A ``channel`` column (name of the power meter channel)
             * A ``power`` column (average power usage in mW since the last measurement)
