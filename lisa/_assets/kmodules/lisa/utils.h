@@ -12,4 +12,27 @@
 
 #include "linux/kernel.h"
 
+#define IGNORE_WARNING(warning, expr) ({ \
+	__diag_push(); \
+	__diag(ignored warning); \
+	typeof(expr) ___expression_value = expr; \
+	__diag_pop(); \
+	___expression_value; \
+})
+
+#ifdef __clang__
+#    define PER_COMPILER(clang, gcc) clang
+#else
+#    define PER_COMPILER(clang, gcc) gcc
+#endif
+
+/// CONST_CAST - Same as C++ const_cast<>
+#define CONST_CAST(type, expr) IGNORE_WARNING( \
+	PER_COMPILER( \
+		"-Wincompatible-pointer-types-discards-qualifiers", \
+		"-Wignored-qualifiers" \
+	), \
+	(type)(expr) \
+)
+
 #endif /* _UTILS_H */
