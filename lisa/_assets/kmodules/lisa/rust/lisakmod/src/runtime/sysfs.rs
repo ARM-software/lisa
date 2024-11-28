@@ -112,13 +112,17 @@ impl KObjectInner {
             r#"
             #include <linux/string.h>
             #include <linux/kobject.h>
+            #include <utils.h>
             "#;
 
             r#"
             // memset() is necessary here, otherwise kobj->name stays uninitialized and that leads
             // to crashes when calling kobject_add() since it tries to free the previous name.
             memset(kobj, 0, sizeof(*kobj));
-            kobject_init(kobj, kobj_type);
+
+            // Some old kernels (e.g. 5.15) don't have a const qualifier for kobj_type, so we cast
+            // it away with the warnings disabled to avoid hitting -Werror
+            kobject_init(kobj, CONST_CAST(struct kobj_type*, kobj_type));
             "#
         }
         // Increase refcount since we are going to keep a pointer to KObjType. We decrement it

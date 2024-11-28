@@ -125,14 +125,16 @@ fn make_c_func(
     f_generics: Option<&Generics>,
     f_args: &[(Ident, Type)],
     f_ret_ty: &Type,
+    c_attrs: Vec<TokenStream>,
     c_code: (
         Option<TokenStream>,
         Option<TokenStream>,
         Option<TokenStream>,
     ),
 ) -> Result<TokenStream, Error> {
-    let (c_out, c_header_out, rust_out) =
-        _make_c_func(rust_name, c_name, f_generics, f_args, f_ret_ty, c_code)?;
+    let (c_out, c_header_out, rust_out) = _make_c_func(
+        rust_name, c_name, f_generics, f_args, f_ret_ty, c_attrs, c_code,
+    )?;
 
     let c_out = [
         make_c_out(c_out, &format!(".binstore.c.code.{}", c_name))?,
@@ -151,6 +153,7 @@ fn _make_c_func(
     f_generics: Option<&Generics>,
     f_args: &[(Ident, Type)],
     f_ret_ty: &Type,
+    mut c_attrs: Vec<TokenStream>,
     c_code: (
         Option<TokenStream>,
         Option<TokenStream>,
@@ -254,6 +257,10 @@ fn _make_c_func(
         None => quote! {""},
     };
 
+    // Disabling CFI inside the function allows us to call anything we want, including Rust
+    // functions if needed.
+    c_attrs.push(quote!{"__nocfi"});
+
     let c_header_out = concatcp(quote! {
         r#"
         #include <linux/types.h>
@@ -264,6 +271,13 @@ fn _make_c_func(
         #define CONST_TY_DECL(declarator) const declarator
         #define ATTR_TY_DECL(attributes, declarator) attributes declarator
         #define FN_TY_DECL(args, declarator) ((declarator)args)
+
+        /* On recent kernels, kCFI is used instead of CFI and __cficanonical is therefore not
+         * defined anymore
+         */
+        #ifndef __cficanonical
+        #    define __cficanonical
+        #endif
         "#,
 
         "#line ", #c_code_line, " \"", file!(), "\"\n",
@@ -279,7 +293,7 @@ fn _make_c_func(
             }
             get()
         },
-        "\n#define ", #c_proto, " ", #c_ret_ty, "(FN_TY_DECL((", #c_args, "), ATTR_TY_DECL(__nocfi, ", #c_name_str, ")))",
+        "\n#define ", #c_proto, " ", #c_ret_ty, "(FN_TY_DECL((", #c_args, "), ATTR_TY_DECL(", #(#c_attrs, " ",)* ", ", #c_name_str, ")))",
         "\n#line ", #c_code_line, " \"", file!(), "\"\n",
         #c_proto, ";\n",
     })?;
@@ -327,6 +341,7 @@ pub fn cfunc(_attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Erro
         Some(&f_generics),
         &f_args,
         &f_ret_ty,
+        Vec::new(),
         input.c_code,
     )?;
 
@@ -599,6 +614,7 @@ pub fn cexport(attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Err
         None,
         &f_args,
         &f_ret_ty,
+        Vec::new(),
         (None, None, None),
     )?;
 
@@ -639,6 +655,14 @@ pub fn cexport(attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Err
         None,
         &f_args,
         &f_ret_ty,
+        vec![
+            // In order for Rust code to be able to take the address of the C shim and then pass it
+            // back to some other C code (e.g. by filling a function pointer callback in a struct),
+            // we need to have __attribute__((cfi_canonical_jump_table)) on the function with
+            // pre-kCFI kernels (e.g. 5.15). See details at:
+            // https://clang.llvm.org/docs/ControlFlowIntegrity.html#fsanitize-cfi-canonical-jump-tables
+            quote! {"__cficanonical"},
+        ],
         (Some(rust_func_c_proto), Some(call_rust_func), None),
     )?;
 
