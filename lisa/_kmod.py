@@ -3260,35 +3260,33 @@ class LISADynamicKmod(FtraceDynamicKmod):
         logger.debug(f'Looking for pre-installed {kmod_filename} module in {base_path}')
 
         super_ = super()
-        def preinstalled_broken(e):
-            logger.debug(f'Pre-installed {kmod_filename} is unsuitable, recompiling: {e}')
+        def preinstalled_unsuitable(excep=None):
+            if excep is not None:
+                logger.debug(f'Pre-installed {kmod_filename} is unsuitable, recompiling: {excep.__class__.__qualname__}: {excep}')
             return super_.install(kmod_params=kmod_params)
 
         try:
             kmod_path = target.execute(
                 f"{busybox} find {base_path} -name {quote(kmod_filename)}"
             ).strip()
-        except subprocess.CalledProcessError as e:
-            ret = preinstalled_broken(e)
+        except subprocess.CalledProcessError:
+            # If find fails, this means base_path does not even exist on the
+            # target, so we just install the module
+            return preinstalled_unsuitable()
         else:
-            if kmod_path:
-
-                if len(kmod_path.splitlines()) > 1:
-                    ret = preinstalled_broken(FileNotFoundError(kmod_filename))
-                else:
-                    @contextlib.contextmanager
-                    def kmod_cm():
-                        yield kmod_path
-
-                    try:
-                        ret = self._install(kmod_cm(), kmod_params=kmod_params)
-                    except (subprocess.CalledProcessError, KmodVersionError) as e:
-                        ret = preinstalled_broken(e)
-                    else:
-                        logger.warning(f'Loaded "{self.mod_name}" module from pre-installed location: {kmod_path}. This implies that the module was compiled by a 3rd party, which is available but unsupported. If you experience issues related to module version mismatch in the future, please contact them for updating the module. This may break at any time, without notice, and regardless of the general backward compatibility policy of LISA.')
+            kmod_path = kmod_path.strip()
+            if len((kmod_paths := kmod_path.splitlines())) > 1:
+                return preinstalled_unsuitable(ValueError(f'Multiple paths found for {kmod_filename}: {", ".join(kmod_paths)}'))
             else:
-                ret = preinstalled_broken(FileNotFoundError(kmod_filename))
-
-        return ret
+                # We found an installed module that could maybe be suitable, so
+                # we try to load it.
+                try:
+                    return self._install(nullcontext(kmod_path), kmod_params=kmod_params)
+                except (subprocess.CalledProcessError, KmodVersionError) as e:
+                    # Turns out to not be suitable, so we build our own
+                    return preinstalled_unsuitable(e)
+                else:
+                    logger.warning(f'Loaded "{self.mod_name}" module from pre-installed location: {kmod_path}. This implies that the module was compiled by a 3rd party, which is available but unsupported. If you experience issues related to module version mismatch in the future, please contact them for updating the module. This may break at any time, without notice, and regardless of the general backward compatibility policy of LISA.')
+                    return None
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
