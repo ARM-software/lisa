@@ -137,6 +137,8 @@ import fnmatch
 import sys
 from enum import IntEnum
 import traceback
+import uuid
+import textwrap
 
 from elftools.elf.elffile import ELFFile
 
@@ -151,6 +153,15 @@ import lisa._git as git
 from lisa.conf import SimpleMultiSrcConf, TopLevelKeyDesc, LevelKeyDesc, KeyDesc, VariadicLevelKeyDesc
 from lisa._kallsyms import parse_kallsyms
 
+_KERNEL_BINUTILS = (
+    'ld',
+    'ar',
+    'nm',
+    'strip',
+    'objcopy',
+    'objdump',
+    'readelf',
+)
 
 def _tar_extractall(f, *args, **kwargs):
     # Avoid DeprecationWarning, see:
@@ -503,6 +514,31 @@ def _make_build_chroot(cc, cross_compile, abi, bind_paths=None, version=None, ov
                 pass
 
 
+def default_llvm_tool_name(tool, llvm):
+    if tool == 'clang':
+        return f'clang{llvm}'
+    elif tool == 'ld':
+        return f'ld.lld{llvm}'
+    else:
+        return f'llvm-{tool}{llvm}'
+
+
+def alpine_llvm_tool_name(tool, llvm):
+    """
+    Alpine has a different naming convention than most other distros.
+
+    See:
+    https://pkgs.alpinelinux.org/contents?name=llvm15&repo=main&branch=edge&arch=aarch64
+    """
+    if tool == 'clang':
+        return f'clang{llvm}'
+    elif tool == 'ld':
+        return f'ld.lld{llvm}'
+    else:
+        version = llvm.strip('-') if llvm else ''
+        return f'llvm{version}-{tool}'
+
+
 @destroyablecontextmanager
 def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overlay_backend='overlayfs', rust_spec=None):
     logger = logging.getLogger(f'{__name__}.alpine_chroot')
@@ -538,12 +574,81 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
         path = path.resolve()
         run_cmd = lambda cmd: run_cmd_chroot(path, cmd)
 
-        def install_packages(packages):
+        def fixup_llvm_tools(root, packages):
+            """
+            Alpine has packages with version names for LLVM and clang (e.g.
+            llvm17) but the actual binaries in that package may or may not have
+            the version number in them.
+
+            They only have it if the package is not the default version for the
+            tool. E.g. Alpine 3.20 uses clang 17 as default for clang, so the
+            clang17 will ship a command named "clang" instead of "clang-17".
+            Packages for the non-default versions will ship binaries with the
+            version name in them, e.g. "clang-18" binary in the "clang18"
+            package.
+            """
+            regex = re.compile(r'(?P<tool>[^0-9]*)(?P<version>[0-9]*)')
+            packages = [
+                package
+                for package in packages
+                if any(
+                    x in package
+                    for x in ('llvm', 'clang')
+                )
+            ]
+            packages = [
+                (tool, version)
+                for package in packages
+                if (
+                    (m := regex.match(package)) and
+                    (version := m.group('version')) and
+                    (tool := m.group('tool'))
+                )
+            ]
+
+            def expand_tool(tool):
+                if tool == 'llvm':
+                    return _KERNEL_BINUTILS
+                else:
+                    return (tool,)
+
+            commands = [
+                (
+                    alpine_llvm_tool_name(tool, None),
+                    alpine_llvm_tool_name(tool, f'-{version}')
+                )
+                for _tool, version in packages
+                for tool in expand_tool(_tool)
+            ]
+
+            for unversioned_cmd, versioned_cmd in commands:
+                try:
+                    run_cmd(['which', versioned_cmd])
+                except subprocess.CalledProcessError:
+                    logger.debug(f'Creating "{versioned_cmd}" shim for "{unversioned_cmd}" since this version of Alpine ships an unversioned binary name for that tool/version combination')
+                    # We just write in /usr/bin instead of e.g. /usr/local/bin
+                    # since /usr/local/bin is already bind-mounted to a folder
+                    # in LISA with the binaries we ship for that arch.
+                    #
+                    # Also, we are done installing packages so it's somewhat ok
+                    # to put our own files there if they don't exist already.
+                    versioned_path = Path(root) / 'usr' / 'bin' / versioned_cmd
+                    versioned_path.parent.mkdir(parents=True, exist_ok=True)
+                    snippet = textwrap.dedent(f'''
+                    #!/bin/sh
+
+                    exec {unversioned_cmd} "$@"
+                    ''').strip()
+                    versioned_path.write_text(snippet)
+                    versioned_path.chmod(0o755)
+
+        def install_packages(root, packages):
             if packages:
                 run_cmd(['apk', 'add', *sorted(set(packages))])
+                fixup_llvm_tools(root, packages)
 
-        def enable_network():
-            shutil.copy('/etc/resolv.conf', reroot(path, '/etc/resolv.conf'))
+        def enable_network(root):
+            shutil.copy('/etc/resolv.conf', reroot(root, '/etc/resolv.conf'))
 
         # Packages have already been installed, so we can speed things up a
         # bit
@@ -566,10 +671,10 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
 
                 with tarfile.open(tar_path, 'r') as f:
                     _tar_extractall(f, path=path)
-            enable_network()
-            install_packages(packages)
+            enable_network(path)
+            install_packages(path, packages)
         elif stage == 'finalize':
-            enable_network()
+            enable_network(path)
         else:
             raise ValueError(f'Unknown stage: {stage}')
 
@@ -1526,14 +1631,6 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         if 'clang' in cc.name and 'LLVM' not in make_vars:
             clang_version = _clang_version_static(cc.name)
             llvm_version = f'-{clang_version}' if clang_version else '1'
-            if build_conf['build-env'] == 'alpine':
-                # TODO: Revisit:
-                # We do not use llvm_version here as Alpine does not ship
-                # multiple versions of e.g. lld, only multiple versions of
-                # clang. Kbuild fails to find ld.lld-<llvm_version> since that
-                # binary does not exist on Alpine. Same goes for other tools
-                # like "ar" or "nm"
-                llvm_version = '1'
             make_vars['LLVM'] = llvm_version
 
         # Turn errors into warnings by default, as this otherwise prevents the
@@ -1554,18 +1651,43 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         if make_vars.get('LLVM') == '0':
             del make_vars['LLVM']
 
+        llvm = make_vars.get('LLVM')
+
         # Some kernels have broken/old Kbuild that does not honor the LLVM=-N
         # suffixing, so force the suffixes ourselves.
-        llvm = make_vars.get('LLVM')
+        #
+        # Also, the expectation of Kbuild in terms of binary name (e.g.
+        # llvm-objcopy-17) are violated on Alpine that uses llvm17-objcopy
+        # convention instead. So we override Kbuild detection with something
+        # that works
+        if build_conf['build-env'] == 'alpine':
+            llvm_tool_name = alpine_llvm_tool_name
+            if llvm:
+                # TODO: Revisit:
+                # Alpine does not ship multiple versions of e.g. lld, only
+                # multiple versions of clang. Kbuild fails to find
+                # ld.lld-<llvm_version> since that binary does not exist on
+                # Alpine.
+                #
+                # Note from Alpine 3.21, there should be an ld.lld18 package in
+                # addition to the main package, but then the main package
+                # should be in version 19 anyway so there is probably no point
+                # in supporting that. From some comments in the build recipe,
+                # that ld.lld18 package is only there for zig, so there is a
+                # good chance it disappears again in 3.22
+                make_vars.setdefault('LD', 'ld.lld')
+                make_vars.setdefault('HOSTLD', 'ld.lld')
+        else:
+            llvm_tool_name = default_llvm_tool_name
+
         if llvm and llvm.startswith('-'):
             updated = {
-                'LD': f'ld.lld{llvm}',
-                'AR': f'llvm-ar{llvm}',
-                'NM': f'llvm-nm{llvm}',
-                'OBJCOPY': f'llvm-objcopy{llvm}',
-                'OBJDUMP': f'llvm-objdump{llvm}',
-                'READELF': f'llvm-readelf{llvm}',
-                'STRIP': f'llvm-strip{llvm}',
+                var: llvm_tool_name(_var.lower(), llvm)
+                for _var in (
+                    tool.upper()
+                    for tool in _KERNEL_BINUTILS
+                )
+                for var in (_var, f'HOST{_var}')
             }
             make_vars = {**updated, **make_vars}
 
@@ -2556,6 +2678,42 @@ class KmodSrc(Loggable):
             else:
                 return filenames[0]
 
+        @contextlib.contextmanager
+        def rust_target_dir(rust_home):
+            build_cache = rust_home / 'build_cache'
+            target_dir = build_cache / 'reference'
+            tmp_target_dir = build_cache / f'tmp_{uuid.uuid4().hex}'
+
+            # Move the build cache to a temporary location, so we know no
+            # one else will be touching it while we are using it. Cargo
+            # protects itself from concurrent accesses to the target
+            # folder, but this does not extend to all the steps we do after
+            # cargo has run to use the build artifacts.
+            #
+            # Path.rename() gives the same guarantees as os.rename(), and
+            # on POSIX platforms this is an atomic operation if they are on
+            # the same filesystem.
+            try:
+                target_dir.mkdir(parents=True, exist_ok=True)
+                target_dir.rename(tmp_target_dir)
+            except Exception:
+                tmp_target_dir = None
+
+            try:
+                yield tmp_target_dir
+            finally:
+                if tmp_target_dir:
+                    #  When we are finished with the CARGO_TARGET_DIR, we
+                    #  place it back at the expected location for the next
+                    #  build to find it.
+                    try:
+                        tmp_target_dir.rename(target_dir)
+                    except Exception:
+                        # If we could not promote it back to the reference
+                        # CARGO_TARGET_DIR, there is no point in keeping it
+                        # around.
+                        shutil.rmtree(tmp_target_dir)
+
         rust_spec = self._RUST_SPEC or {}
         if build_conf['build-env'] == 'alpine':
             settings = build_conf['build-env-settings']['alpine']
@@ -2563,48 +2721,55 @@ class KmodSrc(Loggable):
             alpine_packages = settings.get('packages', None)
 
             @contextlib.contextmanager
-            def cmd_cm():
+            def rust_cm(rust_spec):
                 if rust_spec:
                     rust_home = Path('/opt/rust')
                     rustup_home = rust_home / 'rustup'
                     cargo_home = rust_home / 'cargo'
-                    _rust_spec = {
-                        **rust_spec,
-                        'rustup_home': rustup_home,
-                        'cargo_home': cargo_home,
-                    }
-                    rust_env = {
-                        'RUSTUP_HOME': rustup_home,
-                        'CARGO_HOME': cargo_home,
-                        'RUST_VERSION': rust_spec['version'],
-                    }
-                else:
-                    rust_env = {}
-                    _rust_spec = None
 
-                with _make_build_chroot(
-                    cc=cc.name,
-                    cross_compile=cross_compile,
-                    bind_paths=bind_paths,
-                    abi=abi,
-                    overlay_backend=build_conf['overlay-backend'],
-                    version=alpine_version,
-                    packages=alpine_packages,
-                    rust_spec=_rust_spec,
-                ) as chroot:
-                    # Do not use a CM here to avoid choking on permission
-                    # issues. Since the chroot itself will be entirely
-                    # removed it's not a problem.
-                    mod_path = Path(tempfile.mkdtemp(dir=chroot / 'tmp'))
-                    cmd = make_cmd(
-                        tree_path=tree_path,
-                        mod_path=f'/{mod_path.relative_to(chroot)}',
-                        make_vars={
-                            **make_vars,
-                            **rust_env,
+                    with rust_target_dir(rust_home) as target_dir:
+                        _rust_spec = {
+                            **rust_spec,
+                            'rustup_home': rustup_home,
+                            'cargo_home': cargo_home,
                         }
-                    )
-                    yield (mod_path, _make_build_chroot_cmd(chroot, cmd))
+                        rust_env = {
+                            'RUSTUP_HOME': rustup_home,
+                            'CARGO_HOME': cargo_home,
+                            'CARGO_TARGET_DIR': target_dir,
+                            'RUST_VERSION': rust_spec['version'],
+                        }
+                        yield (_rust_spec, rust_env)
+                else:
+                    yield (None, {})
+
+            @contextlib.contextmanager
+            def cmd_cm():
+                with rust_cm(rust_spec) as (_rust_spec, rust_env):
+                    with _make_build_chroot(
+                        cc=cc.name,
+                        cross_compile=cross_compile,
+                        bind_paths=bind_paths,
+                        abi=abi,
+                        overlay_backend=build_conf['overlay-backend'],
+                        version=alpine_version,
+                        packages=alpine_packages,
+                        rust_spec=_rust_spec,
+                    ) as chroot:
+                        # Do not use a CM here to avoid choking on permission
+                        # issues. Since the chroot itself will be entirely
+                        # removed it's not a problem.
+                        mod_path = Path(tempfile.mkdtemp(dir=chroot / 'tmp'))
+                        cmd = make_cmd(
+                            tree_path=tree_path,
+                            mod_path=f'/{mod_path.relative_to(chroot)}',
+                            make_vars={
+                                **make_vars,
+                                **rust_env,
+                            }
+                        )
+                        yield (mod_path, _make_build_chroot_cmd(chroot, cmd))
+
         elif build_conf['build-env'] == 'host':
             def install_rust(rust_spec):
                 def populate(key, path):
@@ -2627,28 +2792,33 @@ class KmodSrc(Loggable):
                 return rust_home
 
             @contextlib.contextmanager
-            def cmd_cm():
+            def rust_cm(rust_spec):
                 if rust_spec:
                     rust_home = install_rust(rust_spec)
-                    rust_env = {
-                        'RUSTUP_HOME': rust_home / 'rustup',
-                        'CARGO_HOME': rust_home / 'cargo',
-                        'RUST_VERSION': rust_spec['version'],
-                    }
+                    with rust_target_dir(rust_home) as target_dir:
+                        yield {
+                            'RUSTUP_HOME': rust_home / 'rustup',
+                            'CARGO_HOME': rust_home / 'cargo',
+                            'CARGO_TARGET_DIR': target_dir,
+                            'RUST_VERSION': rust_spec['version'],
+                        }
                 else:
-                    rust_env = {}
+                    yield {}
 
+            @contextlib.contextmanager
+            def cmd_cm():
                 with tempfile.TemporaryDirectory() as mod_path:
-                    cmd = make_cmd(
-                        tree_path=tree_path,
-                        mod_path=mod_path,
-                        make_vars={
-                            **make_vars,
-                            **rust_env,
-                        },
-                    )
+                    with rust_cm(rust_spec) as rust_env:
+                        cmd = make_cmd(
+                            tree_path=tree_path,
+                            mod_path=mod_path,
+                            make_vars={
+                                **make_vars,
+                                **rust_env,
+                            },
+                        )
 
-                    yield (mod_path, cmd)
+                        yield (mod_path, cmd)
         else:
             raise ValueError('Unknown build-env kind: {build_env}')
 
@@ -3079,7 +3249,7 @@ class FtraceDynamicKmod(DynamicKmod):
 
 class _LISADynamicKmodSrc(KmodSrc):
     _RUST_SPEC = dict(
-        version='1.82.0',
+        version='1.83.0',
         components=[
             # rust-src for -Zbuild-std
             'rust-src',
@@ -3211,36 +3381,34 @@ class LISADynamicKmod(FtraceDynamicKmod):
         logger.debug(f'Looking for pre-installed {kmod_filename} module in {base_path}')
 
         super_ = super()
-        def preinstalled_broken(e):
-            logger.debug(f'Pre-installed {kmod_filename} is unsuitable, recompiling: {e}')
+        def preinstalled_unsuitable(excep=None):
+            if excep is not None:
+                logger.debug(f'Pre-installed {kmod_filename} is unsuitable, recompiling: {excep.__class__.__qualname__}: {excep}')
             return super_.install(kmod_params=kmod_params)
 
         try:
             kmod_path = target.execute(
                 f"{busybox} find {base_path} -name {quote(kmod_filename)}"
             ).strip()
-        except subprocess.CalledProcessError as e:
-            ret = preinstalled_broken(e)
+        except subprocess.CalledProcessError:
+            # If find fails, this means base_path does not even exist on the
+            # target, so we just install the module
+            return preinstalled_unsuitable()
         else:
-            if kmod_path:
-
-                if len(kmod_path.splitlines()) > 1:
-                    ret = preinstalled_broken(FileNotFoundError(kmod_filename))
-                else:
-                    @contextlib.contextmanager
-                    def kmod_cm():
-                        yield kmod_path
-
-                    try:
-                        ret = self._install(kmod_cm(), kmod_params=kmod_params)
-                    except (subprocess.CalledProcessError, KmodVersionError) as e:
-                        ret = preinstalled_broken(e)
-                    else:
-                        logger.warning(f'Loaded "{self.mod_name}" module from pre-installed location: {kmod_path}. This implies that the module was compiled by a 3rd party, which is available but unsupported. If you experience issues related to module version mismatch in the future, please contact them for updating the module. This may break at any time, without notice, and regardless of the general backward compatibility policy of LISA.')
+            kmod_path = kmod_path.strip()
+            if len((kmod_paths := kmod_path.splitlines())) > 1:
+                return preinstalled_unsuitable(ValueError(f'Multiple paths found for {kmod_filename}: {", ".join(kmod_paths)}'))
             else:
-                ret = preinstalled_broken(FileNotFoundError(kmod_filename))
-
-        return ret
+                # We found an installed module that could maybe be suitable, so
+                # we try to load it.
+                try:
+                    return self._install(nullcontext(kmod_path), kmod_params=kmod_params)
+                except (subprocess.CalledProcessError, KmodVersionError) as e:
+                    # Turns out to not be suitable, so we build our own
+                    return preinstalled_unsuitable(e)
+                else:
+                    logger.warning(f'Loaded "{self.mod_name}" module from pre-installed location: {kmod_path}. This implies that the module was compiled by a 3rd party, which is available but unsupported. If you experience issues related to module version mismatch in the future, please contact them for updating the module. This may break at any time, without notice, and regardless of the general backward compatibility policy of LISA.')
+                    return None
 
 
     def install(self, features=None, **kwargs):
