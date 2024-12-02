@@ -504,6 +504,15 @@ def _make_build_chroot(cc, cross_compile, abi, bind_paths=None, version=None, ov
                 pass
 
 
+def default_llvm_tool_name(tool, llvm):
+    if tool == 'clang':
+        return f'clang{llvm}'
+    elif tool == 'ld':
+        return f'ld.lld{llvm}'
+    else:
+        return f'llvm-{tool}{llvm}'
+
+
 @destroyablecontextmanager
 def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overlay_backend='overlayfs', rust_spec=None):
     logger = logging.getLogger(f'{__name__}.alpine_chroot')
@@ -1527,14 +1536,6 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         if 'clang' in cc.name and 'LLVM' not in make_vars:
             clang_version = _clang_version_static(cc.name)
             llvm_version = f'-{clang_version}' if clang_version else '1'
-            if build_conf['build-env'] == 'alpine':
-                # TODO: Revisit:
-                # We do not use llvm_version here as Alpine does not ship
-                # multiple versions of e.g. lld, only multiple versions of
-                # clang. Kbuild fails to find ld.lld-<llvm_version> since that
-                # binary does not exist on Alpine. Same goes for other tools
-                # like "ar" or "nm"
-                llvm_version = '1'
             make_vars['LLVM'] = llvm_version
 
         # Turn errors into warnings by default, as this otherwise prevents the
@@ -1555,18 +1556,53 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         if make_vars.get('LLVM') == '0':
             del make_vars['LLVM']
 
+        llvm = make_vars.get('LLVM')
+
         # Some kernels have broken/old Kbuild that does not honor the LLVM=-N
         # suffixing, so force the suffixes ourselves.
-        llvm = make_vars.get('LLVM')
+        #
+        # Also, the expectation of Kbuild in terms of binary name (e.g.
+        # llvm-objcopy-17) are violated on Alpine that uses llvm17-objcopy
+        # convention instead. So we override Kbuild detection with something
+        # that works
+        if build_conf['build-env'] == 'alpine':
+            # Alpine has a different naming convention than most other distros, e.g.:
+            # https://pkgs.alpinelinux.org/contents?name=llvm15&repo=main&branch=edge&arch=aarch64
+            def llvm_tool_name(tool, llvm):
+                version = llvm.strip('-')
+                return f'llvm{version}-{tool}'
+
+            if llvm:
+                # TODO: Revisit:
+                # Alpine does not ship multiple versions of e.g. lld, only
+                # multiple versions of clang. Kbuild fails to find
+                # ld.lld-<llvm_version> since that binary does not exist on
+                # Alpine.
+                #
+                # Note from Alpine 3.21, there should be an ld.lld18 package in
+                # addition to the main package, but then the main package
+                # should be in version 19 anyway so there is probably no point
+                # in supporting that. From some comments in the build recipe,
+                # that ld.lld18 package is only there for zig, so there is a
+                # good chance it disappears again in 3.22
+                make_vars.setdefault('LD', 'ld.lld')
+                make_vars.setdefault('HOSTLD', 'ld.lld')
+        else:
+            llvm_tool_name = default_llvm_tool_name
+
         if llvm and llvm.startswith('-'):
             updated = {
-                'LD': f'ld.lld{llvm}',
-                'AR': f'llvm-ar{llvm}',
-                'NM': f'llvm-nm{llvm}',
-                'OBJCOPY': f'llvm-objcopy{llvm}',
-                'OBJDUMP': f'llvm-objdump{llvm}',
-                'READELF': f'llvm-readelf{llvm}',
-                'STRIP': f'llvm-strip{llvm}',
+                var: llvm_tool_name(_var.lower(), llvm)
+                for _var in (
+                    'LD',
+                    'AR',
+                    'NM',
+                    'OBJCOPY',
+                    'OBJDUMP',
+                    'READELF',
+                    'STRIP',
+                )
+                for var in (_var, f'HOST{_var}')
             }
             make_vars = {**updated, **make_vars}
 
