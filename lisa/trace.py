@@ -286,10 +286,14 @@ def _logical_plan_update_paths(plan, update_path):
                     else:
                         return paths
 
+                # The location is based on the version of polars, since the
+                # JSON format is unstable.
                 locs = [
                     ['paths'],
-                    # Since polars 1.7.0, paths are stored in a new location
-                    ['sources', 'sources', 'Paths']
+                    # 1.8.1
+                    ['sources', 'Paths'],
+                    # 1.7.0
+                    ['sources', 'sources', 'Paths'],
                 ]
                 for loc in locs:
                     try:
