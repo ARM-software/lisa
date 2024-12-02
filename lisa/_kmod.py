@@ -138,6 +138,7 @@ import sys
 from enum import IntEnum
 import traceback
 import uuid
+import textwrap
 
 from elftools.elf.elffile import ELFFile
 
@@ -152,6 +153,15 @@ import lisa._git as git
 from lisa.conf import SimpleMultiSrcConf, TopLevelKeyDesc, LevelKeyDesc, KeyDesc, VariadicLevelKeyDesc
 from lisa._kallsyms import parse_kallsyms
 
+_KERNEL_BINUTILS = (
+    'ld',
+    'ar',
+    'nm',
+    'strip',
+    'objcopy',
+    'objdump',
+    'readelf',
+)
 
 def _tar_extractall(f, *args, **kwargs):
     # Avoid DeprecationWarning, see:
@@ -513,6 +523,22 @@ def default_llvm_tool_name(tool, llvm):
         return f'llvm-{tool}{llvm}'
 
 
+def alpine_llvm_tool_name(tool, llvm):
+    """
+    Alpine has a different naming convention than most other distros.
+
+    See:
+    https://pkgs.alpinelinux.org/contents?name=llvm15&repo=main&branch=edge&arch=aarch64
+    """
+    if tool == 'clang':
+        return f'clang{llvm}'
+    elif tool == 'ld':
+        return f'ld.lld{llvm}'
+    else:
+        version = llvm.strip('-') if llvm else ''
+        return f'llvm{version}-{tool}'
+
+
 @destroyablecontextmanager
 def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overlay_backend='overlayfs', rust_spec=None):
     logger = logging.getLogger(f'{__name__}.alpine_chroot')
@@ -548,12 +574,81 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
         path = path.resolve()
         run_cmd = lambda cmd: run_cmd_chroot(path, cmd)
 
-        def install_packages(packages):
+        def fixup_llvm_tools(root, packages):
+            """
+            Alpine has packages with version names for LLVM and clang (e.g.
+            llvm17) but the actual binaries in that package may or may not have
+            the version number in them.
+
+            They only have it if the package is not the default version for the
+            tool. E.g. Alpine 3.20 uses clang 17 as default for clang, so the
+            clang17 will ship a command named "clang" instead of "clang-17".
+            Packages for the non-default versions will ship binaries with the
+            version name in them, e.g. "clang-18" binary in the "clang18"
+            package.
+            """
+            regex = re.compile(r'(?P<tool>[^0-9]*)(?P<version>[0-9]*)')
+            packages = [
+                package
+                for package in packages
+                if any(
+                    x in package
+                    for x in ('llvm', 'clang')
+                )
+            ]
+            packages = [
+                (tool, version)
+                for package in packages
+                if (
+                    (m := regex.match(package)) and
+                    (version := m.group('version')) and
+                    (tool := m.group('tool'))
+                )
+            ]
+
+            def expand_tool(tool):
+                if tool == 'llvm':
+                    return _KERNEL_BINUTILS
+                else:
+                    return (tool,)
+
+            commands = [
+                (
+                    alpine_llvm_tool_name(tool, None),
+                    alpine_llvm_tool_name(tool, f'-{version}')
+                )
+                for _tool, version in packages
+                for tool in expand_tool(_tool)
+            ]
+
+            for unversioned_cmd, versioned_cmd in commands:
+                try:
+                    run_cmd(['which', versioned_cmd])
+                except subprocess.CalledProcessError:
+                    logger.debug(f'Creating "{versioned_cmd}" shim for "{unversioned_cmd}" since this version of Alpine ships an unversioned binary name for that tool/version combination')
+                    # We just write in /usr/bin instead of e.g. /usr/local/bin
+                    # since /usr/local/bin is already bind-mounted to a folder
+                    # in LISA with the binaries we ship for that arch.
+                    #
+                    # Also, we are done installing packages so it's somewhat ok
+                    # to put our own files there if they don't exist already.
+                    versioned_path = Path(root) / 'usr' / 'bin' / versioned_cmd
+                    versioned_path.parent.mkdir(parents=True, exist_ok=True)
+                    snippet = textwrap.dedent(f'''
+                    #!/bin/sh
+
+                    exec {unversioned_cmd} "$@"
+                    ''').strip()
+                    versioned_path.write_text(snippet)
+                    versioned_path.chmod(0o755)
+
+        def install_packages(root, packages):
             if packages:
                 run_cmd(['apk', 'add', *sorted(set(packages))])
+                fixup_llvm_tools(root, packages)
 
-        def enable_network():
-            shutil.copy('/etc/resolv.conf', reroot(path, '/etc/resolv.conf'))
+        def enable_network(root):
+            shutil.copy('/etc/resolv.conf', reroot(root, '/etc/resolv.conf'))
 
         # Packages have already been installed, so we can speed things up a
         # bit
@@ -576,10 +671,10 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
 
                 with tarfile.open(tar_path, 'r') as f:
                     _tar_extractall(f, path=path)
-            enable_network()
-            install_packages(packages)
+            enable_network(path)
+            install_packages(path, packages)
         elif stage == 'finalize':
-            enable_network()
+            enable_network(path)
         else:
             raise ValueError(f'Unknown stage: {stage}')
 
@@ -1566,12 +1661,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
         # convention instead. So we override Kbuild detection with something
         # that works
         if build_conf['build-env'] == 'alpine':
-            # Alpine has a different naming convention than most other distros, e.g.:
-            # https://pkgs.alpinelinux.org/contents?name=llvm15&repo=main&branch=edge&arch=aarch64
-            def llvm_tool_name(tool, llvm):
-                version = llvm.strip('-')
-                return f'llvm{version}-{tool}'
-
+            llvm_tool_name = alpine_llvm_tool_name
             if llvm:
                 # TODO: Revisit:
                 # Alpine does not ship multiple versions of e.g. lld, only
@@ -1594,13 +1684,8 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             updated = {
                 var: llvm_tool_name(_var.lower(), llvm)
                 for _var in (
-                    'LD',
-                    'AR',
-                    'NM',
-                    'OBJCOPY',
-                    'OBJDUMP',
-                    'READELF',
-                    'STRIP',
+                    tool.upper()
+                    for tool in _KERNEL_BINUTILS
                 )
                 for var in (_var, f'HOST{_var}')
             }
