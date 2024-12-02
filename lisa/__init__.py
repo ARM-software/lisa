@@ -42,4 +42,8 @@ warnings.filterwarnings(
     module=r'__main__',
 )
 
+# Work around the warnings reported here:
+# https://github.com/pola-rs/polars/issues/20000
+os.environ.setdefault('POLARS_ALLOW_FORKING_THREAD', '1')
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

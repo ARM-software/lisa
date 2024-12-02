@@ -154,8 +154,8 @@ class TraceTestCase(StorageTestCase):
             for x in (pid, name, task_id, task_id2, task_id3, task_id_tuple):
                 assert self.trace.ana.tasks.get_task_id(x) == task_id
 
-        with pytest.raises(ValueError):
-            for x in ('sh', 'sshd', 1639, 1642, 1702, 1717, 1718):
+        for x in ('sh', 'sshd'):
+            with pytest.raises(ValueError):
                 self.trace.ana.tasks.get_task_id(x)
 
     def test_get_task_name_pids(self):
