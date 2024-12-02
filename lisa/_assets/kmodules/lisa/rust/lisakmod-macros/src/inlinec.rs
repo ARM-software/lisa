@@ -36,6 +36,78 @@ pub trait IntoFfi: FfiType {
     fn into_ffi(self) -> Self::FfiType;
 }
 
+pub trait IntoPtr<Ptr> {
+    fn into_ptr(self) -> Ptr;
+}
+
+pub trait FromPtr<Ptr> {
+    fn from_ptr(ptr: Ptr) -> Self;
+}
+
+macro_rules! impl_ptr {
+    ($ptr:ty, $ptr2:ty, $ref:ty) => {
+        impl<T: ?Sized> IntoPtr<$ptr> for $ptr {
+            #[inline]
+            fn into_ptr(self) -> $ptr {
+                self
+            }
+        }
+
+        impl<'a, T: ?Sized> IntoPtr<*const $ref> for *const $ptr {
+            #[inline]
+            fn into_ptr(self) -> *const $ref {
+                self as _
+            }
+        }
+
+        impl<'a, T: ?Sized> IntoPtr<*mut $ref> for *mut $ptr {
+            #[inline]
+            fn into_ptr(self) -> *mut $ref {
+                self as _
+            }
+        }
+
+        impl<T: ?Sized> FromPtr<$ptr> for $ptr {
+            #[inline]
+            fn from_ptr(ptr: $ptr) -> Self {
+                ptr
+            }
+        }
+
+        impl<'a, T: ?Sized> FromPtr<*const $ref> for *const $ptr
+        {
+            #[inline]
+            fn from_ptr(ptr: *const $ref) -> Self {
+                ptr as _
+            }
+        }
+
+        impl<'a, T: ?Sized> FromPtr<*mut $ref> for *mut $ptr {
+            #[inline]
+            fn from_ptr(ptr: *mut $ref) -> Self {
+                ptr as _
+            }
+        }
+
+        impl_ptr!(@nested, ConstPtr<$ptr2>, ConstPtr<$ref>);
+        impl_ptr!(@nested, MutPtr<$ptr2>, MutPtr<$ref>);
+
+    };
+    (@nested, $nested_ptr:ty, $nested_ref:ty) => {
+        impl<'a, T> FfiType for $nested_ref
+        where
+            // We only implement for Sized types, so that unsized types can encode their metadata in custom
+            // ways, like [T]
+            T: Sized,
+            $nested_ptr: FfiType,
+        {
+            const C_DECL: &'static str = <$nested_ptr as FfiType>::C_DECL;
+            type FfiType = <$nested_ptr as FfiType>::FfiType;
+        }
+
+    }
+}
+
 /// [*const T] newtype.
 ///
 /// [FfiType], [FromFfi] and [IntoFfi] implementations on [ConstPtr<T>] are expected to be provided
@@ -45,6 +117,7 @@ pub trait IntoFfi: FfiType {
 /// * [&'a T]
 #[fundamental]
 pub struct ConstPtr<T: ?Sized>(*const T);
+impl_ptr!(*const T, ConstPtr<T>, &'a T);
 
 impl<T: ?Sized> From<ConstPtr<T>> for *const T {
     #[inline]
@@ -53,23 +126,29 @@ impl<T: ?Sized> From<ConstPtr<T>> for *const T {
     }
 }
 
-impl<T: ?Sized> FromFfi for ConstPtr<T>
+impl<T> FromFfi for ConstPtr<T>
 where
-    ConstPtr<T>: FfiType<FfiType = *const T>,
+    // Only implement for Sized so that dynamically sized types (DST) like [T] can have their own
+    // representation that can encode that size
+    T: Sized,
+    ConstPtr<T>: FfiType<FfiType: IntoPtr<*const T>>,
 {
     #[inline]
     unsafe fn from_ffi(x: Self::FfiType) -> Self {
-        ConstPtr(x)
+        ConstPtr(x.into_ptr())
     }
 }
 
-impl<T: ?Sized> IntoFfi for ConstPtr<T>
+impl<T> IntoFfi for ConstPtr<T>
 where
-    ConstPtr<T>: FfiType<FfiType = *const T>,
+    // Only implement for Sized so that dynamically sized types (DST) like [T] can have their own
+    // representation that can encode that size
+    T: Sized,
+    ConstPtr<T>: FfiType<FfiType: FromPtr<*const T>>,
 {
     #[inline]
     fn into_ffi(self) -> Self::FfiType {
-        self.0
+        <Self::FfiType as FromPtr<_>>::from_ptr(self.0)
     }
 }
 
@@ -84,6 +163,7 @@ where
 /// * [Option<NonNull<T>>]
 #[fundamental]
 pub struct MutPtr<T: ?Sized>(*mut T);
+impl_ptr!(*mut T, MutPtr<T>, &'a mut T);
 
 impl<T: ?Sized> From<MutPtr<T>> for *mut T {
     #[inline]
@@ -94,31 +174,34 @@ impl<T: ?Sized> From<MutPtr<T>> for *mut T {
 
 impl<T> FromFfi for MutPtr<T>
 where
-    T: ?Sized,
-    MutPtr<T>: FfiType<FfiType = *mut T>,
+    // Only implement for Sized so that dynamically sized types (DST) like [T] can have their own
+    // representation that can encode that size
+    T: Sized,
+    MutPtr<T>: FfiType<FfiType: IntoPtr<*mut T>>,
 {
     #[inline]
     unsafe fn from_ffi(x: Self::FfiType) -> Self {
-        MutPtr(x)
+        MutPtr(x.into_ptr())
     }
 }
 
 impl<T> IntoFfi for MutPtr<T>
 where
-    T: ?Sized,
-    MutPtr<T>: FfiType<FfiType = *mut T>,
+    // Only implement for Sized so that dynamically sized types (DST) like [T] can have their own
+    // representation that can encode that size
+    T: Sized,
+    MutPtr<T>: FfiType<FfiType: FromPtr<*mut T>>,
 {
     #[inline]
     fn into_ffi(self) -> Self::FfiType {
-        self.0
+        <Self::FfiType as FromPtr<_>>::from_ptr(self.0)
     }
 }
 
-// The user-provided "root" implementation is for &T and &mut T. Everything is provided from there.
-// This is because &T and &mut T are fundamental (as in #[fundamental]), meaning that even if the
-// "reference of" generic type is not provided by the crate (since it's a primitive), the user is
-// free to implement traits for it despite the regular orphan rule. *T, *mut T, NonNull<T> etc do
-// not enjoy such treatment, making it impossible to provide implementation for foreign traits.
+// Since it is not possible for the user to write implementations for *const T and *mut T directly,
+// they provide impl for ConstPtr<T> and MutPtr<T> newtypes and we just have a blanket
+// implementation for the real pointer type.
+
 impl<T> FfiType for *const T
 where
     T: ?Sized,
@@ -150,28 +233,6 @@ where
         ConstPtr(self).into_ffi()
     }
 }
-
-// These implementations allow arbitrary nesting of pointers, as they provide the definition for a
-// pointer to pointer. Unfortunately, we cannot provide a valid generic C_DECL for that, so we
-// currently cannot express this.
-
-// impl<T> FfiType for ConstPtr<ConstPtr<T>>
-// where
-// T: ?Sized,
-// ConstPtr<T>: FfiType,
-// {
-// const C_DECL: &'static str = <ConstPtr<T> as FfiType>::C_DECL;
-// type FfiType = *const <ConstPtr<T> as FfiType>::FfiType;
-// }
-
-// impl<T> FfiType for ConstPtr<MutPtr<T>>
-// where
-// T: ?Sized,
-// MutPtr<T>: FfiType,
-// {
-// const C_DECL: &'static str = <MutPtr<T> as FfiType>::C_DECL;
-// type FfiType = *const <MutPtr<T> as FfiType>::FfiType;
-// }
 
 impl<T> FfiType for ConstPtr<*const T>
 where
@@ -212,6 +273,17 @@ where
     }
 }
 
+impl<T> IntoFfi for *mut T
+where
+    T: ?Sized,
+    MutPtr<T>: FfiType + IntoFfi,
+{
+    #[inline]
+    fn into_ffi(self) -> Self::FfiType {
+        MutPtr(self).into_ffi()
+    }
+}
+
 impl<T> FfiType for MutPtr<*const T>
 where
     T: ?Sized,
@@ -228,17 +300,6 @@ where
 {
     const C_DECL: &'static str = <MutPtr<MutPtr<T>> as FfiType>::C_DECL;
     type FfiType = <MutPtr<MutPtr<T>> as FfiType>::FfiType;
-}
-
-impl<T> IntoFfi for *mut T
-where
-    T: ?Sized,
-    MutPtr<T>: FfiType + IntoFfi,
-{
-    #[inline]
-    fn into_ffi(self) -> Self::FfiType {
-        MutPtr(self).into_ffi()
-    }
 }
 
 trait PtrToMaybeSized<T: ?Sized> {
@@ -272,20 +333,21 @@ impl<T: ?Sized> PtrToMaybeSized<T> for *mut T {
 impl<T> FfiType for &T
 where
     T: ?Sized,
-    *const T: FfiType + PtrToMaybeSized<T>,
+    *const T: PtrToMaybeSized<T>,
+    ConstPtr<T>: FfiType,
 {
-    const C_DECL: &'static str = <*const T as FfiType>::C_DECL;
-    type FfiType = <*const T as FfiType>::FfiType;
+    const C_DECL: &'static str = <ConstPtr<T> as FfiType>::C_DECL;
+    type FfiType = <ConstPtr<T> as FfiType>::FfiType;
 }
 
 impl<T> FromFfi for &T
 where
     T: ?Sized,
-    *const T: FfiType + FromFfi,
+    ConstPtr<T>: FfiType + FromFfi,
 {
     #[inline]
     unsafe fn from_ffi(x: Self::FfiType) -> Self {
-        let ptr = <*const T as FromFfi>::from_ffi(x);
+        let ptr = <ConstPtr<T> as FromFfi>::from_ffi(x).0;
         assert!(PtrToMaybeSized::is_aligned(&ptr).unwrap_or(true));
         ptr.as_ref().expect("Unexpected NULL pointer")
     }
@@ -294,7 +356,7 @@ where
 impl<T> IntoFfi for &T
 where
     T: ?Sized,
-    *const T: FfiType + IntoFfi,
+    ConstPtr<T>: FfiType + IntoFfi,
 {
     #[inline]
     fn into_ffi(self) -> Self::FfiType {
@@ -305,20 +367,21 @@ where
 impl<T> FfiType for &mut T
 where
     T: ?Sized,
-    *mut T: FfiType,
+    MutPtr<T>: FfiType,
 {
-    const C_DECL: &'static str = <*mut T as FfiType>::C_DECL;
-    type FfiType = <*mut T as FfiType>::FfiType;
+    const C_DECL: &'static str = <MutPtr<T> as FfiType>::C_DECL;
+    type FfiType = <MutPtr<T> as FfiType>::FfiType;
 }
 
 impl<T> FromFfi for &mut T
 where
     T: ?Sized,
-    *mut T: FfiType + FromFfi + PtrToMaybeSized<T>,
+    *mut T: PtrToMaybeSized<T>,
+    MutPtr<T>: FfiType + FromFfi,
 {
     #[inline]
     unsafe fn from_ffi(x: Self::FfiType) -> Self {
-        let ptr = <*mut T as FromFfi>::from_ffi(x);
+        let ptr = <MutPtr<T> as FromFfi>::from_ffi(x).0;
         assert!(PtrToMaybeSized::is_aligned(&ptr).unwrap_or(true));
         ptr.as_mut().expect("Unexpected NULL pointer")
     }
@@ -327,7 +390,7 @@ where
 impl<T> IntoFfi for &mut T
 where
     T: ?Sized,
-    *mut T: FfiType + IntoFfi,
+    MutPtr<T>: FfiType + IntoFfi,
 {
     #[inline]
     fn into_ffi(self) -> Self::FfiType {
@@ -338,12 +401,12 @@ where
 impl<T> FfiType for ConstPtr<UnsafeCell<T>>
 where
     T: ?Sized,
-    *const T: FfiType,
-    *mut T: FfiType,
+    ConstPtr<T>: FfiType,
+    MutPtr<T>: FfiType,
 {
     // Expose as a mutable pointer for C code, since the whole point of UnsafeCell<T> is to allow
     // mutation of T from a &UnsafeCell<T>.
-    const C_DECL: &'static str = <*mut T as FfiType>::C_DECL;
+    const C_DECL: &'static str = <MutPtr<T> as FfiType>::C_DECL;
     // Expose the pointer as *const for the FFI functions so that the signatures are compatible
     // with the other blanket implementations. This will effectively transmute the *const
     // UnsafeCell<T> into *mut T in the IntoFfi implementation at the FFI boundary.
@@ -353,19 +416,41 @@ where
 impl<T> FfiType for MutPtr<UnsafeCell<T>>
 where
     T: ?Sized,
-    *mut T: FfiType,
+    MutPtr<T>: FfiType,
 {
-    const C_DECL: &'static str = <*mut T as FfiType>::C_DECL;
+    const C_DECL: &'static str = <MutPtr<T> as FfiType>::C_DECL;
     type FfiType = *mut UnsafeCell<T>;
 }
 
-impl<T> FfiType for Pin<T>
-where
-    T: FfiType,
-{
-    const C_DECL: &'static str = <T as FfiType>::C_DECL;
-    type FfiType = <T as FfiType>::FfiType;
+macro_rules! impl_transparent_wrapper {
+    ($wrapper:ty) => {
+        impl<T> FfiType for $wrapper
+        where
+            T: FfiType,
+        {
+            const C_DECL: &'static str = <T as FfiType>::C_DECL;
+            type FfiType = <T as FfiType>::FfiType;
+        }
+
+        impl<T> FfiType for ConstPtr<$wrapper>
+        where
+            ConstPtr<T>: FfiType,
+        {
+            const C_DECL: &'static str = <ConstPtr<T> as FfiType>::C_DECL;
+            type FfiType = *const $wrapper;
+        }
+
+        impl<T> FfiType for MutPtr<$wrapper>
+        where
+            MutPtr<T>: FfiType,
+        {
+            const C_DECL: &'static str = <MutPtr<T> as FfiType>::C_DECL;
+            type FfiType = *mut $wrapper;
+        }
+    };
 }
+
+impl_transparent_wrapper!(Pin<T>);
 
 impl<T> FromFfi for Pin<T>
 where
@@ -394,26 +479,10 @@ where
     }
 }
 
-impl<T> FfiType for ConstPtr<Pin<T>>
-where
-    *const T: FfiType,
-{
-    const C_DECL: &'static str = <*const T as FfiType>::C_DECL;
-    type FfiType = *const Pin<T>;
-}
-
-impl<T> FfiType for MutPtr<Pin<T>>
-where
-    *mut T: FfiType,
-{
-    const C_DECL: &'static str = <*mut T as FfiType>::C_DECL;
-    type FfiType = *mut Pin<T>;
-}
-
 #[macro_export]
-macro_rules! __internal_ptr_cffi {
+macro_rules! __impl_primitive_ptr {
     ($pointee:ty, $c_pointee:literal) => {
-        $crate::inlinec::__internal_ptr_cffi!(
+        $crate::inlinec::__impl_primitive_ptr!(
             @impl, $pointee, $pointee, $c_pointee,
             "", ""
         );
@@ -422,14 +491,14 @@ macro_rules! __internal_ptr_cffi {
         // implementation for ConstPtr<ConstPtr<T>>, because we cannot express the resulting C_DECL
         // (lack of const function in traits). We therefore unroll 2 level of pointers, since we
         // don't really need more in practice.
-        $crate::inlinec::__internal_ptr_cffi!(
+        $crate::inlinec::__impl_primitive_ptr!(
             @impl,
             $crate::inlinec::ConstPtr<$pointee>,
             <$crate::inlinec::ConstPtr<$pointee> as $crate::inlinec::FfiType>::FfiType,
             $c_pointee,
             "CONST_TY_DECL(PTR_TY_DECL(", "))"
         );
-        $crate::inlinec::__internal_ptr_cffi!(
+        $crate::inlinec::__impl_primitive_ptr!(
             @impl,
             $crate::inlinec::MutPtr<$pointee>,
             <$crate::inlinec::MutPtr<$pointee> as $crate::inlinec::FfiType>::FfiType,
@@ -453,9 +522,9 @@ macro_rules! __internal_ptr_cffi {
         }
     }
 }
-pub use crate::__internal_ptr_cffi;
+pub use crate::__impl_primitive_ptr;
 
-macro_rules! transparent_cffi {
+macro_rules! impl_primitive {
     ($ty:ty, $c_name:literal) => {
         impl FfiType for $ty {
             const C_DECL: &'static str =
@@ -477,23 +546,23 @@ macro_rules! transparent_cffi {
             }
         }
 
-        __internal_ptr_cffi!($ty, $c_name);
+        __impl_primitive_ptr!($ty, $c_name);
     };
 }
 
-transparent_cffi!(u8, "uint8_t");
-transparent_cffi!(u16, "uint16_t");
-transparent_cffi!(u32, "uint32_t");
-transparent_cffi!(u64, "uint64_t");
-transparent_cffi!(usize, "size_t");
+impl_primitive!(u8, "uint8_t");
+impl_primitive!(u16, "uint16_t");
+impl_primitive!(u32, "uint32_t");
+impl_primitive!(u64, "uint64_t");
+impl_primitive!(usize, "size_t");
 
-transparent_cffi!(i8, "int8_t");
-transparent_cffi!(i16, "int16_t");
-transparent_cffi!(i32, "int32_t");
-transparent_cffi!(i64, "int64_t");
-transparent_cffi!(isize, "ssize_t");
+impl_primitive!(i8, "int8_t");
+impl_primitive!(i16, "int16_t");
+impl_primitive!(i32, "int32_t");
+impl_primitive!(i64, "int64_t");
+impl_primitive!(isize, "ssize_t");
 
-transparent_cffi!(bool, "_Bool");
+impl_primitive!(bool, "_Bool");
 
 // This is used for function returning void exclusively. We never pass a void parameter to a
 // function.
@@ -519,7 +588,7 @@ impl FfiType for c_void {
     type FfiType = c_void;
 }
 // Only implement FromFfi/IntoFfi for pointers to c_void, never for c_void itself
-__internal_ptr_cffi!(c_void, "void");
+__impl_primitive_ptr!(c_void, "void");
 
 pub trait NullPtr {
     fn null_mut() -> *mut Self;
@@ -554,7 +623,7 @@ where
 
 impl<T> IntoFfi for Option<NonNull<T>>
 where
-    T: NullPtr,
+    T: ?Sized + NullPtr,
     MutPtr<T>: FfiType + IntoFfi,
 {
     #[inline]
@@ -722,15 +791,23 @@ where
     len: usize,
 }
 
-impl FfiType for ConstPtr<[u8]> {
-    const C_DECL: &'static str = "BUILTIN_TY_DECL(struct slice_const_u8, DECLARATOR)";
-    type FfiType = FfiSlice<*const u8>;
+macro_rules! impl_slice {
+    ($ty:ty, $c_name_const:literal, $c_name_mut:literal) => {
+        impl FfiType for ConstPtr<[$ty]> {
+            const C_DECL: &'static str =
+                $crate::misc::concatcp!("BUILTIN_TY_DECL(", $c_name_const, ", DECLARATOR)");
+            type FfiType = FfiSlice<*const $ty>;
+        }
+
+        impl FfiType for MutPtr<[$ty]> {
+            const C_DECL: &'static str =
+                $crate::misc::concatcp!("BUILTIN_TY_DECL(", $c_name_mut, ", DECLARATOR)");
+            type FfiType = FfiSlice<*mut $ty>;
+        }
+    };
 }
 
-impl FfiType for MutPtr<[u8]> {
-    const C_DECL: &'static str = "BUILTIN_TY_DECL(struct slice_u8, DECLARATOR)";
-    type FfiType = FfiSlice<*mut u8>;
-}
+impl_slice!(u8, "struct slice_const_u8", "struct slice_u8");
 
 impl<T> IntoFfi for ConstPtr<[T]>
 where
@@ -906,7 +983,7 @@ pub trait Opaque {
 
 #[macro_export]
 macro_rules! __internal_opaque_type {
-    ($vis:vis struct $name:ident, $c_name:literal, $c_header:literal) => {
+    ($vis:vis struct $name:ident, $c_name:literal, $c_header:literal $(, $($opt_name:ident {$($opt:tt)*}),* $(,)?)?) => {
         // Model opaque types as recommended in the Rustonomicon:
         // https://doc.rust-lang.org/nomicon/ffi.html#representing-opaque-structs
         // On top of that recipe, we add:
@@ -945,6 +1022,10 @@ macro_rules! __internal_opaque_type {
             _marker: ::core::marker::PhantomData<(*mut u8, ::core::marker::PhantomPinned)>,
         }
 
+        $($(
+            $crate::inlinec::opaque_type!(@opt $opt_name, $name, $c_header, $($opt)*);
+        )*)?
+
         // Double check that the we did not fumble the Rust struct layout somehow.
         const _:() = {
             const fn member_layout<A, B, F: FnOnce(&A) -> &B>(f: F) -> (usize, usize) {
@@ -967,7 +1048,7 @@ macro_rules! __internal_opaque_type {
             );
         };
 
-        $crate::inlinec::__internal_ptr_cffi!($name, $c_name);
+        $crate::inlinec::__impl_primitive_ptr!($name, $c_name);
 
         use $crate::inlinec::Opaque as _;
         impl $crate::inlinec::Opaque for $name {}
@@ -986,6 +1067,60 @@ macro_rules! __internal_opaque_type {
             #[inline]
             fn into_ffi(self) -> Self::FfiType {
                 self
+            }
+        }
+    };
+    (@opt attr_by_ref, $name:ident, $c_header:expr, fn $attr:ident(&self) -> &$attr_ty:ty) => {
+        impl $name {
+            #[inline]
+            fn $attr(&self) -> &$attr_ty {
+                #[$crate::inlinec::cfunc]
+                fn get(this: &$name) -> &$attr_ty {
+                    $crate::misc::concatcp!(
+                        "#include <", $c_header, ">\n"
+                    );
+
+                    $crate::misc::concatcp!(
+                        "return &this->", ::core::stringify!($attr), ";"
+                    )
+                }
+                get(self)
+            }
+        }
+    };
+    (@opt attr_by_mut, $name:ident, $c_header:expr, fn $attr:ident(&mut self) -> &mut $attr_ty:ty) => {
+        impl $name {
+            #[inline]
+            fn $attr(&mut self) -> &mut $attr_ty {
+                #[$crate::inlinec::cfunc]
+                fn get(this: &mut $name) -> &mut $attr_ty {
+                    $crate::misc::concatcp!(
+                        "#include <", $c_header, ">\n"
+                    );
+
+                    $crate::misc::concatcp!(
+                        "return &this->", ::core::stringify!($attr), ";"
+                    )
+                }
+                get(self)
+            }
+        }
+    };
+    (@opt attr_by_value, $name:ident, $c_header:expr, fn $attr:ident(&self) -> $attr_ty:ty) => {
+        impl $name {
+            #[inline]
+            fn $attr(&self) -> $attr_ty {
+                #[$crate::inlinec::cfunc]
+                fn get(this: &$name) -> $attr_ty {
+                    $crate::misc::concatcp!(
+                        "#include <", $c_header, ">\n"
+                    );
+
+                    $crate::misc::concatcp!(
+                        "return this->", ::core::stringify!($attr), ";"
+                    )
+                }
+                get(self)
             }
         }
     };

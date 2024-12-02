@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
 pub use crate::{
-    inlinec::{cexport, cfunc, cstatic, cconstant},
+    inlinec::{cconstant, cexport, cfunc, cstatic},
     runtime::kbox::KBox,
 };
 

@@ -69,7 +69,7 @@ $(GENERATED):
 clean-files := $(GENERATED)
 
 RUST_VERSION ?= nightly
-RUSTFLAGS := -Clinker=rust-lld -Clink-self-contained=y -Clto=n -Crelocation-model=static -Cno-redzone=y -Csoft-float=y -Ctarget-cpu=generic -Cforce-frame-pointers=y -Ccodegen-units=1 -Zfunction-sections=y
+RUSTFLAGS := -Clinker=rust-lld -Clink-self-contained=y -Clto=n -Crelocation-model=static -Cno-redzone=y -Ctarget-cpu=generic -Cforce-frame-pointers=y -Ccodegen-units=1 -Zfunction-sections=y
 
 LISA_EVAL_C := $(MODULE_SRC)/lisa-eval-c.sh
 
@@ -85,11 +85,11 @@ RUST_C_SHIMS_DIR := $(RUST_GENERATED)/rust_c_shims
 
 RUSTUP_HOME ?= $(HOME)/.rustup
 CARGO_HOME ?= $(HOME)/.cargo
+CARGO_TARGET_DIR ?= $(RUST_BUILD_DIR)/target
 
 RUST_BUILD_DIR := $(RUST_GENERATED)/build
 RUST_SYMBOLS := $(RUST_BUILD_DIR)/exported.list
 RUST_SYMBOLS_CLI := $(RUST_BUILD_DIR)/exported.cli
-RUST_TARGET_DIR := $(RUST_BUILD_DIR)/target
 RUST_CBINDGEN_BIN := $(CARGO_HOME)/bin/cbindgen
 
 # Export c_flags so that lisa-eval-c.sh can compile a C source with the
@@ -105,7 +105,7 @@ export LISA_EVAL_C_CFLAGS=$(shell echo $(c_flags))
 
 # Enable RUSTC_BOOTSTRAP=1 so we can use nightly features on any toolchain,
 # including stable ones. This allows using the more tested stable binaries.
-rust_cmd = chmod +x '$(LISA_EVAL_C)' && export RUSTC_BOOTSTRAP=1 PATH="$(CARGO_HOME)/bin:$$PATH" 'RUSTUP_HOME=$(RUSTUP_HOME)' 'CARGO_HOME=$(CARGO_HOME)' 'LISA_EVAL_C=$(LISA_EVAL_C)' && $(1)
+rust_cmd = chmod +x '$(LISA_EVAL_C)' && export RUSTC_BOOTSTRAP=1 PATH="$(CARGO_HOME)/bin:$$PATH" 'RUSTUP_HOME=$(RUSTUP_HOME)' 'CARGO_HOME=$(CARGO_HOME)' 'CARGO_TARGET_DIR=$(CARGO_TARGET_DIR)' 'LISA_EVAL_C=$(LISA_EVAL_C)' && $(1)
 cargo_cmd = $(call rust_cmd,cargo +$(RUST_VERSION) $(1))
 
 $(RUST_GENERATED): $(GENERATED)
@@ -114,18 +114,18 @@ $(RUST_GENERATED): $(GENERATED)
 $(RUST_BUILD_DIR): $(RUST_GENERATED)
 	mkdir -p "$@"
 
-$(RUST_TARGET_DIR): $(RUST_BUILD_DIR)
+$(CARGO_TARGET_DIR):
 	mkdir -p "$@"
 
 # Build the rust code into a static archive, then prelink it into an object
 # file and filter the symbols to only keep as GLOBAL the exported pub
 # #[no_mangle] ones. This avoids having tons of GLOBAL symbols from core lib.
-$(RUST_OBJECT) $(RUST_C_SHIMS_H) $(RUST_C_SHIMS_C): $(RUST_TARGET_DIR)
+$(RUST_OBJECT) $(RUST_C_SHIMS_H) $(RUST_C_SHIMS_C): $(RUST_BUILD_DIR) $(CARGO_TARGET_DIR)
 	# Build the crate into a static library
-	cd $(RUST_SRC) && export RUSTFLAGS="$(RUSTFLAGS)" && $(call cargo_cmd,build --target-dir $(RUST_TARGET_DIR) --release --target=$(RUST_SRC)/rustc_targets/$(ARCH)/target.json -Zbuild-std=core$(comma)alloc)
+	cd $(RUST_SRC) && export RUSTFLAGS="$(RUSTFLAGS)" && $(call cargo_cmd,build --release --target=$(RUST_SRC)/rustc_targets/$(ARCH)/target.json -Zbuild-std=core$(comma)alloc)
 
 	# Prelink the archive into a single object file.
-	$(LD) $(KBUILD_LDFLAGS) -nostdlib -r -o $(RUST_OBJECT) --whole-archive $(RUST_TARGET_DIR)/target/release/liblisakmod.a
+	$(LD) $(KBUILD_LDFLAGS) -nostdlib -r -o $(RUST_OBJECT) --whole-archive $(CARGO_TARGET_DIR)/target/release/liblisakmod.a
 
 	# Get the list of exported symbols
 	python3 "$(MODULE_SRC)/rust_exported_symbols.py" --rust-object $(RUST_OBJECT) --out-symbols-plain $(RUST_SYMBOLS) --out-symbols-cli $(RUST_SYMBOLS_CLI)

@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 lisakmod_macros_proc = { path = "./macros" }
+paste = "1.0"
