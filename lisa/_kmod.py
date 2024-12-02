@@ -137,6 +137,7 @@ import fnmatch
 import sys
 from enum import IntEnum
 import traceback
+import uuid
 
 from elftools.elf.elffile import ELFFile
 
@@ -2556,6 +2557,42 @@ class KmodSrc(Loggable):
             else:
                 return filenames[0]
 
+        @contextlib.contextmanager
+        def rust_target_dir(rust_home):
+            build_cache = rust_home / 'build_cache'
+            target_dir = build_cache / 'reference'
+            tmp_target_dir = build_cache / f'tmp_{uuid.uuid4().hex}'
+
+            # Move the build cache to a temporary location, so we know no
+            # one else will be touching it while we are using it. Cargo
+            # protects itself from concurrent accesses to the target
+            # folder, but this does not extend to all the steps we do after
+            # cargo has run to use the build artifacts.
+            #
+            # Path.rename() gives the same guarantees as os.rename(), and
+            # on POSIX platforms this is an atomic operation if they are on
+            # the same filesystem.
+            try:
+                target_dir.mkdir(parents=True, exist_ok=True)
+                target_dir.rename(tmp_target_dir)
+            except Exception:
+                tmp_target_dir = None
+
+            try:
+                yield tmp_target_dir
+            finally:
+                if tmp_target_dir:
+                    #  When we are finished with the CARGO_TARGET_DIR, we
+                    #  place it back at the expected location for the next
+                    #  build to find it.
+                    try:
+                        tmp_target_dir.rename(target_dir)
+                    except Exception:
+                        # If we could not promote it back to the reference
+                        # CARGO_TARGET_DIR, there is no point in keeping it
+                        # around.
+                        shutil.rmtree(tmp_target_dir)
+
         rust_spec = self._RUST_SPEC or {}
         if build_conf['build-env'] == 'alpine':
             settings = build_conf['build-env-settings']['alpine']
@@ -2563,48 +2600,55 @@ class KmodSrc(Loggable):
             alpine_packages = settings.get('packages', None)
 
             @contextlib.contextmanager
-            def cmd_cm():
+            def rust_cm(rust_spec):
                 if rust_spec:
                     rust_home = Path('/opt/rust')
                     rustup_home = rust_home / 'rustup'
                     cargo_home = rust_home / 'cargo'
-                    _rust_spec = {
-                        **rust_spec,
-                        'rustup_home': rustup_home,
-                        'cargo_home': cargo_home,
-                    }
-                    rust_env = {
-                        'RUSTUP_HOME': rustup_home,
-                        'CARGO_HOME': cargo_home,
-                        'RUST_VERSION': rust_spec['version'],
-                    }
-                else:
-                    rust_env = {}
-                    _rust_spec = None
 
-                with _make_build_chroot(
-                    cc=cc.name,
-                    cross_compile=cross_compile,
-                    bind_paths=bind_paths,
-                    abi=abi,
-                    overlay_backend=build_conf['overlay-backend'],
-                    version=alpine_version,
-                    packages=alpine_packages,
-                    rust_spec=_rust_spec,
-                ) as chroot:
-                    # Do not use a CM here to avoid choking on permission
-                    # issues. Since the chroot itself will be entirely
-                    # removed it's not a problem.
-                    mod_path = Path(tempfile.mkdtemp(dir=chroot / 'tmp'))
-                    cmd = make_cmd(
-                        tree_path=tree_path,
-                        mod_path=f'/{mod_path.relative_to(chroot)}',
-                        make_vars={
-                            **make_vars,
-                            **rust_env,
+                    with rust_target_dir(rust_home) as target_dir:
+                        _rust_spec = {
+                            **rust_spec,
+                            'rustup_home': rustup_home,
+                            'cargo_home': cargo_home,
                         }
-                    )
-                    yield (mod_path, _make_build_chroot_cmd(chroot, cmd))
+                        rust_env = {
+                            'RUSTUP_HOME': rustup_home,
+                            'CARGO_HOME': cargo_home,
+                            'CARGO_TARGET_DIR': target_dir,
+                            'RUST_VERSION': rust_spec['version'],
+                        }
+                        yield (_rust_spec, rust_env)
+                else:
+                    yield (None, {})
+
+            @contextlib.contextmanager
+            def cmd_cm():
+                with rust_cm(rust_spec) as (_rust_spec, rust_env):
+                    with _make_build_chroot(
+                        cc=cc.name,
+                        cross_compile=cross_compile,
+                        bind_paths=bind_paths,
+                        abi=abi,
+                        overlay_backend=build_conf['overlay-backend'],
+                        version=alpine_version,
+                        packages=alpine_packages,
+                        rust_spec=_rust_spec,
+                    ) as chroot:
+                        # Do not use a CM here to avoid choking on permission
+                        # issues. Since the chroot itself will be entirely
+                        # removed it's not a problem.
+                        mod_path = Path(tempfile.mkdtemp(dir=chroot / 'tmp'))
+                        cmd = make_cmd(
+                            tree_path=tree_path,
+                            mod_path=f'/{mod_path.relative_to(chroot)}',
+                            make_vars={
+                                **make_vars,
+                                **rust_env,
+                            }
+                        )
+                        yield (mod_path, _make_build_chroot_cmd(chroot, cmd))
+
         elif build_conf['build-env'] == 'host':
             def install_rust(rust_spec):
                 def populate(key, path):
@@ -2627,28 +2671,33 @@ class KmodSrc(Loggable):
                 return rust_home
 
             @contextlib.contextmanager
-            def cmd_cm():
+            def rust_cm(rust_spec):
                 if rust_spec:
                     rust_home = install_rust(rust_spec)
-                    rust_env = {
-                        'RUSTUP_HOME': rust_home / 'rustup',
-                        'CARGO_HOME': rust_home / 'cargo',
-                        'RUST_VERSION': rust_spec['version'],
-                    }
+                    with rust_target_dir(rust_home) as target_dir:
+                        yield {
+                            'RUSTUP_HOME': rust_home / 'rustup',
+                            'CARGO_HOME': rust_home / 'cargo',
+                            'CARGO_TARGET_DIR': target_dir,
+                            'RUST_VERSION': rust_spec['version'],
+                        }
                 else:
-                    rust_env = {}
+                    yield {}
 
+            @contextlib.contextmanager
+            def cmd_cm():
                 with tempfile.TemporaryDirectory() as mod_path:
-                    cmd = make_cmd(
-                        tree_path=tree_path,
-                        mod_path=mod_path,
-                        make_vars={
-                            **make_vars,
-                            **rust_env,
-                        },
-                    )
+                    with rust_cm(rust_spec) as rust_env:
+                        cmd = make_cmd(
+                            tree_path=tree_path,
+                            mod_path=mod_path,
+                            make_vars={
+                                **make_vars,
+                                **rust_env,
+                            },
+                        )
 
-                    yield (mod_path, cmd)
+                        yield (mod_path, cmd)
         else:
             raise ValueError('Unknown build-env kind: {build_env}')
 
