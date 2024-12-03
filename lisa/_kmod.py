@@ -539,15 +539,16 @@ def alpine_llvm_tool_name(tool, llvm):
         return f'llvm{version}-{tool}'
 
 
+def reroot(new_root, path):
+    path = Path(path)
+    assert path.is_absolute()
+    path = path.relative_to('/')
+    return new_root / path
+
+
 @destroyablecontextmanager
 def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overlay_backend='overlayfs', rust_spec=None):
     logger = logging.getLogger(f'{__name__}.alpine_chroot')
-
-    def reroot(new_root, path):
-        path = Path(path)
-        assert path.is_absolute()
-        path = path.relative_to('/')
-        return new_root / path
 
     def mount_binds(chroot, bind_paths, mount=True):
         for src, dst in bind_paths.items():
@@ -724,7 +725,10 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
             homes = {
                 reroot(path, v): v
                 for k, v in rust_spec.items()
-                if k in ('rustup_home', 'cargo_home')
+                if (
+                    k in ('rustup_home', 'cargo_home', 'cargo_cache') and
+                    v
+                )
             }
             _bind_paths = {**base_bind_paths, **homes}
             try:
@@ -749,6 +753,8 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
         rust_key = (rust_spec, key)
         rust_home = rust_dir_cache.get_entry(rust_key)
         lowers.append(rust_home)
+        if (cargo_cache := rust_spec['cargo_cache']):
+            base_bind_paths[reroot(rust_home, cargo_cache)] = cargo_cache
 
     # Bind a host path (key) to a path inside the chroot (value). Values have
     # to be absolute paths.
@@ -756,6 +762,7 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
         **base_bind_paths,
         **(bind_paths or {})
     }
+
     with _overlay_folders(lowers, backend=overlay_backend) as path:
         try:
             mount_binds(path, bind_paths)
@@ -2679,24 +2686,26 @@ class KmodSrc(Loggable):
                 return filenames[0]
 
         @contextlib.contextmanager
-        def rust_target_dir(rust_home):
-            build_cache = rust_home / 'build_cache'
-            target_dir = build_cache / 'reference'
-            tmp_target_dir = build_cache / f'tmp_{uuid.uuid4().hex}'
+        def cargo_target_dir(cargo_cache):
+            if cargo_cache:
+                target_dir = cargo_cache / 'reference'
+                tmp_target_dir = cargo_cache / f'tmp_{uuid.uuid4().hex}'
 
-            # Move the build cache to a temporary location, so we know no
-            # one else will be touching it while we are using it. Cargo
-            # protects itself from concurrent accesses to the target
-            # folder, but this does not extend to all the steps we do after
-            # cargo has run to use the build artifacts.
-            #
-            # Path.rename() gives the same guarantees as os.rename(), and
-            # on POSIX platforms this is an atomic operation if they are on
-            # the same filesystem.
-            try:
-                target_dir.mkdir(parents=True, exist_ok=True)
-                target_dir.rename(tmp_target_dir)
-            except Exception:
+                # Move the build cache to a temporary location, so we know no
+                # one else will be touching it while we are using it. Cargo
+                # protects itself from concurrent accesses to the target
+                # folder, but this does not extend to all the steps we do after
+                # cargo has run to use the build artifacts.
+                #
+                # Path.rename() gives the same guarantees as os.rename(), and
+                # on POSIX platforms this is an atomic operation if they are on
+                # the same filesystem.
+                try:
+                    target_dir.mkdir(parents=True, exist_ok=True)
+                    target_dir.rename(tmp_target_dir)
+                except Exception:
+                    tmp_target_dir = None
+            else:
                 tmp_target_dir = None
 
             try:
@@ -2714,7 +2723,6 @@ class KmodSrc(Loggable):
                         # around.
                         shutil.rmtree(tmp_target_dir)
 
-        rust_spec = self._RUST_SPEC or {}
         if build_conf['build-env'] == 'alpine':
             settings = build_conf['build-env-settings']['alpine']
             alpine_version = settings.get('version', None)
@@ -2726,26 +2734,42 @@ class KmodSrc(Loggable):
                     rust_home = Path('/opt/rust')
                     rustup_home = rust_home / 'rustup'
                     cargo_home = rust_home / 'cargo'
+                    cargo_cache = rust_home / 'cargo_cache'
 
-                    with rust_target_dir(rust_home) as target_dir:
-                        _rust_spec = {
-                            **rust_spec,
-                            'rustup_home': rustup_home,
-                            'cargo_home': cargo_home,
-                        }
-                        rust_env = {
-                            'RUSTUP_HOME': rustup_home,
-                            'CARGO_HOME': cargo_home,
-                            'CARGO_TARGET_DIR': target_dir,
-                            'RUST_VERSION': rust_spec['version'],
-                        }
-                        yield (_rust_spec, rust_env)
+                    _rust_spec = {
+                        **rust_spec,
+                        'rustup_home': rustup_home,
+                        'cargo_home': cargo_home,
+                        'cargo_cache': cargo_cache,
+                    }
+                    rust_env = {
+                        'RUSTUP_HOME': rustup_home,
+                        'CARGO_HOME': cargo_home,
+                        'RUST_VERSION': rust_spec['version'],
+                    }
+
+                    @contextlib.contextmanager
+                    def _cargo_target_dir(chroot, rust_spec, rust_env):
+                        try:
+                            cargo_cache = rust_spec['cargo_cache']
+                        except KeyError:
+                            cargo_cache = None
+                        else:
+                            cargo_cache = reroot(chroot, cargo_cache)
+
+                        with cargo_target_dir(cargo_cache) as target_dir:
+                            yield {
+                                **rust_env,
+                                'CARGO_TARGET_DIR': target_dir,
+                            }
+
+                    yield (_rust_spec, rust_env, _cargo_target_dir)
                 else:
-                    yield (None, {})
+                    yield (None, {}, lambda chroot, rust_spec, rust_env: nullcontext(rust_env))
 
             @contextlib.contextmanager
-            def cmd_cm():
-                with rust_cm(rust_spec) as (_rust_spec, rust_env):
+            def cmd_cm(rust_spec):
+                with rust_cm(rust_spec) as (_rust_spec, rust_env, _cargo_target_dir):
                     with _make_build_chroot(
                         cc=cc.name,
                         cross_compile=cross_compile,
@@ -2760,15 +2784,17 @@ class KmodSrc(Loggable):
                         # issues. Since the chroot itself will be entirely
                         # removed it's not a problem.
                         mod_path = Path(tempfile.mkdtemp(dir=chroot / 'tmp'))
-                        cmd = make_cmd(
-                            tree_path=tree_path,
-                            mod_path=f'/{mod_path.relative_to(chroot)}',
-                            make_vars={
-                                **make_vars,
-                                **rust_env,
-                            }
-                        )
-                        yield (mod_path, _make_build_chroot_cmd(chroot, cmd))
+
+                        with _cargo_target_dir(chroot, _rust_spec, rust_env) as _rust_env:
+                            cmd = make_cmd(
+                                tree_path=tree_path,
+                                mod_path=f'/{mod_path.relative_to(chroot)}',
+                                make_vars={
+                                    **make_vars,
+                                    **_rust_env,
+                                }
+                            )
+                            yield (mod_path, _make_build_chroot_cmd(chroot, cmd))
 
         elif build_conf['build-env'] == 'host':
             def install_rust(rust_spec):
@@ -2777,6 +2803,7 @@ class KmodSrc(Loggable):
                         **dict(key),
                         'rustup_home': path / 'rustup',
                         'cargo_home': path / 'cargo',
+                        'cargo_cache': path / 'cargo_cache',
                     }
                     _install_rust(
                         rust_spec=rust_spec,
@@ -2795,7 +2822,8 @@ class KmodSrc(Loggable):
             def rust_cm(rust_spec):
                 if rust_spec:
                     rust_home = install_rust(rust_spec)
-                    with rust_target_dir(rust_home) as target_dir:
+                    cargo_cache = rust_home / 'cargo_cache'
+                    with cargo_target_dir(cargo_cache) as target_dir:
                         yield {
                             'RUSTUP_HOME': rust_home / 'rustup',
                             'CARGO_HOME': rust_home / 'cargo',
@@ -2806,7 +2834,7 @@ class KmodSrc(Loggable):
                     yield {}
 
             @contextlib.contextmanager
-            def cmd_cm():
+            def cmd_cm(rust_spec):
                 with tempfile.TemporaryDirectory() as mod_path:
                     with rust_cm(rust_spec) as rust_env:
                         cmd = make_cmd(
@@ -2822,8 +2850,9 @@ class KmodSrc(Loggable):
         else:
             raise ValueError('Unknown build-env kind: {build_env}')
 
+        rust_spec = self._RUST_SPEC or {}
         env = _KernelBuildEnv._make_toolchain_env_from_conf(build_conf)
-        with cmd_cm() as (mod_path, cmd):
+        with cmd_cm(rust_spec) as (mod_path, cmd):
             mod_path = Path(mod_path)
             populate_mod(mod_path)
 
