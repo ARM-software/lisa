@@ -62,22 +62,7 @@ int __placeholder_deinit(struct feature *feature);
 
 #define __FEATURE_NAME(name) __lisa_feature_##name
 
-/* Weak definition, can be useful to deal with compiled-out features */
-#define __DEFINE_FEATURE_WEAK(feature_name)				\
-	__attribute__((weak)) DEFINE_MUTEX(__lisa_mutex_feature_##feature_name); \
-	__attribute__((weak)) struct feature __FEATURE_NAME(feature_name) = { \
-		.name = #feature_name,					\
-		.data = NULL,						\
-		.enabled = 0,						\
-		.__explicitly_enabled = 0,				\
-		.enable = __placeholder_init,				\
-		.disable = __placeholder_deinit,			\
-		.lock = &__lisa_mutex_feature_##feature_name,		\
-		.__internal = true,					\
-		.__enable_ret = 0,					\
-	};
-
-#define __DEFINE_FEATURE_STRONG(feature_name, enable_f, disable_f, internal)	\
+#define __DEFINE_FEATURE(feature_name, enable_f, disable_f, internal)	\
 	DEFINE_MUTEX(__lisa_mutex_feature_##feature_name);		\
 	struct feature __FEATURE_NAME(feature_name) __attribute__((unused,section(".__lisa_features"))) = { \
 		.name = #feature_name,					\
@@ -102,7 +87,7 @@ int __placeholder_deinit(struct feature *feature);
  * DISABLE_FEATURE() on all the features that were enabled by ENABLE_FEATURE()
  * in enable_f() in order to keep accurate reference-counting.
  */
-#define DEFINE_FEATURE(feature_name, enable_f, disable_f) __DEFINE_FEATURE_STRONG(feature_name, enable_f, disable_f, false)
+#define DEFINE_FEATURE(feature_name, enable_f, disable_f) __DEFINE_FEATURE(feature_name, enable_f, disable_f, false)
 
 /**
  * DEFINE_INTERNAL_FEATURE() - Same as DEFINE_FEATURE() but for internal features.
@@ -112,23 +97,7 @@ int __placeholder_deinit(struct feature *feature);
  * multiple other features, e.g. to initialize and teardown the use of a kernel
  * API (workqueues, tracepoints etc).
  */
-#define DEFINE_INTERNAL_FEATURE(feature_name, enable_f, disable_f) __DEFINE_FEATURE_STRONG(feature_name, enable_f, disable_f, true)
-
-/**
- * DECLARE_FEATURE() - Declare a feature to test for its presence dynamically.
- * @feature_name: Name of the feature to declare.
- *
- * Very similar to DEFINE_FEATURE() but for user code that wants to deal with
- * features that might be entirely compiled-out. If the feature is compiled-in,
- * DECLARE_FEATURE() will essentially be a no-op. If the feature is
- * compiled-out, DECLARE_FEATURE() will still allow making use of it so that its
- * initialization fails with an error message, and its presence can be tested
- * with FEATURE_IS_AVAILABLE().
- *
- * Note that because of weak symbols limitations, a given compilation unit
- * cannot contain both DECLARE_FEATURE() and DEFINE_FEATURE().
- */
-#define DECLARE_FEATURE(feature_name) __DEFINE_FEATURE_WEAK(feature_name)
+#define DEFINE_INTERNAL_FEATURE(feature_name, enable_f, disable_f) __DEFINE_FEATURE(feature_name, enable_f, disable_f, true)
 
 /**
  * FEATURE() - Pointer the the struct feature
@@ -140,17 +109,6 @@ int __placeholder_deinit(struct feature *feature);
 	extern struct feature __FEATURE_NAME(name);	\
 	&__FEATURE_NAME(name);				\
 })
-
-/**
- * FEATURE_IS_AVAILABLE() - Runtime check if a feature is available.
- * @name: name of the feature
- *
- * Useful in conjunction with DECLARE_FEATURE() to test if a feature is available.
- * Note that it's not necessary to use it before calling
- * ENABLE_FEATURE()/DISABLE_FEATURE() in simple cases as they will fail with an
- * appropriate error message if the feature is missing.
- */
-#define FEATURE_IS_AVAILABLE(name) (FEATURE(name)->enable != &__placeholder_init)
 
 /**
  * ENABLE_FEATURE() - Enable a feature
