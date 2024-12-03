@@ -150,4 +150,31 @@ int init_features(char **selected, size_t selected_len);
  * Return: non-zero in case of errors.
  */
 int deinit_features(void);
+
+/**
+ * feature_name() - Get feature's name
+ * @feature: Pointer to feature to get the name of.
+ *
+ */
+static inline const char *feature_name(struct feature* feature) {
+	return feature->name;
+}
+
+/**
+ * feature_data() - Get feature's data pointer
+ * @feature: Pointer to feature to get the data of.
+ *
+ */
+static inline void *feature_data(struct feature* feature) {
+	return feature->data;
+}
+
+/**
+ * feature_set_data() - Set feature's data pointer
+ * @feature: Pointer to feature to set the data of.
+ *
+ */
+static inline void feature_data_set(struct feature* feature, void *data) {
+	feature->data = data;
+}
 #endif
