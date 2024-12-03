@@ -1,5 +1,3 @@
-cargo-features = ["edition2024"]
-
 [package]
 name = "lisakmod"
 version = "0.1.0"
@@ -9,6 +7,9 @@ edition = "2024"
 crate-type = ["staticlib"]
 
 [dependencies]
+anyhow = { version = "1.0", default-features = false }
+itertools = {version = "0.13", default-features = false, features = ["use_alloc"]}
+linkme = "0.3.31"
 # hashbrown = "0.15"
 lisakmod_macros = { path = "../lisakmod-macros" }
 

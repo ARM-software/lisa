@@ -26,7 +26,7 @@ pub(crate) fn concatcp(args: TokenStream) -> Result<TokenStream, Error> {
 
     let item_names: Vec<Ident> = items
         .iter()
-        .map(|_| format_ident!("__concat_item_{}", get_random()))
+        .map(|_| format_ident!("__concat_item_{:0>39}", get_random()))
         .collect();
 
     let out = quote! {
