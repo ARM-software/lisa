@@ -254,7 +254,19 @@ for arg in "${args[@]}"; do
         ;;&
 
     "--install-kernel-build-dependencies" | "--install-all")
-        apt_packages+=(build-essential gcc bc bison flex libssl-dev libncurses5-dev libelf-dev pahole)
+        apt_packages+=(build-essential gcc bc bison flex libssl-dev libncurses5-dev libelf-dev)
+
+        if test_os_release NAME "Ubuntu"; then
+            case $(read_os_release VERSION_ID) in
+                # Ubuntu Jammy 22.04 does ship a pahole package
+                "18.04" | "18.10" | "19.04" | "19.10" | "20.04" | "20.10" | "21.04" | "21.10" | "22.10" | "23.04" | "23.10")
+                    apt_packages+=(dwarves)
+                    ;;
+                *)
+                    apt_packages+=(pahole)
+                    ;;
+            esac
+        fi
 
         handled=1
         ;;&
