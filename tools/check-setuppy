@@ -38,7 +38,7 @@ def main():
         (
             os.getenv('LISA_VENV_PATH')
             if int(os.getenv('LISA_USE_VENV', '0')) else
-            os.getenv('LISA_HOME')
+            LISA_HOME
         ),
         '.lisa-install-commit'
     )
