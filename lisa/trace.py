@@ -4564,8 +4564,10 @@ class _TraceCache(Loggable):
         if fmt == 'disk-only':
             return
         elif fmt == 'parquet':
+            return
             self._data_to_parquet(data, path)
         elif fmt == 'polars-lazyframe':
+            return
             assert isinstance(data, pl.LazyFrame)
 
             def to_parquet():
