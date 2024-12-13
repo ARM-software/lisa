@@ -31,6 +31,7 @@ import pickle
 import shutil
 import shlex
 from urllib.parse import urlparse
+import itertools
 
 from sphinx.domains.python import PythonDomain
 
@@ -45,7 +46,7 @@ sys.path.insert(0, os.path.abspath('../'))
 
 # Import our packages after modifying sys.path
 import lisa
-from lisa.utils import sphinx_nitpick_ignore, setup_logging, get_obj_name, DirCache
+from lisa.utils import sphinx_nitpick_ignore, setup_logging, get_obj_name, DirCache, resolve_dotted_name
 from lisa.version import VERSION_TOKEN
 from lisa._doc.helpers import (
     autodoc_process_test_method, autodoc_process_analysis_events,
@@ -55,6 +56,7 @@ from lisa._doc.helpers import (
     DocPlotConf, autodoc_pre_make_plots,
     intersphinx_warn_missing_reference_handler,
 )
+from lisa.analysis.base import TraceAnalysisBase
 
 import devlib
 
@@ -225,7 +227,30 @@ def prepare(home, enable_plots, outdir):
 
     plot_conf_path = Path(home, 'doc', 'plot_conf.yml')
     if enable_plots:
+
+        def get_plot_methods(names=None):
+            meths = set(itertools.chain.from_iterable(
+                subclass.get_plot_methods()
+                for subclass in TraceAnalysisBase.get_analysis_classes().values()
+            ))
+
+            if names is None:
+                return meths
+            else:
+                meths = {
+                    get_obj_name(f): f
+                    for f in meths
+                }
+                return {
+                    f
+                    for name in names
+                    if (f := meths.get(name))
+                }
+
         def populate(key, temp_path):
+            (names, *_) = key
+            plot_methods = get_plot_methods(names)
+
             # We pre-generate all the plots, otherwise we would end up running
             # polars code in a multiprocessing subprocess created by forking
             # CPython, leading to deadlocks:
@@ -233,7 +258,15 @@ def prepare(home, enable_plots, outdir):
             hv.extension('bokeh')
 
             plot_conf = DocPlotConf.from_yaml_map(plot_conf_path)
-            plots = autodoc_pre_make_plots(plot_conf)
+            plots = autodoc_pre_make_plots(plot_conf, plot_methods)
+            plots = {
+                # Serialize by name so pickle does not raise an exception
+                # because of the wrappers with the updated __qualname__ and
+                # __module__. Otherwise, their name resolves to something else
+                # and it pickle does not allow that.
+                get_obj_name(k): v
+                for k, v in plots.items()
+            }
             with open(temp_path / 'plots.pickle', 'wb') as f:
                 pickle.dump(plots, f)
 
@@ -260,8 +293,13 @@ def prepare(home, enable_plots, outdir):
         import panel as pn
         import jupyterlab
 
+        plot_methods = {
+            get_obj_name(f): f
+            for f in get_plot_methods()
+        }
         dir_cache = DirCache('doc_plots', populate=populate)
         key = (
+            sorted(plot_methods.keys()),
             hv.__version__,
             bokeh.__version__,
             pn.__version__,
@@ -269,8 +307,12 @@ def prepare(home, enable_plots, outdir):
             plot_conf_path.read_text(),
         )
         cache_path = dir_cache.get_entry(key)
+
         with open(cache_path / 'plots.pickle', 'rb') as f:
-            plots = pickle.load(f)
+            plots = {
+                plot_methods[name]: v
+                for name, v in pickle.load(f).items()
+            }
 
         for _path in notebooks:
             shutil.copy2(
