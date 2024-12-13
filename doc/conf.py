@@ -222,6 +222,8 @@ def prepare(home, enable_plots, outdir):
     notebooks = [
         'examples/analysis_plots.ipynb',
     ]
+
+    plot_conf_path = Path(home, 'doc', 'plot_conf.yml')
     if enable_plots:
         def populate(key, temp_path):
             # We pre-generate all the plots, otherwise we would end up running
@@ -230,7 +232,6 @@ def prepare(home, enable_plots, outdir):
             # https://github.com/sphinx-doc/sphinx/issues/12201
             hv.extension('bokeh')
 
-            plot_conf_path = Path(home, 'doc', 'plot_conf.yml')
             plot_conf = DocPlotConf.from_yaml_map(plot_conf_path)
             plots = autodoc_pre_make_plots(plot_conf)
             with open(temp_path / 'plots.pickle', 'wb') as f:
@@ -265,6 +266,7 @@ def prepare(home, enable_plots, outdir):
             bokeh.__version__,
             pn.__version__,
             jupyterlab.__version__,
+            plot_conf_path.read_text(),
         )
         cache_path = dir_cache.get_entry(key)
         with open(cache_path / 'plots.pickle', 'rb') as f:
