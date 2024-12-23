@@ -256,7 +256,7 @@ def prepare(home, enable_plots, outdir):
                 }
 
         def populate(key, temp_path):
-            (names, *_) = key
+            (names, notebooks, *_) = key
             plot_methods = get_plot_methods(names)
 
             # We pre-generate all the plots, otherwise we would end up running
@@ -279,6 +279,8 @@ def prepare(home, enable_plots, outdir):
                 pickle.dump(plots, f)
 
             for _path in notebooks:
+                _path = Path(_path)
+
                 in_path = notebooks_in_base / _path
                 out_path = temp_path / 'ipynb' / _path
                 out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -286,6 +288,7 @@ def prepare(home, enable_plots, outdir):
                     out_path.unlink()
                 except FileNotFoundError:
                     pass
+
                 logging.info(f'Refreshing notebook: {in_path}')
                 subprocess.check_call([
                     'jupyter',
@@ -308,6 +311,7 @@ def prepare(home, enable_plots, outdir):
         dir_cache = DirCache('doc_plots', populate=populate)
         key = (
             sorted(plot_methods.keys()),
+            notebooks,
             hv.__version__,
             bokeh.__version__,
             pn.__version__,
