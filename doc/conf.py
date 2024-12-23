@@ -95,6 +95,14 @@ def getvar(name, default=_NO_DEFAULT):
         return v
 
 
+def copy_file(src, dst):
+    src = Path(src)
+    dst = Path(dst)
+
+    dst.unlink(missing_ok=True)
+    shutil.copy2(src, dst)
+
+
 def prepare(home, enable_plots, outdir):
     configs = {}
     outdir = Path(outdir).resolve()
@@ -315,7 +323,7 @@ def prepare(home, enable_plots, outdir):
             }
 
         for _path in notebooks:
-            shutil.copy2(
+            copy_file(
                 cache_path / 'ipynb' / _path,
                 Path(home, 'doc', 'workflows', 'ipynb') / _path,
             )
@@ -323,7 +331,7 @@ def prepare(home, enable_plots, outdir):
     else:
         plots = {}
         for _path in notebooks:
-            shutil.copy2(
+            copy_file(
                 notebooks_in_base / _path,
                 Path(home, 'doc', 'workflows', 'ipynb') / _path,
             )
