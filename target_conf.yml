@@ -67,10 +67,10 @@ target-conf:
 
     # Optional devlib configuration
     # devlib:
-        # Devlib modules names to enable/disbale for all the experiment
+        # Devlib modules names to enable/disable for all the experiment
         # excluded-modules: []
         #
-        # devlib Platform sublcass to use, with the keyword arguments to use it
+        # devlib Platform subclass to use, with the keyword arguments to use it
         # platform:
             # Defaults to devlib.platform.Platform
             # class: devlib.platform.Platform

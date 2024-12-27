@@ -165,6 +165,10 @@ doc-plot-conf:
             trace: !call:lisa.trace.Trace
                 trace_path: !env:interpolate $LISA_HOME/doc/traces/trace_pixel6.dat
 
+        Pixel9Analysis.plot_power_meter:
+            trace: !call:lisa.trace.Trace
+                trace_path: !env:interpolate $LISA_HOME/doc/traces/trace_pixel6.dat
+
         NotebookAnalysis.plot_event_field:
             kwargs:
                 event: cpu_frequency
