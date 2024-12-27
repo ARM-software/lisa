@@ -225,7 +225,7 @@ Later on, the processing methods can be run from the data collected:
   processing code over the set of data acquired during an earlier session. A
   typical use case would be to look at the impact of changing a margin of a
   test like the ``energy_est_threshold_pct`` parameter of
-  :meth:`~lisa_tests.kernel..scheduler.eas_behaviour.EASBehaviour.test_task_placement`
+  :meth:`~lisa_tests.arm.kernel.scheduler.eas_behaviour.EASBehaviour.test_task_placement`
 
 Aggregating results
 -------------------

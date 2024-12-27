@@ -46,13 +46,29 @@ import polars as pl
 import pandas as pd
 
 
-from lisa.utils import Loggable, deprecate, get_doc_url, get_short_doc, get_subclasses, guess_format, is_running_ipython, measure_time, memoized, update_wrapper_doc, _import_all_submodules, optional_kwargs
+from lisa.utils import Loggable, deprecate, get_doc_url, get_short_doc, get_subclasses, guess_format, is_running_ipython, measure_time, memoized, update_wrapper_doc, _import_all_submodules, optional_kwargs, get_parent_namespace
 from lisa.trace import _CacheDataDesc
 from lisa.notebook import _hv_fig_to_pane, _hv_link_dataframes, _hv_has_options, axis_cursor_delta, axis_link_dataframes, make_figure
 from lisa.datautils import _df_to, _pandas_cleanup_df
 
 # Ensure hv.extension() is called
 import lisa.notebook
+
+# Make sure we associate each plot method with a single wrapped object, so that
+# the resulting wrapper can be used as a key in dictionaries.
+@functools.lru_cache(maxsize=None, typed=True)
+def _wrap_plot_method(cls, f):
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        return f(*args, **kwargs)
+
+    # Wrap the method so that we record the actual class they were
+    # looked up on, rather than the base class they happen to be
+    # defined in.
+    wrapper.__qualname__ = f'{cls.__qualname__}.{f.__name__}'
+    wrapper.__module__ = cls.__module__
+    return wrapper
+
 
 
 class AnalysisHelpers(Loggable, abc.ABC):
@@ -393,7 +409,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
 
     @classmethod
     def _get_doc_methods(cls, prefix, instance=None, ignored=None):
-        ignored = set(ignored) or set()
+        ignored = set(ignored or [])
         obj = instance if instance is not None else cls
 
         def predicate(f):
@@ -410,7 +426,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
             )
 
         return [
-            f
+            _wrap_plot_method(cls, f)
             for name, f in inspect.getmembers(obj, predicate=predicate)
             if f not in ignored
         ]
@@ -1368,20 +1384,15 @@ class TraceAnalysisBase(AnalysisHelpers):
         it and call the resulting bound method with ``meth_kwargs`` extra
         keyword arguments.
         """
-        for subcls in cls.get_analysis_classes().values():
-            for name, f in inspect.getmembers(subcls):
-                if f is meth:
-                    break
-            else:
-                continue
-            break
+        classes = cls.get_analysis_classes().values()
+        subcls = get_parent_namespace(meth)
+        if subcls in classes:
+            # Create an analysis instance and bind the method to it
+            analysis = subcls(trace=trace)
+            meth = meth.__get__(analysis, type(analysis))
+
+            return meth(**meth_kwargs)
         else:
-            raise ValueError(f'{meth.__qualname__} is not a method of any subclasses of {cls.__qualname__}')
-
-        # Create an analysis instance and bind the method to it
-        analysis = subcls(trace=trace)
-        meth = meth.__get__(analysis, type(analysis))
-
-        return meth(**meth_kwargs)
+            raise ValueError(f'Parent class of {meth} is not a registered analysis')
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
