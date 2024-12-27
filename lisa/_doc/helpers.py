@@ -1970,7 +1970,7 @@ class DocPlotConf(SimpleMultiSrcConf):
         KeyDesc('plots', 'Mapping of function qualnames to their settings', [Mapping], deepcopy_val=False),
     ))
 
-def autodoc_pre_make_plots(conf):
+def autodoc_pre_make_plots(conf, plot_methods):
     def spec_of_meth(conf, meth_name):
         plot_conf = conf['plots']
         default_spec = plot_conf.get('default', {})
@@ -2037,11 +2037,6 @@ def autodoc_pre_make_plots(conf):
             print(f'Plot for {meth.__qualname__} generated in {m.delta}s')
             return rst_figure
 
-    plot_methods = set(itertools.chain.from_iterable(
-        subclass.get_plot_methods()
-        for subclass in TraceAnalysisBase.get_analysis_classes().values()
-    ))
-
     preload_events(conf, plot_methods)
     plots = {
         meth: _make_plot(meth)
@@ -2055,7 +2050,6 @@ def autodoc_process_analysis_plots(app, what, name, obj, options, lines, plots):
     if what != 'method':
         return
 
-    name = get_obj_name(obj)
     try:
         rst_figure = plots[name]
     except KeyError:
@@ -2066,20 +2060,23 @@ def autodoc_process_analysis_plots(app, what, name, obj, options, lines, plots):
             lines[:0] = rst_figure.splitlines()
 
 
-def ana_invocation(obj):
-    methods = {
-        func: subclass
-        for subclass in TraceAnalysisBase.get_analysis_classes().values()
-        for name, func in inspect.getmembers(subclass, callable)
-    }
+def ana_invocation(obj, name=None):
+    if callable(obj):
+        if name:
+            try:
+                cls = _get_parent_namespace(name)
+            except ModuleNotFoundError:
+                raise ValueError(f'Cannot compute the parent namespace of: {obj}')
+        else:
+            cls = get_parent_namespace(obj)
 
-    try:
-        cls = methods[obj]
-    except (KeyError, TypeError):
-        raise ValueError(f'Could not find method {obj}')
+        if cls and (not inspect.ismodule(cls)) and issubclass(cls, AnalysisHelpers):
+            on_trace_name = f'trace.ana.{cls.name}.{obj.__name__}'
+            return f"*Called on* :class:`~lisa.trace.Trace` *instances as* ``{on_trace_name}()``"
+        else:
+            raise ValueError(f'{obj} is not a method of an analysis class')
     else:
-        on_trace_name = f'trace.ana.{cls.name}.{obj.__name__}'
-        return f"*Called on* :class:`~lisa.trace.Trace` *instances as* ``{on_trace_name}()``"
+        raise ValueError(f'{obj} is not a method')
 
 
 def autodoc_process_analysis_methods(app, what, name, obj, options, lines):
@@ -2087,7 +2084,7 @@ def autodoc_process_analysis_methods(app, what, name, obj, options, lines):
     Append the list of required trace events
     """
     try:
-        extra_doc = ana_invocation(obj)
+        extra_doc = ana_invocation(obj, name)
     except ValueError:
         pass
     else:

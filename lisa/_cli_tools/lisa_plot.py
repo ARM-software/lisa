@@ -308,7 +308,7 @@ Available plots:
         events = sorted(events)
         print('Parsing trace events: {}'.format(', '.join(events)))
 
-    trace = Trace(args.trace, plat_info=plat_info, events=events, normalize_time=args.normalize_time, write_swap=True)
+    trace = Trace(args.trace, plat_info=plat_info, events=events, normalize_time=args.normalize_time)
     if args.window:
         window = args.window
         def clip(l, x, r):
