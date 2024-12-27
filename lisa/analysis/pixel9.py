@@ -15,22 +15,28 @@
 # limitations under the License.
 #
 """
-Pixel 6-specific analysis.
+Pixel 9-specific analysis.
 """
 
 from lisa.analysis._pixel import PixelAnalysis
 
 
-class Pixel6Analysis(PixelAnalysis):
+class Pixel9Analysis(PixelAnalysis):
     """
-    Support for Pixel 6-specific data analysis
+    Support for Pixel 9-specific data analysis
     """
 
-    name = 'pixel6'
+    name = 'pixel9'
 
+    """
+    Power rail vs CPU/GPU cluster mapping
+
+    Power rail information is extracted from
+    https://cs.android.com/android/platform/superproject/main/+/main:device/google/caimito/thermal/thermal_info_config_tokay.json;l=628
+    """
     EMETER_CHAN_NAMES = {
         'S4M_VDD_CPUCL0': 'CPU-Little',
-        'S3M_VDD_CPUCL1': 'CPU-Mid',
-        'S2M_VDD_CPUCL2': 'CPU-Big',
+        'S2M_VDD_CPUCL1': 'CPU-Mid',
+        'S3M_VDD_CPUCL2': 'CPU-Big',
         'S2S_VDD_G3D': 'GPU',
     }
