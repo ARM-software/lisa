@@ -483,12 +483,14 @@ class _BTFStructUnion(_CDecl, BTFType):
             for member in self.members:
                 member._dump_c_introspection(ctx)
 
-    def _do_dump_c_decls(self, ctx, anonymous=False, memoize=True):
+    def _do_dump_c_decls(self, ctx, anonymous=False, memoize=True, parents=None):
         members = self._all_members
         size = self.size
         kind = self._KIND
         name = self.name or ctx.make_name()
         fwd_decl = f'{kind} {name}'
+        _parents = parents or []
+        children_parents = (*_parents, self)
 
         def format_member(member):
             name = member.name
@@ -507,7 +509,7 @@ class _BTFStructUnion(_CDecl, BTFType):
                 # back an internal typedef, which would break the layout of the
                 # parent struct. Anonymous union/struct are only useful if
                 # their declaration are expanded in the parent.
-                return typ._dump_c_decls(ctx, anonymous=True, memoize=False)
+                return typ._dump_c_decls(ctx, anonymous=True, memoize=False, parents=children_parents)
             else:
                 raise ValueError(f'Unsupported anonymous member in {self}')
 
@@ -519,7 +521,7 @@ class _BTFStructUnion(_CDecl, BTFType):
             assert byte_offset >= 0
             return f'_Static_assert(__builtin_offsetof({fwd_decl}, {name}) == {byte_offset}ull, "{fwd_decl}.{name} does not have the expected offset: {byte_offset}")'
 
-        attrs, last_padding = self._align_attribute
+        attrs, last_padding = self._align_attribute(parents=_parents)
         if last_padding:
             members = (*members, last_padding)
         attrs = attrs or ''
@@ -755,8 +757,7 @@ class BTFStruct(_BTFStructUnion):
             else:
                 return alignment
 
-    @property
-    def _align_attribute(self):
+    def _align_attribute(self, parents):
         members = self.members
         size = self.size
         min_alignment = self._min_alignment
@@ -776,13 +777,14 @@ class BTFStruct(_BTFStructUnion):
                 assert size >= min_size
                 last_padding = abs(size - min_size)
 
+                id_ = '_'.join(str(parent.id) for parent in parents)
                 padding = BTFPaddingMember(
                     # The name must be unique inside the struct
                     # (self._index) but also unique among sibling structs,
                     # as ISO C allows anonymous structs inside a top-level
                     # struct, behaving as if their content was inlined in
                     # the parent struct.
-                    name=f'____PADDING_{self.id}_{len(members) + 1}',
+                    name=f'____PADDING_{id_}_{self.id}_{len(members) + 1}',
                     size=last_padding,
                     bit_offset=min_size * 8,
                 )
@@ -812,9 +814,9 @@ class BTFUnion(_BTFStructUnion):
     def alignment(self):
         return self._min_alignment
 
-    @property
-    def _align_attribute(self):
+    def _align_attribute(self, parents):
         size = self.size
+        id_ = '_'.join(str(parent.id) for parent in parents)
         return (
             '__attribute__((packed))' if size % self._min_alignment else None,
             # Always add a padding member in unions since some unions are
@@ -827,7 +829,7 @@ class BTFUnion(_BTFStructUnion):
                 # as ISO C allows anonymous structs inside a top-level
                 # struct, behaving as if their content was inlined in
                 # the parent struct.
-                name=f'__ENSURE_UNION_SIZE_{self.id}_{len(self.members) + 1}',
+                name=f'____ENSURE_UNION_SIZE_{id_}_{self.id}_{len(self.members) + 1}',
                 size=size,
                 bit_offset=0,
             )
