@@ -151,8 +151,9 @@ $(RUST_OBJECT) $(RUST_C_SHIMS_H) $(RUST_C_SHIMS_C): $(RUST_BUILD_DIR) $(CARGO_TA
 	# EXTERN() command in a linker script since older GNU ld version seem
 	# to ignore the EXTERN() command with --gc-sections.
 	$(LD) --version
-	$(LD) $(KBUILD_LDFLAGS) $$(cat $(RUST_SYMBOLS_CLI)) --gc-sections -nostdlib -r -o $(RUST_OBJECT)_gced $(RUST_OBJECT)
-	mv $(RUST_OBJECT)_gced $(RUST_OBJECT)
+	# Some versions of ld.lld are broken and this will not work. In that
+	# case, we just let it be and the binary will simply be bigger
+	($(LD) $(KBUILD_LDFLAGS) $$(cat $(RUST_SYMBOLS_CLI)) --gc-sections -nostdlib -r -o $(RUST_OBJECT)_gced.o $(RUST_OBJECT) && mv $(RUST_OBJECT)_gced.o $(RUST_OBJECT)) || true
 
 	# Only keep as GLOBAL symbols the ones that are to be exported (and the
 	# undefined ones to be provided by C code)
