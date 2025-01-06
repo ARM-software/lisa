@@ -134,7 +134,12 @@ $(RUST_OBJECT) $(RUST_C_SHIMS_H) $(RUST_C_SHIMS_C): $(RUST_BUILD_DIR) $(CARGO_TA
 	# binary, so they can be compiled and linked later.
 	mkdir -p "$(RUST_C_SHIMS_DIR)"
 	touch $(RUST_C_SHIMS_DIR)/shim_.binstore.c.header. $(RUST_C_SHIMS_DIR)/shim_.binstore.c.code.
-	$(OBJDUMP) -h $(RUST_OBJECT) | awk '{ print $$2 }' | grep '^.binstore.c.' | xargs -n1 sh -c '$(OBJCOPY) --dump-section $$0=$(RUST_C_SHIMS_DIR)/shim_$$0 $(RUST_OBJECT) /dev/null'
+	# Both llvm-objdump and llvm-objcopy can have a bug where the input
+	# file is overwritten by some garbage. This therefore destroys rust.o,
+	# which we unfortunately need intact for linking, so we make a copy for
+	# each of those tool to play with.
+	cp $(RUST_OBJECT) $(RUST_OBJECT)_objdump.o
+	$(OBJDUMP) -h $(RUST_OBJECT)_objdump.o | awk '{ print $$2 }' | grep '^.binstore.c.' | xargs -n1 sh -c 'cp -f $(RUST_OBJECT) $(RUST_OBJECT)_objcopy.o && $(OBJCOPY) --dump-section $$0=$(RUST_C_SHIMS_DIR)/shim_$$0 $(RUST_OBJECT)_objcopy.o $(RUST_OBJECT)_objcopy.fake_out.o; rm $(RUST_OBJECT)_objcopy.fake_out.o 2>/dev/null || true'
 	LC_ALL=C cat $(RUST_C_SHIMS_DIR)/shim_.binstore.c.header.* > $(RUST_C_SHIMS_H)
 	LC_ALL=C cat $(RUST_C_SHIMS_DIR)/shim_.binstore.c.code.* > $(RUST_C_SHIMS_C)
 	cat $(RUST_C_SHIMS_H) $(RUST_C_SHIMS_C) | if which clang-format 2>&1 1>/dev/null; then clang-format; else cat; fi
@@ -146,8 +151,9 @@ $(RUST_OBJECT) $(RUST_C_SHIMS_H) $(RUST_C_SHIMS_C): $(RUST_BUILD_DIR) $(CARGO_TA
 	# EXTERN() command in a linker script since older GNU ld version seem
 	# to ignore the EXTERN() command with --gc-sections.
 	$(LD) --version
-	$(LD) $(KBUILD_LDFLAGS) $$(cat $(RUST_SYMBOLS_CLI)) --gc-sections -nostdlib -r -o $(RUST_OBJECT)_gced $(RUST_OBJECT)
-	mv $(RUST_OBJECT)_gced $(RUST_OBJECT)
+	# Some versions of ld.lld are broken and this will not work. In that
+	# case, we just let it be and the binary will simply be bigger
+	($(LD) $(KBUILD_LDFLAGS) $$(cat $(RUST_SYMBOLS_CLI)) --gc-sections -nostdlib -r -o $(RUST_OBJECT)_gced.o $(RUST_OBJECT) && mv $(RUST_OBJECT)_gced.o $(RUST_OBJECT)) || true
 
 	# Only keep as GLOBAL symbols the ones that are to be exported (and the
 	# undefined ones to be provided by C code)
