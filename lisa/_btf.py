@@ -249,7 +249,7 @@ class _CDeclSpecifier(_TransparentType, _CDecl, BTFType):
     def __str__(self):
         return self._c_specifier
 
-    def _do_dump_c_decls(self, ctx, anonymous=False, memoize=True):
+    def _do_dump_c_decls(self, ctx, anonymous=False, **kwargs):
         typ = self.typ
 
         # It is important to dump anonymous struct/union as an inline
@@ -260,7 +260,7 @@ class _CDeclSpecifier(_TransparentType, _CDecl, BTFType):
             typename = typ._dump_c_decls(
                 ctx,
                 anonymous=anonymous,
-                memoize=memoize
+                **kwargs,
             )
             return f'{self._c_specifier} {typename}'
         # Qualifying a function type is forbidden by C spec. For some reason,
@@ -1177,9 +1177,9 @@ class BTFDeclTag(_TransparentType, _CDecl, BTFType):
         self.typ = typ
         self.component_idx = component_idx
 
-    def _do_dump_c_decls(self, ctx):
+    def _do_dump_c_decls(self, ctx, **kwargs):
         # TODO: actually add __attribute__((the btf_decl_tag()))
-        return self.typ._do_dump_c_decls(ctx)
+        return self.typ._do_dump_c_decls(ctx, **kwargs)
 
 
 class BTFTypeTag(_CDeclSpecifier):
