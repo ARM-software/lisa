@@ -32,11 +32,11 @@ From GitLab
 LISA is hosted on `GitLab <https://gitlab.arm.com/tooling/lisa>`_.
 The following references are available:
 
-    * ``main`` branch: Main development branch where pull requests are merged as they
-      come.
-    * ``release`` branch: Branch updated upon release of the ``lisa-linux`` package on
-      PyPI.
-    * ``vX.Y.Z`` tags: One tag per release of ``lisa-linux`` PyPI package.
+* ``main`` branch: Main development branch where pull requests are merged as they
+  come.
+* ``release`` branch: Branch updated upon release of the ``lisa-linux`` package on
+  PyPI.
+* ``vX.Y.Z`` tags: One tag per release of ``lisa-linux`` PyPI package.
 
 
 LISA has a minimum Python version requirement of:
@@ -66,10 +66,10 @@ that Ubuntu splits the Python distribution into multiple packages, which must
 all be installed. The list is available inside ``install_base.sh`` and is more
 or less:
 
-    * python3
-    * python3-pip
-    * python3-venv
-    * python3-tk
+* python3
+* python3-pip
+* python3-venv
+* python3-tk
 
 You might also find a ``python3.X-full`` package that contains everything you
 need.
@@ -133,21 +133,21 @@ Target installation
 LISA's "device under test" is called target. In order to be able to run e.g.
 tests on a target, you will need the provide a minimal environment composed of:
 
-    * An ``adb`` or ``ssh`` server
-    * For some tests, a working Python 3 installation
+* An ``adb`` or ``ssh`` server
+* For some tests, a working Python 3 installation
 
 This can be provided by a a regular GNU/Linux or Android distribution, but can
 also be done with a minimal buildroot environment. The benefits are:
 
-    * Almost no background task that can create issues when testing the Linux
-      kernel scheduler
-    * Can be used as a in-memory initramfs, thereby avoiding activity of USB or
-      NFS-related kthreads, as it has been the source of issues on some boards
-      with wonky USB support.
-    * Using initramfs has the added advantages of ease of deployment (can be
-      integrated in the kernel image, reducing the amount of assets to flash)
-      and avoids issues related to board state (a reboot fully resets the
-      userspace).
+* Almost no background task that can create issues when testing the Linux
+  kernel scheduler
+* Can be used as a in-memory initramfs, thereby avoiding activity of USB or
+  NFS-related kthreads, as it has been the source of issues on some boards
+  with wonky USB support.
+* Using initramfs has the added advantages of ease of deployment (can be
+  integrated in the kernel image, reducing the amount of assets to flash)
+  and avoids issues related to board state (a reboot fully resets the
+  userspace).
 
 Buildroot image creation is assisted with these commands, available in lisa
 shell :ref:`buildroot-commands`.
@@ -198,38 +198,38 @@ LISA Python package will compile and load the module automatically when required
 for tracing so there is usually no reason to do so manually. The most reliable
 way to configure LISA for building the module is:
 
-  * Kernel config (also available under ``$LISA_HOME/tools/kmodules/kconfig_fragment.config``):
+* Kernel config (also available under ``$LISA_HOME/tools/kmodules/kconfig_fragment.config``):
 
-    .. exec::
-       :literal:
+  .. exec::
+     :literal:
 
-        from pathlib import Path
-        from lisa._assets import ASSETS_PATH
-        frag_path = Path(ASSETS_PATH) / 'kmodules' / 'kconfig_fragment.config'
-        frag = frag_path.read_text()
-        print(frag)
+      from pathlib import Path
+      from lisa._assets import ASSETS_PATH
+      frag_path = Path(ASSETS_PATH) / 'kmodules' / 'kconfig_fragment.config'
+      frag = frag_path.read_text()
+      print(frag)
 
-  * Target configuration (:class:`lisa.target.TargetConf`):
+* Target configuration (:class:`lisa.target.TargetConf`):
 
-    .. code-block:: yaml
+  .. code-block:: yaml
 
-      target-conf:
-          kernel:
-              # If this is omitted, LISA will try to download a kernel.org
-              # released tarball. If the kernel has only minor differences with
-              # upstream, it will work, but can also result in compilation
-              # errors due to mismatching headers.
-              src: /home/foobar/linux/
-              modules:
-                  # This is not mandatory but will use a tested chroot to build
-                  # the module. If that is omitted, ``CROSS_COMPILE`` will be
-                  # used (and inferred if not set).
-                  build-env: alpine
+    target-conf:
+        kernel:
+            # If this is omitted, LISA will try to download a kernel.org
+            # released tarball. If the kernel has only minor differences with
+            # upstream, it will work, but can also result in compilation
+            # errors due to mismatching headers.
+            src: /home/foobar/linux/
+            modules:
+                # This is not mandatory but will use a tested chroot to build
+                # the module. If that is omitted, ``CROSS_COMPILE`` will be
+                # used (and inferred if not set).
+                build-env: alpine
 
-                  # It is advised not to set that, but in case overlayfs is
-                  # unusable (e.g. inside an LXC or docker container for a CI
-                  # system depending on config), this should do the trick.
-                  # overlay-backend: copy
+                # It is advised not to set that, but in case overlayfs is
+                # unusable (e.g. inside an LXC or docker container for a CI
+                # system depending on config), this should do the trick.
+                # overlay-backend: copy
 
 .. note:: If ``build-env: host`` is used (default), ensure that your setup is
     ready to compile a kernel. Notably, ensure that you have kernel build
@@ -247,15 +247,15 @@ events provided by the module are required).
 In order to improve interoperation with other systems, a CLI tool is also
 provided to load the module easily:
 
-  .. code-block:: sh
+.. code-block:: sh
 
-    # Compile and load the module.
-    lisa-load-kmod --conf target_conf.yml
+  # Compile and load the module.
+  lisa-load-kmod --conf target_conf.yml
 
-    # Runs "echo hello world" with the module loaded, then unloads it.
-    lisa-load-kmod --conf target_conf.yml -- echo hello world
+  # Runs "echo hello world" with the module loaded, then unloads it.
+  lisa-load-kmod --conf target_conf.yml -- echo hello world
 
-    # See # lisa-load-kmod --help for more options.
+  # See # lisa-load-kmod --help for more options.
 
 
 .. note:: The module name may be different if it was compiled manually vs
@@ -265,8 +265,8 @@ provided to load the module easily:
 
 Manual route
 ............
-  .. _manual-module-setup-warning:
-  .. _manual-module-setup-warning2:
+.. _manual-module-setup-warning:
+.. _manual-module-setup-warning2:
 
 Manual build of the module are not supported. You may be able to hack your way
 but if you do so, you are on your own. Also keep in mind that you will need to
