@@ -17,48 +17,17 @@
 
 # This would break the IN_TREE_BUILD detection
 ifeq ($(KBUILD_ABS_SRCTREE),1)
-$(error KBUILD_ABS_SRCTREE=1 is not handled by the lisa module
+$(error KBUILD_ABS_SRCTREE=1 is not handled by the lisa module)
 endif
 
-ifeq ($(srctree),.)
-	IN_TREE_BUILD := 0
-else
-	IN_TREE_BUILD := 1
-endif
-
-# Kbuild
+# Invoked by Kbuild
 ifneq ($(KERNELRELEASE),)
 	MODULE_OBJ := $(obj)
-	KERNEL_SRC ?= $(srctree)
-# Kbuild in-tree build
-ifeq ($(IN_TREE_BUILD),1)
-	MODULE_SRC ?= $(srctree)/$(src)
-# Kbuild out-of-tree build
-else
 	MODULE_SRC ?= $(src)
-endif
-# This did not lie:
-# https://tooling.sites.arm.com/lisa/latest/setup.html#manual-module-setup-warning2
-# Maintaining a patch to get in-tree build will be the least of your worries
-# before long.
-# If you remove this check, you won't be able to claim you have not been warned,
-# and you will forego any sort of support. The world is your oyster.
-ifeq ($(IN_TREE_BUILD),1)
-# There is a comment 2 lines above you should read
-$(error obscure error)
-# There is a comment 4 lines above you should read, seriously
-endif
-# There is a comment ... by now you know the drill.
-#
-# Note: asking for this snippet to be removed will ultimately result in pulling
-# the plug on the whole in-tree build support. Remove it on your local tree and
-# maintain the patch if you are motivated enough to deal with that. Pull
-# requests to fix issues related to in-tree build are welcome, *provided that
-# they were tested in normal flow as well*.
-# non-Kbuild
+	KERNEL_SRC ?= $(srctree)
 else
-	MODULE_SRC ?= $(PWD)
 	MODULE_OBJ := $(PWD)
+	MODULE_SRC ?= $(PWD)
 	KERNEL_SRC ?= /lib/modules/`uname -r`/build
 endif
 
@@ -163,6 +132,13 @@ $(RUST_OBJECT) $(RUST_C_SHIMS_H) $(RUST_C_SHIMS_C): $(RUST_BUILD_DIR) $(CARGO_TA
 	cp $(RUST_OBJECT) $(RUST_OBJECT)_shipped
 	touch $(RUST_OBJECT_CMD)
 
+# This rule is necessary as Kbuild cannot cope with absolute paths on the
+# object file list to link in the module. Unfortunately, make is not smart
+# enough to realize that the relative path being asked for is the same location
+# as the absolute path we use in $(RUST_OBJECT), so we need to make that
+# explicit here.
+generated/rust/rust.o: $(RUST_OBJECT)
+
 genbin: $(RUST_OBJECT)
 
 $(RUSTUP_HOME):
@@ -189,8 +165,8 @@ LISA_KMOD_NAME ?= lisa
 obj-m := $(LISA_KMOD_NAME).o
 $(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o introspection_data.o rust/lisakmod/runtime.o rust/lisakmod/tests.o generated/rust/rust.o
 
-# -fno-stack-protector is needed to possibly undefined __stack_chk_guard symbol
-ccflags-y := "-I$(MODULE_SRC)" -std=gnu11 -fno-stack-protector -Wno-declaration-after-statement -Wno-error
+# -fno-stack-protector is needed to avoid possibly undefined __stack_chk_guard symbol
+ccflags-y := "-I$(MODULE_SRC)" "-I$(MODULE_OBJ)" -std=gnu11 -fno-stack-protector -Wno-declaration-after-statement -Wno-error
 
 # Ensure we get appropriate debug info so that pahole can work on the object
 # file regardless of the kernel config.
@@ -203,13 +179,7 @@ SYMBOL_NAMESPACES_H := $(GENERATED)/symbol_namespaces.h
 MODULE_VERSION_H := $(GENERATED)/module_version.h
 KALLSYMS := $(GENERATED)/kallsyms
 
-ldflags-y += -T $(FEATURES_LDS) -T $(RUST_LDS)
-
-ifeq ($(IN_TREE_BUILD),1)
-ccflags-y += -I$(srctree) -D_IN_TREE_BUILD
-else
-ldflags-y += -T $(SYMBOLS_LDS)
-endif
+ldflags-y += -T $(FEATURES_LDS) -T $(RUST_LDS) -T $(SYMBOLS_LDS)
 
 INTROSPECTION_DATA_H := $(GENERATED)/introspection_data.h
 
@@ -222,11 +192,7 @@ _SYNTHETIC_VMLINUX := $(MODULE_OBJ)/introspection_data.o
 BTF_BLOB := $(GENERATED)/btf.blob
 
 ifeq ("$(wildcard $(_BTF_VMLINUX))","")
-ifeq ($(IN_TREE_BUILD),1)
-    VMLINUX := $(_SYNTHETIC_VMLINUX)
-else
     VMLINUX := $(_REAL_VMLINUX)
-endif
 else
     VMLINUX := $(_BTF_VMLINUX)
 endif
@@ -264,9 +230,10 @@ $(SYMBOLS_LDS): $(GENERATED) $(KALLSYMS)
 # There does not seem to be any other source for the info in e.g. sysfs or
 # procfs, so we rely on that hack for now.
 $(SYMBOL_NAMESPACES_H): $(GENERATED)
-	printf '#pragma once\n' > $@
+	printf '#pragma once\n#include "linux/module.h"\n#include "utils.h"\n' > $@
 	find "$(KERNEL_SRC)" '(' -name '*.c' -o -name '*.h' ')' -print0 | xargs -0 sed -n 's/MODULE_IMPORT_NS([^;]*;/\0/p' | sort -u >> $@
-	echo "MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);" >> $@
+	echo 'LISA_MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);' >> $@
+	cat $@
 
 $(MODULE_VERSION_H): $(GENERATED)
 	printf '#pragma once\n' > $@
@@ -280,8 +247,10 @@ $(MODULE_VERSION_H): $(GENERATED)
 $(KALLSYMS): $(GENERATED)
 	cat $(MODULE_SRC)/kallsyms > $@ || $(NM) $(_REAL_VMLINUX) > $@ || touch $@
 
-# Make all object files depend on the generated sources
-$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(INTROSPECTION_DATA_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H) $(SYMBOLS_LDS) $(RUST_CBINDGEN_H) $(RUST_C_SHIMS_H) $(RUST_C_SHIMS_C)
+# Make all object files depend on the generated sources. We use both the
+# relative and absolute paths as kernels <= 6.12 require an absolute path
+# whereas >= 6.13 requires a relative path.
+$($(LISA_KMOD_NAME)-y) $(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(INTROSPECTION_DATA_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H) $(SYMBOLS_LDS) $(RUST_CBINDGEN_H) $(RUST_C_SHIMS_H) $(RUST_C_SHIMS_C)
 
 # Non-Kbuild part
 else
