@@ -11,6 +11,9 @@
 #endif
 
 #include "linux/kernel.h"
+#include "linux/module.h"
+#include "linux/version.h"
+#include "linux/stringify.h"
 
 #define IGNORE_WARNING(warning, expr) ({ \
 	__diag_push(); \
@@ -34,5 +37,14 @@
 	), \
 	(type)(expr) \
 )
+
+
+// Kernel commit cdd30ebb1b9f36159d66f088b61aee264e649d7a changed
+// MODULE_IMPORT_NS() from taking an identifier to taking a string literal.
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,13,0)
+#    define LISA_MODULE_IMPORT_NS(ns) MODULE_IMPORT_NS(ns)
+#else
+#    define LISA_MODULE_IMPORT_NS(ns) MODULE_IMPORT_NS(__stringify(ns))
+#endif
 
 #endif /* _UTILS_H */
