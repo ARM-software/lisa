@@ -42,7 +42,7 @@ def get_used_env_var(recipe, env):
         if var in recipe_content
     }
 
-def get_env(asset=None, arch=None, host_arch=None, build_dir=None, cross_compile=None, recipe=None, use_musl=False, build_env=None):
+def get_env(asset=None, arch=None, host_arch=None, build_dir=None, tmp_dir=None, cross_compile=None, recipe=None, use_musl=False, build_env=None):
     # Set of env var "leaking" into the build environment. Controlling this set
     # ensures reproducible builds that do not depend on user setup.
     leaked = {'PATH'}
@@ -63,6 +63,7 @@ def get_env(asset=None, arch=None, host_arch=None, build_dir=None, cross_compile
         'CONFIGURE_BUILD': TRIPLETS[host_arch],
         'USE_MUSL_LIB': '1' if use_musl else None,
         'LISA_BUILD_ENV': build_env,
+        'TMPDIR': tmp_dir.resolve() if tmp_dir is not None else None,
     })
 
     env = {
@@ -104,7 +105,7 @@ def get_asset_property(asset, arch, property, is_array=False, **kwargs):
         return val.strip()
 
 @contextmanager
-def make_chroot(asset, arch, host_arch, build_dir, recipe_dir, arch_chroot_dir, build_env):
+def make_chroot(asset, arch, host_arch, build_dir, tmp_dir, recipe_dir, arch_chroot_dir, build_env):
     def get_prop(prop, is_array=False):
         return get_asset_property(
             asset=asset,
@@ -112,6 +113,7 @@ def make_chroot(asset, arch, host_arch, build_dir, recipe_dir, arch_chroot_dir, 
             host_arch=host_arch,
             property=prop,
             build_dir=build_dir,
+            tmp_dir=tmp_dir,
             recipe_dir=recipe_dir,
             arch_chroot_dir=arch_chroot_dir,
             is_array=is_array,
@@ -132,6 +134,7 @@ def make_chroot(asset, arch, host_arch, build_dir, recipe_dir, arch_chroot_dir, 
         bind_paths={
             LISA_HOME: LISA_HOME,
             build_dir: build_dir,
+            tmp_dir: tmp_dir,
         },
         overlay_backend='overlayfs',
     ) as chroot:
@@ -151,7 +154,7 @@ def chroot_cmd(cmd, env, chroot):
     cmd = ['chroot', chroot, 'sh', '-c', _cmd]
     return cmd
 
-def make(asset, arch, host_arch, actions, build_dir, recipe_dir, build_env, cross_compile=None, arch_chroot_dir=None, get_output=False):
+def make(asset, arch, host_arch, actions, build_dir, tmp_dir, recipe_dir, build_env, cross_compile=None, arch_chroot_dir=None, get_output=False):
     if get_output:
         # make() is sometimes expected to return the output of the 'actions'.
         # If so, use check_output() to exectute the 'actions'.
@@ -169,6 +172,7 @@ def make(asset, arch, host_arch, actions, build_dir, recipe_dir, build_env, cros
         arch=arch,
         host_arch=host_arch,
         build_dir=build_dir,
+        tmp_dir=tmp_dir,
         recipe=recipe,
         cross_compile=cross_compile,
         use_musl=bool(arch_chroot_dir),
@@ -188,102 +192,101 @@ def make(asset, arch, host_arch, actions, build_dir, recipe_dir, build_env, cros
     return output
 
 def make_asset(asset, host_arch, archs_to_make, build_dir, recipe_dir, cross_compiles=None, native_build=False, build_env='alpine'):
-    if build_dir:
-        # We do not want to empty an existing directory, as it might contain
-        # bind mounts and deleting that recursively may end up deleting e.g.
-        # LISA_HOME.
-        os.makedirs(build_dir, exist_ok=False)
-        cm = nullcontext(build_dir)
-    else:
-        cm = tempfile.TemporaryDirectory()
+    build_dir.mkdir(parents=True, exist_ok=False)
 
-    with cm as build_dir:
-        build_dir = Path(build_dir).resolve()
-        # Download sources once for all architectures
-        download_dir = build_dir / 'download'
-        os.makedirs(download_dir)
-        make(
-            asset=asset,
-            arch='any',
-            host_arch=host_arch,
-            actions=['download'],
-            build_dir=download_dir,
-            recipe_dir=recipe_dir,
-            cross_compile=None,
-            build_env=build_env,
+    # Download sources once for all architectures
+    download_dir = build_dir / 'download'
+    download_dir.mkdir()
+
+    tmp_dir = build_dir / 'tmp'
+    tmp_dir.mkdir()
+
+    make(
+        asset=asset,
+        arch='any',
+        host_arch=host_arch,
+        actions=['download'],
+        build_dir=download_dir,
+        tmp_dir=tmp_dir,
+        recipe_dir=recipe_dir,
+        cross_compile=None,
+        build_env=build_env,
+    )
+
+    # Build and install for each
+    for arch in archs_to_make:
+        arch_dir = build_dir / arch
+        arch_build_dir = arch_dir / 'source'
+        shutil.copytree(
+            download_dir,
+            arch_build_dir,
+            symlinks=True,
+            ignore_dangling_symlinks=True,
         )
 
-        # Build and install for each
-        for arch in archs_to_make:
-            arch_dir = build_dir / arch
-            arch_build_dir = arch_dir / 'source'
-            shutil.copytree(
-                download_dir,
-                arch_build_dir,
-                symlinks=True,
-                ignore_dangling_symlinks=True,
-            )
-
-            def get_prop(prop, default):
-                try:
-                    return get_asset_property(
-                        asset=asset,
-                        arch=arch,
-                        host_arch=host_arch,
-                        property=prop,
-                        recipe_dir=recipe_dir,
-                        build_dir=arch_build_dir,
-                        build_env=build_env,
-                   )
-                except ValueError:
-                    return default
-
-            alpine_version = get_prop('ALPINE_VERSION', default=None)
-            broken_cross_compilation = bool(int(get_prop(
-                'BROKEN_CROSS_COMPILATION',
-                # Assume broken cross compilation by default, as it is the vast
-                # majority of cases especially if the only cross compiler
-                # available is clang and there is no access to cross version of
-                # GNU binutils
-                default='1'
-            )))
-
-            builds_on_alpine = (build_env == 'alpine') and alpine_version
-            _native_build = native_build or broken_cross_compilation
-
-            if (not builds_on_alpine) and _native_build and host_arch != arch:
-                raise ValueError(f'Cannot achieve a native build with build env {build_env} on host architecture {host_arch} for target architecture {arch}')
-
-            if builds_on_alpine:
-                arch_chroot_dir = arch_dir / 'chroot'
-                chroot_cm = make_chroot(
-                    asset=asset,
-                    arch=arch if _native_build else host_arch,
-                    host_arch=host_arch,
-                    build_dir=arch_build_dir,
-                    recipe_dir=recipe_dir,
-                    arch_chroot_dir=arch_chroot_dir,
-                    build_env=build_env,
-                )
-            else:
-                 chroot_cm = nullcontext()
-
-            # Native build removes the need for CROSS_COMPILE and specifying
-            # the cross_compile
-            cross_compile = None if _native_build else (cross_compiles or {}).get(arch)
-
-            with chroot_cm as arch_chroot_dir:
-                make(
+        def get_prop(prop, default):
+            try:
+                return get_asset_property(
                     asset=asset,
                     arch=arch,
                     host_arch=host_arch,
-                    actions=['build', 'install'],
-                    build_dir=arch_build_dir,
+                    property=prop,
                     recipe_dir=recipe_dir,
-                    cross_compile=cross_compile,
-                    arch_chroot_dir=arch_chroot_dir,
+                    build_dir=arch_build_dir,
+                    tmp_dir=tmp_dir,
                     build_env=build_env,
-                )
+               )
+            except ValueError:
+                return default
+
+        alpine_version = get_prop('ALPINE_VERSION', default=None)
+        broken_cross_compilation = bool(int(get_prop(
+            'BROKEN_CROSS_COMPILATION',
+            # Assume broken cross compilation by default, as it is the vast
+            # majority of cases especially if the only cross compiler
+            # available is clang and there is no access to cross version of
+            # GNU binutils
+            default='1'
+        )))
+
+        builds_on_alpine = (build_env == 'alpine') and alpine_version
+        _native_build = native_build or broken_cross_compilation
+
+        if (not builds_on_alpine) and _native_build and host_arch != arch:
+            raise ValueError(f'Cannot achieve a native build with build env {build_env} on host architecture {host_arch} for target architecture {arch}')
+
+        if builds_on_alpine:
+            arch_chroot_dir = arch_dir / 'chroot'
+            chroot_cm = make_chroot(
+                asset=asset,
+                arch=arch if _native_build else host_arch,
+                host_arch=host_arch,
+                build_dir=arch_build_dir,
+                tmp_dir=tmp_dir,
+                recipe_dir=recipe_dir,
+                arch_chroot_dir=arch_chroot_dir,
+                build_env=build_env,
+            )
+        else:
+             chroot_cm = nullcontext()
+
+        # Native build removes the need for CROSS_COMPILE and specifying
+        # the cross_compile
+        cross_compile = None if _native_build else (cross_compiles or {}).get(arch)
+
+        with chroot_cm as arch_chroot_dir:
+            make(
+                asset=asset,
+                arch=arch,
+                host_arch=host_arch,
+                actions=['build', 'install'],
+                build_dir=arch_build_dir,
+                tmp_dir=tmp_dir,
+                recipe_dir=recipe_dir,
+                cross_compile=cross_compile,
+                arch_chroot_dir=arch_chroot_dir,
+                build_env=build_env,
+            )
 
 def error_missing_cross_compiles(parser, missing):
     parser.error(f'Missing CROSS_COMPILE, please specify: {", ".join(f"--{arch}-cross-compile" for arch in missing)}')
@@ -357,7 +360,6 @@ def main():
 
     native_build = args.native_build
     build_env = args.build_env
-    build_dir = Path(args.build_dir).resolve() if args.build_dir else None
     archs = ['all'] if args.arch is None else args.arch
     archs_to_make = tuple(ARCHITECTURES if 'all' in archs else archs)
 
@@ -383,22 +385,36 @@ def main():
 
     print(f'Will make {", ".join(assets_to_make)} for {", ".join(archs_to_make)}')
 
+    build_dir = args.build_dir
+    if build_dir:
+        # We do not want to empty an existing directory, as it might contain
+        # bind mounts and deleting that recursively may end up deleting e.g.
+        # LISA_HOME.
+        build_dir = Path(build_dir).resolve()
+        build_dir.mkdir(parents=True, exist_ok=False)
+        cm = nullcontext(str(build_dir))
+    else:
+        cm = tempfile.TemporaryDirectory()
+
     ret = 0
-    for asset in assets_to_make:
-        try:
-            make_asset(
-                asset=asset,
-                host_arch=host_arch,
-                archs_to_make=tuple(archs_to_make),
-                build_dir=build_dir,
-                recipe_dir=recipe_dir,
-                cross_compiles=cross_compiles,
-                native_build=native_build,
-                build_env=build_env,
-            )
-        except Exception as e:
-            print(f'\nError while making {asset}: {e}\n')
-            ret = 1
+    with cm as build_dir:
+        build_dir = Path(build_dir)
+
+        for asset in assets_to_make:
+            try:
+                make_asset(
+                    asset=asset,
+                    host_arch=host_arch,
+                    archs_to_make=tuple(archs_to_make),
+                    build_dir=build_dir / asset,
+                    recipe_dir=recipe_dir,
+                    cross_compiles=cross_compiles,
+                    native_build=native_build,
+                    build_env=build_env,
+                )
+            except Exception as e:
+                print(f'\nError while making {asset}: {e}\n')
+                ret = 1
 
     return ret
 
