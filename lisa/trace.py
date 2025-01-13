@@ -786,7 +786,7 @@ class MockTraceParser(TraceParserBase):
                 )
 
                 start, end = df.select(
-                    (pl.min('Time'), pl.max('Time'))
+                    (pl.min('Time').alias('min'), pl.max('Time').alias('max'))
                 ).collect().row(0)
 
                 start = Timestamp(start, unit='ns', rounding='down')
