@@ -551,7 +551,16 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
     logger = logging.getLogger(f'{__name__}.alpine_chroot')
 
     def mount_binds(chroot, bind_paths, mount=True):
-        for src, dst in bind_paths.items():
+        if mount:
+            _bind_paths = dict(bind_paths)
+        # Reverse order when umounting in case some bound paths are nested in
+        # each other. Otherwise, the nested mount point would fail to be
+        # unmounted because the path would have disappeared when the parent
+        # mount point would have been unmounted.
+        else:
+            _bind_paths = dict(reversed(bind_paths.items()))
+
+        for src, dst in _bind_paths.items():
             src = Path(src)
             dst = reroot(chroot, dst)
             # This will be unmounted by the destroy script
