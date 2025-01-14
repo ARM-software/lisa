@@ -15,11 +15,6 @@
 # limitations under the License.
 #
 
-# This would break the IN_TREE_BUILD detection
-ifeq ($(KBUILD_ABS_SRCTREE),1)
-$(error KBUILD_ABS_SRCTREE=1 is not handled by the lisa module)
-endif
-
 # Invoked by Kbuild
 ifneq ($(KERNELRELEASE),)
 	MODULE_OBJ := $(obj)
