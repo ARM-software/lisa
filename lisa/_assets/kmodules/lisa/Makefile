@@ -27,9 +27,6 @@ else
 endif
 
 GENERATED := $(MODULE_OBJ)/generated
-$(GENERATED):
-	rm -r "$@" 2>&1 || true
-	mkdir -p "$@"
 clean-files := $(GENERATED)
 
 RUST_VERSION ?= nightly
@@ -37,24 +34,26 @@ RUSTFLAGS := -Clinker=rust-lld -Clink-self-contained=y -Clto=n -Crelocation-mode
 
 LISA_EVAL_C := $(MODULE_SRC)/lisa-eval-c.sh
 
+RUSTUP_HOME ?= $(HOME)/.rustup
+CARGO_HOME ?= $(HOME)/.cargo
+
 RUST_SRC := $(MODULE_SRC)/rust/lisakmod
 RUST_LDS := $(RUST_SRC)/rust.lds
 RUST_GENERATED := $(GENERATED)/rust
 RUST_OBJECT := $(RUST_GENERATED)/rust.o
 RUST_OBJECT_CMD := $(RUST_GENERATED)/.rust.o.cmd
-RUST_CBINDGEN_H := $(RUST_SRC)/cbindgen.h
 RUST_C_SHIMS_H := $(RUST_GENERATED)/rust_c_shims.h
 RUST_C_SHIMS_C := $(RUST_GENERATED)/rust_c_shims.c
-RUST_C_SHIMS_DIR := $(RUST_GENERATED)/rust_c_shims
-
-RUSTUP_HOME ?= $(HOME)/.rustup
-CARGO_HOME ?= $(HOME)/.cargo
-CARGO_TARGET_DIR ?= $(RUST_BUILD_DIR)/target
 
 RUST_BUILD_DIR := $(RUST_GENERATED)/build
+RUST_C_SHIMS_DIR := $(RUST_BUILD_DIR)/rust_c_shims
+RUST_OBJECT_RAW := $(RUST_BUILD_DIR)/rust.raw.o
 RUST_SYMBOLS := $(RUST_BUILD_DIR)/exported.list
 RUST_SYMBOLS_CLI := $(RUST_BUILD_DIR)/exported.cli
+
+RUST_CBINDGEN_H := $(RUST_SRC)/cbindgen.h
 RUST_CBINDGEN_BIN := $(CARGO_HOME)/bin/cbindgen
+CARGO_TARGET_DIR ?= $(RUST_BUILD_DIR)/target
 
 # Export c_flags so that lisa-eval-c.sh can compile a C source with the
 # appropriate flags. Trying to pass down $(c_flags) via parameters or
@@ -72,41 +71,23 @@ export LISA_EVAL_C_CFLAGS=$(shell echo $(c_flags))
 rust_cmd = chmod +x '$(LISA_EVAL_C)' && export RUSTC_BOOTSTRAP=1 PATH="$(CARGO_HOME)/bin:$$PATH" 'RUSTUP_HOME=$(RUSTUP_HOME)' 'CARGO_HOME=$(CARGO_HOME)' 'CARGO_TARGET_DIR=$(CARGO_TARGET_DIR)' 'LISA_EVAL_C=$(LISA_EVAL_C)' && $(1)
 cargo_cmd = $(call rust_cmd,cargo +$(RUST_VERSION) $(1))
 
-$(RUST_GENERATED): $(GENERATED)
-	mkdir -p "$@"
-
-$(RUST_BUILD_DIR): $(RUST_GENERATED)
-	mkdir -p "$@"
-
-$(CARGO_TARGET_DIR):
+$(CARGO_TARGET_DIR) $(GENERATED) $(RUST_GENERATED) $(RUST_BUILD_DIR) $(RUST_C_SHIMS_DIR):
 	mkdir -p "$@"
 
 # Build the rust code into a static archive, then prelink it into an object
 # file and filter the symbols to only keep as GLOBAL the exported pub
 # #[no_mangle] ones. This avoids having tons of GLOBAL symbols from core lib.
-$(RUST_OBJECT) $(RUST_C_SHIMS_H) $(RUST_C_SHIMS_C): $(RUST_BUILD_DIR) $(CARGO_TARGET_DIR)
+$(RUST_OBJECT_RAW): $(RUST_BUILD_DIR) $(CARGO_TARGET_DIR)
 	# Build the crate into a static library
 	cd $(RUST_SRC) && export RUSTFLAGS="$(RUSTFLAGS)" && $(call cargo_cmd,build --release --target=$(RUST_SRC)/rustc_targets/$(ARCH)/target.json -Zbuild-std=core$(comma)alloc)
 
 	# Prelink the archive into a single object file.
-	$(LD) $(KBUILD_LDFLAGS) -nostdlib -r -o $(RUST_OBJECT) --whole-archive $(CARGO_TARGET_DIR)/target/release/liblisakmod.a
+	$(LD) $(KBUILD_LDFLAGS) -nostdlib -r -o $(RUST_OBJECT_RAW) --whole-archive $(CARGO_TARGET_DIR)/target/release/liblisakmod.a
 
+
+$(RUST_OBJECT): $(RUST_BUILD_DIR) $(RUST_OBJECT_RAW)
 	# Get the list of exported symbols
-	python3 "$(MODULE_SRC)/rust_exported_symbols.py" --rust-object $(RUST_OBJECT) --out-symbols-plain $(RUST_SYMBOLS) --out-symbols-cli $(RUST_SYMBOLS_CLI)
-
-	# Extract the C shims created by our inlinec Rust module from the
-	# binary, so they can be compiled and linked later.
-	mkdir -p "$(RUST_C_SHIMS_DIR)"
-	touch $(RUST_C_SHIMS_DIR)/shim_.binstore.c.header. $(RUST_C_SHIMS_DIR)/shim_.binstore.c.code.
-	# Both llvm-objdump and llvm-objcopy can have a bug where the input
-	# file is overwritten by some garbage. This therefore destroys rust.o,
-	# which we unfortunately need intact for linking, so we make a copy for
-	# each of those tool to play with.
-	cp $(RUST_OBJECT) $(RUST_OBJECT)_objdump.o
-	$(OBJDUMP) -h $(RUST_OBJECT)_objdump.o | awk '{ print $$2 }' | grep '^.binstore.c.' | xargs -n1 sh -c '$(OBJCOPY) --dump-section $$0=$(RUST_C_SHIMS_DIR)/shim_$$0 $(RUST_OBJECT) /dev/null'
-	LC_ALL=C cat $(RUST_C_SHIMS_DIR)/shim_.binstore.c.header.* > $(RUST_C_SHIMS_H)
-	LC_ALL=C cat $(RUST_C_SHIMS_DIR)/shim_.binstore.c.code.* > $(RUST_C_SHIMS_C)
-	cat $(RUST_C_SHIMS_H) $(RUST_C_SHIMS_C) | if which clang-format 2>&1 1>/dev/null; then clang-format; else cat; fi
+	python3 "$(MODULE_SRC)/rust_exported_symbols.py" --rust-object $(RUST_OBJECT_RAW) --out-symbols-plain $(RUST_SYMBOLS) --out-symbols-cli $(RUST_SYMBOLS_CLI)
 
 	# Garbage collect unused sections in the object file, after we have
 	# extracted the binstore sections (otherwise they get discarded).
@@ -115,9 +96,7 @@ $(RUST_OBJECT) $(RUST_C_SHIMS_H) $(RUST_C_SHIMS_C): $(RUST_BUILD_DIR) $(CARGO_TA
 	# EXTERN() command in a linker script since older GNU ld version seem
 	# to ignore the EXTERN() command with --gc-sections.
 	$(LD) --version
-	# Some versions of ld.lld are broken and this will not work. In that
-	# case, we just let it be and the binary will simply be bigger
-	($(LD) $(KBUILD_LDFLAGS) $$(cat $(RUST_SYMBOLS_CLI)) --gc-sections -nostdlib -r -o $(RUST_OBJECT)_gced.o $(RUST_OBJECT) && mv $(RUST_OBJECT)_gced.o $(RUST_OBJECT)) || true
+	$(LD) $(KBUILD_LDFLAGS) $$(cat $(RUST_SYMBOLS_CLI)) --gc-sections -nostdlib -r -o $(RUST_OBJECT) $(RUST_OBJECT_RAW)
 
 	# Only keep as GLOBAL symbols the ones that are to be exported (and the
 	# undefined ones to be provided by C code)
@@ -126,6 +105,22 @@ $(RUST_OBJECT) $(RUST_C_SHIMS_H) $(RUST_C_SHIMS_C): $(RUST_BUILD_DIR) $(CARGO_TA
 	# Provide the pre-built .o to Kbuild
 	cp $(RUST_OBJECT) $(RUST_OBJECT)_shipped
 	touch $(RUST_OBJECT_CMD)
+
+
+$(RUST_C_SHIMS_H): $(RUST_OBJECT_RAW) $(RUST_C_SHIMS_DIR)
+	# Extract the C shims created by our inlinec Rust module from the
+	# binary, so they can be compiled and linked later.
+
+	# Create some empty files so that the globbing pattern later on always
+	# matches something.
+	touch $(RUST_C_SHIMS_DIR)/shim_.binstore.c.header. $(RUST_C_SHIMS_DIR)/shim_.binstore.c.code.
+
+	cp $(RUST_OBJECT_RAW) $(RUST_OBJECT_RAW)_objdump.o
+	$(OBJDUMP) -h $(RUST_OBJECT_RAW)_objdump.o | awk '{ print $$2 }' | grep '^.binstore.c.' | sort | xargs -P$$(nproc) -n1 sh -c '$(OBJCOPY) --dump-section $$0=$(RUST_C_SHIMS_DIR)/shim_$$0 $(RUST_OBJECT_RAW) /dev/null'
+	LC_ALL=C cat $(RUST_C_SHIMS_DIR)/shim_.binstore.c.header.* > $(RUST_C_SHIMS_H)
+	LC_ALL=C cat $(RUST_C_SHIMS_DIR)/shim_.binstore.c.code.* > $(RUST_C_SHIMS_C)
+	cat $(RUST_C_SHIMS_H) $(RUST_C_SHIMS_C) | if which clang-format 2>&1 1>/dev/null; then clang-format; else cat; fi
+
 
 # This rule is necessary as Kbuild cannot cope with absolute paths on the
 # object file list to link in the module. Unfortunately, make is not smart
@@ -149,8 +144,6 @@ $(RUST_CBINDGEN_BIN): $(CARGO_HOME)
 # committed if it does not exist yet.
 refresh-rust-bindings: $(RUST_CBINDGEN_BIN)
 	cd $(RUST_SRC) && $(call rust_cmd,cbindgen --config $(RUST_SRC)/cbindgen.toml --lang c --crate lisakmod --output $(RUST_CBINDGEN_H))
-
-$(RUST_SYMBOLS): $(RUST_OBJECT)
 
 # kbuild part of makefile. Only Kbuild-related targets should be used here to
 # avoid any sort of clash.
@@ -245,7 +238,7 @@ $(KALLSYMS): $(GENERATED)
 # Make all object files depend on the generated sources. We use both the
 # relative and absolute paths as kernels <= 6.12 require an absolute path
 # whereas >= 6.13 requires a relative path.
-$($(LISA_KMOD_NAME)-y) $(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(INTROSPECTION_DATA_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H) $(SYMBOLS_LDS) $(RUST_CBINDGEN_H) $(RUST_C_SHIMS_H) $(RUST_C_SHIMS_C)
+$($(LISA_KMOD_NAME)-y) $(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(INTROSPECTION_DATA_H) $(SYMBOL_NAMESPACES_H) $(MODULE_VERSION_H) $(SYMBOLS_LDS) $(RUST_CBINDGEN_H) $(RUST_C_SHIMS_H)
 
 # Non-Kbuild part
 else
