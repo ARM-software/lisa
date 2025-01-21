@@ -79,7 +79,7 @@ $(CARGO_TARGET_DIR) $(GENERATED) $(RUST_GENERATED) $(RUST_BUILD_DIR) $(RUST_C_SH
 # #[no_mangle] ones. This avoids having tons of GLOBAL symbols from core lib.
 $(RUST_OBJECT_RAW): $(RUST_BUILD_DIR) $(CARGO_TARGET_DIR)
 	# Build the crate into a static library
-	cd $(RUST_SRC) && export RUSTFLAGS="$(RUSTFLAGS)" && $(call cargo_cmd,build --release --target=$(RUST_SRC)/rustc_targets/$(ARCH)/target.json -Zbuild-std=core$(comma)alloc)
+	cd $(RUST_SRC) && export RUSTFLAGS="$(RUSTFLAGS)" && $(call cargo_cmd,build --locked --release --target=$(RUST_SRC)/rustc_targets/$(ARCH)/target.json -Zbuild-std=core$(comma)alloc)
 
 	# Prelink the archive into a single object file.
 	$(LD) $(KBUILD_LDFLAGS) -nostdlib -r -o $(RUST_OBJECT_RAW) --whole-archive $(CARGO_TARGET_DIR)/target/release/liblisakmod.a
