@@ -86,14 +86,24 @@ class PixelAnalysis(TraceAnalysisBase):
 
         The channels needs to correspond to values in the ``channel`` column of df_power_meter().
         """
-        df = self.df_power_meter()
+        channels = channels or sorted(self.EMETER_CHAN_NAMES.values())
 
-        channels = list(channels or df['channel'].unique())
-        if any(channel not in df['channel'].cat.categories for channel in channels):
-            raise ValueError('Specified channel not found')
+        forbidden = set(channels) - set(self.EMETER_CHAN_NAMES.values())
+        if forbidden:
+            forbidden = ', '.join(sorted(forbidden))
+            raise ValueError(f'Channel names not recognized: {forbidden}')
+        else:
+            df = self.df_power_meter(df_fmt='polars-lazyframe')
+            df = df.filter(pl.col('channel').is_in(channels))
+            df = df.select(('Time', 'power', 'channel'))
+            df = df.collect()
+            per_channel = df.partition_by('channel', include_key=False, as_dict=True)
 
-        channel_data = dict(iter(df[df['channel'].isin(channels)].groupby('channel', group_keys=False, observed=True)))
-        return hv.Overlay([
-            plot_signal(channel_data[channel]['power'], name=channel, vdim=hv.Dimension('power', label='Power', unit='mW'))
-            for channel in channels
-        ]).opts(title='Power usage per channel over time')
+            return hv.Overlay([
+                plot_signal(
+                    df.select(('Time', 'power')),
+                    name=channel,
+                    vdim=hv.Dimension('power', label='Power', unit='mW')
+                )
+                for (channel,), df in per_channel.items()
+            ]).opts(title='Power usage per channel over time')
