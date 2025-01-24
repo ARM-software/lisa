@@ -525,6 +525,7 @@ class _BTFStructUnion(_CDecl, BTFType):
         if last_padding:
             members = (*members, last_padding)
         attrs = attrs or ''
+        attrs = f'__no_randomize_layout {attrs}'
 
         members_str = '; '.join(map(format_member, members))
         members_str = f'{members_str};' if members_str else ''
