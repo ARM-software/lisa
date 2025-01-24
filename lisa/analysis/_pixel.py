@@ -17,6 +17,7 @@
 """
 Pixel phones specific analysis.
 """
+from typing import List, Optional
 
 import pandas as pd
 import polars as pl
@@ -77,33 +78,52 @@ class PixelAnalysis(TraceAnalysisBase):
     ###############################################################################
     @TraceAnalysisBase.plot_method
     @df_power_meter.used_events
-    def plot_power_meter(self, channels=None):
+    def plot_power_meter(self, channels: Optional[List[str]] = None, metrics: Optional[List[str]] = None):
         """
         Plot the power meter readings from various channels.
 
         :param channels: List of channels to plot
         :type channels: list(str)
 
+        :param metrics: List of metrics to plot. Can be:
+            * ``"power"``: plot the power (mW)
+            * ``"energy"``: plot the energy (mJ)
+        :type metrics: list(str)
+
         The channels needs to correspond to values in the ``channel`` column of df_power_meter().
         """
+        all_metrics = {
+            'power': 'mW',
+            'energy': 'mJ',
+        }
+        metrics = sorted(['power'] if metrics is None else metrics)
         channels = channels or sorted(self.EMETER_CHAN_NAMES.values())
 
-        forbidden = set(channels) - set(self.EMETER_CHAN_NAMES.values())
-        if forbidden:
-            forbidden = ', '.join(sorted(forbidden))
-            raise ValueError(f'Channel names not recognized: {forbidden}')
-        else:
-            df = self.df_power_meter(df_fmt='polars-lazyframe')
-            df = df.filter(pl.col('channel').is_in(channels))
-            df = df.select(('Time', 'power', 'channel'))
-            df = df.collect()
-            per_channel = df.partition_by('channel', include_key=False, as_dict=True)
+        def check_allowed(kind, values, allowed):
+            forbidden = set(values) - set(allowed)
+            if forbidden:
+                forbidden = ', '.join(sorted(forbidden))
+                raise ValueError(f'{kind} names not recognized: {forbidden}')
 
-            return hv.Overlay([
-                plot_signal(
-                    df.select(('Time', 'power')),
-                    name=channel,
-                    vdim=hv.Dimension('power', label='Power', unit='mW')
-                )
-                for (channel,), df in per_channel.items()
-            ]).opts(title='Power usage per channel over time')
+        check_allowed('Channel', channels, self.EMETER_CHAN_NAMES.values())
+        check_allowed('Metrics', metrics, all_metrics.keys())
+
+        df = self.df_power_meter(df_fmt='polars-lazyframe')
+        df = df.filter(pl.col('channel').is_in(channels))
+        df = df.select(('Time', *metrics, 'channel'))
+        df = df.collect()
+        per_channel = df.partition_by('channel', include_key=False, as_dict=True)
+
+        return hv.Overlay([
+            plot_signal(
+                df.select(('Time', metric)),
+                name=f'{channel} {metric}',
+                vdim=hv.Dimension(metric, label=metric.title(), unit=all_metrics[metric]),
+                window=self.trace.window,
+            )
+            for (channel,), df in sorted(per_channel.items())
+            for metric in sorted(metrics)
+        ]).opts(
+            title='Power usage per channel over time',
+            multi_y=True,
+        )
