@@ -371,7 +371,7 @@ def plot_signal(series, name=None, interpolation=None, add_markers=True, vdim=No
     Plot a signal using ``holoviews`` library.
 
     :param series: Series of values to plot.
-    :type series: pandas.Series or pandas.DataFrame or polars.LazyFrame
+    :type series: pandas.Series or pandas.DataFrame or polars.LazyFrame or polars.DataFrame
 
     :param name: Name of the signal. Defaults to the series name.
     :type name: str or None
@@ -394,8 +394,14 @@ def plot_signal(series, name=None, interpolation=None, add_markers=True, vdim=No
     )
 
 
-def _polars_plot_signal(series, name, interpolation, add_markers, vdim):
-    df = series
+def _polars_plot_signal(data, name, interpolation, add_markers, vdim):
+    if isinstance(data, pl.DataFrame):
+        df = data.lazy()
+    elif isinstance(data, pl.Series):
+        raise TypeError(f'polars.Series cannot be supported as they do not have an index. Use a polars.LazyFrame or polars.DataFrame with at least 2 columns instead')
+    else:
+        df = data
+
     assert isinstance(df, pl.LazyFrame)
     index = _polars_index_col(df, index='Time')
     col1, col2 = df.collect_schema().names()
