@@ -19,10 +19,11 @@ Pixel phones specific analysis.
 """
 
 import pandas as pd
+import polars as pl
 import holoviews as hv
 from holoviews import opts
 
-from lisa.datautils import df_add_delta
+from lisa.datautils import SignalDesc
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events
 from lisa.notebook import plot_signal
@@ -49,22 +50,27 @@ class PixelAnalysis(TraceAnalysisBase):
 
             * A ``channel`` column (name of the power meter channel)
             * A ``power`` column (average power usage in mW since the last measurement)
+            * A ``energy`` column (energy samples in mJ provided by the PMIC)
         """
-        df = self.trace.df_event('pixel6_emeter')
-        df = df[df['chan_name'].isin(self.EMETER_CHAN_NAMES)]
-        grouped = df.groupby('chan_name', observed=True, group_keys=False)
+        name_map = self.EMETER_CHAN_NAMES
+        trace = self.trace.get_view(df_fmt='polars-lazyframe')
 
-        def make_chan_df(df):
-            energy_diff = df_add_delta(df, col='energy_diff', src_col='value', window=self.trace.window)['energy_diff']
-            ts_diff = df_add_delta(df, col='ts_diff', src_col='ts', window=self.trace.window)['ts_diff']
-            power = energy_diff / ts_diff
-            df = pd.DataFrame(dict(power=power, channel=df['chan_name']))
-            return df.dropna()
+        signals = [
+            SignalDesc('pixel6_emeter', ['chan_name']),
+        ]
+        df = trace.df_event('pixel6_emeter', signals=signals)
+        df = df.rename({'value': 'energy'})
+        df = df.filter(pl.col('chan_name').is_in(name_map.keys()))
 
-        df = grouped[df.columns].apply(make_chan_df)
-        df['channel'] = df['channel'].astype('category').cat.rename_categories(self.EMETER_CHAN_NAMES)
+        nrg_diff = pl.col('energy').diff()
+        ts_diff = pl.col('ts').diff()
+        chan = pl.col('chan_name')
+        df = df.with_columns(
+            power=(nrg_diff / ts_diff).over('chan_name'),
+            channel=chan.replace_strict(name_map, default=chan),
+        )
 
-        return df
+        return df.select(('Time', 'channel', 'energy', 'power'))
 
     ###############################################################################
     # Plotting methods
