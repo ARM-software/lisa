@@ -760,7 +760,7 @@ class _BoolFromStringInstance(FromString, types=bool):
 
 class _IntSeqFromStringInstance(FromString, types=(typing.List[int], typing.Sequence[int])):
     """
-    Instance of :class:`lisa._typeclass.FromString` for :class:`int` type.
+    Instance of :class:`lisa._typeclass.FromString` for sequences of :class:`int` type.
     """
     @classmethod
     def from_str(cls, string):
@@ -797,9 +797,15 @@ class _StrFromStringInstance(FromString, types=str):
     def get_format_description(cls, short):
         return 'str'
 
-class _StrSeqFromStringInstance(FromString, types=(typing.List[str], typing.Sequence[str])):
+class _StrSeqFromStringInstance(
+    FromString,
+    types=(
+        typing.List[str],
+        typing.Sequence[str],
+    )
+):
     """
-    Instance of :class:`lisa._typeclass.FromString` for :class:`str` type.
+    Instance of :class:`lisa._typeclass.FromString` for sequences of :class:`str` type.
     """
     @classmethod
     def from_str(cls, string):
@@ -829,6 +835,43 @@ class _StrSeqFromStringInstance(FromString, types=(typing.List[str], typing.Sequ
             Can be either a comma separated string, or a comma-separated quoted
             string if commas are needed inside elements.
             """).strip()
+
+
+class _OptStrSeqFromStringInstance(
+    FromString,
+    types=(
+        typing.Optional[typing.List[str]],
+        typing.Optional[typing.Sequence[str]],
+    )
+):
+    """
+    Instance of :class:`lisa._typeclass.FromString` for optional sequences of :class:`str` type.
+    """
+    @classmethod
+    def from_str(cls, string):
+        """
+        The accepted format is a comma-separated list of string.
+
+        If commas are needed inside the string, you can use quoted string list
+        instead. Note that in this case, *all* items need to be quoted, like
+        ``"foo,bar", "baz"``. Both single quotes and double quotes are accepted.
+        """
+        if string:
+            return _StrSeqFromStringInstance.from_str(string)
+        else:
+            return None
+
+    @classmethod
+    def get_format_description(cls, short):
+        if short:
+            return 'comma-separated string'
+        else:
+            return textwrap.dedent("""
+            Can be either a comma separated string, or a comma-separated quoted
+            string if commas are needed inside elements. If the string is
+            empty, None will be returned rather than an empty string.
+            """).strip()
+
 
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

@@ -71,6 +71,9 @@ scratch:
         normalize_time: true
         plat_info: *plat_info0
 
+    trace_pixel6: &trace_pixel6 !call:lisa.trace.Trace
+        trace_path: !env:interpolate $LISA_HOME/doc/traces/trace_pixel6.dat
+
 
 doc-plot-conf:
     plots:
@@ -162,12 +165,14 @@ doc-plot-conf:
                 cpu: *cpu0
 
         Pixel6Analysis.plot_power_meter:
-            trace: !call:lisa.trace.Trace
-                trace_path: !env:interpolate $LISA_HOME/doc/traces/trace_pixel6.dat
+            trace: *trace_pixel6
+            kwargs:
+                metrics: ["energy", "power"]
 
         Pixel9Analysis.plot_power_meter:
-            trace: !call:lisa.trace.Trace
-                trace_path: !env:interpolate $LISA_HOME/doc/traces/trace_pixel6.dat
+            trace: *trace_pixel6
+            kwargs:
+                metrics: ["energy", "power"]
 
         NotebookAnalysis.plot_event_field:
             kwargs:

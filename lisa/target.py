@@ -628,7 +628,7 @@ class Target(
         List our attributes plus the ones from the underlying target, and the
         devlib modules that could be loaded on-demand.
         """
-        attrs = set(super().__dir__()) | self._devlib_loadable_modules
+        attrs = set(super().__dir__()) | set(self._devlib_loadable_modules)
         return sorted(attrs)
 
     @classmethod

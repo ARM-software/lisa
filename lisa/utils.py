@@ -4592,7 +4592,7 @@ def DelegateToAttr(attr, attr_classes=None):
 
         def __dir__(self):
             delegated = getattr(self, delegated_to)
-            return sorted(set(super().__dir__()) | dir(delegated))
+            return sorted(set(super().__dir__()) | set(dir(delegated)))
 
     return _DelegatedToAttr
 

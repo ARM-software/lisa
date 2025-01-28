@@ -39,7 +39,7 @@ from ipywidgets import widgets, Layout, interact
 from IPython.display import display
 
 from lisa.utils import is_running_ipython, order_as, destroyablecontextmanager, ContextManagerExit
-from lisa.datautils import _df_to, _dispatch, _polars_index_col
+from lisa.datautils import _df_to, _dispatch, _polars_index_col, series_refit_index
 
 pn.extension('tabulator')
 
@@ -366,14 +366,14 @@ def make_figure(width, height, nrows, ncols, interactive=None, **kwargs):
     return (figure, axes)
 
 
-def plot_signal(series, name=None, interpolation=None, add_markers=True, vdim=None):
+def plot_signal(data, name=None, interpolation=None, add_markers=True, vdim=None, window=None):
     """
     Plot a signal using ``holoviews`` library.
 
-    :param series: Series of values to plot.
-    :type series: pandas.Series or pandas.DataFrame or polars.LazyFrame
+    :param data: Series of values to plot.
+    :type data: pandas.Series or pandas.DataFrame or polars.LazyFrame or polars.DataFrame
 
-    :param name: Name of the signal. Defaults to the series name.
+    :param name: Name of the signal. Defaults to the data name.
     :type name: str or None
 
     :param interpolation: Interpolate type for the signal. Defaults to
@@ -386,16 +386,26 @@ def plot_signal(series, name=None, interpolation=None, add_markers=True, vdim=No
 
     :param vdim: Value axis dimension.
     :type vdim: holoviews.core.dimension.Dimension
+
+    :param window: Use :func:`lisa.datautils.df_refit_index` on the data with
+        the given window to ensure nice plot boundaries.
+    :type window: tuple(float or None, float or None) or None
     """
     return _dispatch(
         _polars_plot_signal,
         _pandas_plot_signal,
-        series, name, interpolation, add_markers, vdim,
+        data, name, interpolation, add_markers, vdim, window
     )
 
 
-def _polars_plot_signal(series, name, interpolation, add_markers, vdim):
-    df = series
+def _polars_plot_signal(data, name, interpolation, add_markers, vdim, window):
+    if isinstance(data, pl.DataFrame):
+        df = data.lazy()
+    elif isinstance(data, pl.Series):
+        raise TypeError(f'polars.Series cannot be supported as they do not have an index. Use a polars.LazyFrame or polars.DataFrame with at least 2 columns instead')
+    else:
+        df = data
+
     assert isinstance(df, pl.LazyFrame)
     index = _polars_index_col(df, index='Time')
     col1, col2 = df.collect_schema().names()
@@ -405,24 +415,30 @@ def _polars_plot_signal(series, name, interpolation, add_markers, vdim):
     pandas_df = _df_to(df, index=index, fmt='pandas')
 
     return _pandas_plot_signal(
-        series=pandas_df,
+        data=pandas_df,
         name=name,
         interpolation=interpolation,
         add_markers=add_markers,
         vdim=vdim,
+        window=window,
     )
 
 
-def _pandas_plot_signal(series, name, interpolation, add_markers, vdim):
-    if isinstance(series, pd.DataFrame):
+def _pandas_plot_signal(data, name, interpolation, add_markers, vdim, window):
+    if isinstance(data, pd.DataFrame):
         try:
-            col, = series.columns
+            col, = data.columns
         except ValueError:
             raise ValueError('Can only pass Series or DataFrame with one column')
         else:
-            series = series[col]
+            series = data[col]
+    else:
+        assert isinstance(data, pd.Series)
+        series = data
 
     label = name or series.name
+    if window is not None:
+        series = series_refit_index(series, window=window)
     interpolation = interpolation or 'steps-post'
     kdims = [
         # Ensure shared_axes works well across plots.
