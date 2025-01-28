@@ -629,7 +629,7 @@ class TestBundleMeta(abc.ABCMeta):
     # us as a metaclass:
     # https://docs.python.org/3/library/inspect.html#inspect.getmembers
     def __dir__(metacls):
-        return super().__dir__() + ['add_undecided_filter']
+        return sorted(super().__dir__()) + ['add_undecided_filter']
 
     @classmethod
     def __prepare__(metacls, cls_name, bases, **kwargs):
