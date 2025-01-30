@@ -64,6 +64,7 @@ def main():
 
 
 def _main(args, target):
+    logger = logging.getLogger('lisa-load-kmod')
 
     features = args.feature
     keep_loaded = not bool(args.cmd)
@@ -78,31 +79,31 @@ def _main(args, target):
 
     kmod = target.get_kmod(LISADynamicKmod)
     pretty_events = ', '.join(kmod.defined_events)
-    logging.info(f'Kernel module provides the following ftrace events: {pretty_events}')
+    logger.info(f'Kernel module provides the following ftrace events: {pretty_events}')
 
     _kmod_cm = kmod.run(kmod_params=kmod_params)
 
     if keep_loaded:
         @contextlib.contextmanager
         def cm():
-            logging.info('Compiling and loading kernel module ...')
+            logger.info('Loading kernel module ...')
             yield _kmod_cm.__enter__()
-            logging.info(f'Loaded kernel module as "{kmod.mod_name}"')
+            logger.info(f'Loaded kernel module as "{kmod.mod_name}"')
     else:
         @contextlib.contextmanager
         def cm():
             with _kmod_cm:
-                logging.info('Compiling and loading kernel module ...')
+                logger.info('Loading kernel module ...')
                 try:
                     yield
                 finally:
-                    logging.info('Unloading kernel module')
+                    logger.info('Unloading kernel module')
     kmod_cm = cm()
 
     def run_cmd():
         if cmd:
             pretty_cmd = ' '.join(map(shlex.quote, cmd))
-            logging.info(f'Running command: {pretty_cmd}')
+            logger.info(f'Running command: {pretty_cmd}')
             return subprocess.run(cmd).returncode
         else:
             return 0
