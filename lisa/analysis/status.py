@@ -89,23 +89,17 @@ class StatusAnalysis(TraceAnalysisBase):
         df = self.df_overutilized()
         if not df.empty:
             df = df_refit_index(df, window=self.trace.window)
+            df = df[df['overutilized'] != 0]
+            df = df[['len']].reset_index()
 
             # Compute intervals in which the system is reported to be overutilized
-            return hv.Overlay(
-                [
-                    hv.VSpan(
-                        start,
-                        start + delta,
-                        label='Overutilized'
-                    ).options(
-                        color='red',
-                        alpha=0.05,
-                    )
-                    for start, delta, overutilized in df[['len', 'overutilized']].itertuples()
-                    if overutilized
-                ]
+            return hv.VSpans(
+                (df['Time'], df['Time'] + df['len']),
+                label='Overutilized'
             ).options(
-                title='System-wide overutilized status'
+                color='red',
+                alpha=0.05,
+                title='System-wide overutilized status',
             )
         else:
             return _hv_neutral()
