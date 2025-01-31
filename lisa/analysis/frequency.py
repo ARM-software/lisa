@@ -391,7 +391,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method
     @df_cpu_frequency.used_events
-    def plot_cpu_frequencies(self, cpu: CPU, average: bool=True):
+    def plot_cpu_frequencies(self, cpu: CPU, average: bool=True, overutilized: bool=True):
         """
         Plot frequency for the specified CPU
 
@@ -401,6 +401,9 @@ class FrequencyAnalysis(TraceAnalysisBase):
         :param average: If ``True``, add a horizontal line which is the
             frequency average.
         :type average: bool
+
+        :param overutilized: If ``True``, add the overutilized state as an overlay.
+        :type overutilized: bool
 
         If ``sched_overutilized`` events are available, the plots will also
         show the intervals of time where the system was overutilized.
@@ -425,9 +428,10 @@ class FrequencyAnalysis(TraceAnalysisBase):
         if average and avg > 0:
             fig *= hv.HLine(avg, group='average').opts(color='red')
 
-        plot_overutilized = self.ana.status.plot_overutilized
-        if self.trace.has_events(plot_overutilized.used_events):
-            fig *= plot_overutilized()
+        if overutilized:
+            plot_overutilized = self.ana.status.plot_overutilized
+            if self.trace.has_events(plot_overutilized.used_events):
+                fig *= plot_overutilized()
 
         return fig
 
