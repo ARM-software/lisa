@@ -409,13 +409,15 @@ class FrequencyAnalysis(TraceAnalysisBase):
         show the intervals of time where the system was overutilized.
         """
         logger = self.logger
-        df = self.df_cpu_frequency(cpu)
+        df = self.df_cpu_frequency(cpu, df_fmt='polars-lazyframe')
 
         if "freqs" in self.trace.plat_info:
             frequencies = self.trace.plat_info['freqs'][cpu]
         else:
             logger.info(f"Estimating CPU{cpu} frequencies from trace")
-            frequencies = sorted(list(df.frequency.unique()))
+            frequencies = sorted(
+                df.select(pl.col('frequency').unique()).collect()['frequency'].to_list()
+            )
             logger.debug(f"Estimated frequencies: {frequencies}")
 
         avg = self.get_average_cpu_frequency(cpu)
@@ -423,7 +425,10 @@ class FrequencyAnalysis(TraceAnalysisBase):
             "Average frequency for CPU{} : {:.3f} GHz".format(cpu, avg / 1e6))
 
         df = df_refit_index(df, window=self.trace.window)
-        fig = plot_signal(df['frequency'], name=f'Frequency of CPU{cpu} (Hz)')
+        fig = plot_signal(
+            df.select(('Time', 'frequency')),
+            name=f'Frequency of CPU{cpu} (Hz)',
+        )
 
         if average and avg > 0:
             fig *= hv.HLine(avg, group='average').opts(color='red')
