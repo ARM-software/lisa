@@ -20,10 +20,11 @@
 """ System Status Analaysis Module """
 
 import holoviews as hv
+import polars as pl
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events
-from lisa.datautils import df_refit_index, df_add_delta, df_deduplicate
+from lisa.datautils import df_refit_index, df_add_delta, df_deduplicate, _df_to
 from lisa.notebook import _hv_neutral
 
 
@@ -52,29 +53,48 @@ class StatusAnalysis(TraceAnalysisBase):
           * A ``overutilized`` column (the overutilized status at a given time)
           * A ``len`` column (the time spent in that overutilized status)
         """
+        trace = self.trace.get_view(df_fmt='polars-lazyframe')
         # Build sequence of overutilization "bands"
-        df = self.trace.df_event('sched_overutilized')
+        df = trace.df_event('sched_overutilized')
+        # Deduplicate before calling df_refit_index() since it will likely add
+        # a row with duplicated state to have the expected window end
+        # timestamp.
+        df = df.filter(
+            pl.col('overutilized') !=
+            pl.col('overutilized').shift(
+                1,
+                # We want to select the first row, so make sure the filter
+                # evaluates to true at that index.
+                fill_value=pl.col('overutilized').not_(),
+            )
+        )
+        df = df_refit_index(df, window=trace.window)
+
         # There might be a race between multiple CPUs to emit the
         # sched_overutilized event, so get rid of duplicated events
-        df = df_deduplicate(df, cols=['overutilized'], keep='first', consecutives=True)
-        df = df_add_delta(df, col='len', window=self.trace.window)
-        # Ignore the last line added by df_refit_index() with a NaN len
-        df = df.iloc[:-1]
-        return df[['len', 'overutilized']]
+        df = df.with_columns(
+            overutilized=pl.col('overutilized').cast(pl.Boolean),
+            len=pl.col('Time').diff().shift(-1),
+        )
+        return df.select(('Time', 'overutilized', 'len'))
 
     def get_overutilized_time(self):
         """
         Return the time spent in overutilized state.
         """
-        df = self.df_overutilized()
-        return df[df['overutilized'] == 1]['len'].sum()
+        df = self.df_overutilized(df_fmt='polars-lazyframe')
+        df = df.filter(pl.col('overutilized'))
+        duration = df.select(
+            pl.col('len').dt.total_nanoseconds().sum() / 1e9
+        ).collect().item()
+        return float(duration)
 
     def get_overutilized_pct(self):
         """
         The percentage of the time spent in overutilized state.
         """
         ou_time = self.get_overutilized_time()
-        return 100 * ou_time / self.trace.time_range
+        return float(100 * ou_time / self.trace.time_range)
 
 ###############################################################################
 # Plotting Methods
@@ -86,22 +106,24 @@ class StatusAnalysis(TraceAnalysisBase):
         """
         Draw the system's overutilized status as colored bands
         """
-        df = self.df_overutilized()
-        if not df.empty:
-            df = df_refit_index(df, window=self.trace.window)
-            df = df[df['overutilized'] != 0]
-            df = df[['len']].reset_index()
+        df = self.df_overutilized(df_fmt='polars-lazyframe')
 
-            # Compute intervals in which the system is reported to be overutilized
-            return hv.VSpans(
-                (df['Time'], df['Time'] + df['len']),
-                label='Overutilized'
-            ).options(
-                color='red',
-                alpha=0.05,
-                title='System-wide overutilized status',
-            )
-        else:
-            return _hv_neutral()
+        df = df.filter(pl.col('overutilized'))
+        df = df.select(
+            pl.col('Time'),
+            (pl.col('Time') + pl.col('len')).alias('width'),
+        )
+        df = _df_to(df, fmt='pandas')
+        df.reset_index(inplace=True)
+
+        # Compute intervals in which the system is reported to be overutilized
+        return hv.VSpans(
+            (df['Time'], df['width']),
+            label='Overutilized'
+        ).options(
+            color='red',
+            alpha=0.05,
+            title='System-wide overutilized status',
+        )
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
