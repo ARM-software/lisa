@@ -406,16 +406,18 @@ class TestTraceView(TraceTestCase):
 
     def test_lower_slice(self):
         view = self.trace[81:]
-        assert len(view.ana.status.df_overutilized()) == 2
+        df = view.ana.status.df_overutilized()
+        assert len(df) == 3
 
     def test_upper_slice(self):
         view = self.trace[:80.402065]
         df = view.ana.status.df_overutilized()
-        assert len(view.ana.status.df_overutilized()) == 1
+        assert len(df) == 2
 
     def test_full_slice(self):
         view = self.trace[80:81]
-        assert len(view.ana.status.df_overutilized()) == 2
+        df = view.ana.status.df_overutilized()
+        assert len(df) == 3
 
     def test_time_range(self):
         expected_duration = np.nextafter(4.0, math.inf)

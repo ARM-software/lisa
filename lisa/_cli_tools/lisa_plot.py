@@ -147,7 +147,11 @@ def handle_plot_excep(exit_on_error=True):
         else:
             excep_msg = 'Please specify --plat-info with the "{}" filled in'.format(e.args[1])
     except Exception as e:
-        excep_msg = str(e)
+        msg = str(e)
+        if msg:
+            excep_msg = msg
+        else:
+            excep_msg = e.__class__.__qualname__
     else:
         excep_msg = None
 

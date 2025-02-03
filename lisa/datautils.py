@@ -460,7 +460,7 @@ class SeriesAccessor(DataAccessor):
 
 
 @SeriesAccessor.register_accessor
-def series_refit_index(series, start=None, end=None, window=None, method='inclusive', clip_window=True):
+def series_refit_index(series, start=None, end=None, window=None, clip_window=True):
     """
     Slice a series using :func:`series_window` and ensure we have a value at
     exactly the specified boundaries, unless the signal started after the
@@ -480,13 +480,6 @@ def series_refit_index(series, start=None, end=None, window=None, method='inclus
         exclusive.
     :type window: tuple(float or None, float or None) or None
 
-    :param method: Windowing method used to select the first and last values of
-        the series using :func:`series_window`. Defaults to ``inclusive``,
-        which is suitable for signals where all the value changes have a
-        corresponding row without any fixed sample-rate constraints. If they
-        have been downsampled, ``nearest`` might be a better choice.).
-    :type method: str
-
     .. note:: If ``end`` is past the end of the data, the last row will
         be duplicated so that we can have a start and end index at the right
         location, without moving the point at which the transition to the last
@@ -496,11 +489,11 @@ def series_refit_index(series, start=None, end=None, window=None, method='inclus
     :param clip_window: Passed down to :func:`series_refit_index`.
     """
     window = _make_window(start, end, window)
-    return _pandas_refit_index(series, window, method=method)
+    return _pandas_refit_index(series, window)
 
 
 @DataFrameAccessor.register_accessor
-def df_refit_index(df, start=None, end=None, window=None, method='inclusive'):
+def df_refit_index(df, start=None, end=None, window=None):
     """
     Same as :func:`series_refit_index` but acting on :class:`pandas.DataFrame`
     """
@@ -509,7 +502,7 @@ def df_refit_index(df, start=None, end=None, window=None, method='inclusive'):
     return _dispatch(
         _polars_refit_index,
         _pandas_refit_index,
-        df, window, method
+        df, window
     )
 
 
@@ -580,17 +573,19 @@ def df_split_signals(df, signal_cols, align_start=False, window=None):
                 cols_val = {signal_cols[0]: group}
 
             if window:
-                signal = df_refit_index(signal, window=window, method='inclusive')
+                signal = df_refit_index(signal, window=window)
             yield (cols_val, signal)
 
 
-def _polars_refit_index(data, window, method):
+def _polars_refit_index(data, window):
     # TODO: maybe expose that as a param
     index = _polars_index_col(data, index='Time')
     start, end = _polars_duration_window(window)
 
-    data = _polars_window(data, window, method=method, col=index)
     index_col = pl.col(index)
+    # Ensure the data is sorted, which should be free if they already are.
+    data = data.sort(index_col)
+    data = _polars_window(data, window, method='pre', col=index)
 
     if start is not None:
         data = data.with_columns(
@@ -620,7 +615,7 @@ def _polars_refit_index(data, window, method):
     return data
 
 
-def _pandas_refit_index(data, window, method):
+def _pandas_refit_index(data, window):
     if data.empty:
         raise ValueError('Cannot refit the index of an empty dataframe or series')
 
@@ -629,7 +624,7 @@ def _pandas_refit_index(data, window, method):
         duplicate_last = False
     else:
         duplicate_last = end > data.index[-1]
-    data = _pandas_window(data, window, method=method)
+    data = _pandas_window(data, window, method='pre')
 
     if data.empty:
         return data
