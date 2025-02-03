@@ -461,7 +461,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
         # dimension, such as residency bar graphs
         if not link_dataframes and time_indexed:
             link_dataframes = [
-                self.ana.notebook.df_all_events()
+                self.ana.notebook.df_all_events(error='log')
             ]
 
         fig = _hv_link_dataframes(fig, dfs=link_dataframes)

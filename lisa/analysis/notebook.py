@@ -100,7 +100,7 @@ class NotebookAnalysis(TraceAnalysisBase):
         return x
 
     @TraceAnalysisBase.df_method
-    def _df_all_events(self, events, field_sep=' ', fields_as_cols=None, event_as_col=True):
+    def _df_all_events(self, events, field_sep=' ', fields_as_cols=None, event_as_col=True, error='raise'):
         """
         Split implementation to be able to use the cache
         """
@@ -143,23 +143,39 @@ class NotebookAnalysis(TraceAnalysisBase):
                 )
 
             def make_info_df(event):
-                df = trace.df_event(event)
-                df = pd.DataFrame(
-                    {
-                        'info': df.apply(make_info_row, axis=1, event=event),
-                        **{
-                            field: df[field]
-                            for field in fields_as_cols
-                        }
-                    },
-                    index=df.index,
-                )
+                try:
+                    df = trace.df_event(event)
+                except Exception as e:
+                    if error == 'raise':
+                        raise e
+                    elif error == 'log':
+                        self.logger.error(f'Error while loading event "{event}": {e}')
+                        return None
+                    elif error == 'ignore':
+                        return None
+                    else:
+                        raise ValueError(f'Unknown error={error}')
+                else:
+                    df = pd.DataFrame(
+                        {
+                            'info': df.apply(make_info_row, axis=1, event=event),
+                            **{
+                                field: df[field]
+                                for field in fields_as_cols
+                            }
+                        },
+                        index=df.index,
+                    )
 
-                if event_as_col:
-                    df['event'] = event
-                return df
+                    if event_as_col:
+                        df['event'] = event
+                    return df
 
-            df = pd.concat(map(make_info_df, events) )
+            df = pd.concat(
+                df
+                for event in events
+                if (df := make_info_df(event)) is not None
+            )
             df.sort_index(inplace=True)
             df_update_duplicates(df, inplace=True)
 
@@ -205,6 +221,12 @@ class NotebookAnalysis(TraceAnalysisBase):
         :param event_as_col: If ``True``, the event name is split in its own
             column.
         :type event_as_col: bool
+
+        :param error: Can be one of:
+            * ``raise``: any error while parsing an event will be raised.
+            * ``log``: the error will be logged at error level.
+            * ``ignore``: the error is simply ignored.
+        :type error: str
         """
         if events is None:
             events = sorted(self.trace.available_events)
