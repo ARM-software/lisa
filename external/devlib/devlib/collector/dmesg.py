@@ -16,11 +16,15 @@
 import re
 from itertools import takewhile
 from datetime import timedelta
+import logging
 
 from devlib.collector import (CollectorBase, CollectorOutput,
                               CollectorOutputEntry)
 from devlib.exception import TargetStableError
 from devlib.utils.misc import memoized
+
+
+_LOGGER = logging.getLogger('dmesg')
 
 
 class KernelLogEntry(object):
@@ -112,17 +116,35 @@ class KernelLogEntry(object):
         )
 
     @classmethod
-    def from_dmesg_output(cls, dmesg_out):
+    def from_dmesg_output(cls, dmesg_out, error=None):
         """
         Return a generator of :class:`KernelLogEntry` for each line of the
         output of dmesg command.
+
+        :param error: If ``"raise"`` or ``None``, an exception will be raised
+            if a parsing error occurs. If ``"warn"``, it will be logged at
+            WARNING level. If ``"ignore"``, it will be ignored. If a callable
+            is passed, the exception will be passed to it.
+        :type error: str or None or typing.Callable[[BaseException], None]
 
         .. note:: The same restrictions on the dmesg output format as for
             :meth:`from_str` apply.
         """
         for i, line in enumerate(dmesg_out.splitlines()):
             if line.strip():
-                yield cls.from_str(line, line_nr=i)
+                try:
+                    yield cls.from_str(line, line_nr=i)
+                except Exception as e:
+                    if error in (None, 'raise'):
+                        raise e
+                    elif error == 'warn':
+                        _LOGGER.warn(f'error while parsing line "{line!r}": {e}')
+                    elif error == 'ignore':
+                        pass
+                    elif callable(error):
+                        error(e)
+                    else:
+                        raise ValueError(f'Unknown error handling strategy: {error}')
 
     def __str__(self):
         facility = self.facility + ': ' if self.facility else ''
@@ -167,7 +189,7 @@ class DmesgCollector(CollectorBase):
         "debug",        # debug-level messages
     ]
 
-    def __init__(self, target, level=LOG_LEVELS[-1], facility='kern', empty_buffer=False):
+    def __init__(self, target, level=LOG_LEVELS[-1], facility='kern', empty_buffer=False, parse_error=None):
         super(DmesgCollector, self).__init__(target)
 
         if not target.is_rooted:
@@ -181,12 +203,16 @@ class DmesgCollector(CollectorBase):
             ))
         self.level = level
 
-        # Check if dmesg is the BusyBox one, or the one from util-linux in a
-        # recent version.
-        # Note: BusyBox dmesg does not support -h, but will still print the
-        # help with an exit code of 1
-        self.basic_dmesg = '--force-prefix' not in \
-                self.target.execute('dmesg -h', check_exit_code=False)
+        # Check if we have a dmesg from a recent util-linux build, rather than
+        # e.g. busybox's dmesg or the one shipped on some Android versions
+        # (toybox).  Note: BusyBox dmesg does not support -h, but will still
+        # print the help with an exit code of 1
+        help_ = self.target.execute('dmesg -h', check_exit_code=False)
+        self.basic_dmesg = not all(
+            opt in help_
+            for opt in ('--facility', '--force-prefix', '--decode', '--level')
+        )
+
         self.facility = facility
         try:
             needs_root = target.read_sysctl('kernel.dmesg_restrict')
@@ -199,6 +225,7 @@ class DmesgCollector(CollectorBase):
         self._begin_timestamp = None
         self.empty_buffer = empty_buffer
         self._dmesg_out = None
+        self._parse_error = parse_error
 
     @property
     def dmesg_out(self):
@@ -216,11 +243,15 @@ class DmesgCollector(CollectorBase):
 
     @property
     def entries(self):
-        return self._get_entries(self._dmesg_out, self._begin_timestamp)
+        return self._get_entries(
+            self._dmesg_out,
+            self._begin_timestamp,
+            error=self._parse_error,
+        )
 
     @memoized
-    def _get_entries(self, dmesg_out, timestamp):
-        entries = KernelLogEntry.from_dmesg_output(dmesg_out)
+    def _get_entries(self, dmesg_out, timestamp, error):
+        entries = KernelLogEntry.from_dmesg_output(dmesg_out, error=error)
         entries = list(entries)
         if timestamp is None:
             return entries

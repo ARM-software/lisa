@@ -95,7 +95,6 @@ class FtraceCollector(CollectorBase):
         self.host_binary = None
         self.start_time = None
         self.stop_time = None
-        self.event_string = None
         self.function_string = None
         self.trace_clock = trace_clock
         self.saved_cmdlines_nr = saved_cmdlines_nr
@@ -111,7 +110,8 @@ class FtraceCollector(CollectorBase):
         self.function_profile_file    = self.target.path.join(self.tracing_path, 'function_profile_enabled')
         self.marker_file              = self.target.path.join(self.tracing_path, 'trace_marker')
         self.ftrace_filter_file       = self.target.path.join(self.tracing_path, 'set_ftrace_filter')
-        self.available_tracers_file  = self.target.path.join(self.tracing_path, 'available_tracers')
+        self.available_tracers_file   = self.target.path.join(self.tracing_path, 'available_tracers')
+        self.kprobe_events_file       = self.target.path.join(self.tracing_path, 'kprobe_events')
 
         self.host_binary = which('trace-cmd')
         self.kernelshark = which('kernelshark')
@@ -198,7 +198,11 @@ class FtraceCollector(CollectorBase):
             elif self.tracer == 'function_graph':
                 self.function_string = _build_graph_functions(selected_functions, trace_children_functions)
 
-        self.event_string = _build_trace_events(selected_events)
+        self._selected_events = selected_events
+
+    @property
+    def event_string(self):
+        return _build_trace_events(self._selected_events)
 
     @classmethod
     def _resolve_tracing_path(cls, target, path):
@@ -244,6 +248,12 @@ class FtraceCollector(CollectorBase):
         return self.target.read_value(self.available_functions_file).splitlines()
 
     def reset(self):
+        # Save kprobe events
+        try:
+            kprobe_events = self.target.read_value(self.kprobe_events_file)
+        except TargetStableError:
+            kprobe_events = None
+
         self.target.execute('{} reset -B devlib'.format(self.target_binary),
                             as_root=True, timeout=TIMEOUT)
 
@@ -260,7 +270,32 @@ class FtraceCollector(CollectorBase):
 
         if self.functions:
             self.target.write_value(self.function_profile_file, 0, verify=False)
+
+        # Restore kprobe events
+        if kprobe_events:
+            self.target.write_value(self.kprobe_events_file, kprobe_events)
+
         self._reset_needed = False
+
+    def _trace_frequencies(self):
+        if 'cpu_frequency' in self._selected_events:
+            self.logger.debug('Trace CPUFreq frequencies')
+            try:
+                mod = self.target.cpufreq
+            except TargetStableError as e:
+                self.logger.error(f'Could not trace CPUFreq frequencies as the cpufreq module cannot be loaded: {e}')
+            else:
+                mod.trace_frequencies()
+
+    def _trace_idle(self):
+        if 'cpu_idle' in self._selected_events:
+            self.logger.debug('Trace CPUIdle states')
+            try:
+                mod = self.target.cpuidle
+            except TargetStableError as e:
+                self.logger.error(f'Could not trace CPUIdle states as the cpuidle module cannot be loaded: {e}')
+            else:
+                mod.perturb_cpus()
 
     @asyncf
     async def start(self):
@@ -309,12 +344,10 @@ class FtraceCollector(CollectorBase):
 
         if self.automark:
             self.mark_start()
-        if 'cpufreq' in self.target.modules:
-            self.logger.debug('Trace CPUFreq frequencies')
-            self.target.cpufreq.trace_frequencies()
-        if 'cpuidle' in self.target.modules:
-            self.logger.debug('Trace CPUIdle states')
-            self.target.cpuidle.perturb_cpus()
+
+        self._trace_frequencies()
+        self._trace_idle()
+
         # Enable kernel function profiling
         if self.functions and self.tracer is None:
             target = self.target
@@ -335,9 +368,6 @@ class FtraceCollector(CollectorBase):
         if self.functions and self.tracer is None:
             self.target.execute('echo 0 > {}'.format(self.function_profile_file),
                                 as_root=True)
-        if 'cpufreq' in self.target.modules:
-            self.logger.debug('Trace CPUFreq frequencies')
-            self.target.cpufreq.trace_frequencies()
         self.stop_time = time.time()
         if self.automark:
             self.mark_stop()
