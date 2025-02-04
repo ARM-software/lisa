@@ -406,20 +406,14 @@ class LatencyAnalysis(TraceAnalysisBase):
             df = df_refit_index(df, window=self.trace.window)
             if df.empty:
                 return _hv_neutral()
-
-            return hv.Overlay(
-                [
-                    hv.VSpan(
-                        start,
-                        start + duration,
-                        label=label,
-                    ).options(
-                        alpha=0.5,
-                    )
-                    for start, duration in df[[column]].itertuples()
-                ]
-            )
-
+            else:
+                df = df[[column]].reset_index()
+                return hv.VSpans(
+                    (df['Time'], df['Time'] + df[column]),
+                    label=label,
+                ).options(
+                    alpha=0.5,
+                )
         return (
             plot_bands(wkl_df, "wakeup_latency", "Wakeup latencies") *
             plot_bands(prt_df, "preempt_latency", "Preemption latencies")

@@ -3003,9 +3003,10 @@ class DynamicKmod(Loggable):
     def _memoized_compile(self, make_vars):
         make_vars = dict(make_vars)
 
-        compile_ = self._do_compile.__func__
         if self._compile_needs_root:
-            compile_ = ensure_root(compile_, inline=True)
+            compile_ = ensure_root(self._do_compile_subprocess.__func__, inline=True)
+        else:
+            compile_ = self._do_compile.__func__
 
         bin_, spec = compile_(self, make_vars=make_vars)
         # Get back _KernelBuildEnv._to_spec() and update the _KernelBuildEnv we have in
@@ -3015,6 +3016,15 @@ class DynamicKmod(Loggable):
         # default _KernelBuildEnv
         self.kernel_build_env._update_spec(spec)
         return bin_
+
+    def _do_compile_subprocess(self, *args, **kwargs):
+        # We are running in a separate subprocess, so the target we got was
+        # pickled and sent to us. It is best to disconnect explicitly to avoid
+        # running into problems when objects are garbage collected as the
+        # interpreter is shutting down and parts of the stdlib are not
+        # available anymore.
+        with self.target.closing():
+            return self._do_compile(*args, **kwargs)
 
     def _do_compile(self, make_vars=None):
 
@@ -3434,19 +3444,24 @@ class LISADynamicKmod(FtraceDynamicKmod):
             return preinstalled_unsuitable()
         else:
             kmod_path = kmod_path.strip()
-            if len((kmod_paths := kmod_path.splitlines())) > 1:
-                return preinstalled_unsuitable(ValueError(f'Multiple paths found for {kmod_filename}: {", ".join(kmod_paths)}'))
-            else:
-                # We found an installed module that could maybe be suitable, so
-                # we try to load it.
-                try:
-                    return self._install(nullcontext(kmod_path), kmod_params=kmod_params)
-                except (subprocess.CalledProcessError, KmodVersionError) as e:
-                    # Turns out to not be suitable, so we build our own
-                    return preinstalled_unsuitable(e)
+            if kmod_path:
+                if len((kmod_paths := kmod_path.splitlines())) > 1:
+                    return preinstalled_unsuitable(ValueError(f'Multiple paths found for {kmod_filename}: {", ".join(kmod_paths)}'))
                 else:
-                    logger.warning(f'Loaded "{self.mod_name}" module from pre-installed location: {kmod_path}. This implies that the module was compiled by a 3rd party, which is available but unsupported. If you experience issues related to module version mismatch in the future, please contact them for updating the module. This may break at any time, without notice, and regardless of the general backward compatibility policy of LISA.')
-                    return None
+                    # We found an installed module that could maybe be suitable, so
+                    # we try to load it.
+                    try:
+                        return self._install(nullcontext(kmod_path), kmod_params=kmod_params)
+                    except (subprocess.CalledProcessError, KmodVersionError) as e:
+                        # Turns out to not be suitable, so we build our own
+                        return preinstalled_unsuitable(e)
+                    else:
+                        logger.warning(f'Loaded "{self.mod_name}" module from pre-installed location: {kmod_path}. This implies that the module was compiled by a 3rd party, which is available but unsupported. If you experience issues related to module version mismatch in the future, please contact them for updating the module. This may break at any time, without notice, and regardless of the general backward compatibility policy of LISA.')
+                        return None
+            # If base_path exists, busybox find will simply an empty stdout
+            # rather than return with a non-zero exit status.
+            else:
+                return preinstalled_unsuitable()
 
 
     def install(self, features=None, **kwargs):
