@@ -1,0 +1,32 @@
+
+# batch-rebase manifest used to create the WA branch for LISA
+
+# The "lisa" branch in the WA repo can be constructed with:
+# batch-rebase create . --manifest "$LISA_HOME/external/workload-automation.manifest.yaml" --create-branch lisa
+
+rebase-conf:
+    rr-cache: ./rr-cache
+    base:
+        remote: upstream
+        ref: master
+
+    topics:
+        -
+            remote: metin
+            base: master
+            tip: tracing-mode
+
+        # TODO: Add this one once Luis made a proper topic branch for it:
+        # https://github.com/ARM-software/workload-automation/pull/1268
+        # -
+            # remote: luis
+            # base: master
+            # tip: 
+
+    remotes:
+        upstream:
+          url: https://github.com/ARM-Software/workload-automation.git
+        metin:
+          url: https://github.com/metin-arm/workload-automation.git
+        luis:
+          url: https://github.com/luis-machado-arm/workload-automation.git

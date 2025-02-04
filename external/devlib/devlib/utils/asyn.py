@@ -209,12 +209,19 @@ class _AsyncPolymorphicFunction:
     def __init__(self, asyn, blocking):
         self.asyn = asyn
         self.blocking = blocking
+        functools.update_wrapper(self, asyn)
 
     def __get__(self, *args, **kwargs):
         return self.__class__(
             asyn=self.asyn.__get__(*args, **kwargs),
             blocking=self.blocking.__get__(*args, **kwargs),
         )
+
+    # Ensure inspect.iscoroutinefunction() does not detect us as being async,
+    # since __call__ is not.
+    @property
+    def __code__(self):
+        return self.__call__.__code__
 
     def __call__(self, *args, **kwargs):
         return self.blocking(*args, **kwargs)

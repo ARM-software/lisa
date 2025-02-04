@@ -187,7 +187,6 @@ install_pacman() {
 
 # APT-based distributions like Ubuntu or Debian
 apt_packages=(
-    cpu-checker
     libarchive-tools
     qemu-user-static
     wget
