@@ -400,6 +400,7 @@ below:
                 no_install: false
                 report: true
                 report_on_target: false
+                mode: write-to-memory
             csv:
                 extra_columns: null
                 use_all_classifiers: false

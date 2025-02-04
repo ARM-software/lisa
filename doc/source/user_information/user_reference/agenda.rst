@@ -45,6 +45,7 @@ An example agenda can be seen here:
             no_install: false
             report: true
             report_on_target: false
+            mode: write-to-disk
         csv:                    # Provide config for the csv augmentation
             use_all_classifiers: true
 
