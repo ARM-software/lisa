@@ -61,7 +61,8 @@ from devlib.utils.types import boolean
 from devlib.connection import ConnectionBase, ParamikoBackgroundCommand, SSHTransferHandle
 
 
-DEFAULT_SSH_SUDO_COMMAND = "sudo -k -p ' ' -S -- sh -c {}"
+# Empty prompt with -p '' to avoid adding a leading space to the output.
+DEFAULT_SSH_SUDO_COMMAND = "sudo -k -p '' -S -- sh -c {}"
 
 
 class _SSHEnv:
@@ -498,7 +499,18 @@ class SshConnection(SshConnectionBase):
         push(sftp, src, dst, callback)
 
     def _pull_file(self, sftp, src, dst, callback):
-        sftp.get(src, dst, callback=callback)
+        try:
+            sftp.get(src, dst, callback=callback)
+        except Exception as e:
+            # A file may have been created by Paramiko, but we want to clean
+            # that up, particularly if we tried to pull a folder and failed,
+            # otherwise this will make subsequent attempts at pulling the
+            # folder fail since the destination will exist.
+            try:
+                os.remove(dst)
+            except Exception:
+                pass
+            raise e
 
     def _pull_folder(self, sftp, src, dst, callback):
         os.makedirs(dst)

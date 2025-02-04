@@ -305,13 +305,14 @@ class AdbConnection(ConnectionBase):
         self.adb_server = adb_server
         self.adb_port = adb_port
         self.adb_as_root = adb_as_root
+        self._restore_to_adb_root = False
         lock, nr_active = AdbConnection.active_connections
         with lock:
             nr_active[self.device] += 1
 
         if self.adb_as_root:
             try:
-                self.adb_root(enable=True)
+                self._restore_to_adb_root = self._adb_root(enable=True)
             # Exception will be raised if we are not the only connection
             # active. adb_root() requires restarting the server, which is not
             # acceptable if other connections are active and can apparently
@@ -411,7 +412,7 @@ class AdbConnection(ConnectionBase):
 
         if disconnect:
             if self.adb_as_root:
-                self.adb_root(enable=False)
+                self.adb_root(enable=self._restore_to_adb_root)
             adb_disconnect(self.device, self.adb_server, self.adb_port)
 
     def cancel_running_command(self):
@@ -421,6 +422,9 @@ class AdbConnection(ConnectionBase):
         pass
 
     def adb_root(self, enable=True):
+        self._adb_root(enable=enable)
+
+    def _adb_root(self, enable):
         lock, nr_active = AdbConnection.active_connections
         with lock:
             can_root = nr_active[self.device] <= 1
@@ -428,20 +432,24 @@ class AdbConnection(ConnectionBase):
         if not can_root:
             raise AdbRootError('Can only restart adb server if no other connection is active')
 
+        def is_rooted(out):
+            return 'adbd is already running as root' in out
+
         cmd = 'root' if enable else 'unroot'
         try:
             output = adb_command(self.device, cmd, timeout=30, adb_server=self.adb_server, adb_port=self.adb_port)
         except subprocess.CalledProcessError as e:
+            was_rooted = is_rooted(e.output)
             # Ignore if we're already root
-            if 'adbd is already running as root' in e.output:
-                pass
-            else:
+            if not was_rooted:
                 raise AdbRootError(str(e)) from e
         else:
+            was_rooted = is_rooted(output)
             # Check separately as this does not cause a error exit code.
             if 'cannot run as root in production builds' in output:
                 raise AdbRootError(output)
         AdbConnection._connected_as_root[self.device] = enable
+        return was_rooted
 
     def wait_for_device(self, timeout=30):
         adb_command(self.device, 'wait-for-device', timeout, self.adb_server, self.adb_port)
