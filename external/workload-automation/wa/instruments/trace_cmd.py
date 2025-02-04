@@ -162,6 +162,12 @@ class TraceCmdInstrument(Instrument):
                             installed on the host (the one in your
                             distribution's repos may be too old).
                   """),
+        Parameter('mode', kind=str, default='write-to-memory',
+                  description="""
+                  Specifies whether collected traces should be saved in memory or disk.
+                  Extensive workloads may hit out of memory issue. Hence, write-to-disk
+                  mode can help in such cases.
+                  """),
     ]
 
     def __init__(self, target, **kwargs):
@@ -183,6 +189,7 @@ class TraceCmdInstrument(Instrument):
             no_install=self.no_install,
             strict=False,
             report_on_target=False,
+            mode=self.mode,
         )
         if self.report and self.report_on_target:
             collector_params['autoreport'] = True
@@ -215,12 +222,14 @@ class TraceCmdInstrument(Instrument):
         if not self.collector:
             return
         self.logger.info('Extracting trace from target...')
-        outfile = os.path.join(context.output_directory, 'trace.dat')
+        outfile = os.path.join(context.output_directory, OUTPUT_TRACE_FILE)
+
         self.collector.set_output(outfile)
         self.collector.get_data()
         context.add_artifact('trace-cmd-bin', outfile, 'data')
         if self.report:
-            textfile = os.path.join(context.output_directory, 'trace.txt')
+            textfile = os.path.join(context.output_directory, OUTPUT_TEXT_FILE)
+
             if not self.report_on_target:
                 self.collector.report(outfile, textfile)
             context.add_artifact('trace-cmd-txt', textfile, 'export')
