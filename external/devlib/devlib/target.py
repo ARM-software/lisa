@@ -312,7 +312,9 @@ class Target(object):
                  connection_settings=None,
                  platform=None,
                  working_directory=None,
+                 *,
                  executables_directory=None,
+                 tmp_directory=None,
                  connect=True,
                  modules=None,
                  load_default_modules=True,
@@ -347,6 +349,7 @@ class Target(object):
         self.connection_settings['platform'] = self.platform
         self.working_directory = working_directory
         self.executables_directory = executables_directory
+        self.tmp_directory = tmp_directory
         self.load_default_modules = load_default_modules
         self.shell_prompt = bytes_regex(shell_prompt)
         self.conn_cls = conn_cls
@@ -356,7 +359,6 @@ class Target(object):
         self._installed_modules = {}
         self._cache = {}
         self._shutils = None
-        self._file_transfer_cache = None
         self._max_async = max_async
         self.busybox = None
 
@@ -477,10 +479,35 @@ class Target(object):
             self.wait_boot_complete(timeout)
         self.check_connection()
         self._resolve_paths()
-        self.execute('mkdir -p {}'.format(quote(self.working_directory)))
-        self.execute('mkdir -p {}'.format(quote(self.executables_directory)))
+        assert self.working_directory
+        if self.executables_directory is None:
+            self.executables_directory = self.path.join(
+                self.working_directory,
+                'bin'
+            )
+
+        for path in (self.working_directory, self.executables_directory):
+            self.makedirs(path)
+
         self.busybox = self.install(os.path.join(PACKAGE_BIN_DIRECTORY, self.abi, 'busybox'), timeout=30)
         self.conn.busybox = self.busybox
+
+        # If neither the mktemp call nor _resolve_paths() managed to get a
+        # temporary directory, we just make one in the working directory.
+        if self.tmp_directory is None:
+            assert self.busybox
+            try:
+                tmp = await self.execute.asyn(f'{quote(self.busybox)} mktemp -d')
+            except Exception:
+                # Some Android platforms don't have a working mktemp unless
+                # TMPDIR is set, so we let AndroidTarget._resolve_paths() deal
+                # with finding a suitable location.
+                tmp = self.path.join(self.working_directory, 'tmp')
+            else:
+                tmp = tmp.strip()
+            self.tmp_directory = tmp
+        self.makedirs(self.tmp_directory)
+
         self._detect_max_async(max_async or self._max_async)
         self.platform.update_from_target(self)
         self._update_modules('connected')
@@ -535,33 +562,36 @@ class Target(object):
         """
         Check that the connection works without obvious issues.
         """
-        out = await self.execute.asyn('true', as_root=False)
-        if out.strip():
-            raise TargetStableError('The shell seems to not be functional and adds content to stderr: {}'.format(out))
+        async def check(**kwargs):
+            out = await self.execute.asyn('true', **kwargs)
+            if out:
+                raise TargetStableError('The shell seems to not be functional and adds content to stderr: {!r}'.format(out))
+
+        await check(as_root=False)
+        # If we are rooted, we usually run with sudo. Unfortunately, PAM
+        # modules can write random text to stdout such as:
+        # Your password will expire in XXX days.
+        if self.is_rooted:
+            await check(as_root=True)
 
     def disconnect(self):
-        connections = self._conn.get_all_values()
-        # Now that we have all the connection objects, we simply reset the TLS
-        # property so that the connections we got will not be reused anywhere.
-        del self._conn
-
-        unused_conns = self._unused_conns
-        self._unused_conns.clear()
-
-        for conn in itertools.chain(connections, self._unused_conns):
-            conn.close()
-
-        pool = self._async_pool
-        self._async_pool = None
-        if pool is not None:
-            pool.__exit__(None, None, None)
-
         with self._lock:
-            connections = self._conn.get_all_values()
-            for conn in itertools.chain(connections, self._unused_conns):
+            thread_conns = self._conn.get_all_values()
+            # Now that we have all the connection objects, we simply reset the
+            # TLS property so that the connections we obtained will not be
+            # reused anywhere.
+            del self._conn
+
+            unused_conns = list(self._unused_conns)
+            self._unused_conns.clear()
+
+            for conn in itertools.chain(thread_conns, unused_conns):
                 conn.close()
-            if self._async_pool is not None:
-                self._async_pool.__exit__(None, None, None)
+
+            pool = self._async_pool
+            self._async_pool = None
+            if pool is not None:
+                pool.__exit__(None, None, None)
 
     def __enter__(self):
         return self
@@ -599,8 +629,6 @@ class Target(object):
         # Initialize modules which requires Busybox (e.g. shutil dependent tasks)
         self._update_modules('setup')
 
-        await self.execute.asyn('mkdir -p {}'.format(quote(self._file_transfer_cache)))
-
     def reboot(self, hard=False, connect=True, timeout=180):
         if hard:
             if not self.has('hard_reset'):
@@ -634,24 +662,11 @@ class Target(object):
         Context manager to provide a unique path in the transfer cache with the
         basename of the given name.
         """
-        # Use a UUID to avoid race conditions on the target side
-        xfer_uuid = uuid.uuid4().hex
-        folder = self.path.join(self._file_transfer_cache, xfer_uuid)
         # Make sure basename will work on folders too
         name = os.path.normpath(name)
-        # Ensure the name is relative so that os.path.join() will actually
-        # join the paths rather than ignoring the first one.
-        name = './{}'.format(os.path.basename(name))
-
-        check_rm = False
-        try:
-            await self.makedirs.asyn(folder)
-            # Don't check the exit code as the folder might not even exist
-            # before this point, if creating it failed
-            check_rm = True
-            yield self.path.join(folder, name)
-        finally:
-            await self.execute.asyn('rm -rf -- {}'.format(quote(folder)), check_exit_code=check_rm)
+        name = os.path.basename(name)
+        async with self.make_temp() as tmp:
+            yield self.path.join(tmp, name)
 
     @asyn.asyncf
     async def _prepare_xfer(self, action, sources, dest, pattern=None, as_root=False):
@@ -660,10 +675,22 @@ class Target(object):
         transfering multiple sources.
         """
 
-        once = functools.lru_cache(maxsize=None)
+        def once(f):
+            cache = dict()
+
+            @functools.wraps(f)
+            async def wrapper(path):
+                try:
+                    return cache[path]
+                except KeyError:
+                    x = await f(path)
+                    cache[path] = x
+                    return x
+
+            return wrapper
 
         _target_cache = {}
-        def target_paths_kind(paths, as_root=False):
+        async def target_paths_kind(paths, as_root=False):
             def process(x):
                 x = x.strip()
                 if x == 'notexist':
@@ -683,7 +710,7 @@ class Target(object):
                     )
                     for path in _paths
                 )
-                res = self.execute(cmd, as_root=as_root)
+                res = await self.execute.asyn(cmd, as_root=as_root)
                 _target_cache.update(zip(_paths, map(process, res.split())))
 
             return [
@@ -692,7 +719,7 @@ class Target(object):
             ]
 
         _host_cache = {}
-        def host_paths_kind(paths, as_root=False):
+        async def host_paths_kind(paths, as_root=False):
             def path_kind(path):
                 if os.path.isdir(path):
                     return 'dir'
@@ -719,47 +746,55 @@ class Target(object):
             src_excep = HostError
             src_path_kind = host_paths_kind
 
-            _dst_mkdir = once(self.makedirs)
+            _dst_mkdir = once(self.makedirs.asyn)
             dst_path_join = self.path.join
             dst_paths_kind = target_paths_kind
-            dst_remove_file = once(functools.partial(self.remove, as_root=as_root))
+
+            @once
+            async def dst_remove_file(path):
+                return await self.remove.asyn(path, as_root=as_root)
         elif action == 'pull':
             src_excep = TargetStableError
             src_path_kind = target_paths_kind
 
-            _dst_mkdir = once(functools.partial(os.makedirs, exist_ok=True))
+            @once
+            async def _dst_mkdir(path):
+                return os.makedirs(path, exist_ok=True)
             dst_path_join = os.path.join
             dst_paths_kind = host_paths_kind
-            dst_remove_file = once(os.remove)
+
+            @once
+            async def dst_remove_file(path):
+                return os.remove(path)
         else:
             raise ValueError('Unknown action "{}"'.format(action))
 
         # Handle the case where path is None
-        def dst_mkdir(path):
+        async def dst_mkdir(path):
             if path:
-                _dst_mkdir(path)
+                await _dst_mkdir(path)
 
-        def rewrite_dst(src, dst):
+        async def rewrite_dst(src, dst):
             new_dst = dst_path_join(dst, os.path.basename(src))
 
-            src_kind, = src_path_kind([src], as_root)
+            src_kind, = await src_path_kind([src], as_root)
             # Batch both checks to avoid a costly extra execute()
-            dst_kind, new_dst_kind = dst_paths_kind([dst, new_dst], as_root)
+            dst_kind, new_dst_kind = await dst_paths_kind([dst, new_dst], as_root)
 
             if src_kind == 'file':
                 if dst_kind == 'dir':
                     if new_dst_kind == 'dir':
                         raise IsADirectoryError(new_dst)
                     if new_dst_kind == 'file':
-                        dst_remove_file(new_dst)
+                        await dst_remove_file(new_dst)
                         return new_dst
                     else:
                         return new_dst
                 elif dst_kind == 'file':
-                    dst_remove_file(dst)
+                    await dst_remove_file(dst)
                     return dst
                 else:
-                    dst_mkdir(os.path.dirname(dst))
+                    await dst_mkdir(os.path.dirname(dst))
                     return dst
             elif src_kind == 'dir':
                 if dst_kind == 'dir':
@@ -773,7 +808,7 @@ class Target(object):
                 elif dst_kind == 'file':
                     raise FileExistsError(dst_kind)
                 else:
-                    dst_mkdir(os.path.dirname(dst))
+                    await dst_mkdir(os.path.dirname(dst))
                     return dst
             else:
                 raise FileNotFoundError(src)
@@ -782,18 +817,19 @@ class Target(object):
             if not sources:
                 raise src_excep('No file matching source pattern: {}'.format(pattern))
 
-            if dst_paths_kind([dest]) != ['dir']:
+            if (await dst_paths_kind([dest])) != ['dir']:
                 raise NotADirectoryError('A folder dest is required for multiple matches but destination is a file: {}'.format(dest))
+
+        async def f(src):
+            return await rewrite_dst(src, dest)
+        mapping = await self.async_manager.map_concurrently(f, sources)
 
         # TODO: since rewrite_dst() will currently return a different path for
         # each source, it will not bring anything. In order to be useful,
         # connections need to be able to understand that if the destination is
         # an empty folder, the source is supposed to be transfered into it with
         # the same basename.
-        return groupby_value({
-            src: rewrite_dst(src, dest)
-            for src in sources
-        })
+        return groupby_value(mapping)
 
     @asyn.asyncf
     @call_conn
@@ -816,10 +852,11 @@ class Target(object):
 
         if as_root:
             for sources, dest in mapping.items():
-                for source in sources:
+                async def f(source):
                     async with self._xfer_cache_path(source) as device_tempfile:
                         do_push([source], device_tempfile)
                         await self.execute.asyn("mv -f -- {} {}".format(quote(device_tempfile), quote(dest)), as_root=True)
+                await self.async_manager.map_concurrently(f, sources)
         else:
             for sources, dest in mapping.items():
                 do_push(sources, dest)
@@ -894,11 +931,13 @@ class Target(object):
 
         if via_temp:
             for sources, dest in mapping.items():
-                for source in sources:
+                async def f(source):
                     async with self._xfer_cache_path(source) as device_tempfile:
-                        await self.execute.asyn("cp -r -- {} {}".format(quote(source), quote(device_tempfile)), as_root=as_root)
-                        await self.execute.asyn("{} chmod 0644 -- {}".format(self.busybox, quote(device_tempfile)), as_root=as_root)
+                        cp_cmd = f"{quote(self.busybox)} cp -rL -- {quote(source)} {quote(device_tempfile)}"
+                        chmod_cmd = f"{quote(self.busybox)} chmod 0644 -- {quote(device_tempfile)}"
+                        await self.execute.asyn(f"{cp_cmd} && {chmod_cmd}", as_root=as_root)
                         do_pull([device_tempfile], dest)
+                await self.async_manager.map_concurrently(f, sources)
         else:
             for sources, dest in mapping.items():
                 do_pull(sources, dest)
@@ -941,15 +980,17 @@ class Target(object):
     # execution
 
     def _prepare_cmd(self, command, force_locale):
+        tmpdir = f'TMPDIR={quote(self.tmp_directory)}' if self.tmp_directory else ''
+
         # Force the locale if necessary for more predictable output
         if force_locale:
             # Use an explicit export so that the command is allowed to be any
             # shell statement, rather than just a command invocation
-            command = 'export LC_ALL={} && {}'.format(quote(force_locale), command)
+            command = f'export LC_ALL={quote(force_locale)} {tmpdir} && {command}'
 
         # Ensure to use deployed command when availables
         if self.executables_directory:
-            command = "export PATH={}:$PATH && {}".format(quote(self.executables_directory), command)
+            command = f"export PATH={quote(self.executables_directory)}:$PATH && {command}"
 
         return command
 
@@ -1175,7 +1216,7 @@ fi
                 raise
 
     @asyn.asynccontextmanager
-    async def make_temp(self, is_directory=True, directory='', prefix='devlib-test'):
+    async def make_temp(self, is_directory=True, directory=None, prefix=None):
         """
         Creates temporary file/folder on target and deletes it once it's done.
 
@@ -1193,10 +1234,11 @@ fi
         :rtype: str
         """
 
-        directory = directory or self.working_directory
+        directory = directory or self.tmp_directory
+        prefix = f'{prefix}-' if prefix else ''
         temp_obj = None
         try:
-            cmd = f'mktemp -p {quote(directory)} {quote(prefix)}-XXXXXX'
+            cmd = f'mktemp -p {quote(directory)} {quote(prefix)}XXXXXX'
             if is_directory:
                 cmd += ' -d'
 
@@ -1293,13 +1335,15 @@ fi
         return self.path.join(self.working_directory, name)
 
     @asyn.asyncf
-    async def tempfile(self, prefix='', suffix=''):
-        name = '{prefix}_{uuid}_{suffix}'.format(
+    async def tempfile(self, prefix=None, suffix=None):
+        prefix = f'{prefix}-' if prefix else ''
+        sufix = f'-{suffix}' if suffix else ''
+        name = '{prefix}{uuid}{suffix}'.format(
             prefix=prefix,
             uuid=uuid.uuid4().hex,
             suffix=suffix,
         )
-        path = self.get_workpath(name)
+        self.path.join(self.tmp_directory, name)
         if (await self.file_exists.asyn(path)):
             raise FileExistsError('Path already exists on the target: {}'.format(path))
         else:
@@ -1767,7 +1811,9 @@ class LinuxTarget(Target):
                  connection_settings=None,
                  platform=None,
                  working_directory=None,
+                 *,
                  executables_directory=None,
+                 tmp_directory=None,
                  connect=True,
                  modules=None,
                  load_default_modules=True,
@@ -1780,6 +1826,7 @@ class LinuxTarget(Target):
                                           platform=platform,
                                           working_directory=working_directory,
                                           executables_directory=executables_directory,
+                                          tmp_directory=tmp_directory,
                                           connect=connect,
                                           modules=modules,
                                           load_default_modules=load_default_modules,
@@ -1868,10 +1915,8 @@ class LinuxTarget(Target):
 
     def _resolve_paths(self):
         if self.working_directory is None:
+            # This usually lands in the home directory
             self.working_directory = self.path.join(self.execute("pwd").strip(), 'devlib-target')
-        self._file_transfer_cache = self.path.join(self.working_directory, '.file-cache')
-        if self.executables_directory is None:
-            self.executables_directory = self.path.join(self.working_directory, 'bin')
 
 
 class AndroidTarget(Target):
@@ -1977,7 +2022,9 @@ class AndroidTarget(Target):
                  connection_settings=None,
                  platform=None,
                  working_directory=None,
+                 *,
                  executables_directory=None,
+                 tmp_directory=None,
                  connect=True,
                  modules=None,
                  load_default_modules=True,
@@ -1991,6 +2038,7 @@ class AndroidTarget(Target):
                                             platform=platform,
                                             working_directory=working_directory,
                                             executables_directory=executables_directory,
+                                            tmp_directory=tmp_directory,
                                             connect=connect,
                                             modules=modules,
                                             load_default_modules=load_default_modules,
@@ -2587,9 +2635,16 @@ class AndroidTarget(Target):
     def _resolve_paths(self):
         if self.working_directory is None:
             self.working_directory = self.path.join(self.external_storage, 'devlib-target')
-        self._file_transfer_cache = self.path.join(self.working_directory, '.file-cache')
+        if self.tmp_directory is None:
+            # Do not rely on the generic default here, as we need to provide an
+            # android-specific default in case it fails.
+            try:
+                tmp = self.execute(f'{quote(self.busybox)} mktemp -d')
+            except Exception:
+                tmp = '/data/local/tmp'
+            self.tmp_directory = tmp
         if self.executables_directory is None:
-            self.executables_directory = '/data/local/tmp/bin'
+            self.executables_directory = self.path.join(self.tmp_directory, 'bin')
 
     @asyn.asyncf
     async def _ensure_executables_directory_is_writable(self):
@@ -3056,7 +3111,9 @@ class LocalLinuxTarget(LinuxTarget):
                  connection_settings=None,
                  platform=None,
                  working_directory=None,
+                 *,
                  executables_directory=None,
+                 tmp_directory=None,
                  connect=True,
                  modules=None,
                  load_default_modules=True,
@@ -3069,6 +3126,7 @@ class LocalLinuxTarget(LinuxTarget):
                                                platform=platform,
                                                working_directory=working_directory,
                                                executables_directory=executables_directory,
+                                               tmp_directory=tmp_directory,
                                                connect=connect,
                                                modules=modules,
                                                load_default_modules=load_default_modules,
@@ -3080,9 +3138,6 @@ class LocalLinuxTarget(LinuxTarget):
     def _resolve_paths(self):
         if self.working_directory is None:
             self.working_directory = '/tmp/devlib-target'
-        self._file_transfer_cache = self.path.join(self.working_directory, '.file-cache')
-        if self.executables_directory is None:
-            self.executables_directory = '/tmp/devlib-target/bin'
 
 
 def _get_model_name(section):
@@ -3143,6 +3198,7 @@ class ChromeOsTarget(LinuxTarget):
                  connection_settings=None,
                  platform=None,
                  working_directory=None,
+                 *,
                  executables_directory=None,
                  android_working_directory=None,
                  android_executables_directory=None,
@@ -3175,6 +3231,7 @@ class ChromeOsTarget(LinuxTarget):
             platform=platform,
             working_directory=working_directory,
             executables_directory=executables_directory,
+            tmp_directory=tmp_directory,
             connect=False,
             modules=modules,
             load_default_modules=load_default_modules,
@@ -3243,6 +3300,3 @@ class ChromeOsTarget(LinuxTarget):
     def _resolve_paths(self):
         if self.working_directory is None:
             self.working_directory = '/mnt/stateful_partition/devlib-target'
-        self._file_transfer_cache = self.path.join(self.working_directory, '.file-cache')
-        if self.executables_directory is None:
-            self.executables_directory = self.path.join(self.working_directory, 'bin')
