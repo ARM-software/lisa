@@ -14,12 +14,37 @@ rebase-conf:
         -
             remote: douglas
             base: master
-            tip: fix_nest_asyncio
+            tip: fix_signals
 
         -
             remote: douglas
             base: master
-            tip: fix_signals
+            tip: fix_adb_unroot
+
+        -
+            remote: douglas
+            base: master
+            tip: fix_cpufreq_event
+
+        -
+            remote: douglas
+            base: master
+            tip: fix_kprobe_events2
+
+        -
+            remote: douglas
+            base: master
+            tip: fix_disconnect
+
+        -
+            remote: douglas
+            base: master
+            tip: android_dmesg
+
+        -
+            remote: douglas
+            base: master
+            tip: fix_ssh_pull
 
     remotes:
         upstream:
