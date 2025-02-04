@@ -609,7 +609,7 @@ def _polars_refit_index(data, window):
         # "end" had a lower value than the unclipped index, we get rid of all
         # the excess rows.
         data = data.filter(
-            (index_col != end) | (index_col.diff() != 0)
+            (index_col != end) | (index_col != index_col.shift(1))
         )
 
     return data
