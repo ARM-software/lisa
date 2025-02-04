@@ -146,7 +146,7 @@ from devlib.target import AndroidTarget, KernelVersion, TypedKernelConfig, Kerne
 from devlib.host import LocalConnection
 from devlib.exception import TargetStableError
 
-from lisa.utils import nullcontext, Loggable, LISA_CACHE_HOME, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor, destroyablecontextmanager, ContextManagerExit, ignore_exceps, get_nested_key, is_link_dead, deduplicate, subprocess_detailed_excep
+from lisa.utils import nullcontext, Loggable, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor, destroyablecontextmanager, ContextManagerExit, ignore_exceps, get_nested_key, is_link_dead, deduplicate, subprocess_detailed_excep
 from lisa._assets import ASSETS_PATH, HOST_PATH, ABI_BINARIES_FOLDER
 from lisa._unshare import ensure_root
 import lisa._git as git
@@ -708,6 +708,7 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
     dir_cache = DirCache(
         category='alpine_chroot',
         populate=populate,
+        fmt_version='1',
     )
     alpine_arch =_abi_to_alpine_arch(abi)
     key = (
@@ -755,6 +756,7 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
         rust_dir_cache = DirCache(
             category='rust_for_alpine_chroot',
             populate=populate_rust,
+            fmt_version='1',
         )
         # Add the Alpine key to the Rust key, so that the Rust install is
         # allowed to depend on the state of the Alpine install (e.g. packages
@@ -2461,6 +2463,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                 dir_cache = DirCache(
                     category='kernels',
                     populate=lambda url, path: cls._make_tree(version, path),
+                    fmt_version='1',
                 )
 
                 url = cls._get_url(version)
@@ -2822,6 +2825,7 @@ class KmodSrc(Loggable):
                 dir_cache = DirCache(
                     category='rust_home',
                     populate=populate,
+                    fmt_version='1',
                 )
                 key = sorted(rust_spec.items())
                 rust_home = dir_cache.get_entry(key)

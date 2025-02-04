@@ -93,7 +93,8 @@ LISA_HOME = os.getenv('LISA_HOME', os.path.abspath('.'))
 The detected location of your LISA installation
 """
 
-def _get_xdg_home(directory):
+def _get_xdg_home(directory, fmt_version=None):
+    fmt_version = fmt_version or f'version-{VERSION_TOKEN}'
     dir_upper = directory.upper()
 
     try:
@@ -105,13 +106,13 @@ def _get_xdg_home(directory):
             try:
                 base = os.environ[f'XDG_{dir_upper}_HOME']
             except KeyError:
-                xdg_home = os.path.join(os.environ['HOME'], '.lisa', directory, VERSION_TOKEN)
+                xdg_home = os.path.join(os.environ['HOME'], '.lisa', directory, fmt_version)
             else:
-                xdg_home = os.path.join(base, 'lisa', VERSION_TOKEN)
+                xdg_home = os.path.join(base, 'lisa', fmt_version)
         else:
-            xdg_home = os.path.join(base, directory, VERSION_TOKEN)
+            xdg_home = os.path.join(base, directory, fmt_version)
     else:
-        xdg_home = os.path.join(base, VERSION_TOKEN)
+        xdg_home = os.path.join(base, fmt_version)
 
     os.makedirs(xdg_home, exist_ok=True)
     return xdg_home
@@ -121,6 +122,8 @@ LISA_CACHE_HOME = _get_xdg_home('cache')
 """
 Base folder used for caching files.
 """
+
+_UNVERSIONED_CACHE_HOME = _get_xdg_home('cache', fmt_version='unversioned')
 
 RESULT_DIR = 'results'
 LATEST_LINK = 'results_latest'
@@ -4077,11 +4080,23 @@ class DirCache(Loggable):
         which is the same as returning the passed path.
     :type populate: collections.abc.Callable
 
+    :param fmt_version: Version of the format of this cache ``category``. This
+        allows re-using the cache across multiple versions of :mod:`lisa`, at
+        the expense of having to manually bump the format version in source
+        code when the format of the cache changes. This format version is
+        logically added to each key lookup so that multiple versions of
+        :mod:`lisa` do not interfere with each other.
+    :type fmt_version: str or None
+
     The cache is managed in a process-safe way, so that there can be no race
     between concurrent processes or threads.
     """
-    def __init__(self, category, populate=None):
-        self._base = Path(LISA_CACHE_HOME, category)
+    def __init__(self, category, populate=None, fmt_version=None):
+        base = _UNVERSIONED_CACHE_HOME if fmt_version else LISA_CACHE_HOME
+        base = Path(base) / category
+
+        self._fmt_version = fmt_version
+        self._base = base
         self._populate = populate or (lambda *args, **kwargs: None)
         self._category = category
 
@@ -4109,7 +4124,7 @@ class DirCache(Loggable):
             else:
                 return with_typ(repr(x))
 
-        key = normalize(key)
+        key = normalize((self._fmt_version, key))
         key = repr(key).encode('utf-8')
 
         h = hashlib.sha256()
