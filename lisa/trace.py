@@ -5400,6 +5400,7 @@ class _Trace(Loggable, _InternalTraceBase):
                     except OSError:
                         dir_cache = DirCache(
                             category='trace_swap',
+                            fmt_version='1',
                         )
                         swap_dir = str(dir_cache.get_entry(trace_id))
 
