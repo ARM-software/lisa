@@ -901,7 +901,12 @@ class TasksAnalysis(TraceAnalysisBase):
                 str_col = (pl.col(col) & 0xff).replace_strict(mapping, default=None)
                 str_col = (
                     pl.when(str_col.is_null() & (pl.col(col) > 0))
-                    .then(pl.col(col).map_elements(TaskState.sched_switch_str))
+                    .then(
+                        pl.col(col).map_elements(
+                            TaskState.sched_switch_str,
+                            return_dtype=pl.String,
+                        )
+                    )
                     .otherwise(str_col)
                 )
 
