@@ -34,7 +34,7 @@ pub enum Array<'a, T> {
     Arc(Arc<[T]>),
 }
 
-impl<'a, T> Array<'a, T> {
+impl<T> Array<'_, T> {
     #[inline]
     pub fn into_static(self) -> Array<'static, T>
     where
@@ -47,7 +47,7 @@ impl<'a, T> Array<'a, T> {
     }
 }
 
-impl<'a, T> Deref for Array<'a, T> {
+impl<T> Deref for Array<'_, T> {
     type Target = [T];
 
     #[inline]
@@ -59,7 +59,7 @@ impl<'a, T> Deref for Array<'a, T> {
     }
 }
 
-impl<'a, T> AsRef<[T]> for Array<'a, T> {
+impl<T> AsRef<[T]> for Array<'_, T> {
     #[inline]
     fn as_ref(&self) -> &[T] {
         self.deref()
@@ -87,44 +87,44 @@ impl<'a, T: Clone> From<&Array<'a, T>> for Vec<T> {
     }
 }
 
-impl<'a, T: PartialEq> PartialEq<Self> for Array<'a, T> {
+impl<T: PartialEq> PartialEq<Self> for Array<'_, T> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.deref() == other.deref()
     }
 }
 
-impl<'a, T: Eq> Eq for Array<'a, T> {}
+impl<T: Eq> Eq for Array<'_, T> {}
 
-impl<'a, T: PartialOrd> PartialOrd for Array<'a, T> {
+impl<T: PartialOrd> PartialOrd for Array<'_, T> {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.deref().partial_cmp(other.deref())
     }
 }
 
-impl<'a, T: Ord> Ord for Array<'a, T> {
+impl<T: Ord> Ord for Array<'_, T> {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         self.deref().cmp(other.deref())
     }
 }
 
-impl<'a, T: Hash> Hash for Array<'a, T> {
+impl<T: Hash> Hash for Array<'_, T> {
     #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
         Hash::hash(self.deref(), state)
     }
 }
 
-impl<'a, T> Borrow<[T]> for Array<'a, T> {
+impl<T> Borrow<[T]> for Array<'_, T> {
     #[inline]
     fn borrow(&self) -> &[T] {
         self
     }
 }
 
-impl<'a, T> fmt::Display for Array<'a, T>
+impl<T> fmt::Display for Array<'_, T>
 where
     T: fmt::Display,
 {

@@ -114,9 +114,12 @@ pub trait BorrowingRead: BorrowingReadCore {
         // function and our caller gets to choose the lifetime, not us.
         P: for<'b> Fn(
             &'b [u8],
-        )
-            -> IResult<&'b [u8], O, NomError<E, nom::error::VerboseError<&'b [u8]>>>,
-        E: for<'b> FromParseError<&'b [u8], nom::error::VerboseError<&'b [u8]>> + Debug,
+        ) -> IResult<
+            &'b [u8],
+            O,
+            NomError<E, nom_language::error::VerboseError<&'b [u8]>>,
+        >,
+        E: for<'b> FromParseError<&'b [u8], nom_language::error::VerboseError<&'b [u8]>> + Debug,
     {
         let buf = self.read(count)?;
         Ok(parser.parse_finish(buf))
@@ -181,8 +184,8 @@ impl<T: BorrowingReadCore> BorrowingRead for T {}
 //         P: for<'b> Fn(
 //             &'b [u8],
 //         )
-//             -> IResult<&'b [u8], O, NomError<E, nom::error::VerboseError<&[u8]>>>,
-//         E: for<'b> FromParseError<&'b [u8], nom::error::VerboseError<&'b [u8]>> + Debug,
+//             -> IResult<&'b [u8], O, NomError<E, nom_language::error::VerboseError<&[u8]>>>,
+//         E: for<'b> FromParseError<&'b [u8], nom_language::error::VerboseError<&'b [u8]>> + Debug,
 //     {
 //         (*self).parse(count, parser)
 //     }
@@ -933,7 +936,7 @@ where
 
         if self.offset > self.last_offset {
             let rewind = file2mem(self.offset - self.last_offset);
-            count = if rewind > count { 0 } else { count - rewind };
+            count = count.saturating_sub(rewind);
             self.offset = self.last_offset;
         }
         Ok(count)

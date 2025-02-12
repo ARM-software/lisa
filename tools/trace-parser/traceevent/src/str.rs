@@ -56,7 +56,7 @@ pub(crate) enum InnerStr<'a> {
     Procedural(StrProcedure<'a>),
 }
 
-impl<'a> Clone for OwnedScratchBox<'a, dyn StringProducer> {
+impl Clone for OwnedScratchBox<'_, dyn StringProducer> {
     #[inline]
     fn clone(&self) -> Self {
         self.clone_box(self.alloc)
@@ -162,7 +162,7 @@ impl<'a> Str<'a> {
     }
 }
 
-impl<'a> Deref for Str<'a> {
+impl Deref for Str<'_> {
     type Target = str;
 
     #[inline]
@@ -176,7 +176,7 @@ impl<'a> Deref for Str<'a> {
     }
 }
 
-impl<'a> DerefMut for Str<'a> {
+impl DerefMut for Str<'_> {
     #[inline]
     fn deref_mut<'b>(&'b mut self) -> &'b mut Self::Target {
         macro_rules! own {
@@ -211,14 +211,14 @@ impl<'a> DerefMut for Str<'a> {
     }
 }
 
-impl<'a> AsRef<str> for Str<'a> {
+impl AsRef<str> for Str<'_> {
     #[inline]
     fn as_ref(&self) -> &str {
         self.deref()
     }
 }
 
-impl<'a> AsMut<str> for Str<'a> {
+impl AsMut<str> for Str<'_> {
     #[inline]
     fn as_mut(&mut self) -> &mut str {
         self.deref_mut()
@@ -253,44 +253,44 @@ impl<'a> From<&Str<'a>> for String {
     }
 }
 
-impl<'a> PartialEq<Self> for Str<'a> {
+impl PartialEq<Self> for Str<'_> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.deref() == other.deref()
     }
 }
 
-impl<'a> Eq for Str<'a> {}
+impl Eq for Str<'_> {}
 
-impl<'a> PartialOrd for Str<'a> {
+impl PartialOrd for Str<'_> {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<'a> Ord for Str<'a> {
+impl Ord for Str<'_> {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         self.deref().cmp(other.deref())
     }
 }
 
-impl<'a> Hash for Str<'a> {
+impl Hash for Str<'_> {
     #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
         Hash::hash(self.deref(), state)
     }
 }
 
-impl<'a> Borrow<str> for Str<'a> {
+impl Borrow<str> for Str<'_> {
     #[inline]
     fn borrow(&self) -> &str {
         self
     }
 }
 
-impl<'a> fmt::Display for Str<'a> {
+impl fmt::Display for Str<'_> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         fmt::Display::fmt(self.deref(), f)

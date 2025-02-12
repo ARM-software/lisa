@@ -324,7 +324,7 @@ impl<'a, T: ?Sized, A> OwnedScratchBox<'a, T, A> {
 
 // SAFETY: If the allocator and the value are Send, then the boxed value is also
 // Send.
-unsafe impl<'a, T: Send + ?Sized, A> Send for OwnedScratchBox<'a, T, A>
+unsafe impl<T: Send + ?Sized, A> Send for OwnedScratchBox<'_, T, A>
 where
     T: Send,
     A: Send,
@@ -333,14 +333,14 @@ where
 
 // SAFETY: If the allocator and the value are Sync, then the boxed value is also
 // Sync.
-unsafe impl<'a, T, A> Sync for OwnedScratchBox<'a, T, A>
+unsafe impl<T, A> Sync for OwnedScratchBox<'_, T, A>
 where
     T: Sync + ?Sized,
     A: Sync,
 {
 }
 
-impl<'a, T: ?Sized, A> Drop for OwnedScratchBox<'a, T, A> {
+impl<T: ?Sized, A> Drop for OwnedScratchBox<'_, T, A> {
     #[inline]
     fn drop(&mut self) {
         // SAFETY: We own the pointer, it is not aliased anywhere. Also, it was
@@ -352,7 +352,7 @@ impl<'a, T: ?Sized, A> Drop for OwnedScratchBox<'a, T, A> {
     }
 }
 
-impl<'a, T: ?Sized, A> Deref for OwnedScratchBox<'a, T, A> {
+impl<T: ?Sized, A> Deref for OwnedScratchBox<'_, T, A> {
     type Target = T;
 
     #[inline]
@@ -362,7 +362,7 @@ impl<'a, T: ?Sized, A> Deref for OwnedScratchBox<'a, T, A> {
     }
 }
 
-impl<'a, T: ?Sized, A> DerefMut for OwnedScratchBox<'a, T, A> {
+impl<T: ?Sized, A> DerefMut for OwnedScratchBox<'_, T, A> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         // SAFETY: the pointer is not aliased anywhere
@@ -370,14 +370,14 @@ impl<'a, T: ?Sized, A> DerefMut for OwnedScratchBox<'a, T, A> {
     }
 }
 
-impl<'a, T: ?Sized, A> AsRef<T> for OwnedScratchBox<'a, T, A> {
+impl<T: ?Sized, A> AsRef<T> for OwnedScratchBox<'_, T, A> {
     #[inline]
     fn as_ref(&self) -> &T {
         self.deref()
     }
 }
 
-impl<'a, T: ?Sized, A> AsMut<T> for OwnedScratchBox<'a, T, A> {
+impl<T: ?Sized, A> AsMut<T> for OwnedScratchBox<'_, T, A> {
     #[inline]
     fn as_mut(&mut self) -> &mut T {
         self.deref_mut()
@@ -399,20 +399,20 @@ where
     }
 }
 
-impl<'a, T: Debug + ?Sized, A> Debug for OwnedScratchBox<'a, T, A> {
+impl<T: Debug + ?Sized, A> Debug for OwnedScratchBox<'_, T, A> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), core::fmt::Error> {
         self.deref().fmt(f)
     }
 }
-impl<'a, T: PartialEq + ?Sized, A> PartialEq<Self> for OwnedScratchBox<'a, T, A> {
+impl<T: PartialEq + ?Sized, A> PartialEq<Self> for OwnedScratchBox<'_, T, A> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.deref() == other.deref()
     }
 }
 
-impl<'a, T: Eq + ?Sized, A> Eq for OwnedScratchBox<'a, T, A> {}
+impl<T: Eq + ?Sized, A> Eq for OwnedScratchBox<'_, T, A> {}
 
 /// [ScratchVec] is to [Vec] what [ScratchBox] is to [Box]
 pub struct ScratchVec<'a, T: 'a>(BumpaloVec<'a, T>);
@@ -467,7 +467,7 @@ impl<'a, T> ScratchVec<'a, T> {
     }
 }
 
-impl<'a, T> ScratchVec<'a, T>
+impl<T> ScratchVec<'_, T>
 where
     T: Clone,
 {
@@ -477,7 +477,7 @@ where
     }
 }
 
-impl<'a, T> ScratchVec<'a, T>
+impl<T> ScratchVec<'_, T>
 where
     T: Copy,
 {
@@ -496,7 +496,7 @@ where
     }
 }
 
-impl<'a, T> Deref for ScratchVec<'a, T> {
+impl<T> Deref for ScratchVec<'_, T> {
     type Target = [T];
 
     #[inline]
@@ -505,42 +505,42 @@ impl<'a, T> Deref for ScratchVec<'a, T> {
     }
 }
 
-impl<'a, T> DerefMut for ScratchVec<'a, T> {
+impl<T> DerefMut for ScratchVec<'_, T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.0.deref_mut()
     }
 }
 
-impl<'a, T> AsRef<[T]> for ScratchVec<'a, T> {
+impl<T> AsRef<[T]> for ScratchVec<'_, T> {
     #[inline]
     fn as_ref(&self) -> &[T] {
         self.deref()
     }
 }
 
-impl<'a, T> AsMut<[T]> for ScratchVec<'a, T> {
+impl<T> AsMut<[T]> for ScratchVec<'_, T> {
     #[inline]
     fn as_mut(&mut self) -> &mut [T] {
         self.deref_mut()
     }
 }
 
-impl<'a, T: Clone> Clone for ScratchVec<'a, T> {
+impl<T: Clone> Clone for ScratchVec<'_, T> {
     #[inline]
     fn clone(&self) -> Self {
         ScratchVec(self.0.clone())
     }
 }
 
-impl<'a, T: Debug> Debug for ScratchVec<'a, T> {
+impl<T: Debug> Debug for ScratchVec<'_, T> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), core::fmt::Error> {
         self.0.fmt(f)
     }
 }
 
-impl<'a> io::Write for ScratchVec<'a, u8> {
+impl io::Write for ScratchVec<'_, u8> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.0.extend_from_slice(buf);
@@ -565,7 +565,7 @@ impl<'a, T> IntoIterator for ScratchVec<'a, T> {
 
 pub struct IntoIterVec<'a, T>(<BumpaloVec<'a, T> as IntoIterator>::IntoIter);
 
-impl<'a, T> Iterator for IntoIterVec<'a, T> {
+impl<T> Iterator for IntoIterVec<'_, T> {
     type Item = T;
 
     #[inline]
@@ -584,7 +584,7 @@ impl<'a, T> Iterator for IntoIterVec<'a, T> {
     }
 }
 
-impl<'a, A> Extend<A> for ScratchVec<'a, A> {
+impl<A> Extend<A> for ScratchVec<'_, A> {
     #[inline]
     fn extend<T>(&mut self, iter: T)
     where

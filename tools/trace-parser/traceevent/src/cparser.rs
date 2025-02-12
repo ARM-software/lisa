@@ -35,7 +35,7 @@ use nom::{
     error::{context, FromExternalError},
     multi::{fold_many1, many0, many0_count, many1, many_m_n, separated_list0, separated_list1},
     number::complete::u8,
-    sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
+    sequence::{delimited, pair, preceded, separated_pair, terminated},
     AsBytes, Finish as _, Parser,
 };
 use smartstring::alias::String;
@@ -516,12 +516,12 @@ convert_err_impl!(InterpError, InterpError, CParseError);
 convert_err_impl!(EvalError, InterpError, CParseError);
 convert_err_impl!(CompileError, InterpError, CParseError);
 
-impl<I, I2> FromParseError<I, nom::error::VerboseError<I2>> for CParseError
+impl<I, I2> FromParseError<I, nom_language::error::VerboseError<I2>> for CParseError
 where
     I: AsRef<[u8]>,
     I2: AsRef<[u8]>,
 {
-    fn from_parse_error(input: I, err: &nom::error::VerboseError<I2>) -> Self {
+    fn from_parse_error(input: I, err: &nom_language::error::VerboseError<I2>) -> Self {
         CParseError::ParseError(VerboseParseError::new(input, err))
     }
 }
@@ -553,13 +553,13 @@ fn print_array_hex(separator: &'static str) -> Result<ExtensionMacroKind, CParse
                 penv,
                 input,
                 map_res_cut(
-                    tuple((
+                    (
                         // Array to format
                         CGrammar::assignment_expr(),
                         lexeme(char(',')),
                         // Array size
                         CGrammar::assignment_expr(),
-                    )),
+                    ),
                     |(val, _, array_size)| {
                         let compiler = Arc::new(move |cenv: &dyn CompileEnv<'_>| {
                             let cval = val.clone().compile(&cenv)?;
@@ -631,7 +631,7 @@ fn print_symbolic<const EXACT_MATCH: bool>() -> Result<ExtensionMacroKind, CPars
                 penv,
                 input,
                 map_res_cut(
-                    tuple((
+                    (
                         // value to format
                         CGrammar::assignment_expr(),
                         lexeme(char(',')),
@@ -661,7 +661,7 @@ fn print_symbolic<const EXACT_MATCH: bool>() -> Result<ExtensionMacroKind, CPars
                             ),
                             opt(lexeme(char(','))),
                         ),
-                    )),
+                    ),
                     |(val, _, delim, flags)| {
                         let flags = flags
                             .into_iter()
@@ -850,7 +850,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                         penv,
                         input,
                         map_res_cut(
-                            tuple((
+                            (
                                 // Condition
                                 CGrammar::assignment_expr(),
                                 lexeme(char(',')),
@@ -859,7 +859,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                                 lexeme(char(',')),
                                 // Expr if condition is false
                                 CGrammar::assignment_expr(),
-                            )),
+                            ),
                             |(cond, _, if_true, _, if_false)| {
                                 let env = BasicEnv::new(penv);
                                 let cond = cond.compile(&env)?;
@@ -1114,7 +1114,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                         penv,
                         input,
                         map_res_cut(
-                            tuple((
+                            (
                                 // Array to format
                                 CGrammar::assignment_expr(),
                                 lexeme(char(',')),
@@ -1123,7 +1123,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                                 lexeme(char(',')),
                                 // Item size
                                 CGrammar::assignment_expr(),
-                            )),
+                            ),
                             |(val, _, array_size, _, item_size)| {
                                 let compiler = Arc::new(move |cenv: &dyn CompileEnv<'_>| {
                                     let cval = val.clone().compile(&cenv)?;
@@ -1264,7 +1264,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                         penv,
                         input,
                         map_res_cut(
-                            tuple((
+                            (
                                 // Prefix string
                                 CGrammar::assignment_expr(),
                                 lexeme(char(',')),
@@ -1285,7 +1285,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                                 lexeme(char(',')),
                                 // Ascii
                                 CGrammar::assignment_expr(),
-                            )),
+                            ),
                             |(
                                 prefix_str,
                                 _,
@@ -1547,7 +1547,8 @@ pub fn is_identifier<I>(i: I) -> bool
 where
     I: nom::AsBytes,
 {
-    all_consuming(recognize(identifier::<_, ()>()))(i.as_bytes())
+    all_consuming(recognize(identifier::<_, ()>()))
+        .parse(i.as_bytes())
         .finish()
         .is_ok()
 }
@@ -1555,18 +1556,9 @@ where
 /// C identifier parser.
 // https://port70.net/~nsz/c/c11/n1570.html#6.4.2.1
 #[inline]
-pub fn identifier<I, E>() -> impl nom::Parser<I, Identifier, E>
+pub fn identifier<I, E>() -> impl nom::Parser<I, Output = Identifier, Error = E>
 where
-    I: nom::AsBytes
-        + Clone
-        + nom::InputTake
-        + nom::Offset
-        + nom::Slice<core::ops::RangeTo<usize>>
-        + nom::InputLength
-        + nom::InputIter<Item = u8>
-        + nom::InputTakeAtPosition
-        + for<'a> nom::Compare<&'a str>,
-    <I as nom::InputTakeAtPosition>::Item: Clone + nom::AsChar,
+    I: nom::AsBytes + Clone + nom::Input<Item = u8> + nom::Offset + for<'a> nom::Compare<&'a str>,
     E: FromExternalError<I, CParseError> + nom::error::ParseError<I>,
 {
     map_res_cut(
@@ -1586,20 +1578,15 @@ where
 }
 
 /// Parser of the given C keyword.
-fn keyword<'a, I, E>(name: &'a str) -> impl nom::Parser<I, I, E> + 'a
+fn keyword<'a, I, E>(name: &'a str) -> impl nom::Parser<I, Output = I, Error = E> + 'a
 where
     E: nom::error::ParseError<I> + 'a,
     I: nom::AsBytes
         + Clone
-        + nom::InputTake
+        + nom::Input<Item = u8>
         + nom::Offset
-        + nom::Slice<core::ops::RangeTo<usize>>
-        + nom::InputLength
-        + nom::InputIter<Item = u8>
-        + nom::InputTakeAtPosition
         + for<'b> nom::Compare<&'b str>
         + 'a,
-    <I as nom::InputTakeAtPosition>::Item: Clone + nom::AsChar,
     E: FromExternalError<I, CParseError> + nom::error::ParseError<I>,
 {
     let mut inner = all_consuming(lexeme(tag(name)));
@@ -1611,15 +1598,9 @@ where
     }
 }
 
-fn escape_sequence<I, E>() -> impl nom::Parser<I, u8, E>
+fn escape_sequence<I, E>() -> impl nom::Parser<I, Output = u8, Error = E>
 where
-    I: Clone
-        + AsBytes
-        + nom::InputTake
-        + nom::InputLength
-        + nom::InputIter<Item = u8>
-        + nom::InputTakeAtPosition<Item = u8>
-        + nom::Slice<std::ops::RangeFrom<usize>>,
+    I: Clone + AsBytes + nom::Input<Item = u8>,
     E: FromExternalError<I, CParseError> + nom::error::ParseError<I> + nom::error::ContextError<I>,
 {
     context(
@@ -1684,20 +1665,13 @@ where
     )
 }
 
-pub fn string_literal<I, E>() -> impl nom::Parser<I, Expr, E>
+pub fn string_literal<I, E>() -> impl nom::Parser<I, Output = Expr, Error = E>
 where
-    I: Clone
-        + AsBytes
-        + nom::InputTake
-        + nom::Slice<std::ops::RangeFrom<usize>>
-        + nom::InputLength
-        + nom::InputIter<Item = u8>
-        + nom::InputTakeAtPosition<Item = u8>
-        + for<'a> nom::Compare<&'a str>,
+    I: Clone + AsBytes + nom::Input<Item = u8> + for<'a> nom::Compare<&'a str>,
     E: FromExternalError<I, CParseError> + nom::error::ContextError<I> + nom::error::ParseError<I>,
 {
     many1(map_res_cut(
-        tuple((
+        (
             context(
                 "string encoding prefix",
                 lexeme(opt(alt((tag("u8"), tag("u"), tag("U"), tag("L"))))),
@@ -1744,7 +1718,7 @@ where
                 )),
                 char('"'),
             )),
-        )),
+        ),
         |(prefix, string)| match prefix {
             Some(_) => Err(CParseError::UnsupportedConstruct(
                 "string encoding prefix syntax is not supported".into(),
@@ -1897,7 +1871,7 @@ grammar! {
 
             let array = context(
                 "array",
-                tuple((
+                (
                     Self::grammar_ctx(),
                     Self::direct_declarator(abstract_declarator),
                     context(
@@ -1917,7 +1891,7 @@ grammar! {
                             char(']'),
                         )),
                     ),
-                )),
+                ),
             ).map(
                 |(ctx, declarator, array_size)| {
                     let array_size = match array_size {
@@ -2013,7 +1987,7 @@ grammar! {
                                             Ok((input, res))
                                         }
                                     ),*
-                                    _ => fail(input)
+                                    _ => fail().parse(input)
                                 }
                             }
                         }
@@ -2250,7 +2224,7 @@ grammar! {
                     // backtracking back to the ISO C declaration, as we know it will
                     // never yield something sensible.
                     map_res_cut(
-                        tuple((
+                        (
                             alt((
                                 keyword("__data_loc"),
                                 keyword("__rel_loc"),
@@ -2264,7 +2238,7 @@ grammar! {
                                 "__data_loc identifier",
                                 lexeme(Self::identifier()),
                             )),
-                        )),
+                        ),
                         |(kind, typ, abstract_declarator, identifier)| {
                             // Push the array sizes down the stack. The 2nd nested array takes the size of the 1st etc.
                             fn push_array_size(
@@ -2497,14 +2471,14 @@ grammar! {
                         ).map(|expr| Expr::PostDec(Box::new(expr)))
                     ),
                     context("subscript expr",
-                        tuple((
+                        (
                             Self::postfix_expr(),
                             delimited(
                                 lexeme(char('[')),
                                 cut(Self::expr()),
                                 lexeme(char(']')),
                             ),
-                        )).map(|(array, index)| Expr::Subscript(Box::new(array), Box::new(index)))
+                        ).map(|(array, index)| Expr::Subscript(Box::new(array), Box::new(index)))
                     ),
                     context("func call expr",
                         move |input| {
@@ -2572,7 +2546,7 @@ grammar! {
                     ),
 
                     context("compound literal",
-                        tuple((
+                        (
                             parenthesized(
                                 Self::type_name(),
                             ),
@@ -2584,7 +2558,7 @@ grammar! {
                                     lexeme(char('}')),
                                 )
                             ),
-                        )).map(|(typ, init)| Expr::CompoundLiteral(typ, init))
+                        ).map(|(typ, init)| Expr::CompoundLiteral(typ, init))
                     ),
                     Self::primary_expr(),
                 ))
@@ -2867,14 +2841,14 @@ grammar! {
                 alt((
                     Self::statement_expr(),
                     context("assignment",
-                        tuple((
+                        (
                             Self::unary_expr(),
                             lexeme(alt((
-                                tuple((
+                                (
                                     tag("="),
                                     Self::assignment_expr(),
-                                )),
-                                tuple((
+                                ),
+                                (
                                     alt((
                                         tag("*="),
                                         tag("/="),
@@ -2888,9 +2862,9 @@ grammar! {
                                         tag("|="),
                                     )),
                                     cut(Self::assignment_expr()),
-                                ))
+                                )
                             )))
-                        )).map(|(lexpr, (op, rexpr))| {
+                        ).map(|(lexpr, (op, rexpr))| {
                             use Expr::*;
                             match &op.fragment()[..] {
                                 b"=" => Assign(Box::new(lexpr), Box::new(rexpr)),
@@ -2944,7 +2918,7 @@ grammar! {
                             ).map(|e| Expr::SizeofExpr(Box::new(e)))
                     ),
                     context("unary op expr",
-                        tuple((
+                        (
                             lexeme(
                                 // https://port70.net/~nsz/c/c11/n1570.html#6.5.3p1
                                 alt((
@@ -2957,7 +2931,7 @@ grammar! {
                                 ))
                             ),
                             Self::cast_expr(),
-                        )).map(|(modify, e)| modify(e))
+                        ).map(|(modify, e)| modify(e))
                     ),
                     Self::postfix_expr(),
                 ))
@@ -2967,10 +2941,10 @@ grammar! {
         // https://port70.net/~nsz/c/c11/n1570.html#6.7.7p1
         rule type_name() -> Type {
             lexeme(
-                tuple((
+                (
                     Self::declaration_specifier(),
                     Self::declarator(true),
-                )).map(|(typ, abstract_declarator)|
+                ).map(|(typ, abstract_declarator)|
                     (abstract_declarator.modify_typ)(typ)
                 )
             )
@@ -2981,12 +2955,12 @@ grammar! {
             lexeme(
                 alt((
                     context("cast expr",
-                        tuple((
+                        (
                             parenthesized(
                                 Self::type_name(),
                             ),
                             Self::cast_expr(),
-                        )).map(|(typ, e)| Expr::Cast(typ, Box::new(e)))
+                        ).map(|(typ, e)| Expr::Cast(typ, Box::new(e)))
                     ),
                     Self::unary_expr(),
                 ))
@@ -3003,7 +2977,7 @@ grammar! {
             lexeme(
                 context("character constant",
                     map_res_cut(
-                        tuple((
+                        (
                             context(
                                 "char encoding prefix",
                                 opt(alt((keyword("u8"), keyword("u"), keyword("U"), keyword("L")))),
@@ -3016,7 +2990,7 @@ grammar! {
                                 ))),
                                 char('\''),
                             )
-                        )),
+                        ),
                         |(prefix, c)| match prefix {
                             Some(_) => Err(CParseError::UnsupportedConstruct("string encoding prefix syntax is not supported".into())),
                             None => Ok(Expr::CharConstant(Type::I32, c.into())),
@@ -3099,11 +3073,11 @@ grammar! {
 
             lexeme(
                 map_res_cut(
-                    tuple((
+                    (
                         Self::grammar_ctx(),
                         value(),
                         suffix(),
-                    )),
+                    ),
                     move |(ctx, (kind, x), suffix)| {
                         let abi = &ctx.abi();
                         let long_size = abi.long_size;

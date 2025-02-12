@@ -100,8 +100,13 @@ pub trait PackratGrammar {
         ctx: &'i Self::Ctx<'i>,
     ) -> Result<(&'i [u8], O), E>
     where
-        E: FromParseError<&'i [u8], nom::error::VerboseError<&'i [u8]>>,
-        P: 'p + Parser<Span<'i, Self>, O, NomError<E, nom::error::VerboseError<Span<'i, Self>>>>,
+        E: FromParseError<&'i [u8], nom_language::error::VerboseError<&'i [u8]>>,
+        P: 'p
+            + Parser<
+                Span<'i, Self>,
+                Output = O,
+                Error = NomError<E, nom_language::error::VerboseError<Span<'i, Self>>>,
+            >,
         <Self as PackratGrammar>::State<'i>: Default + Clone,
         Self: Sized,
         for<'a> Self::Ctx<'a>: 'a,
@@ -111,7 +116,7 @@ pub trait PackratGrammar {
             Ok((remaining, x)) => Ok((*remaining.fragment(), x)),
             Err(err) => match err.data {
                 None => {
-                    let inner = nom::error::VerboseError {
+                    let inner = nom_language::error::VerboseError {
                         errors: err
                             .inner
                             .errors
@@ -204,7 +209,7 @@ macro_rules! grammar {
 
             impl $grammar_name {
                 $(
-                    $vis fn $name<'i, 'ret, $($($generics $(: $bound)?,)*)? E>($($param: $param_ty),*) -> impl ::nom::Parser<Span<'i, $grammar_name>, $ret, E> + 'ret
+                    $vis fn $name<'i, 'ret, $($($generics $(: $bound)?,)*)? E>($($param: $param_ty),*) -> impl ::nom::Parser<Span<'i, $grammar_name>, Output=$ret, Error=E> + 'ret
                     where
                         E: 'ret
                         + ::nom::error::ParseError<Span<'i, $grammar_name>>
@@ -290,11 +295,11 @@ macro_rules! grammar {
                                             let pos = data.pos;
                                             drop(packrat);
                                             let (input, _) = ::nom::bytes::complete::take(pos - input.location_offset()).parse(input)?;
-                                            context(concat!(stringify!($name), " (pre-parsed)"), success(val))(input)
+                                            context(concat!(stringify!($name), " (pre-parsed)"), success(val)).parse(input)
                                         }
                                         PackratAction::Fail => {
                                             drop(packrat);
-                                            context(concat!(stringify!($name), " (seed recursion block)"), fail)(input)
+                                            context(concat!(stringify!($name), " (seed recursion block)"), ::nom::combinator::fail()).parse(input)
                                         }
                                     }
                                 }
@@ -342,7 +347,7 @@ pub(crate) mod tests {
             branch::alt,
             bytes::complete::tag,
             character::complete::alpha1,
-            combinator::{fail, recognize, success},
+            combinator::{recognize, success},
             multi::many1,
             sequence::separated_pair,
         };
@@ -589,7 +594,7 @@ pub(crate) mod tests {
         use nom::{
             branch::alt,
             character::complete::char,
-            combinator::{fail, success},
+            combinator::success,
             sequence::{delimited, separated_pair},
         };
 

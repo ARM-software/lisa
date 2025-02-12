@@ -33,7 +33,7 @@ use nom::{
     combinator::{cut, opt, success},
     error::{context, ContextError, FromExternalError, ParseError},
     multi::{many0, many1},
-    sequence::{preceded, separated_pair, tuple},
+    sequence::{preceded, separated_pair},
     Parser,
 };
 use once_cell::sync::OnceCell;
@@ -222,9 +222,9 @@ impl PrintFmtStr {
     /// Parse a printk-style format string.
     #[inline]
     pub fn try_new(header: &Header, fmt: &[u8]) -> Result<Self, PrintFmtError> {
-        print_fmt_parser::<crate::parser::NomError<PrintFmtError, nom::error::VerboseError<_>>>(
-            header.kernel_abi(),
-        )
+        print_fmt_parser::<
+            crate::parser::NomError<PrintFmtError, nom_language::error::VerboseError<_>>,
+        >(header.kernel_abi())
         .parse_finish(fmt)
     }
 
@@ -945,10 +945,10 @@ impl From<Utf8Error> for PrintFmtError {
     }
 }
 
-impl<I: AsRef<[u8]>, I2: AsRef<[u8]>> FromParseError<I, nom::error::VerboseError<I2>>
+impl<I: AsRef<[u8]>, I2: AsRef<[u8]>> FromParseError<I, nom_language::error::VerboseError<I2>>
     for PrintFmtError
 {
-    fn from_parse_error(input: I, err: &nom::error::VerboseError<I2>) -> Self {
+    fn from_parse_error(input: I, err: &nom_language::error::VerboseError<I2>) -> Self {
         PrintFmtError::CParseError(Box::new(CParseError::ParseError(VerboseParseError::new(
             input, err,
         ))))
@@ -968,7 +968,11 @@ impl<I: AsRef<[u8]>> FromParseError<I, ()> for PrintFmtError {
 // 25s, also leading to an absolute disaster in release profile)
 fn specifier<'a, 'abi, E>(
     abi: &'abi Abi,
-) -> impl nom::Parser<&'a [u8], Result<(VBinSpecifier, PrintSpecifier), PrintFmtError>, E> + 'abi
+) -> impl nom::Parser<
+    &'a [u8],
+    Output = Result<(VBinSpecifier, PrintSpecifier), PrintFmtError>,
+    Error = E,
+> + 'abi
 where
     E: 'abi
         + ParseError<&'a [u8]>
@@ -1163,11 +1167,11 @@ where
                             )),
                             preceded(char('U'), alt((char('b'), char('B'), char('l'), char('L'))))
                                 .map(|_| Ok((VBinSpecifier::Str, PrintSpecifier::Uuid))),
-                            tuple((
+                            (
                                 alt((char('d'), char('D'))),
                                 opt(alt((char('2'), char('3'), char('4')))),
-                            ))
-                            .map(|_| Ok((VBinSpecifier::Str, PrintSpecifier::Dentry))),
+                            )
+                                .map(|_| Ok((VBinSpecifier::Str, PrintSpecifier::Dentry))),
                             alt((
                                 char('g')
                                     .map(|_| Ok((VBinSpecifier::Str, PrintSpecifier::BlockDevice))),
@@ -1224,7 +1228,7 @@ where
 // Plus some specifiers that are undocumented
 fn print_fmt_parser<'a, 'abi, E>(
     abi: &'abi Abi,
-) -> impl nom::Parser<&'a [u8], PrintFmtStr, E> + 'abi
+) -> impl nom::Parser<&'a [u8], Output = PrintFmtStr, Error = E> + 'abi
 where
     E: 'abi
         + ParseError<&'a [u8]>
@@ -1263,7 +1267,7 @@ where
                                 let (vbin_spec, print_spec) = spec?;
                                 Ok((vbin_spec, print_spec, PrintPrecision::Dynamic))
                             }),
-                            map_res_cut(tuple((opt(txt_u64), specifier(abi))), |(width, spec)| {
+                            map_res_cut((opt(txt_u64), specifier(abi)), |(width, spec)| {
                                 let (vbin_spec, print_spec) = spec?;
                                 // No value after the dot is same as an explicit 0
                                 let width = width.unwrap_or(0);
@@ -1292,7 +1296,7 @@ where
                             },
                         ),
                         map_res_cut(
-                            tuple((txt_u64, precision())),
+                            (txt_u64, precision()),
                             |(width, (vbin_spec, print_spec, precision))| {
                                 Ok((
                                     vbin_spec,
@@ -1320,7 +1324,7 @@ where
                             "specifier",
                             alt((
                                 char('%').map(|_| PrintAtom::Fixed("%".into())),
-                                tuple((many1(flags()), width())).map(
+                                (many1(flags()), width()).map(
                                     |(flags, (vbin_spec, print_spec, precision, width))| {
                                         let flags = PrintFlags::from_iter(flags);
                                         PrintAtom::new_variable(

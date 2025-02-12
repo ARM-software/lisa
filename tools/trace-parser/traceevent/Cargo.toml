@@ -6,19 +6,20 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-nom = "7.1"
-nom_locate = "4.0"
+nom = "8.0"
+nom_locate = "5.0"
 smartstring = "1.0"
-thiserror = "1.0"
+thiserror = "2.0"
 memmap2 = "0.9"
 deref-map = "0.1.0"
 genawaiter = "0.99.1"
 bumpalo = {version="3.12", features=["collections", "boxed"]}
 # Can be replaced with std::cell::OnceCell the day it's stabilized
 once_cell = "1.17"
-itertools = "0.13"
+itertools = "0.14"
 bitflags = "2.0"
 libdeflater = {version = "1.19", features=["freestanding"]}
 bytemuck = "1.13"
 thread_local = "1.1"
 zstd = "0.13"
+nom-language = "0.1"

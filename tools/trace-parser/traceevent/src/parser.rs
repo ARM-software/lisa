@@ -39,12 +39,12 @@ impl<E, I> FromParseError<I, E> for () {
     fn from_parse_error(_input: I, _err: &E) -> Self {}
 }
 
-/// Parse error including a backtrace of nested [nom::error::VerboseErrorKind] along with their
+/// Parse error including a backtrace of nested [nom_language::error::VerboseErrorKind] along with their
 /// source location.
 #[derive(Clone, PartialEq)]
 pub struct VerboseParseError {
     input: String,
-    errors: Vec<(Range<usize>, nom::error::VerboseErrorKind)>,
+    errors: Vec<(Range<usize>, nom_language::error::VerboseErrorKind)>,
 }
 
 impl VerboseParseError {
@@ -58,7 +58,7 @@ impl VerboseParseError {
     }
     pub fn new<I: AsRef<[u8]>, I2: AsRef<[u8]>>(
         input: I,
-        err: &nom::error::VerboseError<I2>,
+        err: &nom_language::error::VerboseError<I2>,
     ) -> Self {
         match core::str::from_utf8(input.as_ref()) {
             Err(err) => VerboseParseError {
@@ -130,7 +130,7 @@ impl Display for VerboseParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), core::fmt::Error> {
         let input = self.input.as_str();
         let mut seen_context = false;
-        let inner = nom::error::VerboseError {
+        let inner = nom_language::error::VerboseError {
             errors: self
                 .errors
                 .iter()
@@ -140,7 +140,7 @@ impl Display for VerboseParseError {
                 // This makes the path much easier to follow if all
                 // relevant levels are annotated correctly.
                 .filter(|(_, kind)| match kind {
-                    nom::error::VerboseErrorKind::Context(..) => {
+                    nom_language::error::VerboseErrorKind::Context(..) => {
                         seen_context = true;
                         true
                     }
@@ -153,7 +153,7 @@ impl Display for VerboseParseError {
             f,
             "Error while parsing:\n{}\n{}\n",
             input,
-            &nom::error::convert_error(input, inner)
+            &nom_language::error::convert_error(input, inner)
         )?;
         Ok(())
     }
@@ -273,7 +273,7 @@ pub fn hex_u64<I, E>(input: I) -> nom::IResult<I, u64, E>
 where
     E: ParseError<I>,
     I: Clone,
-    I: nom::AsBytes + nom::InputIter + nom::InputTakeAtPosition<Item = u8>,
+    I: nom::AsBytes + nom::Input<Item = u8>,
 {
     is_a(&b"0123456789abcdefABCDEF"[..])
         .map(|x: I| {
@@ -296,14 +296,14 @@ where
 //////////////////////
 
 /// Extend [nom::Parser] with some methods.
-pub trait NomParserExt<I, O, E, NE>: nom::Parser<I, O, NomError<E, NE>> {
+pub trait NomParserExt<I, O, E, NE>: nom::Parser<I, Output = O, Error = NomError<E, NE>> {
     /// Parse the input and return a simple [Result]
     ///
     /// The parser is expected to consume all input, otherwise an error will be returned.
     #[inline]
     fn parse_finish(&mut self, input: I) -> Result<O, E>
     where
-        I: nom::InputLength + Clone + Debug,
+        I: nom::Input + Clone + Debug,
         NE: Debug + ParseError<I>,
         E: Debug + FromParseError<I, NE>,
     {
@@ -318,15 +318,21 @@ pub trait NomParserExt<I, O, E, NE>: nom::Parser<I, O, NomError<E, NE>> {
     }
 }
 
-impl<I, O, E, NE, P> NomParserExt<I, O, E, NE> for P where P: nom::Parser<I, O, NomError<E, NE>> {}
+impl<I, O, E, NE, P> NomParserExt<I, O, E, NE> for P where
+    P: nom::Parser<I, Output = O, Error = NomError<E, NE>>
+{
+}
 
 /// Help debugging the `inner` [nom::Parser] by printing `name`, the input, the output and the
 /// remaining input every time the parser is called.
 #[allow(unused)]
-pub fn print<I, O, E, P>(name: &'static str, mut inner: P) -> impl nom::Parser<I, O, E>
+pub fn print<I, O, E, P>(
+    name: &'static str,
+    mut inner: P,
+) -> impl nom::Parser<I, Output = O, Error = E>
 where
     E: ParseError<I>,
-    P: nom::Parser<I, O, E>,
+    P: nom::Parser<I, Output = O, Error = E>,
     I: core::convert::AsRef<[u8]> + Clone,
     O: Debug,
 {
@@ -342,30 +348,23 @@ where
 }
 
 /// Wraps a [nom::Parser] to parse optional whitespaces before and after.
-pub fn lexeme<I, O, E, P>(inner: P) -> impl nom::Parser<I, O, E>
+pub fn lexeme<I, O, E, P>(inner: P) -> impl nom::Parser<I, Output = O, Error = E>
 where
     E: ParseError<I>,
-    P: nom::Parser<I, O, E>,
-    I: Clone + nom::InputLength + nom::InputIter + nom::InputTake + nom::InputTakeAtPosition,
-    <I as nom::InputIter>::Item: Clone + nom::AsChar,
-    <I as nom::InputTakeAtPosition>::Item: Clone + nom::AsChar,
+    P: nom::Parser<I, Output = O, Error = E>,
+    I: Clone + nom::Input,
+    <I as nom::Input>::Item: Clone + nom::AsChar,
 {
     delimited(multispace0, inner, multispace0)
 }
 
 /// Wraps a [nom::Parser] to parse parenthesis around it.
-pub fn parenthesized<I, O, E, P>(parser: P) -> impl nom::Parser<I, O, E>
+pub fn parenthesized<I, O, E, P>(parser: P) -> impl nom::Parser<I, Output = O, Error = E>
 where
-    P: nom::Parser<I, O, E>,
+    P: nom::Parser<I, Output = O, Error = E>,
     E: ParseError<I>,
-    I: nom::Slice<std::ops::RangeFrom<usize>>
-        + nom::InputIter
-        + Clone
-        + nom::InputLength
-        + nom::InputTake
-        + nom::InputTakeAtPosition,
-    <I as nom::InputIter>::Item: Clone + nom::AsChar,
-    <I as nom::InputTakeAtPosition>::Item: Clone + nom::AsChar,
+    I: nom::Input + Clone,
+    <I as nom::Input>::Item: Clone + nom::AsChar,
 {
     delimited(lexeme(char('(')), parser, lexeme(char(')')))
 }
@@ -378,10 +377,11 @@ where
 pub fn map_res_cut<I: Clone, O1, O2, E: FromExternalError<I, E2>, E2, F, G>(
     mut parser: F,
     mut f: G,
-) -> impl nom::Parser<I, O2, E>
+) -> impl nom::Parser<I, Output = O2, Error = E>
 where
-    F: Parser<I, O1, E>,
+    F: Parser<I, Output = O1, Error = E>,
     G: FnMut(O1) -> Result<O2, E2>,
+    E: ParseError<I>,
 {
     move |input: I| {
         let i = input.clone();
@@ -472,7 +472,8 @@ where
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use nom::{error::VerboseError, Finish as _};
+    use nom::Finish as _;
+    use nom_language::error::{convert_error, VerboseError};
 
     use super::*;
 
@@ -502,11 +503,9 @@ pub(crate) mod tests {
 
     // Work-around this issue:
     // https://github.com/rust-bakery/nom/issues/1619
-    // This function _must_ preserve the address of buf, as
-    // nom::error::convert_error() relies on VerboseError input stack to be
-    // pointer into the overall input. Otherwise, pointer arithmetic will
-    // make no sense and it will either display non-sensical substrings or
-    // panic.
+    // This function _must_ preserve the address of buf, as nom_language::error::convert_error()
+    // relies on VerboseError input stack to be pointer into the overall input. Otherwise, pointer
+    // arithmetic will make no sense and it will either display non-sensical substrings or panic.
     pub fn zero_copy_to_str(buf: &[u8]) -> &str {
         std::str::from_utf8(buf).unwrap()
     }
@@ -514,9 +513,9 @@ pub(crate) mod tests {
     pub fn run_parser<I, O, T, P>(input: I, parser: P) -> O
     where
         O: Debug + PartialEq,
-        P: Parser<I, O, NomError<T, VerboseError<I>>>,
-        I: nom::AsBytes + nom::InputLength + Clone,
-        T: DisplayErr + FromParseError<I, nom::error::VerboseError<I>>,
+        P: Parser<I, Output = O, Error = NomError<T, VerboseError<I>>>,
+        I: nom::AsBytes + nom::Input + Clone,
+        T: DisplayErr + FromParseError<I, nom_language::error::VerboseError<I>>,
     {
         let mut parser = all_consuming(parser);
         let parsed = parser.parse(input.clone()).finish();
@@ -538,7 +537,7 @@ pub(crate) mod tests {
                         // This makes the path much easier to follow if all
                         // relevant levels are annotated correctly.
                         .filter(|(_, kind)| match kind {
-                            nom::error::VerboseErrorKind::Context(..) => {
+                            nom_language::error::VerboseErrorKind::Context(..) => {
                                 seen_context = true;
                                 true
                             }
@@ -547,7 +546,7 @@ pub(crate) mod tests {
                         .map(|(s, err)| (zero_copy_to_str(s.as_bytes()), err.clone()))
                         .collect(),
                 };
-                let loc = nom::error::convert_error(input, inner);
+                let loc = convert_error(input, inner);
                 let err_data = match err.data {
                     Some(data) => data.display_err(),
                     None => "<unknown parse error>".into(),
@@ -560,9 +559,9 @@ pub(crate) mod tests {
     pub fn test_parser<I, O, T, P>(expected: O, input: I, parser: P)
     where
         O: Debug + PartialEq,
-        T: DisplayErr + FromParseError<I, nom::error::VerboseError<I>>,
-        P: Parser<I, O, NomError<T, VerboseError<I>>>,
-        I: nom::AsBytes + nom::InputLength + Clone,
+        T: DisplayErr + FromParseError<I, nom_language::error::VerboseError<I>>,
+        P: Parser<I, Output = O, Error = NomError<T, VerboseError<I>>>,
+        I: nom::AsBytes + nom::Input + Clone,
     {
         let parsed = run_parser(input.clone(), parser);
 
