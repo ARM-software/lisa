@@ -32,7 +32,6 @@ use bytemuck::cast_slice;
 use deref_map::DerefMap;
 use genawaiter::{sync::gen, yield_};
 use once_cell::unsync::OnceCell;
-use smartstring::alias::String;
 
 use crate::{
     array,
@@ -50,7 +49,7 @@ use crate::{
     iterator::MergedIterator,
     print::{PrintArg, PrintAtom, PrintFmtStr, PrintPrecision, PrintWidth, VBinSpecifier},
     scratch::{ScratchAlloc, ScratchVec},
-    str::Str,
+    str::{Str, String},
 };
 
 /// Keeps an [EventId] <-> ([EventDesc], [Ctx]) mapping so we can quickly access the decoder for

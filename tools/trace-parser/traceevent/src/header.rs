@@ -51,7 +51,6 @@ use nom::{
     Finish as _, Parser,
 };
 use once_cell::sync::OnceCell;
-use smartstring::alias::String;
 
 use crate::{
     array::Array,
@@ -75,7 +74,7 @@ use crate::{
     },
     print::{PrintAtom, PrintFmtError, PrintFmtStr, PrintSpecifier, StringWriter},
     scratch::{ScratchAlloc, ScratchVec},
-    str::Str,
+    str::{Str, String},
 };
 
 /// Type alias for a memory address contained in the trace.

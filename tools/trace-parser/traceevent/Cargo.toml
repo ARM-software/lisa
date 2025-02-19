@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 nom = "8.0"
 nom_locate = "5.0"
-smartstring = "1.0"
 thiserror = "2.0"
 memmap2 = "0.9"
 deref-map = "0.1.0"
@@ -23,3 +22,9 @@ bytemuck = "1.13"
 thread_local = "1.1"
 zstd = "0.13"
 nom-language = "0.1"
+
+
+smartstring = {version = "1.0", optional = true }
+
+[features]
+smartstring = ["dep:smartstring"]

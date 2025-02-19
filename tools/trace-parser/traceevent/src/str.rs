@@ -16,8 +16,7 @@
 
 //! Custom string type that fits all use cases inside this crate.
 //!
-//! The main reason for a custom type are the various ownership models supported and using
-//! [smartstring::alias::String] internally where possible.
+//! The main reason for a custom type are the various ownership models supported.
 
 use core::{
     borrow::Borrow,
@@ -28,12 +27,16 @@ use core::{
 };
 use std::sync::Arc;
 
-use smartstring::alias::String;
-
 use crate::{
     memo::Memo,
     scratch::{OwnedScratchBox, OwnedScratchBox_as_dyn, ScratchAlloc},
 };
+
+#[cfg(feature = "smartstring")]
+pub use smartstring::alias::String;
+
+#[cfg(not(feature = "smartstring"))]
+pub use String;
 
 /// String type with various ownership model available.
 #[derive(Debug, Clone)]
@@ -151,7 +154,7 @@ impl<'a> Str<'a> {
                 // smartstring will keep strings smaller than 23 bytes directly in the value rather
                 // than allocating on the heap. It's cheap to clone and will not create unnecessary
                 // atomic writes memory traffic.
-                if s.len() <= 23 {
+                if cfg!(feature = "smartstring") && s.len() <= 23 {
                     InnerStr::Owned(s.into())
                 } else {
                     InnerStr::Arc(Arc::from(s))

@@ -37,7 +37,6 @@ use nom::{
     Parser,
 };
 use once_cell::sync::OnceCell;
-use smartstring::alias::String;
 
 use crate::{
     buffer::{BufferError, VBinDecoder},
@@ -46,7 +45,7 @@ use crate::{
     error::convert_err_impl,
     header::{Abi, Endianness, Header, LongSize, Signedness},
     parser::{map_res_cut, FromParseError, NomParserExt as _, VerboseParseError},
-    str::{InnerStr, Str},
+    str::{InnerStr, Str, String},
 };
 
 /// Parsed printk-style format string.
@@ -1363,7 +1362,7 @@ where
                             if key {
                                 let merged_s = group
                                     .map(|x| match x {
-                                        PrintAtom::Fixed(s) => s,
+                                        PrintAtom::Fixed(s) => s.as_str(),
                                         _ => panic!("Expected fixed atom"),
                                     })
                                     .collect();

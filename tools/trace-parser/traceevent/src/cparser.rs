@@ -38,7 +38,6 @@ use nom::{
     sequence::{delimited, pair, preceded, separated_pair, terminated},
     AsBytes, Finish as _, Parser,
 };
-use smartstring::alias::String;
 
 use crate::{
     cinterp::{
@@ -53,7 +52,7 @@ use crate::{
         VerboseParseError,
     },
     scratch::{OwnedScratchBox, ScratchVec},
-    str::Str,
+    str::{Str, String},
 };
 
 /// Type of a C expression.

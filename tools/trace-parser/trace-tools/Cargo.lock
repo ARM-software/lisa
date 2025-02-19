@@ -1241,7 +1241,6 @@ dependencies = [
  "nom-language",
  "nom_locate",
  "once_cell",
- "smartstring",
  "thiserror",
  "thread_local",
  "zstd",
