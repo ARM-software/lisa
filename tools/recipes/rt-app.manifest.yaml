@@ -20,7 +20,7 @@ rebase-conf:
         # https://github.com/scheduler-tools/rt-app/pull/113
         -
             remote: github
-            base: master
+            base: fix_cpu_set
             tip: uclamp-reset
 
         # https://github.com/scheduler-tools/rt-app/pull/126
