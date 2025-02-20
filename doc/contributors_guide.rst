@@ -14,21 +14,21 @@ How to submit a merge request
 Submitting a merge request requires forking the LISA repository in a similar
 fashion to the typical GitHub workflow:
 
-  1. Create a GitLab account on https://gitlab.arm.com/tooling/lisa/. You can
-     use an existing GitHub login if you want.
+1. Create a GitLab account on https://gitlab.arm.com/tooling/lisa/. You can
+   use an existing GitHub login if you want.
 
-  2. Fork the repository. This requires the fork permission on the account,
-     which can be obtained by following:
-     https://gitlab.arm.com/documentation/contributions
+2. Fork the repository. This requires the fork permission on the account,
+   which can be obtained by following:
+   https://gitlab.arm.com/documentation/contributions
 
-  3. Push your branch to your fork (this might require setting up your SSH
-     public key in your profile just like on GitHub).
+3. Push your branch to your fork (this might require setting up your SSH
+   public key in your profile just like on GitHub).
 
-  4. Open the merge request. ⚠️ If your fork is a private fork, GitLab will
-     default to opening a merge request against your own fork, and no-one
-     will ever know of your contribution. When opening the MR, there is a
-     "Change branches" link next to "From XXX into main". Click this link and
-     select "tooling/lisa" in the "Target branch" project drop down. ⚠️
+4. Open the merge request. ⚠️ If your fork is a private fork, GitLab will
+   default to opening a merge request against your own fork, and no-one
+   will ever know of your contribution. When opening the MR, there is a
+   "Change branches" link next to "From XXX into main". Click this link and
+   select "tooling/lisa" in the "Target branch" project drop down. ⚠️
 
 Merge requests that are primarily constituted of style reformatting will be
 closed without comment unless the matter was discussed previously with the
@@ -96,10 +96,10 @@ goes for methods (``:meth:`...```) and functions (``:func:`...```).
 Examples on how to use the API can sometimes be useful. They should be
 introduced by ``**Example**::`` and located:
 
-  * In the module docstring if they involve multiple classes or functions from
-    the module.
-  * In the class docstring if they involve multiple methods of the class.
-  * In the method/function otherwise.
+* In the module docstring if they involve multiple classes or functions from
+  the module.
+* In the class docstring if they involve multiple methods of the class.
+* In the method/function otherwise.
 
 How to build
 ++++++++++++
@@ -186,15 +186,15 @@ self-tests in ``tests/`` folder, which is a mix of unit and behavioural tests.
 
 From the root of LISA, you can run those tests like so:
 
-    .. code-block:: sh
+.. code-block:: sh
 
-        python3 -m pytest
-        # You can also target specific test modules
-        python3 -m pytest tests/test_test_bundle.py
-        # Or even specific test classes
-        python3 -m pytest tests/test_test_bundle.py::BundleCheck
-        # Or even specific test method
-        python3 -m pytest tests/test_test_bundle.py::BundleCheck::test_init
+    python3 -m pytest
+    # You can also target specific test modules
+    python3 -m pytest tests/test_test_bundle.py
+    # Or even specific test classes
+    python3 -m pytest tests/test_test_bundle.py::BundleCheck
+    # Or even specific test method
+    python3 -m pytest tests/test_test_bundle.py::BundleCheck::test_init
 
 Writing self-tests
 ++++++++++++++++++
