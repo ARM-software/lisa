@@ -91,7 +91,9 @@ extras_require={
 extras_require["doc"] = [
     # Force ReadTheDocs to use a recent version, rather than the defaults used
     # for old projects.
-    "sphinx > 2",
+    # Add higher bound until this nbsphinx issue is resolved:
+    # https://github.com/spatialaudio/nbsphinx/issues/825
+    "sphinx > 2, <8.2.0",
     "pydata-sphinx-theme",
     "sphinxcontrib-plantuml",
     "nbsphinx",
