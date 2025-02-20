@@ -53,6 +53,18 @@ lower_or_equal() {
     [[ "$(printf "%s\n%s\n" "$x" "$y" | sort -g | head -1)" == "$x" ]]
 }
 
+sudo() {
+    # Run without sudo if we are already root
+    if [[ $EUID = 0 ]]; then
+        env - "$@"
+    else
+        command sudo "$@"
+    fi
+}
+
+# Make it available in subshells
+export -f sudo
+
 LISA_HOME=${LISA_HOME:-$(dirname "${BASH_SOURCE[0]}")}
 cd "$LISA_HOME" || (echo "LISA_HOME ($LISA_HOME) does not exists" && exit 1)
 
