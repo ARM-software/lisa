@@ -32,7 +32,6 @@ use bytemuck::cast_slice;
 use deref_map::DerefMap;
 use genawaiter::{sync::gen, yield_};
 use once_cell::unsync::OnceCell;
-use smartstring::alias::String;
 
 use crate::{
     array,
@@ -50,7 +49,7 @@ use crate::{
     iterator::MergedIterator,
     print::{PrintArg, PrintAtom, PrintFmtStr, PrintPrecision, PrintWidth, VBinSpecifier},
     scratch::{ScratchAlloc, ScratchVec},
-    str::Str,
+    str::{Str, String},
 };
 
 /// Keeps an [EventId] <-> ([EventDesc], [Ctx]) mapping so we can quickly access the decoder for
@@ -70,7 +69,7 @@ struct EventDescMap<'h, Ctx, MakeCtx> {
     make_ctx: Arc<Mutex<MakeCtx>>,
 }
 
-impl<'h, Ctx: Debug, MakeCtx> Debug for EventDescMap<'h, Ctx, MakeCtx> {
+impl<Ctx: Debug, MakeCtx> Debug for EventDescMap<'_, Ctx, MakeCtx> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), core::fmt::Error> {
         f.debug_struct("EventDescMap")
             .field("cold_map", &self.cold_map)
@@ -686,7 +685,7 @@ struct BufferItem<'a, Ctx, MakeCtx>(
     >,
 );
 
-impl<'a, Ctx, MakeCtx> PartialEq for BufferItem<'a, Ctx, MakeCtx> {
+impl<Ctx, MakeCtx> PartialEq for BufferItem<'_, Ctx, MakeCtx> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         match (&self.0, &other.0) {
@@ -696,16 +695,16 @@ impl<'a, Ctx, MakeCtx> PartialEq for BufferItem<'a, Ctx, MakeCtx> {
     }
 }
 
-impl<'a, Ctx, MakeCtx> Eq for BufferItem<'a, Ctx, MakeCtx> {}
+impl<Ctx, MakeCtx> Eq for BufferItem<'_, Ctx, MakeCtx> {}
 
-impl<'a, Ctx, MakeCtx> PartialOrd for BufferItem<'a, Ctx, MakeCtx> {
+impl<Ctx, MakeCtx> PartialOrd for BufferItem<'_, Ctx, MakeCtx> {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<'a, Ctx, MakeCtx> Ord for BufferItem<'a, Ctx, MakeCtx> {
+impl<Ctx, MakeCtx> Ord for BufferItem<'_, Ctx, MakeCtx> {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         match (&self.0, &other.0) {
@@ -898,82 +897,77 @@ where
 {
     let make_ctx = Arc::new(Mutex::new(make_ctx));
 
-    macro_rules! make_record_iter {
-        ($buffer:expr) => {{
-            let mut buffer = $buffer;
+    let iterators = buffers.into_iter().map(|mut buffer| {
+        let header = buffer.header;
+        let timestamp_fixer = header.timestamp_fixer();
+        let make_ctx = Arc::clone(&make_ctx);
+
+        // Each buffer will have its own hot map which is not ideal, but the
+        // maps contain &EventDesc so the descriptor itself actually lives
+        // in the header and is shared. This ensures we will not parse event
+        // format more than once, which is the main cost here.
+        let mut desc_map = EventDescMap::new(header, make_ctx);
+        gen!({
             let buf_id = buffer.id;
-            let header = buffer.header;
-            let timestamp_fixer = header.timestamp_fixer();
-            let make_ctx = Arc::clone(&make_ctx);
+            let page_size = buffer.page_size;
+            loop {
+                match extract_page(header, &buf_id, &mut buffer.reader, page_size) {
+                    Ok(Some((data, mut timestamp, recoverable_err))) => {
+                        if let Some(err) = recoverable_err {
+                            yield_!(BufferItem(Err(err)))
+                        }
 
-            // Each buffer will have its own hot map which is not ideal, but the
-            // maps contain &EventDesc so the descriptor itself actually lives
-            // in the header and is shared. This ensures we will not parse event
-            // format more than once, which is the main cost here.
-            let mut desc_map = EventDescMap::new(header, make_ctx);
-            gen!({
-                loop {
-                    match extract_page(header, &buf_id, &mut buffer.reader, buffer.page_size) {
-                        Ok(Some((data, mut timestamp, recoverable_err))) => {
-                            if let Some(err) = recoverable_err {
-                                yield_!(BufferItem(Err(err)))
-                            }
-
-                            let mut data = &*data;
-                            while data.len() != 0 {
-                                match parse_record(header, data, timestamp) {
-                                    Ok((remaining, timestamp_, record)) => {
-                                        timestamp = timestamp_;
-                                        data = remaining;
-                                        match record {
-                                            Ok(BufferRecord::Event(data)) => {
-                                                // SAFETY: That yielded &[u8] will
-                                                // only stay valid until the next
-                                                // time next() is called on the
-                                                // iterator. MergedIterator
-                                                // specifically guarantees to not
-                                                // call next() on inner iterators
-                                                // before its own next() is called.
-                                                //
-                                                // Note that this is not the case
-                                                // with e.g. itertools kmerge_by()
-                                                // method.
-                                                let data = unsafe { transmute_lifetime(data) };
-                                                let buf_id_ref =
-                                                    unsafe { transmute_lifetime(&buf_id) };
-                                                let desc_map_ref = unsafe {
-                                                    transmute_lifetime_mut(&mut desc_map)
-                                                };
-                                                yield_!(BufferItem(Ok((
-                                                    header,
-                                                    desc_map_ref,
-                                                    buf_id_ref,
-                                                    timestamp_fixer(timestamp),
-                                                    data
-                                                ))));
-                                            }
-                                            _ => (),
+                        let mut data = &*data;
+                        while data.len() != 0 {
+                            match parse_record(header, data, timestamp) {
+                                Ok((remaining, timestamp_, record)) => {
+                                    timestamp = timestamp_;
+                                    data = remaining;
+                                    match record {
+                                        Ok(BufferRecord::Event(data)) => {
+                                            // SAFETY: That yielded &[u8] will
+                                            // only stay valid until the next
+                                            // time next() is called on the
+                                            // iterator. MergedIterator
+                                            // specifically guarantees to not
+                                            // call next() on inner iterators
+                                            // before its own next() is called.
+                                            //
+                                            // Note that this is not the case
+                                            // with e.g. itertools kmerge_by()
+                                            // method.
+                                            let data = unsafe { transmute_lifetime(data) };
+                                            let buf_id_ref = unsafe { transmute_lifetime(&buf_id) };
+                                            let desc_map_ref =
+                                                unsafe { transmute_lifetime_mut(&mut desc_map) };
+                                            yield_!(BufferItem(Ok((
+                                                header,
+                                                desc_map_ref,
+                                                buf_id_ref,
+                                                timestamp_fixer(timestamp),
+                                                data
+                                            ))));
                                         }
+                                        _ => (),
                                     }
-                                    Err(err) => {
-                                        yield_!(BufferItem(Err(err.into())));
-                                        break;
-                                    }
+                                }
+                                Err(err) => {
+                                    yield_!(BufferItem(Err(err.into())));
+                                    break;
                                 }
                             }
                         }
-                        Ok(None) => break,
-                        Err(err) => {
-                            yield_!(BufferItem(Err(err)));
-                            break;
-                        }
+                    }
+                    Ok(None) => break,
+                    Err(err) => {
+                        yield_!(BufferItem(Err(err)));
+                        break;
                     }
                 }
-            })
-        }};
-    }
+            }
+        })
+    });
 
-    let iterators = buffers.into_iter().map(|buffer| make_record_iter!(buffer));
     // Buffer used to reorder array data in case the trace does not have native
     // endianness.
     let mut visitor_scratch = ScratchAlloc::new();

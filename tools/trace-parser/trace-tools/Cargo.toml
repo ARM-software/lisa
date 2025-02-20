@@ -12,17 +12,17 @@ path = "src/lib/lib.rs"
 [dependencies]
 traceevent = { path = "../traceevent", optional = true }
 
-thiserror = "1.0"
+thiserror = "2.0"
 smartstring = {version = "1.0", features = ["serde"]}
-arrow = { version = "53.0", default-features = false }
-arrow-schema = { version = "53.0", default-features = false }
-arrow-array = { version = "53.0" }
-parquet = { version = "53.0", default-features = false, features = ["arrow", "lz4", "zstd", "snap" ] }
+arrow = { version = "54.0", default-features = false }
+arrow-schema = { version = "54.0", default-features = false }
+arrow-array = { version = "54.0" }
+parquet = { version = "54.0", default-features = false, features = ["arrow", "lz4", "zstd", "snap" ] }
 
 crossbeam = "0.8"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-nom = "7.1"
+nom = "8.0"
 bytemuck = "1.13"
 clap = { version = "4.4", features = ["derive"] }
 

@@ -47,11 +47,10 @@ use nom::{
     combinator::{all_consuming, flat_map, iterator, map_res, opt, rest},
     error::context,
     multi::{fold_many0, many0, separated_list0},
-    sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
+    sequence::{delimited, pair, preceded, separated_pair, terminated},
     Finish as _, Parser,
 };
 use once_cell::sync::OnceCell;
-use smartstring::alias::String;
 
 use crate::{
     array::Array,
@@ -75,7 +74,7 @@ use crate::{
     },
     print::{PrintAtom, PrintFmtError, PrintFmtStr, PrintSpecifier, StringWriter},
     scratch::{ScratchAlloc, ScratchVec},
-    str::Str,
+    str::{Str, String},
 };
 
 /// Type alias for a memory address contained in the trace.
@@ -564,9 +563,9 @@ impl Header {
 
         for opt in self.options() {
             if let Options::TraceClock(clock) = opt {
-                return match nom::Parser::<_, _, ()>::parse(&mut parser, clock.deref()).finish() {
+                return match nom::Parser::<_>::parse(&mut parser, clock.deref()).finish() {
                     Ok((_, clock)) => Some(clock),
-                    _ => None,
+                    Err(()) => None,
                 };
             }
         }
@@ -718,7 +717,7 @@ fn fixup_c_type(
     Ok(fixup(typ, Some(size), signedness))
 }
 
-type HeaderNomError<'a> = NomError<HeaderError, nom::error::VerboseError<&'a [u8]>>;
+type HeaderNomError<'a> = NomError<HeaderError, nom_language::error::VerboseError<&'a [u8]>>;
 
 /// Parse the struct format of an ftrace event as reported in
 /// `/sys/kernel/tracing/events/*/*/format`
@@ -733,7 +732,7 @@ fn parse_struct_fmt<'a, PE: ParseEnv>(
             char('\n'),
             map_res_cut(
                 preceded(
-                    lexeme(tag(b"field:")),
+                    lexeme(tag(&b"field:"[..])),
                     separated_pair(
                         is_not(";"),
                         char(';'),
@@ -869,12 +868,12 @@ fn parse_header_event(input: &[u8]) -> nom::IResult<&[u8], (), HeaderNomError<'_
                             _ => Ok(()),
                         }),
                         preceded(
-                            tuple((
+                            (
                                 lexeme(tag("data")),
                                 lexeme(tag("max")),
                                 lexeme(tag("type_len")),
                                 lexeme(tag("==")),
-                            )),
+                            ),
                             lexeme(txt_u64).map(|bits| match bits {
                                 28 => Ok(()),
                                 x => Err(HeaderError::InvalidEventHeader {
@@ -1071,7 +1070,7 @@ impl<'h> HeaderEnv<'h> {
     }
 }
 
-impl<'ce> ParseEnv for HeaderEnv<'ce> {
+impl ParseEnv for HeaderEnv<'_> {
     #[inline]
     fn field_typ(&self, id: &str) -> Result<Type, CompileError> {
         for field in &self.struct_fmt.fields {
@@ -1389,7 +1388,7 @@ fn parse_event_desc(input: &[u8]) -> nom::IResult<&[u8], EventDesc, HeaderNomErr
     context(
         "event description",
         map_res_cut(
-            tuple((
+            (
                 context(
                     "event name",
                     preceded(
@@ -1399,7 +1398,7 @@ fn parse_event_desc(input: &[u8]) -> nom::IResult<&[u8], EventDesc, HeaderNomErr
                 ),
                 context("event ID", preceded(lexeme(tag("ID:")), lexeme(txt_u16))),
                 context("remainder", rest),
-            )),
+            ),
             |(name, id, fmt)| {
                 Ok(EventDesc {
                     name: StdString::from_utf8_lossy(name).into(),
@@ -1462,6 +1461,7 @@ fn parse_kallsyms(
 
         let mut it = iterator(input, line);
         let parsed = it
+            .by_ref()
             .filter_map(|item| match item {
                 (addr, Some(name)) => Some(Ok((addr, name))),
                 _ => None,
@@ -1504,7 +1504,7 @@ fn parse_str_table(
             },
         );
         let mut it = iterator(input, line);
-        let parsed = it.collect::<BTreeMap<_, _>>();
+        let parsed = it.by_ref().collect::<BTreeMap<_, _>>();
         let (input, _) = it.finish()?;
         Ok((input, parsed))
     })
@@ -1524,7 +1524,7 @@ fn parse_pid_comms(input: &[u8]) -> nom::IResult<&[u8], BTreeMap<Pid, String>, H
             }),
         );
         let mut it = iterator(input, line);
-        let parsed = it.collect::<BTreeMap<_, _>>();
+        let parsed = it.by_ref().collect::<BTreeMap<_, _>>();
         let (input, _) = it.finish()?;
         Ok((input, parsed))
     })
@@ -1644,10 +1644,10 @@ impl From<IoError> for HeaderError {
     }
 }
 
-impl<I: AsRef<[u8]>, I2: AsRef<[u8]>> FromParseError<I, nom::error::VerboseError<I2>>
+impl<I: AsRef<[u8]>, I2: AsRef<[u8]>> FromParseError<I, nom_language::error::VerboseError<I2>>
     for HeaderError
 {
-    fn from_parse_error(input: I, err: &nom::error::VerboseError<I2>) -> Self {
+    fn from_parse_error(input: I, err: &nom_language::error::VerboseError<I2>) -> Self {
         HeaderError::ParseError(Box::new(VerboseParseError::new(input, err)))
     }
 }

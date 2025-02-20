@@ -304,7 +304,7 @@ impl<'a> SockAddr<'a> {
     }
 }
 
-impl<'a> fmt::Display for SockAddr<'a> {
+impl fmt::Display for SockAddr<'_> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         // Format of the structs described at:
@@ -345,7 +345,7 @@ impl<'a> Bitmap<'a> {
     }
 }
 
-impl<'a> fmt::Display for Bitmap<'a> {
+impl fmt::Display for Bitmap<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         let mut range_start = None;
         let mut prev = None;
@@ -491,7 +491,7 @@ impl<'a> BitmapIterator<'a> {
     }
 }
 
-impl<'a> Iterator for BitmapIterator<'a> {
+impl Iterator for BitmapIterator<'_> {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -793,7 +793,7 @@ impl<'a> Value<'a> {
     }
 }
 
-impl<'a> fmt::Display for Value<'a> {
+impl fmt::Display for Value<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         macro_rules! display {
             ($x:expr) => {{
@@ -883,7 +883,7 @@ impl<'ee, 'eeref> EvalEnv<'eeref> for &'eeref (dyn CompileEnv<'ee> + 'ee) {
     }
 }
 
-impl<'ce, 'ceref> ParseEnv for &'ceref (dyn ParseEnv + 'ce) {
+impl ParseEnv for &(dyn ParseEnv + '_) {
     fn field_typ(&self, id: &str) -> Result<Type, CompileError> {
         (*self).field_typ(id)
     }
@@ -892,7 +892,7 @@ impl<'ce, 'ceref> ParseEnv for &'ceref (dyn ParseEnv + 'ce) {
     }
 }
 
-impl<'ce, 'ceref> ParseEnv for &'ceref (dyn CompileEnv<'ce> + 'ce) {
+impl<'ce> ParseEnv for &(dyn CompileEnv<'ce> + 'ce) {
     fn field_typ(&self, id: &str) -> Result<Type, CompileError> {
         (*self).field_typ(id)
     }
@@ -942,7 +942,7 @@ where
     }
 }
 
-impl<'pe, PE> ParseEnv for BasicEnv<'pe, PE>
+impl<PE> ParseEnv for BasicEnv<'_, PE>
 where
     PE: ParseEnv + ?Sized + Send + Sync,
 {
@@ -1014,7 +1014,7 @@ pub(crate) struct ArithInfo<'a> {
     unsigned: Type,
 }
 
-impl<'a> ArithInfo<'a> {
+impl ArithInfo<'_> {
     #[inline]
     pub fn is_signed(&self) -> bool {
         self.typ == &self.signed

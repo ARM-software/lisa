@@ -162,7 +162,7 @@ pub struct Metadata<'h> {
     time_range: Option<(Timestamp, Timestamp)>,
 }
 
-impl<'h> Metadata<'h> {
+impl Metadata<'_> {
     pub fn dump<W: Write>(self, mut writer: W) -> Result<(), MainError> {
         let header = self.header;
         let events_info = self.events_info;
@@ -1022,7 +1022,7 @@ where
             RcRefMut(RefMut<'a, T>),
         }
 
-        impl<'a, T> Deref for DerefMutWrapper<'a, T> {
+        impl<T> Deref for DerefMutWrapper<'_, T> {
             type Target = T;
             fn deref(&self) -> &T {
                 match self {
@@ -1032,7 +1032,7 @@ where
             }
         }
 
-        impl<'a, T> DerefMut for DerefMutWrapper<'a, T> {
+        impl<T> DerefMut for DerefMutWrapper<'_, T> {
             fn deref_mut(&mut self) -> &mut T {
                 match self {
                     DerefMutWrapper::RefMut(x) => x,
