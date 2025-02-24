@@ -72,7 +72,7 @@ def get_sha1(repo, ref='HEAD'):
     """
     return git(repo, 'rev-list', '-1', ref).strip()
 
-def get_uncommited_patch(repo, include_binary=True, path=None):
+def get_uncommitted_patch(repo, include_binary=True, path=None):
     """
     Return the patch of non commited changes, both staged and not staged yet.
 
@@ -82,8 +82,14 @@ def get_uncommited_patch(repo, include_binary=True, path=None):
     :param path: Path to consider, rather than the entire repo.
     :type path: str or pathlib.Path
     """
+    if path is None:
+        path = []
+    else:
+        path = Path(repo.resolve()) / Path(path)
+        path = path.resolve()
+        path = ['--', str(path)]
+
     text = ['--text'] if include_binary else []
-    path = ['--', str(Path(path).resolve())] if path else []
     return git(repo, 'diff', *text, 'HEAD', *path)
 
 def get_commit_message(repo, ref='HEAD', notes_ref='refs/notes/commits', format='%s'):
@@ -165,6 +171,20 @@ def find_root(repo):
     """
     root = git(repo, 'rev-parse', '--show-toplevel')
     return Path(root.strip()).resolve()
+
+
+def is_inside_git_repo(path):
+    """
+    Returns ``True`` if the path is inside a git repository, ``False``
+    otherwise.
+    """
+    try:
+        find_root(path)
+    except subprocess.CalledProcessError:
+        return False
+    else:
+        return True
+
 
 def check_ref(repo, ref):
     """
