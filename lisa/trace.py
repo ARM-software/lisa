@@ -4717,9 +4717,15 @@ class _TraceCache(Loggable):
         elif isinstance(data, pl.LazyFrame):
             with pl.StringCache():
                 try:
-                    data.sink_parquet(path, **kwargs)
-                # Some LazyFrame cannot be sunk lazily to a parquet file
-                except polars.exceptions.InvalidOperationError:
+                    # TOOD: revisit when polars streaming engine is complete
+                    # and it does not raise a DeprecationWarning anymore.
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore", category=DeprecationWarning)
+                        data.sink_parquet(path, **kwargs)
+                # The streaming engine may have issues with some LazyFrames, so
+                # fall back on collecting.
+                except Exception:
+                    path.unlink(missing_ok=True)
                     data.collect().write_parquet(path, **kwargs)
         else:
             data.to_parquet(path, **kwargs)
@@ -4862,7 +4868,7 @@ class _TraceCache(Loggable):
             except KeyError:
                 swap_entry = _CacheDataSwapEntry(cache_desc_nf)
 
-            data_path = os.path.join(swap_dir, swap_entry.data_filename)
+            data_path = Path(swap_dir, swap_entry.data_filename)
 
             # If that would make the swap dir too large, try to do some cleanup
             if self._estimate_data_swap_size(data) + self._swap_size > self.max_swap_size:
@@ -4902,7 +4908,7 @@ class _TraceCache(Loggable):
                     self._swap_content[swap_entry.cache_desc_nf] = swap_entry
 
                 try:
-                    data_swapped_size = os.stat(data_path).st_size
+                    data_swapped_size = data_path.stat().st_size
                 except FileNotFoundError:
                     data_swapped_size = 0
 
