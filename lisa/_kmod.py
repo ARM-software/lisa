@@ -1958,8 +1958,19 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
             (cc, cross_compile) = item
             return cc_priority(build_conf['build-env'], cc, cross_compile)
 
+        def filter_key(item):
+            try:
+                return key(item)
+            except FileNotFoundError:
+                return None
+
         ccs = deduplicate(ccs, keep_last=False)
-        ccs = sorted(ccs, key=key)
+        sort_key = {
+            item: _key
+            for item in ccs
+            if (_key := filter_key(item)) is not None
+        }
+        ccs = sorted(sort_key.keys(), key=sort_key.__getitem__)
 
         cc = None
         cross_compile = None
