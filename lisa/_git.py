@@ -82,8 +82,14 @@ def get_uncommited_patch(repo, include_binary=True, path=None):
     :param path: Path to consider, rather than the entire repo.
     :type path: str or pathlib.Path
     """
+    if path is None:
+        path = []
+    else:
+        path = Path(repo.resolve()) / Path(path)
+        path = path.resolve()
+        path = ['--', str(path)]
+
     text = ['--text'] if include_binary else []
-    path = ['--', str(Path(path).resolve())] if path else []
     return git(repo, 'diff', *text, 'HEAD', *path)
 
 def get_commit_message(repo, ref='HEAD', notes_ref='refs/notes/commits', format='%s'):

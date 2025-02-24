@@ -18,14 +18,17 @@
 :mod:`lisa` version identification.
 """
 
-import os
-import hashlib
-from subprocess import CalledProcessError
-
+# Re-export
 from lisa._version import version_tuple, __version__, format_version, parse_version
-from lisa._git import get_sha1, get_uncommited_patch
 
 def _compute_version_token():
+    import os
+    import hashlib
+    from subprocess import CalledProcessError
+    from pathlib import Path
+
+    from lisa._git import get_sha1, get_uncommited_patch
+
     plain_version_token = f'v{format_version(version_tuple)}'
 
     forced = os.getenv('_LISA_FORCE_VERSION_TOKEN')
@@ -37,7 +40,8 @@ def _compute_version_token():
     elif int(os.getenv('LISA_DEVMODE', '0')):
         # pylint: disable=import-outside-toplevel
         import lisa
-        repo = list(lisa.__path__)[0]
+        repo = Path(list(lisa.__path__)[0])
+        repo = repo / '..'
 
         try:
             sha1 = get_sha1(repo)
