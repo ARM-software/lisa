@@ -65,7 +65,7 @@ class StatusAnalysis(TraceAnalysisBase):
                 1,
                 # We want to select the first row, so make sure the filter
                 # evaluates to true at that index.
-                fill_value=pl.col('overutilized').not_(),
+                fill_value=pl.col('overutilized').not_().first(),
             )
         )
         df = df_refit_index(df, window=trace.window)
