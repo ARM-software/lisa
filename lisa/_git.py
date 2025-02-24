@@ -172,6 +172,20 @@ def find_root(repo):
     root = git(repo, 'rev-parse', '--show-toplevel')
     return Path(root.strip()).resolve()
 
+
+def is_inside_git_repo(path):
+    """
+    Returns ``True`` if the path is inside a git repository, ``False``
+    otherwise.
+    """
+    try:
+        find_root(path)
+    except subprocess.CalledProcessError:
+        return False
+    else:
+        return True
+
+
 def check_ref(repo, ref):
     """
     Check if a given reference exists.

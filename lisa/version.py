@@ -26,8 +26,9 @@ def _compute_version_token():
     import hashlib
     from subprocess import CalledProcessError
     from pathlib import Path
+    import subprocess
 
-    from lisa._git import get_sha1, get_uncommitted_patch
+    from lisa._git import get_sha1, get_uncommitted_patch, find_root
 
     plain_version_token = f'v{format_version(version_tuple)}'
 
@@ -40,17 +41,28 @@ def _compute_version_token():
     elif int(os.getenv('LISA_DEVMODE', '0')):
         # pylint: disable=import-outside-toplevel
         import lisa
-        repo = Path(list(lisa.__path__)[0])
-        repo = repo / '..'
+        path = Path(list(lisa.__path__)[0])
+        path = path / '..'
 
         try:
-            sha1 = get_sha1(repo)
-            # Get uncommitted content of the LISA sources only, not the entire
-            # repo as it would include things like target_conf.yml
-            patch = get_uncommitted_patch(repo, path='lisa/')
-        # Git is not installed, just use the regular version
-        except (FileNotFoundError, CalledProcessError):
+            repo = find_root(path)
+        except subprocess.CalledProcessError:
             return plain_version_token
+        else:
+            # If the parent folder of the lisa sources is a git repo, it must
+            # be the one we are looking for. This avoids accidentally catching
+            # cases where there is a top-level git repo in e.g. $HOME.
+            if path.samefile(repo):
+                try:
+                    sha1 = get_sha1(repo)
+                    # Get uncommitted content of the LISA sources only, not the entire
+                    # repo as it would include things like target_conf.yml
+                    patch = get_uncommitted_patch(repo, path='lisa/')
+                # Git is not installed, just use the regular version
+                except (FileNotFoundError, CalledProcessError):
+                    return plain_version_token
+            else:
+                return plain_version_token
 
         # Dirty tree
         if patch:
