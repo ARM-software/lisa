@@ -2105,7 +2105,13 @@ def get_analysis_list(meth_type):
     TraceAnalysisBase.get_analysis_classes()
 
     assert issubclass(TraceAnalysisBase, AnalysisHelpers)
-    for subclass in get_subclasses(AnalysisHelpers):
+    subclasses = [
+        cls
+        for cls in get_subclasses(AnalysisHelpers)
+        if not inspect.isabstract(cls)
+    ]
+
+    for subclass in subclasses:
         class_path = f"{subclass.__module__}.{subclass.__qualname__}"
         if meth_type == 'plot':
             meth_list = subclass.get_plot_methods()
