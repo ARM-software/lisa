@@ -27,7 +27,7 @@ def _compute_version_token():
     from subprocess import CalledProcessError
     from pathlib import Path
 
-    from lisa._git import get_sha1, get_uncommited_patch
+    from lisa._git import get_sha1, get_uncommitted_patch
 
     plain_version_token = f'v{format_version(version_tuple)}'
 
@@ -47,7 +47,7 @@ def _compute_version_token():
             sha1 = get_sha1(repo)
             # Get uncommitted content of the LISA sources only, not the entire
             # repo as it would include things like target_conf.yml
-            patch = get_uncommited_patch(repo, path='lisa/')
+            patch = get_uncommitted_patch(repo, path='lisa/')
         # Git is not installed, just use the regular version
         except (FileNotFoundError, CalledProcessError):
             return plain_version_token

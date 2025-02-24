@@ -72,7 +72,7 @@ def get_sha1(repo, ref='HEAD'):
     """
     return git(repo, 'rev-list', '-1', ref).strip()
 
-def get_uncommited_patch(repo, include_binary=True, path=None):
+def get_uncommitted_patch(repo, include_binary=True, path=None):
     """
     Return the patch of non commited changes, both staged and not staged yet.
 
