@@ -2458,7 +2458,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                 try:
                     repo_root = git.find_root(tree_path)
                     sha1 = git.get_sha1(tree_path)
-                    patch = git.get_uncommited_patch(tree_path)
+                    patch = git.get_uncommitted_patch(tree_path)
                 except (FileNotFoundError, subprocess.CalledProcessError):
                     key = None
                 else:
