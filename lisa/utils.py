@@ -4095,6 +4095,12 @@ class DirCache(Loggable):
         base = _UNVERSIONED_CACHE_HOME if fmt_version else LISA_CACHE_HOME
         base = Path(base) / category
 
+        if fmt_version is None:
+            warnings.warn(
+                'DirCache(..., fmt_version=...) must be set as lisa.version.VERSION_TOKEN is not reliable.',
+                DeprecationWarning
+            )
+
         self._fmt_version = fmt_version
         self._base = base
         self._populate = populate or (lambda *args, **kwargs: None)
