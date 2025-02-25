@@ -2433,6 +2433,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                 dir_cache = DirCache(
                     category='kernels_overlays',
                     populate=populate,
+                    fmt_version='1',
                 )
                 cache_path = dir_cache.get_entry(key)
                 with _overlay_folders([base_path, cache_path], backend=overlay_backend, copy_filter=copy_filter) as path:
@@ -3081,6 +3082,7 @@ class DynamicKmod(Loggable):
             dir_cache = DirCache(
                 category='kernel_modules',
                 populate=populate,
+                fmt_version='1',
             )
             cache_path = dir_cache.get_entry(key)
             with open(cache_path / 'mod.ko', 'rb') as f:

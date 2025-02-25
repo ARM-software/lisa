@@ -517,6 +517,7 @@ class Target(
         dir_cache = DirCache(
             category='target_pull',
             populate=populate,
+            fmt_version='1',
         )
 
         src = Path(src)
