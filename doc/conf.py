@@ -308,7 +308,11 @@ def prepare(home, enable_plots, outdir):
             get_obj_name(f): f
             for f in get_plot_methods()
         }
-        dir_cache = DirCache('doc_plots', populate=populate)
+        dir_cache = DirCache(
+            'doc_plots',
+            populate=populate,
+            fmt_version='1',
+        )
         key = (
             sorted(plot_methods.keys()),
             notebooks,
