@@ -110,10 +110,10 @@ impl Decompressor for ZstdDecompressor {
         if count == dst.len() {
             Ok(())
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("Zstd expected {} bytes, decompressed {count}", dst.len()),
-            ))
+            Err(io::Error::other(format!(
+                "Zstd expected {} bytes, decompressed {count}",
+                dst.len()
+            )))
         }
     }
 }
@@ -173,14 +173,14 @@ impl Decompressor for ZlibDecompressor {
             .inner()
             .borrow_mut()
             .zlib_decompress(src, dst)
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+            .map_err(io::Error::other)?;
         if count == dst.len() {
             Ok(())
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("Zlib expected {} bytes, decompressed {count}", dst.len()),
-            ))
+            Err(io::Error::other(format!(
+                "Zlib expected {} bytes, decompressed {count}",
+                dst.len()
+            )))
         }
     }
 }

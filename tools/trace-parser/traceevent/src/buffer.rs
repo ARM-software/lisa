@@ -85,10 +85,7 @@ where
     fn new(header: &'h Header, make_ctx: Arc<Mutex<MakeCtx>>) -> Self {
         EventDescMap {
             header,
-            cold_map: header
-                .event_descs()
-                .map(|desc| (desc.id, desc))
-                .collect(),
+            cold_map: header.event_descs().map(|desc| (desc.id, desc)).collect(),
             hot_map: BTreeMap::new(),
             make_ctx,
         }
@@ -1161,6 +1158,7 @@ where
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn extract_page<'a, 'b: 'a, 'h, I>(
     header: &'h Header,
     buf_id: &'a BufferId,

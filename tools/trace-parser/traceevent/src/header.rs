@@ -415,14 +415,12 @@ impl Header {
 
     #[inline]
     pub fn event_desc_by_id(&self, id: EventId) -> Option<&EventDesc> {
-        self.event_descs()
-            .find(move |desc| desc.id == id)
+        self.event_descs().find(move |desc| desc.id == id)
     }
 
     #[inline]
     pub fn event_desc_by_name(&self, name: &str) -> Option<&EventDesc> {
-        self.event_descs()
-            .find(move |desc| desc.name == name)
+        self.event_descs().find(move |desc| desc.name == name)
     }
 
     /// ABI of the kernel that generated the ftrace this header is representing.
@@ -955,8 +953,7 @@ impl EventFmt {
     /// Evaluators for the arguments to interpolate in the printk-style format of the event.
     pub fn print_args(
         &self,
-    ) -> Result<impl Iterator<Item = &Result<Arc<dyn Evaluator>, CompileError>>, HeaderError>
-    {
+    ) -> Result<impl Iterator<Item = &Result<Arc<dyn Evaluator>, CompileError>>, HeaderError> {
         match &self.print_fmt_args {
             Ok(x) => Ok(x.1.iter()),
             Err(err) => Err(err.clone()),
@@ -1445,7 +1442,7 @@ fn parse_kallsyms(
                         Ok(name) if is_identifier(name) => Ok(Some(match module.map(from_utf8) {
                             Some(Ok(module)) => {
                                 let mut full: SymbolName = name.into();
-                                full.push_str(" ");
+                                full.push(' ');
                                 full.push_str(module);
                                 full
                             }

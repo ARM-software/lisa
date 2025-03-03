@@ -374,14 +374,14 @@ where
 /// This allows correct error handling for all cases where the grammar is non-ambiguous and `f` is
 /// doing semantic checking. In such situation, a semantic error is not expected to trigger a
 /// backtrack in the parser, leading to much worse error messages.
-pub fn map_res_cut<I: Clone, O1, O2, E: FromExternalError<I, E2>, E2, F, G>(
+pub fn map_res_cut<I: Clone, O1, O2, E, E2, F, G>(
     mut parser: F,
     mut f: G,
 ) -> impl nom::Parser<I, Output = O2, Error = E>
 where
     F: Parser<I, Output = O1, Error = E>,
     G: FnMut(O1) -> Result<O2, E2>,
-    E: ParseError<I>,
+    E: ParseError<I> + FromExternalError<I, E2>,
 {
     move |input: I| {
         let i = input.clone();

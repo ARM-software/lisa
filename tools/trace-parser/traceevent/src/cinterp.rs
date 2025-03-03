@@ -2030,7 +2030,7 @@ mod tests {
         }
     }
 
-    impl<'ce> CompileEnv<'ce> for TestEnv {
+    impl CompileEnv<'_> for TestEnv {
         #[inline]
         fn field_getter(&self, id: &str) -> Result<Box<dyn Evaluator>, CompileError> {
             match id {
@@ -2081,7 +2081,7 @@ mod tests {
         }
     }
 
-    impl<'ee> EvalEnv<'ee> for TestEnv {
+    impl EvalEnv<'_> for TestEnv {
         // #[inline]
         // fn field_getter<EE: EvalEnv>(&self, id: &str) -> Result<Box<dyn Fn(&EE) -> Result<Value, EvalError>>, CompileError> {
         //     Ok(Box::new(|_| Ok(Value::U64Scalar(42))))
