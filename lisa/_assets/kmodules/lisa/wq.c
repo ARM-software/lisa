@@ -54,16 +54,16 @@ int destroy_work(struct work_item *item) {
 static int init_wq(struct feature *feature) {
 	struct workqueue_struct *wq;
 	wq = alloc_workqueue("lisa", WQ_FREEZABLE, 0);
-	feature->data = wq;
 	if (!wq) {
 		pr_err("Could not allocate workqueue\n");
 		return 1;
 	}
+	feature_data_set(feature, wq);
 	return 0;
 }
 
 static int deinit_wq(struct feature *feature) {
-	struct workqueue_struct *wq = feature->data;
+	struct workqueue_struct *wq = feature_data(feature);
 	if (wq)
 		destroy_workqueue(wq);
 	return 0;
@@ -81,7 +81,7 @@ struct example_data {
 
 static int example_worker(void *data) {
 	struct feature *feature = data;
-	pr_info("executing a wq item of feature %s\n", feature->name);
+	pr_info("executing a wq item of feature %s\n", feature_name(feature));
 
 	/* Schedule the next run in 3 seconds */
 	/* return HZ * 3; */
@@ -95,15 +95,15 @@ static int example_worker(void *data) {
 
 __maybe_unused static int example_init(struct feature *feature) {
 	struct example_data *data;
-	pr_info("Starting worker for feature %s\n", feature->name);
+	pr_info("Starting worker for feature %s\n", feature_name(feature));
 
 	if (ENABLE_FEATURE(__workqueue))
 		return 1;
 
 	data = kmalloc(sizeof(*data), GFP_KERNEL);
-	feature->data = data;
 	if (!data)
 		return 1;
+	feature_data_set(feature, data);
 
 	data->work = start_work(example_worker, 2 * HZ, feature);
 	if (!data->work)
@@ -114,9 +114,9 @@ __maybe_unused static int example_init(struct feature *feature) {
 
 __maybe_unused static int example_deinit(struct feature *feature) {
 	int ret = 0;
-	struct example_data *data = feature->data;
+	struct example_data *data = feature_data(feature);
 
-	pr_info("Stopping worker for feature %s\n", feature->name);
+	pr_info("Stopping worker for feature %s\n", feature_name(feature));
 
 	if (data) {
 		ret |= destroy_work(data->work);

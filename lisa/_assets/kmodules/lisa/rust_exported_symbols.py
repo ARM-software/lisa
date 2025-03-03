@@ -22,6 +22,7 @@ from pathlib import Path
 from shlex import quote
 import subprocess
 import os
+import textwrap
 
 
 def main():
@@ -33,6 +34,7 @@ def main():
     parser.add_argument('--rust-object', help='Built Rust object file', required=True)
     parser.add_argument('--out-symbols-plain', help='File to write the symbol list, one per line')
     parser.add_argument('--out-symbols-cli', help='File to write the symbol list as ld CLI --undefined options')
+    parser.add_argument('--out-start-stop-lds', help='File to write the linker script to provide __start_SECNAME and __stop_SECNAME symbols, which are not provided by Kbuild since the module is never linked into an executable or DSO')
 
     args = parser.parse_args()
 
@@ -40,28 +42,29 @@ def main():
     out = subprocess.check_output(
         [nm, '-gj', args.rust_object],
     )
+    all_symbols = sorted(set(out.decode().split()))
+
+    def parse(sym, prefix):
+        if sym.startswith(prefix):
+            sym = sym[len(prefix):]
+            return sym
+        else:
+            return None
 
     # For each symbol we want to export in Rust, we create a companion symbol
     # with a prefix that we pick up here. There unfortunately seems to be no
     # cleaner way to convey the list of exported symbols from Rust code as of
     # 2024.
-    prefix = b'__export_rust_symbol_'
-    def parse(sym):
-        if sym.startswith(prefix):
-            sym = sym[len(prefix):]
-            return sym.decode()
-        else:
-            return None
-
-    symbols = sorted(
+    user_symbols = [
         sym
-        for _sym in out.split()
-        if (sym := parse(_sym))
-    )
+        for _sym in all_symbols
+        if (sym := parse(_sym, '__export_rust_symbol_'))
+    ]
+
+    symbols = sorted(user_symbols)
 
     sep = '\n  '
-    pretty_symbols = sep.join(symbols)
-    print(f'Found exported symbols:{sep}{pretty_symbols}')
+    print(f'Found exported symbols:{sep}{sep.join(symbols)}')
 
     if (path := args.out_symbols_plain):
         content = '\n'.join(symbols) + '\n'
@@ -73,6 +76,31 @@ def main():
             for sym in symbols
         )) + '\n'
         Path(path).write_text(content)
+
+    if (path := args.out_start_stop_lds):
+        sections = sorted({
+            section
+            for sym in all_symbols
+            if (
+                (section := parse(sym, '__start_')) or
+                (section := parse(sym, '__stop_'))
+            )
+        })
+        print(f'Found sections to generate __start_SECNAME and __stop_SECNAME symbols for:{sep}{sep.join(sections)}')
+
+        def make_lds(section):
+            return textwrap.dedent(f'''
+                SECTIONS {{
+                    {section} : {{
+                        PROVIDE(__start_{section} = .);
+                        KEEP(*({section}));
+                        PROVIDE(__stop_{section} = .);
+                    }}
+                }}
+            ''')
+
+        lds = '\n'.join(map(make_lds, sections)) + '\n'
+        Path(path).write_text(lds)
 
 if __name__ == '__main__':
     main()

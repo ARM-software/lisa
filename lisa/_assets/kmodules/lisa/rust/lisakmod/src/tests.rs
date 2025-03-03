@@ -1,11 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-use alloc::collections::BTreeMap;
-use alloc::sync::Arc;
-use alloc::vec;
-use alloc::vec::Vec;
-use core::ffi::CStr;
-use core::ffi::c_int;
+use alloc::{collections::BTreeMap, sync::Arc, vec, vec::Vec};
+use core::ffi::{CStr, c_int};
 
 use crate::prelude::*;
 
@@ -178,14 +174,14 @@ fn test_6() {
     pr_info!("Rust: test_6");
 
     {
-        let b = KBox::new(42u8);
+        let b = KernelKBox::new(42u8);
         assert_eq!(*b, 42);
         drop(b);
     }
 
     {
         let zst_addr = c_eval!("linux/slab.h", "ZERO_SIZE_PTR", *const u8);
-        let b = KBox::new(());
+        let b = KernelKBox::new(());
         assert_eq!(b.as_ptr() as usize, zst_addr as usize);
         drop(b);
     }
@@ -197,8 +193,9 @@ use crate::runtime::sync::new_static_mutex;
 fn test_7() {
     pr_info!("Rust: test_7");
 
-    use crate::runtime::sync::{Lock, Mutex, SpinLock};
     use core::ops::{Deref, DerefMut};
+
+    use crate::runtime::sync::{Lock, Mutex, SpinLock};
     {
         new_static_mutex!(STATIC_MUTEX, u32, 42);
         macro_rules! test_lock {

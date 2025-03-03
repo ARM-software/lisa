@@ -12,7 +12,7 @@ use core::{
 
 use crate::{
     inlinec::{c_eval, cexport, cfunc, opaque_type},
-    {container_of, mut_container_of},
+    misc::{container_of, mut_container_of},
 };
 
 opaque_type!(

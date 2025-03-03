@@ -1,11 +1,12 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-use crate::inlinec::cfunc;
+use core::fmt::Write as _;
 
-enum DmesgWriterState {
-    Init,
-    Cont,
-}
+use crate::{
+    inlinec::cfunc,
+    misc::KBoxWriter,
+    runtime::alloc::{GFPFlags, KmallocAllocator},
+};
 
 #[derive(Copy, Clone)]
 #[repr(u8)]
@@ -21,34 +22,18 @@ pub enum DmesgLevel {
     Cont = 8,
 }
 
-pub struct __DmesgWriter {
-    state: DmesgWriterState,
-    level: DmesgLevel,
-}
-
-impl __DmesgWriter {
-    pub fn new(level: DmesgLevel) -> Self {
-        __DmesgWriter {
-            level,
-            state: DmesgWriterState::Init,
-        }
-    }
-}
-
-impl core::fmt::Write for __DmesgWriter {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        let level = match self.state {
-            DmesgWriterState::Init => self.level,
-            DmesgWriterState::Cont => DmesgLevel::Cont,
-        };
-        self.state = DmesgWriterState::Cont;
-
+pub fn __pr_level_impl(level: DmesgLevel, fmt: core::fmt::Arguments<'_>) -> core::fmt::Result {
+    fn write_dmesg<T: AsRef<[u8]>>(level: DmesgLevel, msg: T) -> core::fmt::Result {
         #[cfunc]
         fn printk<'a>(level: u8, msg: &[u8]) {
-            "#include <main.h>";
+            "#include <linux/printk.h>";
 
             r#"
-            #define HANDLE(level, f) case level: f("%.*s", (int)msg.len, msg.data); break;
+            #pragma push_macro("pr_fmt")
+            #undef pr_fmt
+            #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
+            #define HANDLE(level, f) case level: f("%.*s\n", (int)msg.len, msg.data); break;
             switch (level) {
                 HANDLE(0, pr_emerg);
                 HANDLE(1, pr_alert);
@@ -61,24 +46,53 @@ impl core::fmt::Write for __DmesgWriter {
                 HANDLE(8, pr_cont);
             }
             #undef HANDLE
+            #pragma pop_macro("pr_fmt")
             "#
         }
 
-        printk(level as u8, s.as_bytes());
+        printk(level as u8, msg.as_ref());
         Ok(())
+    }
+
+    match fmt.as_str() {
+        // If the format is just a plain string, we can simply display it directly, no need to
+        // allocate anything.
+        Some(s) => write_dmesg(level, s),
+        None => {
+            KBoxWriter::<KmallocAllocator<{ GFPFlags::Atomic }>, _>::with_writer(
+                "[...]",
+                128,
+                |mut writer| {
+                    let res = writer.write_fmt(fmt);
+                    // Make sure we always print what we have, even if we had some errors when rendering the
+                    // string to the buffer. Errors could be as mundane as running out of space in the buffer,
+                    // but we still want to see what _could_ be rendered.
+                    write_dmesg(level, writer.written()).and(res)
+                },
+            )
+        }
     }
 }
 
 macro_rules! __pr_level {
     ($level:expr, $($arg:tt)*) => {{
-        use ::core::fmt::Write as _;
-        ::core::write!(
-            $crate::runtime::printk::__DmesgWriter::new($level),
-            $($arg)*
+        $crate::runtime::printk::__pr_level_impl(
+            $level,
+            ::core::format_args!($($arg)*)
         ).expect("Could not write to dmesg")
     }}
 }
 pub(crate) use __pr_level;
+
+macro_rules! pr_debug {
+    ($($arg:tt)*) => {{
+        $crate::runtime::printk::__pr_level!(
+            $crate::runtime::printk::DmesgLevel::Debug,
+            $($arg)*
+        )
+    }}
+}
+pub(crate) use pr_debug;
 
 macro_rules! pr_info {
     ($($arg:tt)*) => {{

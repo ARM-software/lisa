@@ -162,8 +162,36 @@ fn _make_c_func(
 ) -> Result<(TokenStream, TokenStream, TokenStream), Error> {
     let c_name_str: String = c_name.to_string();
     let f_where = f_generics.map(|x| x.where_clause.clone());
-    let c_proto = format!("{c_name_str}_proto");
-    let c_ret_ty = format!("{c_name_str}_ret_ty");
+
+    let c_type_of = |ty| {
+        (
+            quote! {
+                {
+                    // Use a const fn to introduce f_generics and f_where
+                    const fn get #f_generics() -> &'static str #f_where {
+                        (
+                            <#ty as ::lisakmod_macros::inlinec::FfiType>::C_TYPE
+                        )
+                    }
+                    get()
+                }
+            },
+            quote! {
+                {
+                    // Use a const fn to introduce f_generics and f_where
+                    const fn get #f_generics() -> &'static str #f_where {
+                        (
+                            match <#ty as ::lisakmod_macros::inlinec::FfiType>::C_HEADER {
+                                Some(c_header) => c_header,
+                                None => "linux/types.h",
+                            }
+                        )
+                    }
+                    get()
+                }
+            },
+        )
+    };
 
     let (pre_c_code, c_code, post_c_code) = c_code;
     // TODO: Due to this issue, the span reported by syn is currently always going to have
@@ -191,61 +219,59 @@ fn _make_c_func(
     };
 
     let c_nr_args = f_args.len();
-    let (arg_names, arg_tys): (Vec<_>, Vec<_>) = f_args.iter().cloned().unzip();
-    let c_args_name: Vec<_> = arg_names.iter().map(|name| name.to_string()).collect();
+    let (args_name, args_ty): (Vec<_>, Vec<_>) = f_args.iter().cloned().unzip();
+    let c_args_name: Vec<_> = args_name.iter().map(|name| name.to_string()).collect();
     let c_args_commas: Vec<_> = c_args_name
         .iter()
         .enumerate()
         .map(|(i, _)| if i == (c_nr_args - 1) { "" } else { ", " })
         .collect();
-    let (c_args_ty_macro, c_args_ty_typedef): (Vec<_>, Vec<_>) = arg_names
-        .iter()
-        .map(|arg| {
-            (
-                format!("{c_name_str}_arg_ty_macro_{arg}"),
-                format!("{c_name_str}_arg_ty_typedef_{arg}"),
-            )
-        })
-        .unzip();
 
-    // Argument types are encoded as a function-like macro. Calling this macro with an
-    // identifier declares a variable (or function argument) of that type.  This allows using
-    // any type, including more complex ones like arrays and function pointers.
-    let c_args_typedef = concatcp(quote! {
-        #(
-            "\n",
-            "#define ", #c_args_ty_macro, "(DECLARATOR)",
-            {
-                // Use a const fn to introduce f_generics and f_where
-                const fn get #f_generics() -> &'static str #f_where {
-                    <#arg_tys as ::lisakmod_macros::inlinec::FfiType>::C_DECL
-                }
-                get()
-            },
-            "\n",
-            "typedef ", #c_args_ty_macro, "(", #c_args_ty_typedef ,");"
-        ),*
-    })?;
-
-    let c_args = if c_nr_args == 0 {
-        quote! { "void "}
+    let (c_args, c_args_header) = if c_nr_args == 0 {
+        (quote! { "void" }, quote! { "" })
     } else {
-        concatcp(quote! {
-            #(
-                #c_args_ty_typedef, " ", #c_args_name,
-                #c_args_commas
-            ),*
-        })?
+        let (c_args_ty, c_args_header): (Vec<_>, Vec<_>) = args_ty.iter().map(c_type_of).unzip();
+        (
+            concatcp(quote! {
+                #(
+                    "__typeof__(" , #c_args_ty, ") ", #c_args_name,
+                    #c_args_commas
+                ),*
+            })?,
+            concatcp(quote! {
+                #(
+                    "#include \"" , #c_args_header, "\"\n"
+                ),*
+            })?,
+        )
     };
 
     let rust_extern_args = quote! {
         #(
-            #arg_names : <#arg_tys as ::lisakmod_macros::inlinec::FfiType>::FfiType
+            #args_name : <#args_ty as ::lisakmod_macros::inlinec::FfiType>::FfiType
         ),*
     };
 
     let pre_c_code = pre_c_code.unwrap_or(quote! {""});
     let post_c_code = post_c_code.unwrap_or(quote! {""});
+
+    // Disabling CFI inside the function allows us to call anything we want, including Rust
+    // functions if needed.
+    c_attrs.push(quote! {"__nocfi"});
+
+    let (c_ret_ty, c_ret_header) = c_type_of(f_ret_ty);
+    let c_proto = concatcp(quote! {
+        #c_args_header,
+        "\n",
+        "#include \"", #c_ret_header, "\"",
+        "\n",
+        #c_ret_ty, " ", #(#c_attrs, " "),* , " ", #c_name_str, "(", #c_args , ")",
+    })?;
+
+    let c_header_out = concatcp(quote! {
+        "\n#line ", #c_code_line, " \"", file!(), "\"\n",
+        #c_proto, ";\n",
+    })?;
 
     let c_funcdef = match c_code {
         Some(c_code) => concatcp(quote! {
@@ -256,47 +282,6 @@ fn _make_c_func(
         })?,
         None => quote! {""},
     };
-
-    // Disabling CFI inside the function allows us to call anything we want, including Rust
-    // functions if needed.
-    c_attrs.push(quote!{"__nocfi"});
-
-    let c_header_out = concatcp(quote! {
-        r#"
-        #include <linux/types.h>
-
-        #define BUILTIN_TY_DECL(ty, declarator) ty declarator
-        #define PTR_TY_DECL(declarator) (*declarator)
-        #define ARR_TY_DECL(N, declarator) ((declarator)[N])
-        #define CONST_TY_DECL(declarator) const declarator
-        #define ATTR_TY_DECL(attributes, declarator) attributes declarator
-        #define FN_TY_DECL(args, declarator) ((declarator)args)
-
-        /* On recent kernels, kCFI is used instead of CFI and __cficanonical is therefore not
-         * defined anymore
-         */
-        #ifndef __cficanonical
-        #    define __cficanonical
-        #endif
-        "#,
-
-        "#line ", #c_code_line, " \"", file!(), "\"\n",
-        #c_args_typedef,
-
-        // See comment on how arguments type are handled, as we do the same for the return
-        // type.
-        "\n#define ", #c_ret_ty, "(DECLARATOR)",
-        {
-            // Use a const fn to introduce f_generics and f_where
-            const fn get #f_generics() -> &'static str #f_where {
-                <#f_ret_ty as ::lisakmod_macros::inlinec::FfiType>::C_DECL
-            }
-            get()
-        },
-        "\n#define ", #c_proto, " ", #c_ret_ty, "(FN_TY_DECL((", #c_args, "), ATTR_TY_DECL(", #(#c_attrs, " ",)* ", ", #c_name_str, ")))",
-        "\n#line ", #c_code_line, " \"", file!(), "\"\n",
-        #c_proto, ";\n",
-    })?;
 
     let c_out = concatcp(quote! {
         "#line ", #pre_c_code_line, " \"", file!(), "\"\n",
@@ -333,7 +318,7 @@ pub fn cfunc(_attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Erro
     let f_generics = input.f_generics;
     let f_where = f_generics.where_clause.clone();
 
-    let shim_name_str = format!("__lisa_c_shim_{name}_{}", get_random());
+    let shim_name_str = format!("__lisa_c_shim_{name}_{:0>39}", get_random());
     let shim_name = format_ident!("{}", shim_name_str);
     let c_out = make_c_func(
         Some(&shim_name),
@@ -345,15 +330,15 @@ pub fn cfunc(_attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Erro
         input.c_code,
     )?;
 
-    let (arg_names, arg_tys): (Vec<_>, Vec<_>) = f_args.into_iter().unzip();
+    let (args_name, args_ty): (Vec<_>, Vec<_>) = f_args.into_iter().unzip();
     let rust_args = quote! {
         #(
-            #arg_names : #arg_tys
+            #args_name : #args_ty
         ),*
     };
     let rust_extern_call_args = quote! {
         #(
-            ::lisakmod_macros::inlinec::IntoFfi::into_ffi(#arg_names)
+            ::lisakmod_macros::inlinec::IntoFfi::into_ffi(#args_name)
         ),*
     };
 
@@ -557,7 +542,7 @@ pub fn cexport(attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Err
     let mut item_fn = input.item_fn;
     let f_args = get_f_args(&item_fn)?;
     let f_ret_ty = get_f_ret_ty(&item_fn)?;
-    let (arg_names, arg_tys): (Vec<_>, Vec<_>) = f_args.iter().cloned().unzip();
+    let (args_name, args_ty): (Vec<_>, Vec<_>) = f_args.iter().cloned().unzip();
 
     fn ffi_ty(ty: Type) -> syn::Result<Type> {
         Ok(parse_quote! {
@@ -588,7 +573,7 @@ pub fn cexport(attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Err
     let body = item_fn.block;
     item_fn.block = Box::new(parse_quote! {{
         #(
-            let #arg_names: #arg_tys = ::lisakmod_macros::inlinec::FromFfi::from_ffi(#arg_names);
+            let #args_name: #args_ty = ::lisakmod_macros::inlinec::FromFfi::from_ffi(#args_name);
         );*
         <#ret_ty as ::lisakmod_macros::inlinec::IntoFfi>::into_ffi(
             #body
@@ -596,7 +581,7 @@ pub fn cexport(attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Err
     }});
 
     let name = item_fn.sig.ident;
-    let rust_name = format_ident!("__lisa_rust_shim_{name}_{}", get_random());
+    let rust_name = format_ident!("__lisa_rust_shim_{name}_{:0>39}", get_random());
     item_fn.sig.ident = rust_name.clone();
 
     // Make the Rust function unsafe since we call FromFfi::from_ffi()
@@ -621,7 +606,7 @@ pub fn cexport(attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Err
     let call_rust_func = concatcp(quote! {
         "return ", stringify!(#rust_name), "(",
             #(
-                stringify!(#arg_names),
+                stringify!(#args_name),
             )*
         ");"
     })?;
@@ -635,7 +620,7 @@ pub fn cexport(attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Err
     let c_name = match attrs.export_name {
         None => match attrs.no_mangle {
             true => name.to_string(),
-            false => format!("__lisa_c_shim_{name}_{}", get_random()),
+            false => format!("__lisa_c_shim_{name}_{:0>39}", get_random()),
         },
         Some(name) => {
             export_markers.push(_export_symbol(format_ident!("{name}"))?);
@@ -684,7 +669,7 @@ pub fn cexport(attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Err
 
 pub fn export_symbol(args: TokenStream) -> Result<TokenStream, Error> {
     let ident = syn::parse2::<Ident>(args)?;
-    _export_symbol(ident).map(Into::into)
+    _export_symbol(ident)
 }
 
 fn _export_symbol(ident: Ident) -> Result<TokenStream, Error> {
@@ -707,7 +692,7 @@ fn make_c_out(c_code: TokenStream, section: &str) -> Result<TokenStream, Error> 
 
             // Store the C function in a section of the binary, that will be extracted by the
             // module Makefile and compiled separately as C code.
-            #[link_section = #section ]
+            #[unsafe(link_section = #section)]
             #[used]
             static CODE: [u8; CODE_LEN] = ::lisakmod_macros::private::misc::slice_to_array::<{CODE_LEN}>(CODE_SLICE);
         };
@@ -823,9 +808,18 @@ pub fn cstatic(attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Err
     let c_name = match attrs.export_name {
         None => match attrs.no_mangle {
             true => name.to_string(),
-            false => format!("__lisa_c_shim_{name}_{}", get_random()),
+            false => format!("__lisa_c_shim_{name}_{:0>39}", get_random()),
         },
         Some(name) => name,
+    };
+    let c_typecheck_name = format!("{c_name}_typecheck_{:0>39}", get_random());
+
+    let c_type = quote! { <#ty as ::lisakmod_macros::inlinec::FfiType>::C_TYPE };
+    let c_header = quote! {
+        match <#ty as ::lisakmod_macros::inlinec::FfiType>::C_HEADER {
+            Some(c_header) => c_header,
+            None => "linux/types.h",
+        }
     };
 
     let section = format!(".binstore.c.code.{}", c_name);
@@ -834,13 +828,13 @@ pub fn cstatic(attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Err
         "\n#line ", #pre_c_code_line, " \"", file!(), "\"\n",
         #pre_c_code,
         "\n#line ", #c_code_line, " \"", file!(), "\"\n",
+        "#include \"", #c_header, "\"\n",
+        "\n#line ", #c_code_line, " \"", file!(), "\"\n",
         #c_code,
 
         // Check that the variable created by the user has the correct type by taking its address
         // in a pointer to the type we expect.
-        "\n#define DECLARATOR PTR_TY_DECL(", #c_name, "_type_check)\n",
-        "static  __attribute__ ((unused)) ", <#ty as ::lisakmod_macros::inlinec::FfiType>::C_DECL, " = &", #c_name, ";\n",
-        "#undef DECLARATOR",
+        "static  __attribute__ ((unused)) __typeof__(", #c_type, ") *", #c_typecheck_name, " = &", #c_name, ";\n",
 
         "\n#line ", #post_c_code_line, " \"", file!(), "\"\n",
         #post_c_code,
