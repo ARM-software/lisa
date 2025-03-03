@@ -108,7 +108,7 @@ extras_require['all'] = sorted(set(
     itertools.chain.from_iterable(extras_require.values())
 ))
 
-python_requires = '>= 3.8'
+python_requires = '>= 3.9'
 
 if __name__ == "__main__":
 
