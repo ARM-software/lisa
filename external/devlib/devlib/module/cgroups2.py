@@ -335,35 +335,28 @@ def _mount_v2_controllers(target: LinuxTarget):
 
     :yield: The path to the root of the mounted V2 controller hierarchy.
     :rtype: str
-    
-    :raises TargetStableError: Occurs in the case where the root directory of the requested CGroup V2 Controller hierarchy 
+
+    :raises TargetStableError: Occurs in the case where the root directory of the requested CGroup V2 Controller hierarchy
         is unable to be created up on the target system.
     """
 
-    path = target.tempfile()
-    
-    try:
-        target.makedirs(path, as_root=True)
-    except TargetStableCalledProcessError:
-        raise TargetStableError("Un-able to create the root directory of the requested CGroup V2 hierarchy")
-        
-        
-    try:
-        target.execute(
-            "{busybox} mount -t cgroup2 none {path}".format(
-                busybox=quote(target.busybox), path=quote(path)
-            ),
-            as_root=True,
-        )
-        yield path
-    finally:
-        target.execute(
-            "{busybox} umount {path} && {busybox} rmdir -- {path}".format(
-                busybox=quote(target.busybox),
-                path=quote(path),
-            ),
-            as_root=True,
-        )
+    with target.make_temp() as path:
+        try:
+            target.execute(
+                "{busybox} mount -t cgroup2 none {path}".format(
+                    busybox=quote(target.busybox), path=quote(path)
+                ),
+                as_root=True,
+            )
+            yield path
+        finally:
+            target.execute(
+                "{busybox} umount {path}".format(
+                    busybox=quote(target.busybox),
+                    path=quote(path),
+                ),
+                as_root=True,
+            )
 
 
 @contextmanager
@@ -379,8 +372,8 @@ def _mount_v1_controllers(target: LinuxTarget, controllers: Set[str]):
 
     :yield: A dictionary mapping CGroup controller names to the paths that they're currently mounted at.
     :rtype: Dict[str,str]
-    
-    :raises TargetStableError: Occurs in the case where the root directory of a requested CGroup V1 Controller hierarchy 
+
+    :raises TargetStableError: Occurs in the case where the root directory of a requested CGroup V1 Controller hierarchy
         is unable to be created up on the target system.
     """
 
@@ -388,33 +381,25 @@ def _mount_v1_controllers(target: LinuxTarget, controllers: Set[str]):
     # its mount path.
     @contextmanager
     def _mount_controller(controller):
+        with target.make_temp() as path:
+            try:
+                target.execute(
+                    "{busybox} mount -t cgroup -o {controller} none {path}".format(
+                        busybox=quote(target.busybox),
+                        controller=quote(controller),
+                        path=quote(path),
+                    ),
+                )
 
-        path = target.tempfile()
-        
-        try:
-            target.makedirs(path, as_root=True)
-        except TargetStableCalledProcessError as err:
-            raise TargetStableError("Un-able to create the root directory of the {controller} CGroup V1 hierarchy".format(controller = controller))
-
-        try:
-            target.execute(
-                "{busybox} mount -t cgroup -o {controller} none {path}".format(
-                    busybox=quote(target.busybox),
-                    controller=quote(controller),
-                    path=quote(path),
-                ),
-            )
-
-            yield path
-
-        finally:
-            target.execute(
-                "{busybox} umount {path} && {busybox} rmdir -- {path}".format(
-                    busybox=quote(target.busybox),
-                    path=quote(path),
-                ),
-                as_root=True,
-            )
+                yield path
+            finally:
+                target.execute(
+                    "{busybox} umount {path}".format(
+                        busybox=quote(target.busybox),
+                        path=quote(path),
+                    ),
+                    as_root=True,
+                )
 
     with ExitStack() as stack:
         yield {
@@ -569,7 +554,7 @@ class _CGroupBase(ABC):
             )
         except TargetStableError:
             self._set_controller_attribute("cgroup", "procs", pid)
-        
+
         else:
             if str(pid) not in member_processes:
                 self._set_controller_attribute("cgroup", "procs", pid)
