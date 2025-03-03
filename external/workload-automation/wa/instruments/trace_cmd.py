@@ -163,6 +163,7 @@ class TraceCmdInstrument(Instrument):
                             distribution's repos may be too old).
                   """),
         Parameter('mode', kind=str, default='write-to-memory',
+                  allowed_values=['write-to-disk', 'write-to-memory'],
                   description="""
                   Specifies whether collected traces should be saved in memory or disk.
                   Extensive workloads may hit out of memory issue. Hence, write-to-disk

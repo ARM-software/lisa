@@ -44,7 +44,11 @@ from time import sleep
 from io import StringIO
 # pylint: disable=wrong-import-position,unused-import
 from itertools import chain, cycle
-from distutils.spawn import find_executable  # pylint: disable=no-name-in-module, import-error
+
+try:
+    from shutil import which as find_executable
+except ImportError:
+    from distutils.spawn import find_executable  # pylint: disable=no-name-in-module, import-error
 
 from dateutil import tz
 

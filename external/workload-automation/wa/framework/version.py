@@ -23,7 +23,7 @@ VersionTuple = namedtuple('Version', ['major', 'minor', 'revision', 'dev'])
 
 version = VersionTuple(3, 4, 0, 'dev1')
 
-required_devlib_version = VersionTuple(1, 4, 0, 'dev2')
+required_devlib_version = VersionTuple(1, 4, 0, 'dev3')
 
 
 def format_version(v):
