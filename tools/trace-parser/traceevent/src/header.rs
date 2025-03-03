@@ -37,7 +37,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use itertools::izip;
+use itertools::{izip, Itertools as _};
 use nom::{
     branch::alt,
     bytes::complete::{is_a, is_not, tag},
@@ -336,7 +336,7 @@ pub(crate) struct HeaderV6 {
     pub(crate) kernel_abi: Abi,
     pub(crate) page_size: FileSize,
     pub(crate) event_descs: Vec<EventDesc>,
-    pub(crate) kallsyms: BTreeMap<Address, SymbolName>,
+    pub(crate) kallsyms: BTreeMap<Address, Vec<SymbolName>>,
     pub(crate) str_table: BTreeMap<Address, String>,
     pub(crate) pid_comms: BTreeMap<Pid, TaskName>,
     pub(crate) options: Vec<Options>,
@@ -351,7 +351,7 @@ pub(crate) struct HeaderV7 {
     pub(crate) kernel_abi: Abi,
     pub(crate) page_size: FileSize,
     pub(crate) event_descs: Vec<EventDesc>,
-    pub(crate) kallsyms: BTreeMap<Address, SymbolName>,
+    pub(crate) kallsyms: BTreeMap<Address, Vec<SymbolName>>,
     pub(crate) str_table: BTreeMap<Address, String>,
     pub(crate) pid_comms: BTreeMap<Pid, TaskName>,
     pub(crate) options: Vec<Options>,
@@ -454,10 +454,11 @@ impl Header {
                 .map(|(addr, _)| addr);
             map.range((Unbounded, Included(addr)))
                 .last()
-                .map(|(base, s)| {
+                .map(|(base, syms)| {
                     let size = next_addr.map(|next| next - addr);
                     let offset = addr - base;
-                    (offset, size, s.deref())
+                    let sym = syms.last().expect("No symbol name");
+                    (offset, size, sym.deref())
                 })
         }
     }
@@ -479,8 +480,10 @@ impl Header {
     /// Note: The addresses may not be the real addresses for security reasons depending on the
     /// kernel configuration.
     #[inline]
-    pub fn kallsyms(&self) -> impl IntoIterator<Item = (Address, &str)> {
-        attr!(self, kallsyms).iter().map(|(k, v)| (*k, v.deref()))
+    pub fn kallsyms(&self) -> impl Iterator<Item = (Address, impl Iterator<Item = &str>)> {
+        attr!(self, kallsyms)
+            .iter()
+            .map(|(k, v)| (*k, v.iter().map(|sym| &**sym)))
     }
 
     /// Content of the PID/task name table as an iterator.
@@ -1421,7 +1424,7 @@ fn parse_event_desc(input: &[u8]) -> nom::IResult<&[u8], EventDesc, HeaderNomErr
 #[inline(never)]
 fn parse_kallsyms(
     input: &[u8],
-) -> nom::IResult<&[u8], BTreeMap<Address, SymbolName>, HeaderNomError<'_>> {
+) -> nom::IResult<&[u8], BTreeMap<Address, Vec<SymbolName>>, HeaderNomError<'_>> {
     context("kallsyms", move |input| {
         let line = terminated(
             separated_pair(
@@ -1463,10 +1466,14 @@ fn parse_kallsyms(
         let parsed = it
             .by_ref()
             .filter_map(|item| match item {
-                (addr, Some(name)) => Some(Ok((addr, name))),
+                (addr, Some(name)) => Some((addr, name)),
                 _ => None,
             })
-            .collect::<Result<BTreeMap<_, _>, _>>()?;
+            .sorted()
+            .chunk_by(|(addr, _)| *addr)
+            .into_iter()
+            .map(|(addr, names)| (addr, names.map(|(_, name)| name).collect()))
+            .collect::<BTreeMap<_, _>>();
         let (input, _) = it.finish()?;
         Ok((input, parsed))
     })
@@ -2400,7 +2407,7 @@ where
 fn parse_kallsyms_section<I>(
     abi: &Abi,
     input: &mut I,
-) -> Result<BTreeMap<Address, SymbolName>, HeaderError>
+) -> Result<BTreeMap<Address, Vec<SymbolName>>, HeaderError>
 where
     I: BorrowingRead,
 {

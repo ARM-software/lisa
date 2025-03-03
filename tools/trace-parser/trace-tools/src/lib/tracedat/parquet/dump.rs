@@ -171,7 +171,7 @@ impl Metadata<'_> {
         let mut json_value = serde_json::json!({
             "pid-comms": header.pid_comms().into_iter().collect::<Vec<_>>(),
             "cpus-count": header.nr_cpus(),
-            "symbols-address": header.kallsyms().into_iter().collect::<Vec<_>>(),
+            "symbols-address": header.kallsyms().into_iter().map(|(addr, syms)| (addr, syms.collect())).collect::<Vec<(Address, Vec<&str>)>>(),
             // We cannot provide all events the kernel support here, as most of them
             // were not enabled during the trace.
             // "available-events": header.event_descs().into_iter().map(|desc| desc.name.deref()).collect::<Vec<&str>>(),
