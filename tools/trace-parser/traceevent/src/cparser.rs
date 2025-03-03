@@ -749,7 +749,7 @@ fn print_symbolic<const EXACT_MATCH: bool>() -> Result<ExtensionMacroKind, CPars
                                                 let found = if EXACT_MATCH {
                                                     val == *flag
                                                 } else {
-                                                    (val & flag) != 0
+                                                    (val & flag) == *flag
                                                 };
 
                                                 if found {
