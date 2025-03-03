@@ -7,16 +7,13 @@ use core::{
     task::{Context, Poll, RawWakerVTable, Waker},
 };
 
-use crate::runtime::sync::{Lock, Mutex};
-
 enum CoroutineOutput<Y, R> {
     Yielded(Y),
     Complete(R),
 }
 
 struct YieldSlot<T> {
-    // Since wakers have to be Sync, protect the inner value slot with a Mutex.
-    yielded: Mutex<Option<T>>,
+    yielded: Option<T>,
 }
 
 impl<T> YieldSlot<T>
@@ -24,21 +21,17 @@ where
     T: Send,
 {
     fn new() -> Self {
-        YieldSlot {
-            yielded: Mutex::new(None),
-        }
+        YieldSlot { yielded: None }
     }
 
     // SAFETY: The Waker in Context must have the "data" pointer set to a pointer to YieldSlot.
     unsafe fn set_yielded(cx: &mut Context<'_>, yielded: T) {
-        let this = cx.waker().data() as *const Self;
+        let this = cx.waker().data() as *mut Self;
         // SAFETY: the pointer is converted back to its original type as per the safety contract.
-        let this: &Self = unsafe { this.as_ref().unwrap() };
-
-        // We have an &mut Context, but multiple Context could point at the same Waker, and as
-        // such, the same Waker might be used from multiple threads. To avoid any problem, we
-        // wrapped the slot in a Mutex.
-        *this.yielded.lock() = Some(yielded);
+        // SAFETY: Since each waker is used in a single Context, if we have an &mut Context, we
+        // also have an &mut on the waker it wraps.
+        let this: &mut Self = unsafe { this.as_mut().unwrap() };
+        this.yielded = Some(yielded);
     }
 }
 
@@ -47,7 +40,7 @@ where
     T: Send,
     F: Future<Output = R> + ?Sized,
 {
-    let data = YieldSlot::<T>::new();
+    let mut data = YieldSlot::<T>::new();
     let waker = {
         const VTABLE: RawWakerVTable = RawWakerVTable::new(
             |_| panic!("Cannot clone this waker"),
@@ -62,6 +55,7 @@ where
         // must be a pointer to YieldSlot.
         unsafe { Waker::new(&data as *const _ as *const (), &VTABLE) }
     };
+    // SAFETY: The waker is used with a single Context, never shared between multiple contexts.
     let mut cx = Context::from_waker(&waker);
 
     match future.poll(&mut cx) {
@@ -69,7 +63,6 @@ where
         Poll::Pending => {
             let x = data
                 .yielded
-                .lock()
                 .take()
                 .expect("LifeCycle did not store any value in the YieldSlot");
             CoroutineOutput::Yielded(x)
@@ -130,6 +123,17 @@ struct LifeCycleCoroutine<A, Y, E> {
 macro_rules! new_lifecycle {
     (|$arg:pat_param| $body:expr) => {{
         let funcs = $crate::lifecycle::__LifeCycleNewFuncs::new_funcs();
+        let closure = ::alloc::boxed::Box::new(move |$arg| {
+            ::alloc::boxed::Box::new(async move {
+                macro_rules! yield_ {
+                    ($expr:expr) => {
+                        funcs.new_future($expr).await
+                    };
+                }
+
+                $body
+            }) as ::alloc::boxed::Box<dyn ::core::future::Future<Output = _> + Send>
+        });
 
         // SAFETY: The new_future() function is introduced in scope with an identifer from the
         // macro, so its hygiene prevents the $body to use it apart from via the yield_!() macro.
@@ -138,33 +142,26 @@ macro_rules! new_lifecycle {
         // there is no risk of the user ever passing __YieldFuture values around between
         // lifecycles, which would lead to unsoundness if a __YieldFuture<T> is expected by
         // poll_lifecycle() but __YieldFuture<U> is awaited.
-        unsafe {
-            funcs.new_lifecycle(::alloc::boxed::Box::new(move |$arg| {
-                ::alloc::boxed::Box::new(async move {
-                    macro_rules! yield_ {
-                        ($expr:expr) => {
-                            funcs.new_future($expr).await
-                        };
-                    }
-
-                    $body
-                })
-                    as ::alloc::boxed::Box<dyn ::core::future::Future<Output = _> + Send>
-            }))
-        }
+        unsafe { funcs.new_lifecycle(closure) }
     }};
 }
 pub(crate) use new_lifecycle;
 
 enum InternalState<A, Y, E> {
     Ready(LifeCycleCoroutine<A, Y, E>),
-    Complete(Result<(), E>),
+    Complete(FinishedKind, Result<(), E>),
+}
+
+#[derive(Clone)]
+pub enum FinishedKind {
+    Early,
+    Normal,
 }
 
 pub enum State<Y, E> {
     Init,
     Started(Result<Y, E>),
-    Finished(Result<(), E>),
+    Finished(FinishedKind, Result<(), E>),
 }
 
 pub struct LifeCycle<A, Y, E> {
@@ -235,10 +232,13 @@ where
                     Ok(x) => Ok(x),
                 }),
             },
-            InternalState::Complete(res) => State::Finished(match res {
-                Err(err) => Err(err.clone()),
-                Ok(()) => Ok(()),
-            }),
+            InternalState::Complete(kind, res) => State::Finished(
+                kind.clone(),
+                match res {
+                    Err(err) => Err(err.clone()),
+                    Ok(()) => Ok(()),
+                },
+            ),
         }
     }
 
@@ -270,7 +270,8 @@ where
                         }
                         CoroutineOutput::Complete(res) => match res {
                             Err(err) => {
-                                self.state = InternalState::Complete(Err(err.clone()));
+                                self.state =
+                                    InternalState::Complete(FinishedKind::Early, Err(err.clone()));
                                 Err(err)
                             }
                             Ok(_) => panic!(
@@ -296,15 +297,17 @@ where
                             panic!("LifeCycle coroutine yielded more than once")
                         }
                         CoroutineOutput::Complete(res) => {
-                            self.state = InternalState::Complete(res.clone());
+                            self.state = InternalState::Complete(FinishedKind::Normal, res.clone());
                             res
                         }
                     }
                 }
             },
-            // If there was an early return, the error was already given to the caller, so the stop
-            // part is treated as an infaillble no-op.
-            InternalState::Complete(_) => Ok(()),
+            // If there was an early return, any potential error was already given to the caller,
+            // so the stop part is treated as an infaillble no-op.
+            InternalState::Complete(FinishedKind::Early, _) => Ok(()),
+            // We make stop() idempotent
+            InternalState::Complete(FinishedKind::Normal, res) => res.clone(),
         }
     }
 }

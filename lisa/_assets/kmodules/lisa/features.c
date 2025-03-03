@@ -15,7 +15,7 @@ int __enable_feature(struct feature* feature) {
 	if (feature->enabled) {
 		ret = feature->__enable_ret;
 	} else {
-		pr_info("Enabling lisa feature %s\n", feature->name);
+		pr_info("Enabling lisa legacy feature %s\n", feature->name);
 		if (feature->enable)
 			ret = feature->enable(feature);
 		else
@@ -23,7 +23,7 @@ int __enable_feature(struct feature* feature) {
 		feature->__enable_ret = ret;
 
 		if (ret)
-			pr_err("Failed to enable feature %s: %i", feature->name, ret);
+			pr_err("Failed to enable legacy feature %s: %i", feature->name, ret);
 	}
 	feature->enabled++;
 	mutex_unlock(feature->lock);
@@ -41,13 +41,13 @@ int __disable_feature(struct feature* feature) {
 	} else {
 		feature->enabled--;
 		if (!feature->enabled) {
-			pr_info("Disabling lisa feature %s\n", feature->name);
+			pr_info("Disabling lisa legacy feature %s\n", feature->name);
 			if (feature->disable)
 				ret = feature->disable(feature);
 			else
 				ret = 0;
 			if (ret)
-				pr_err("Failed to disable feature %s: %i\n", feature->name, ret);
+				pr_err("Failed to disable legacy feature %s: %i\n", feature->name, ret);
 		} else {
 			ret = 0;
 		}
@@ -74,7 +74,7 @@ static int __process_features(char **selected, size_t selected_len, feature_proc
 				}
 			}
 			if (!found) {
-				pr_err("Unknown or compile-time disabled feature: %s", selected[i]);
+				pr_err("Unknown or compile-time disabled legacy feature: %s", selected[i]);
 				ret |= 1;
 			}
 		}
@@ -107,7 +107,7 @@ static int __enable_feature_explicitly(struct feature* feature) {
 int init_features(char **selected, size_t selected_len) {
 	BUG_ON(MAX_FEATURES < ((__lisa_features_stop - __lisa_features_start) / sizeof(struct feature)));
 
-	pr_info("Available features:");
+	pr_info("Available legacy features:");
 	__process_features(NULL, 0, __list_feature);
 	return __process_features(selected, selected_len, __enable_feature_explicitly);
 }
@@ -130,7 +130,7 @@ int deinit_features(void) {
 }
 
 int __placeholder_init(struct feature *feature) {
-	pr_err("Feature not available: %s\n", feature->name);
+	pr_err("Legacy feature not available: %s\n", feature->name);
 	return 1;
 }
 

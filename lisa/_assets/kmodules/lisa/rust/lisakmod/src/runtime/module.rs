@@ -44,7 +44,7 @@ pub fn rust_mod_init() -> c_int {
             pr_err!("rust_mod_init() returned an error: {err}");
             // Immediately run the deinit() function, since the kernel will prevent the module from
             // being unloaded if module_init returned non-zero.
-            pr_info!("Running rust_mod_exit() Immediately as rust_mod_init() returned an error.");
+            pr_info!("Running rust_mod_exit() immediately as rust_mod_init() returned an error.");
             *guard = State::Deinitialized;
             if let Err(err) = lifecycle.stop() {
                 pr_err!("rust_mod_exit() returned an error: {err}");

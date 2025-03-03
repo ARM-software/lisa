@@ -5,9 +5,9 @@ use std::io::{self, Write};
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use syn::{
-    parse::Parse, parse_quote, punctuated::Punctuated, spanned::Spanned, token, Abi, Attribute,
-    Error, Expr, ExprGroup, ExprLit, ExprTuple, FnArg, Generics, Ident, ItemFn, ItemStatic, Lit,
-    LitStr, Meta, Pat, Path, ReturnType, Stmt, StmtMacro, Token, Type, Visibility,
+    Abi, Attribute, Error, Expr, ExprGroup, ExprLit, ExprTuple, FnArg, Generics, Ident, ItemFn,
+    ItemStatic, Lit, LitStr, Meta, Pat, Path, ReturnType, Stmt, StmtMacro, Token, Type, Visibility,
+    parse::Parse, parse_quote, punctuated::Punctuated, spanned::Spanned, token,
 };
 
 use crate::misc::{concatcp, get_random};
@@ -24,6 +24,7 @@ struct CFuncInput {
     f_ret_ty: Type,
     f_generics: Generics,
     f_unsafety: Option<token::Unsafe>,
+    f_vis: Visibility,
 }
 
 fn get_f_args(item_fn: &ItemFn) -> syn::Result<Vec<(Ident, Type)>> {
@@ -64,6 +65,7 @@ impl Parse for CFuncInput {
         let f_args = get_f_args(&item_fn)?;
         let f_ret_ty = get_f_ret_ty(&item_fn)?;
         let f_attrs = item_fn.attrs;
+        let f_vis = item_fn.vis;
         let name = item_fn.sig.ident;
 
         let mut snippets = Vec::new();
@@ -86,22 +88,13 @@ impl Parse for CFuncInput {
         }
 
         let c_code = match &snippets[..] {
-            [code] => Ok((
-                None,
-                Some(code.clone()),
-                None,
+            [code] => Ok((None, Some(code.clone()), None)),
+            [pre, code] => Ok((Some(pre.clone()), Some(code.clone()), None)),
+            [pre, code, post] => Ok((Some(pre.clone()), Some(code.clone()), Some(post.clone()))),
+            _ => Err(Error::new(
+                span,
+                "An inline C function must contain either a single string expression with the C code in it or two string expressions (one output before the function and one for the body).",
             )),
-            [pre, code] => Ok((
-                Some(pre.clone()),
-                Some(code.clone()),
-                None,
-            )),
-            [pre, code, post] => Ok((
-                Some(pre.clone()),
-                Some(code.clone()),
-                Some(post.clone()),
-            )),
-            _ => Err(Error::new(span, "An inline C function must contain either a single string expression with the C code in it or two string expressions (one output before the function and one for the body)."))
         }?;
 
         let f_generics = item_fn.sig.generics.clone();
@@ -115,6 +108,7 @@ impl Parse for CFuncInput {
             f_ret_ty,
             f_generics,
             f_unsafety,
+            f_vis,
         })
     }
 }
@@ -220,16 +214,16 @@ fn _make_c_func(
 
     let c_nr_args = f_args.len();
     let (args_name, args_ty): (Vec<_>, Vec<_>) = f_args.iter().cloned().unzip();
-    let c_args_name: Vec<_> = args_name.iter().map(|name| name.to_string()).collect();
-    let c_args_commas: Vec<_> = c_args_name
-        .iter()
-        .enumerate()
-        .map(|(i, _)| if i == (c_nr_args - 1) { "" } else { ", " })
-        .collect();
-
     let (c_args, c_args_header) = if c_nr_args == 0 {
         (quote! { "void" }, quote! { "" })
     } else {
+        let c_args_name: Vec<_> = args_name.iter().map(|name| name.to_string()).collect();
+        let c_args_commas: Vec<_> = c_args_name
+            .iter()
+            .enumerate()
+            .map(|(i, _)| if i == (c_nr_args - 1) { "" } else { ", " })
+            .collect();
+
         let (c_args_ty, c_args_header): (Vec<_>, Vec<_>) = args_ty.iter().map(c_type_of).unzip();
         (
             concatcp(quote! {
@@ -275,10 +269,12 @@ fn _make_c_func(
 
     let c_funcdef = match c_code {
         Some(c_code) => concatcp(quote! {
-            #c_proto,
-            "{\n#line ", #c_code_line, " \"", file!(), "\"\n",
-            #c_code,
-            "\n}\n",
+            #c_proto, "{\n",
+            "#define FUNC_RET_TYPE ", #c_ret_ty, "\n",
+            "#line ", #c_code_line, " \"", file!(), "\"\n",
+            #c_code, "\n",
+            "#undef FUNC_RET_TYPE\n",
+            "}\n",
         })?,
         None => quote! {""},
     };
@@ -317,6 +313,7 @@ pub fn cfunc(_attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Erro
     let f_unsafety = input.f_unsafety;
     let f_generics = input.f_generics;
     let f_where = f_generics.where_clause.clone();
+    let f_vis = input.f_vis;
 
     let shim_name_str = format!("__lisa_c_shim_{name}_{:0>39}", get_random());
     let shim_name = format_ident!("{}", shim_name_str);
@@ -345,7 +342,7 @@ pub fn cfunc(_attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Erro
     let rust_out = quote! {
         #[inline]
         #(#f_attrs)*
-        #f_unsafety fn #name #f_generics(#rust_args) -> #f_ret_ty #f_where {
+        #f_vis #f_unsafety fn #name #f_generics(#rust_args) -> #f_ret_ty #f_where {
             unsafe {
                 ::lisakmod_macros::inlinec::FromFfi::from_ffi(
                     #shim_name(#rust_extern_call_args)
@@ -394,7 +391,7 @@ pub fn cconstant(args: TokenStream) -> Result<TokenStream, Error> {
         _ => Err(Error::new(
             span,
             "Expected 2 string literals: the header #includes and the C constant expression evaluate.",
-        ))
+        )),
     }?;
 
     let (out, static_assert) = match std::env::var("LISA_EVAL_C") {
@@ -505,14 +502,14 @@ impl Parse for CAttrs {
                                     return Err(Error::new(
                                         lit.span(),
                                         "Expected string literal".to_string(),
-                                    ))
+                                    ));
                                 }
                             },
                             expr => {
                                 return Err(Error::new(
                                     expr.span(),
                                     "Expected string literal".to_string(),
-                                ))
+                                ));
                             }
                         },
                         _ => return unknown(span),
@@ -603,12 +600,12 @@ pub fn cexport(attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Err
         (None, None, None),
     )?;
 
+    let arg_list = args_name
+        .iter()
+        .map(|arg| arg.to_string())
+        .intersperse(", ".to_string());
     let call_rust_func = concatcp(quote! {
-        "return ", stringify!(#rust_name), "(",
-            #(
-                stringify!(#args_name),
-            )*
-        ");"
+        "return ", stringify!(#rust_name), "(", #(#arg_list,)* ");"
     })?;
 
     // We create a symbol picked up by rust_exported_symbols.py
@@ -748,22 +745,13 @@ impl Parse for CStaticInput {
         }?;
 
         let c_code = match &snippets[..] {
-            [code] => Ok((
-                None,
-                Some(code.clone()),
-                None,
+            [code] => Ok((None, Some(code.clone()), None)),
+            [pre, code] => Ok((Some(pre.clone()), Some(code.clone()), None)),
+            [pre, code, post] => Ok((Some(pre.clone()), Some(code.clone()), Some(post.clone()))),
+            _ => Err(Error::new(
+                span,
+                "An inline C static must contain either a single string expression with the C code in it or two string expressions (one output before the function and one for the definition). The C macro STATIC_VARIABLE must be used to refer to the name of the C variable.",
             )),
-            [pre, code] => Ok((
-                Some(pre.clone()),
-                Some(code.clone()),
-                None,
-            )),
-            [pre, code, post] => Ok((
-                Some(pre.clone()),
-                Some(code.clone()),
-                Some(post.clone()),
-            )),
-            _ => Err(Error::new(span, "An inline C static must contain either a single string expression with the C code in it or two string expressions (one output before the function and one for the definition). The C macro STATIC_VARIABLE must be used to refer to the name of the C variable."))
         }?;
 
         Ok(Self {

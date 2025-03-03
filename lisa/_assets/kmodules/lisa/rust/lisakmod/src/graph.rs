@@ -5,7 +5,7 @@ use core::cell::{Cell, OnceCell};
 
 use itertools::Itertools;
 
-use crate::error::AllErrors;
+use crate::error::MultiError;
 
 pub struct Cursor<'a, T> {
     graph: &'a Graph<T>,
@@ -367,8 +367,8 @@ impl<T> Graph<T> {
     }
 }
 
-impl<T, E> From<Graph<Result<T, E>>> for Result<Graph<T>, AllErrors<E>> {
-    fn from(graph: Graph<Result<T, E>>) -> Result<Graph<T>, AllErrors<E>> {
+impl<T, E> From<Graph<Result<T, E>>> for Result<Graph<T>, MultiError<E>> {
+    fn from(graph: Graph<Result<T, E>>) -> Result<Graph<T>, MultiError<E>> {
         let (err, ok): (Vec<E>, Vec<T>) = graph.nodes.into_iter().partition_map(Into::into);
         if err.is_empty() {
             Ok(Graph {

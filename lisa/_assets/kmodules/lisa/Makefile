@@ -29,15 +29,41 @@ endif
 GENERATED := $(MODULE_OBJ)/generated
 clean-files := $(GENERATED)
 
-RUST_VERSION ?= nightly
+RUST_VERSION ?= stable
+
+# -Zmin-function-alignment should be available in Rust 1.86 . At any rate, the
+# compiler will not assume foreign pointers are aligned to that amount, it just
+# sets the alignment of the functions being generated:
+# https://github.com/rust-lang/rust/pull/134030#issuecomment-2585360978 So
+# there should not be any ABI breakage by not specifying it.
+# -Zmin-function-alignment=$(CONFIG_FUNCTION_ALIGNMENT)
+
 RUSTFLAGS := -Clinker=rust-lld -Clink-self-contained=y -Clto=n -Crelocation-model=static -Cno-redzone=y -Ctarget-cpu=generic -Cforce-frame-pointers=y -Ccodegen-units=1 -Zfunction-sections=y
 
 # For now, simply make Rust transparent wrt to the shadow callstack:
 # https://doc.rust-lang.org/beta/unstable-book/compiler-flags/fixed-x18.html
 ifeq ($(ARCH),arm64)
-    ifneq ($(CONFIG_SHADOW_CALL_STACK),)
-        RUSTFLAGS += -Zfixed-x18
-    endif
+
+  ifneq ($(CONFIG_SHADOW_CALL_STACK),)
+    RUSTFLAGS += -Zfixed-x18
+  endif
+
+  ifeq ($(CONFIG_ARM64_BTI_KERNEL),y)
+    RUSTFLAGS += -Zbranch-protection=bti,pac-ret
+  else ifeq ($(CONFIG_ARM64_PTR_AUTH_KERNEL),y)
+    RUSTFLAGS += -Zbranch-protection=pac-ret
+  endif
+
+else ifeq ($(ARCH),x86)
+
+  ifeq ($(CONFIG_X86_32),y)
+    RUSTFLAGS += -Zreg-struct-return -Zregparm=3
+  endif
+
+  ifeq ($(CONFIG_X86_KERNEL_IBT),y)
+    RUSTFLAGS += -Zcf-protection=branch -Zno-jump-tables
+  endif
+
 endif
 
 

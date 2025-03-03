@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-use alloc::boxed::Box;
+use alloc::{boxed::Box, sync::Arc};
 use core::{
     cell::{Cell, UnsafeCell},
     ffi::c_void,
@@ -14,7 +14,78 @@ use crate::{
     runtime::kbox::KernelKBox,
 };
 
-pub trait LockGuard<T>
+opaque_type!(struct CLockClassKey, "struct lock_class_key", "linux/lockdep.h");
+
+// Inner type that we can make Sync, as UnsafeCell is !Sync
+struct InnerLockdepClass {
+    c_key: UnsafeCell<CLockClassKey>,
+}
+
+unsafe impl Send for InnerLockdepClass {}
+unsafe impl Sync for InnerLockdepClass {}
+
+pub struct LockdepClass {
+    // SAFETY: InnerLockdepClass needs to be pinned, as CLockClassKey is part of some linked lists.
+    inner: Pin<Arc<InnerLockdepClass>>,
+}
+
+impl Default for LockdepClass {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl LockdepClass {
+    pub fn new() -> LockdepClass {
+        #[cfunc]
+        unsafe fn lockdep_register_key(key: *mut CLockClassKey) {
+            r#"
+            #include <linux/lockdep.h>
+            "#;
+
+            r#"
+            lockdep_register_key(key);
+            "#
+        }
+
+        let c_key = UnsafeCell::new(
+            unsafe { CLockClassKey::new_stack(|_| Ok::<_, ()>(())) }
+                .expect("Could not allocate lock_class_key"),
+        );
+
+        let this = LockdepClass {
+            inner: Arc::pin(InnerLockdepClass { c_key }),
+        };
+        unsafe {
+            lockdep_register_key(this.get_key());
+        }
+        this
+    }
+
+    fn get_key(&self) -> *mut CLockClassKey {
+        UnsafeCell::get(&self.inner.c_key)
+    }
+}
+
+impl Drop for LockdepClass {
+    fn drop(&mut self) {
+        #[cfunc]
+        unsafe fn lockdep_unregister_key(key: *mut CLockClassKey) {
+            r#"
+            #include <linux/lockdep.h>
+            "#;
+
+            r#"
+            lockdep_unregister_key(key);
+            "#
+        }
+        unsafe {
+            lockdep_unregister_key(self.get_key());
+        }
+    }
+}
+
+pub trait LockGuard<'guard, T>
 where
     Self: Deref<Target = T>,
 {
@@ -24,7 +95,7 @@ pub trait Lock<T>
 where
     Self: Sync,
 {
-    type Guard<'a>: LockGuard<T>
+    type Guard<'a>: LockGuard<'a, T>
     where
         Self: 'a;
     fn lock(&self) -> Self::Guard<'_>;
@@ -56,29 +127,35 @@ pub struct SpinLock<T> {
     // The Rust For Linux binding pins the spinlock binding, so do the same here to avoid any
     // problems.
     c_lock: Pin<KernelKBox<UnsafeCell<CSpinLock>>>,
+    lockdep_class: LockdepClass,
 }
 
 impl<T> SpinLock<T> {
     #[inline]
-    pub fn new(x: T) -> Self {
+    pub fn new(x: T, lockdep_class: LockdepClass) -> Self {
         #[cfunc]
-        fn spinlock_alloc() -> Pin<KernelKBox<UnsafeCell<CSpinLock>>> {
+        fn spinlock_alloc(
+            lockdep_key: *mut CLockClassKey,
+        ) -> Pin<KernelKBox<UnsafeCell<CSpinLock>>> {
             r#"
             #include <linux/spinlock.h>
             #include <linux/slab.h>
+            #include <linux/lockdep.h>
             "#;
 
             r#"
             spinlock_t *lock = kzalloc(sizeof(spinlock_t), GFP_KERNEL);
             if (lock) {
                 spin_lock_init(lock);
+                lockdep_set_class(lock, lockdep_key);
             }
             return lock;
             "#
         }
-        let c_lock = spinlock_alloc();
+        let c_lock = spinlock_alloc(lockdep_class.get_key());
         SpinLock {
             c_lock,
+            lockdep_class,
             data: x.into(),
         }
     }
@@ -157,7 +234,7 @@ impl<T> Drop for SpinLockGuard<'_, T> {
     }
 }
 
-impl<T> LockGuard<T> for SpinLockGuard<'_, T> {}
+impl<'guard, T> LockGuard<'guard, T> for SpinLockGuard<'guard, T> {}
 
 unsafe impl<T: Send> Sync for SpinLock<T> {}
 unsafe impl<T: Send> Send for SpinLock<T> {}
@@ -191,7 +268,7 @@ impl<'a, T: 'a + Send> _LockMut<'a, T> for SpinLock<T> {}
 opaque_type!(pub struct CMutex, "struct mutex", "linux/mutex.h");
 
 enum AllocatedCMutex {
-    KBox(Pin<KernelKBox<UnsafeCell<CMutex>>>),
+    KBox(Pin<KernelKBox<UnsafeCell<CMutex>>>, LockdepClass),
     Static(Pin<&'static UnsafeCell<CMutex>>),
 }
 
@@ -199,7 +276,7 @@ impl AllocatedCMutex {
     #[inline]
     fn as_pin_ref(&self) -> Pin<&UnsafeCell<CMutex>> {
         match self {
-            AllocatedCMutex::KBox(c_mutex) => c_mutex.as_ref(),
+            AllocatedCMutex::KBox(c_mutex, _) => c_mutex.as_ref(),
             AllocatedCMutex::Static(c_mutex) => *c_mutex,
         }
     }
@@ -242,25 +319,27 @@ pub struct Mutex<T> {
 
 impl<T> Mutex<T> {
     #[inline]
-    pub fn new(x: T) -> Self {
+    pub fn new(x: T, lockdep_class: LockdepClass) -> Self {
         #[cfunc]
-        fn mutex_alloc() -> Pin<KernelKBox<UnsafeCell<CMutex>>> {
+        fn mutex_alloc(lockdep_key: *mut CLockClassKey) -> Pin<KernelKBox<UnsafeCell<CMutex>>> {
             r#"
             #include <linux/mutex.h>
             #include <linux/slab.h>
+            #include <linux/lockdep.h>
             "#;
 
             r#"
             struct mutex *mutex = kzalloc(sizeof(struct mutex), GFP_KERNEL);
             if (mutex) {
                 mutex_init(mutex);
+                lockdep_set_class(mutex, lockdep_key);
             }
             return mutex;
             "#
         }
-        let c_mutex = mutex_alloc();
+        let c_mutex = mutex_alloc(lockdep_class.get_key());
         Mutex {
-            c_mutex: AllocatedCMutex::KBox(c_mutex),
+            c_mutex: AllocatedCMutex::KBox(c_mutex, lockdep_class),
             data: x.into(),
         }
     }
@@ -346,7 +425,7 @@ impl<T> Drop for MutexGuard<'_, T> {
     }
 }
 
-impl<T> LockGuard<T> for MutexGuard<'_, T> {}
+impl<'guard, T> LockGuard<'guard, T> for MutexGuard<'guard, T> {}
 
 unsafe impl<T: Send> Send for Mutex<T> {}
 unsafe impl<T: Send> Sync for Mutex<T> {}
@@ -389,10 +468,10 @@ pub struct Rcu<T> {
 }
 
 impl<T> Rcu<T> {
-    pub fn new(data: T) -> Self {
+    pub fn new(data: T, lockdep_class: LockdepClass) -> Self {
         Rcu {
             data: Cell::new(Box::into_raw(Box::new(data))),
-            writer_mutex: Mutex::new(()),
+            writer_mutex: Mutex::new((), lockdep_class),
         }
     }
 
@@ -455,7 +534,7 @@ pub struct RcuGuard<'a, T> {
     _phantom: PhantomData<&'a T>,
 }
 
-impl<T> LockGuard<T> for RcuGuard<'_, T> {}
+impl<'guard, T> LockGuard<'guard, T> for RcuGuard<'guard, T> {}
 
 impl<T> Deref for RcuGuard<'_, T> {
     type Target = T;
