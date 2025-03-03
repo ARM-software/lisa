@@ -11,40 +11,10 @@ rebase-conf:
         ref: master
 
     topics:
-        -
-            remote: douglas
-            base: master
-            tip: fix_signals
-
-        -
-            remote: douglas
-            base: master
-            tip: fix_adb_unroot
-
-        -
-            remote: douglas
-            base: master
-            tip: fix_cpufreq_event
-
-        -
-            remote: douglas
-            base: master
-            tip: fix_kprobe_events2
-
-        -
-            remote: douglas
-            base: master
-            tip: fix_disconnect
-
-        -
-            remote: douglas
-            base: master
-            tip: android_dmesg
-
-        -
-            remote: douglas
-            base: master
-            tip: fix_ssh_pull
+        # -
+            # remote: douglas
+            # base: master
+            # tip: a_topic_branch
 
     remotes:
         upstream:

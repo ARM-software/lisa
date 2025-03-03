@@ -13,13 +13,13 @@ on:
 
 jobs:
   Run-Linters-and-Tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v2
-    - name: Set up Python 3.7
+    - name: Set up Python 3.8.18
       uses: actions/setup-python@v2
       with:
-        python-version: 3.7
+        python-version: 3.8.18
     - name: git-bash
       uses: pkg-src/github-action-git-bash@v1.1
     - name: Install dependencies
@@ -39,10 +39,10 @@ jobs:
         nosetests
 
   Execute-Test-Workload-and-Process:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9]
+        python-version: [3.7.17, 3.8.18, 3.9.21, 3.10.16, 3.13.2]
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
@@ -64,10 +64,10 @@ jobs:
         cd /tmp && wa process -f -p csv idle_workload
 
   Test-WA-Commands:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9]
+        python-version: [3.7.17, 3.8.18, 3.9.21, 3.10.16, 3.13.2]
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}

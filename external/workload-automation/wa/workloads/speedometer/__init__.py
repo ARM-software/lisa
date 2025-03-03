@@ -105,9 +105,9 @@ class Speedometer(Workload):
     #  _only_ in the case we didn't see it before.
     #  Since 'index="3"' is always on the left side of the value.
     regex = re.compile(
-        '<[^>]*(?P<Z>index="3"|resource-id="result-number")?[^>]*'
-        '(?:text|content-desc)="(?P<value>\d+.\d+)"[^>]*'
-        '(?(Z)|resource-id="result-number")[^>]*\/>'
+        r'<[^>]*(?P<Z>index="3"|resource-id="result-number")?[^>]*'
+        r'(?:text|content-desc)="(?P<value>\d+.\d+)"[^>]*'
+        r'(?(Z)|resource-id="result-number")[^>]*\/>'
     )
 
     parameters = [
