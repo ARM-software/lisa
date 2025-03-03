@@ -23,7 +23,6 @@ import re
 import uuid
 import getpass
 from collections import OrderedDict
-from distutils.dir_util import copy_tree  # pylint: disable=no-name-in-module, import-error
 
 from devlib.utils.types import identifier
 try:
@@ -42,6 +41,24 @@ from wa.utils.misc import (ensure_directory_exists as _d, capitalize,
                            ensure_file_directory_exists as _f)
 from wa.utils.postgres import get_schema, POSTGRES_SCHEMA_DIR
 from wa.utils.serializer import yaml
+
+if sys.version_info >= (3, 8):
+    def copy_tree(src, dst):
+        from shutil import copy, copytree  # pylint: disable=import-outside-toplevel
+        copytree(
+            src,
+            dst,
+            # dirs_exist_ok=True only exists in Python >= 3.8
+            dirs_exist_ok=True,
+            # Align with devlib and only copy the content without metadata
+            copy_function=copy
+        )
+else:
+    def copy_tree(src, dst):
+        # pylint: disable=import-outside-toplevel, redefined-outer-name
+        from distutils.dir_util import copy_tree
+        # Align with devlib and only copy the content without metadata
+        copy_tree(src, dst, preserve_mode=False, preserve_times=False)
 
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), 'templates')

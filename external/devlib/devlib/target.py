@@ -312,9 +312,7 @@ class Target(object):
                  connection_settings=None,
                  platform=None,
                  working_directory=None,
-                 *,
                  executables_directory=None,
-                 tmp_directory=None,
                  connect=True,
                  modules=None,
                  load_default_modules=True,
@@ -322,6 +320,7 @@ class Target(object):
                  conn_cls=None,
                  is_container=False,
                  max_async=50,
+                 tmp_directory=None,
                  ):
 
         self._lock = threading.RLock()
@@ -1337,13 +1336,13 @@ fi
     @asyn.asyncf
     async def tempfile(self, prefix=None, suffix=None):
         prefix = f'{prefix}-' if prefix else ''
-        sufix = f'-{suffix}' if suffix else ''
+        suffix = f'-{suffix}' if suffix else ''
         name = '{prefix}{uuid}{suffix}'.format(
             prefix=prefix,
             uuid=uuid.uuid4().hex,
             suffix=suffix,
         )
-        self.path.join(self.tmp_directory, name)
+        path = self.path.join(self.tmp_directory, name)
         if (await self.file_exists.asyn(path)):
             raise FileExistsError('Path already exists on the target: {}'.format(path))
         else:
@@ -1811,9 +1810,7 @@ class LinuxTarget(Target):
                  connection_settings=None,
                  platform=None,
                  working_directory=None,
-                 *,
                  executables_directory=None,
-                 tmp_directory=None,
                  connect=True,
                  modules=None,
                  load_default_modules=True,
@@ -1821,19 +1818,21 @@ class LinuxTarget(Target):
                  conn_cls=SshConnection,
                  is_container=False,
                  max_async=50,
+                 tmp_directory=None,
                  ):
         super(LinuxTarget, self).__init__(connection_settings=connection_settings,
                                           platform=platform,
                                           working_directory=working_directory,
                                           executables_directory=executables_directory,
-                                          tmp_directory=tmp_directory,
                                           connect=connect,
                                           modules=modules,
                                           load_default_modules=load_default_modules,
                                           shell_prompt=shell_prompt,
                                           conn_cls=conn_cls,
                                           is_container=is_container,
-                                          max_async=max_async)
+                                          max_async=max_async,
+                                          tmp_directory=tmp_directory,
+                                          )
 
     def wait_boot_complete(self, timeout=10):
         pass
@@ -1901,12 +1900,11 @@ class LinuxTarget(Target):
             return
         try:
 
-            tmpfile = await self.tempfile.asyn()
-            cmd = 'DISPLAY=:0.0 scrot {} && {} date -u -Iseconds'
-            ts = (await self.execute.asyn(cmd.format(quote(tmpfile), quote(self.busybox)))).strip()
-            filepath = filepath.format(ts=ts)
-            await self.pull.asyn(tmpfile, filepath)
-            await self.remove.asyn(tmpfile)
+            async with self.make_temp(is_directory=False) as tmpfile:
+                cmd = 'DISPLAY=:0.0 scrot {} && {} date -u -Iseconds'
+                ts = (await self.execute.asyn(cmd.format(quote(tmpfile), quote(self.busybox)))).strip()
+                filepath = filepath.format(ts=ts)
+                await self.pull.asyn(tmpfile, filepath)
         except TargetStableError as e:
             if "Can't open X dispay." not in e.message:
                 raise e
@@ -2022,9 +2020,7 @@ class AndroidTarget(Target):
                  connection_settings=None,
                  platform=None,
                  working_directory=None,
-                 *,
                  executables_directory=None,
-                 tmp_directory=None,
                  connect=True,
                  modules=None,
                  load_default_modules=True,
@@ -2033,19 +2029,21 @@ class AndroidTarget(Target):
                  package_data_directory="/data/data",
                  is_container=False,
                  max_async=50,
+                 tmp_directory=None,
                  ):
         super(AndroidTarget, self).__init__(connection_settings=connection_settings,
                                             platform=platform,
                                             working_directory=working_directory,
                                             executables_directory=executables_directory,
-                                            tmp_directory=tmp_directory,
                                             connect=connect,
                                             modules=modules,
                                             load_default_modules=load_default_modules,
                                             shell_prompt=shell_prompt,
                                             conn_cls=conn_cls,
                                             is_container=is_container,
-                                            max_async=max_async)
+                                            max_async=max_async,
+                                            tmp_directory=tmp_directory,
+                                            )
         self.package_data_directory = package_data_directory
         self._init_logcat_lock()
 
@@ -3111,9 +3109,7 @@ class LocalLinuxTarget(LinuxTarget):
                  connection_settings=None,
                  platform=None,
                  working_directory=None,
-                 *,
                  executables_directory=None,
-                 tmp_directory=None,
                  connect=True,
                  modules=None,
                  load_default_modules=True,
@@ -3121,19 +3117,21 @@ class LocalLinuxTarget(LinuxTarget):
                  conn_cls=LocalConnection,
                  is_container=False,
                  max_async=50,
+                 tmp_directory=None,
                  ):
         super(LocalLinuxTarget, self).__init__(connection_settings=connection_settings,
                                                platform=platform,
                                                working_directory=working_directory,
                                                executables_directory=executables_directory,
-                                               tmp_directory=tmp_directory,
                                                connect=connect,
                                                modules=modules,
                                                load_default_modules=load_default_modules,
                                                shell_prompt=shell_prompt,
                                                conn_cls=conn_cls,
                                                is_container=is_container,
-                                               max_async=max_async)
+                                               max_async=max_async,
+                                               tmp_directory=tmp_directory,
+                                               )
 
     def _resolve_paths(self):
         if self.working_directory is None:
@@ -3198,7 +3196,6 @@ class ChromeOsTarget(LinuxTarget):
                  connection_settings=None,
                  platform=None,
                  working_directory=None,
-                 *,
                  executables_directory=None,
                  android_working_directory=None,
                  android_executables_directory=None,
@@ -3209,6 +3206,7 @@ class ChromeOsTarget(LinuxTarget):
                  package_data_directory="/data/data",
                  is_container=False,
                  max_async=50,
+                 tmp_directory=None,
                  ):
 
         self.supports_android = None
@@ -3231,14 +3229,15 @@ class ChromeOsTarget(LinuxTarget):
             platform=platform,
             working_directory=working_directory,
             executables_directory=executables_directory,
-            tmp_directory=tmp_directory,
             connect=False,
             modules=modules,
             load_default_modules=load_default_modules,
             shell_prompt=shell_prompt,
             conn_cls=SshConnection,
             is_container=is_container,
-            max_async=max_async)
+            max_async=max_async,
+            tmp_directory=tmp_directory,
+            )
 
         # We can't determine if the target supports android until connected to the linux host so
         # create unconditionally.
