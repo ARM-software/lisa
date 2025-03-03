@@ -1040,15 +1040,6 @@ where
                         char('X').map(|_| Ok((VBinSpecifier::U32, PrintSpecifier::UpperHex))),
                     )),
                     alt((
-                        tag("ld"),
-                        tag("li"),
-                        tag("Ld"),
-                        tag("Li"),
-                        tag("z"),
-                        tag("zd"),
-                    ))
-                    .map(|_| Ok((vbin_long.clone(), PrintSpecifier::Dec))),
-                    alt((
                         alt((tag("lu"), tag("Lu"), tag("zu")))
                             .map(|_| Ok((vbin_ulong.clone(), PrintSpecifier::Dec))),
                         alt((tag("lx"), tag("Lx"), tag("zx")))
@@ -1058,6 +1049,17 @@ where
                         alt((tag("lo"), tag("Lo"), tag("zo")))
                             .map(|_| Ok((vbin_ulong.clone(), PrintSpecifier::Oct))),
                     )),
+                    alt((
+                        tag("ld"),
+                        tag("li"),
+                        tag("Ld"),
+                        tag("Li"),
+                        tag("zd"),
+                        // This must be tried after all the other %z, otherwise it will match
+                        // greedily and we will not parse the following e.g. "u" or "x".
+                        tag("z"),
+                    ))
+                    .map(|_| Ok((vbin_long.clone(), PrintSpecifier::Dec))),
                     alt((
                         alt((tag("lld"), tag("lli")))
                             .map(|_| Ok((VBinSpecifier::I64, PrintSpecifier::Dec))),
