@@ -59,7 +59,7 @@ pub fn print_events<R: BorrowingReadCore + Send, W: Write>(
     let mut nr = 0;
     let scratch = &mut ScratchAlloc::new();
 
-    let buffers = header.buffers(reader).unwrap();
+    let buffers = header.buffers(reader)?;
     let buf_id_len = buffers
         .iter()
         .map(|buf| buf.id.name.len())
