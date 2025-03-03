@@ -307,6 +307,10 @@ impl ParseEnv for Abi {
     fn field_typ(&self, id: &str) -> Result<Type, CompileError> {
         Err(CompileError::UnknownField(id.into()))
     }
+
+    fn variable_typ(&self, id: &str) -> Result<Type, CompileError> {
+        Err(CompileError::UnknownVariable(id.to_owned()))
+    }
 }
 
 /// ID of a buffer in a trace.dat file.
@@ -407,6 +411,14 @@ impl Header {
         }
     }
 
+    /// Provide the value of a global variable that some events rely on.
+    pub fn constant_value(&self, id: &str) -> Result<Value<'_>, EvalError> {
+        match self.sym_addr(id) {
+            None => Err(EvalError::UnknownVariable(id.to_owned())),
+            Some(addr) => Ok(Value::U64Scalar(addr)),
+        }
+    }
+
     /// Returns an iterator of [EventDesc] for all the ftrace events defined in the header.
     #[inline]
     pub fn event_descs(&self) -> impl Iterator<Item = &EventDesc> {
@@ -457,6 +469,17 @@ impl Header {
                     (offset, size, sym.deref())
                 })
         }
+    }
+
+    pub fn sym_addr(&self, sym: &str) -> Option<AddressOffset> {
+        let map = attr!(self, kallsyms);
+        map.iter().find_map(|(addr, syms)| {
+            if syms.iter().any(|_sym| _sym == sym) {
+                Some(*addr)
+            } else {
+                None
+            }
+        })
     }
 
     /// Number of CPUs with a buffer in that trace.
@@ -1056,6 +1079,11 @@ impl<'h> EvalEnv<'h> for HeaderEnv<'h> {
     fn event_data(&self) -> Result<&[u8], EvalError> {
         Err(EvalError::NoEventData)
     }
+
+    #[inline]
+    fn variable_value(&self, id: &str) -> Result<Value<'_>, EvalError> {
+        self.header.constant_value(id)
+    }
 }
 
 impl<'h> HeaderEnv<'h> {
@@ -1078,6 +1106,15 @@ impl ParseEnv for HeaderEnv<'_> {
         }
         Err(CompileError::UnknownField(id.into()))
     }
+
+    #[inline]
+    fn variable_typ(&self, id: &str) -> Result<Type, CompileError> {
+        match self.header.sym_addr(id) {
+            None => Err(CompileError::UnknownVariable(id.to_owned())),
+            Some(_) => Ok(Type::Pointer(Box::new(Type::Void))),
+        }
+    }
+
     #[inline]
     fn abi(&self) -> &Abi {
         self.header.kernel_abi()

@@ -73,7 +73,7 @@ pub enum CompileError {
     #[error("Size of this type is unknown: {0:?}")]
     UnknownSize(Type),
 
-    #[error("Non arithmetic operand used with arithmetic operator")]
+    #[error("Non arithmetic operand used with arithmetic operator: {0:?}")]
     NonArithmeticOperand(Type),
 
     #[error("Mismatching types in operands of {0:?}: {1:?} and {2:?}")]
@@ -84,6 +84,9 @@ pub enum CompileError {
 
     #[error("The field \"{0}\" does not exist")]
     UnknownField(String),
+
+    #[error("Unknown variable: {0}")]
+    UnknownVariable(String),
 
     #[error("Values of this type cannot be decoded from a buffer: {0:?}")]
     NonDecodableType(Type),
@@ -118,6 +121,9 @@ pub enum EvalError {
 
     #[error("Event data not available")]
     NoEventData,
+
+    #[error("Unknown variable: {0}")]
+    UnknownVariable(String),
 
     #[error("No header available")]
     NoHeader,
@@ -850,7 +856,11 @@ where
     /// Dereference a static value at the given address.
     ///
     /// This could for example be a string in the string table stored in the header.
-    fn deref_static(&self, _addr: u64) -> Result<Value<'_>, EvalError>;
+    fn deref_static(&self, addr: u64) -> Result<Value<'_>, EvalError>;
+
+    /// Get the value of the given variable.
+    fn variable_value(&self, id: &str) -> Result<Value<'_>, EvalError>;
+
     /// Binary content of the current event record being processed.
     fn event_data(&self) -> Result<&[u8], EvalError>;
 
@@ -865,6 +875,11 @@ impl<'ee, 'eeref> EvalEnv<'eeref> for &'eeref (dyn CompileEnv<'ee> + 'ee) {
     #[inline]
     fn deref_static(&self, addr: u64) -> Result<Value<'_>, EvalError> {
         (*self).deref_static(addr)
+    }
+
+    #[inline]
+    fn variable_value(&self, id: &str) -> Result<Value<'_>, EvalError> {
+        (*self).variable_value(id)
     }
 
     #[inline]
@@ -890,12 +905,21 @@ impl ParseEnv for &(dyn ParseEnv + '_) {
     fn abi(&self) -> &Abi {
         (*self).abi()
     }
+
+    fn variable_typ(&self, id: &str) -> Result<Type, CompileError> {
+        (*self).variable_typ(id)
+    }
 }
 
 impl<'ce> ParseEnv for &(dyn CompileEnv<'ce> + 'ce) {
     fn field_typ(&self, id: &str) -> Result<Type, CompileError> {
         (*self).field_typ(id)
     }
+
+    fn variable_typ(&self, id: &str) -> Result<Type, CompileError> {
+        (*self).variable_typ(id)
+    }
+
     fn abi(&self) -> &Abi {
         (*self).abi()
     }
@@ -937,6 +961,11 @@ where
     fn deref_static(&self, addr: Address) -> Result<Value<'_>, EvalError> {
         Err(EvalError::CannotDeref(addr))
     }
+
+    fn variable_value(&self, id: &str) -> Result<Value<'_>, EvalError> {
+        Err(EvalError::UnknownVariable(id.to_owned()))
+    }
+
     fn event_data(&self) -> Result<&[u8], EvalError> {
         Err(EvalError::NoEventData)
     }
@@ -950,6 +979,12 @@ where
     fn field_typ(&self, id: &str) -> Result<Type, CompileError> {
         self.penv.field_typ(id)
     }
+
+    #[inline]
+    fn variable_typ(&self, id: &str) -> Result<Type, CompileError> {
+        self.penv.variable_typ(id)
+    }
+
     #[inline]
     fn abi(&self) -> &Abi {
         self.penv.abi()
@@ -993,6 +1028,11 @@ impl<'ee> EvalEnv<'ee> for BufferEnv<'ee> {
     #[inline]
     fn deref_static(&self, addr: u64) -> Result<Value<'_>, EvalError> {
         self.header.deref_static(addr)
+    }
+
+    #[inline]
+    fn variable_value(&self, id: &str) -> Result<Value<'_>, EvalError> {
+        self.header.constant_value(id)
     }
 
     fn event_data(&self) -> Result<&[u8], EvalError> {
@@ -1204,16 +1244,17 @@ impl Type {
     /// Byte-size of the type.
     pub fn size(&self, abi: &Abi) -> Result<FileSize, CompileError> {
         let typ = self.resolve_wrapper();
-        use Type::*;
         match typ {
-            Pointer(_) => Ok(abi.long_size.into()),
-            Array(typ, size) => match size {
+            Type::Pointer(_) => Ok(abi.long_size.into()),
+            Type::Array(typ, size) => match size {
                 ArrayKind::Fixed(Ok(size)) => {
                     let item = typ.size(abi)?;
                     Ok(size * item)
                 }
                 _ => Err(CompileError::UnknownSize(*typ.clone())),
             },
+            // GNU extension
+            Type::Void => Ok(1),
             _ => {
                 let info = typ
                     .arith_info()
@@ -1653,8 +1694,10 @@ impl Expr {
 
         let eval = match self {
             Evaluated(_typ, value) => Ok(new_dyn_evaluator(move |_| Ok(value.clone()))),
-            Variable(_typ, id) => Ok(new_dyn_evaluator(move |_| Ok(Value::Variable(id.clone())))),
-
+            Variable(_typ, id) => Ok(new_dyn_evaluator(move |env| match id.deref() {
+                "REC" => Ok(Value::Variable(id.clone())),
+                _ => env.variable_value(&id),
+            })),
             MemberAccess(expr, member) => {
                 let expr = simplify(*expr);
                 match &expr {
@@ -2028,6 +2071,14 @@ mod tests {
                 id => Err(CompileError::UnknownField(id.into())),
             }
         }
+
+        #[inline]
+        fn variable_typ(&self, id: &str) -> Result<Type, CompileError> {
+            match id {
+                "forty_two" => Ok(Type::Pointer(Box::new(Type::Void))),
+                _ => Err(CompileError::UnknownVariable(id.to_owned())),
+            }
+        }
     }
 
     impl CompileEnv<'_> for TestEnv {
@@ -2082,11 +2133,6 @@ mod tests {
     }
 
     impl EvalEnv<'_> for TestEnv {
-        // #[inline]
-        // fn field_getter<EE: EvalEnv>(&self, id: &str) -> Result<Box<dyn Fn(&EE) -> Result<Value, EvalError>>, CompileError> {
-        //     Ok(Box::new(|_| Ok(Value::U64Scalar(42))))
-        // }
-
         fn header(&self) -> Result<&Header, EvalError> {
             Err(EvalError::NoHeader)
         }
@@ -2100,6 +2146,13 @@ mod tests {
                 46 => Ok(Value::U64Scalar(45)),
                 47 => Ok(Value::U32Array(Array::Borrowed(&[30, 31, 32, 33]))),
                 addr => Err(EvalError::CannotDeref(addr)),
+            }
+        }
+
+        fn variable_value(&self, id: &str) -> Result<Value<'_>, EvalError> {
+            match id {
+                "forty_two" => Ok(Value::U64Scalar(42)),
+                _ => Err(EvalError::UnknownVariable(id.to_owned())),
             }
         }
 
@@ -2170,6 +2223,10 @@ mod tests {
 
         test(b"true", signed(1));
         test(b"false", signed(0));
+
+        // Global variables
+        test(b"forty_two", unsigned(42));
+        test(b"forty_two + 1", unsigned(43));
 
         // Basic arithmetic
         test(b"(-1)", signed(-1));
@@ -2341,6 +2398,7 @@ mod tests {
         test(b"((__u16)(__le16)1)", unsigned(1));
 
         // Sizeof type
+        test(b"sizeof(void)", unsigned(1));
         test(b"sizeof(char)", unsigned(1));
         test(b"sizeof(int)", unsigned(4));
         test(b"sizeof(unsigned long)", unsigned(8));
@@ -2537,6 +2595,14 @@ mod tests {
         test(b"(1 && 2) ? '*' : ' '", signed(42));
         test(b"1 && 2 ? '*' : ' '", signed(42));
         test(b"(int) 1 && (int) 2 ? '*' : ' '", signed(42));
+        test(b"((unsigned int)((void *)42)) + 1", unsigned(43));
+        test(b"((unsigned int)forty_two) + 1", unsigned(43));
+        test(b"((unsigned int)forty_two + 1)", unsigned(43));
+        test(b"(void *)((unsigned int)forty_two + 1)", unsigned(43));
+
+        // Check the ambiguity between cast syntax and variables
+        test(b"((unsigned int)(forty_two))", unsigned(42));
+        test(b"((unsigned int)(forty_two) + 1)", unsigned(43));
 
         // Extension macros
         test(b"__builtin_expect(42) + 1", signed(43));
