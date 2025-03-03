@@ -1,53 +1,12 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-use core::{
-    cmp::min,
-    fmt::Write,
-    fmt::{self},
-    ops::{Deref, DerefMut},
+use core::fmt::Write;
+
+use crate::{
+    inlinec::cfunc,
+    misc::KBoxWriter,
+    runtime::alloc::{GFPFlags, KmallocAllocator},
 };
-
-use crate::inlinec::cfunc;
-
-struct SliceWriter<'a> {
-    slice: &'a mut [u8],
-    cursor: usize,
-}
-
-impl<'a> SliceWriter<'a> {
-    fn new(slice: &'a mut [u8]) -> Self {
-        SliceWriter { slice, cursor: 0 }
-    }
-}
-
-impl Deref for SliceWriter<'_> {
-    type Target = [u8];
-    #[inline(always)]
-    fn deref(&self) -> &Self::Target {
-        &self.slice[self.cursor..]
-    }
-}
-
-impl DerefMut for SliceWriter<'_> {
-    #[inline(always)]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.slice[self.cursor..]
-    }
-}
-
-impl fmt::Write for SliceWriter<'_> {
-    #[inline(always)]
-    fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
-        let src = s.as_bytes();
-        let dst = &mut *self;
-
-        // Crop to our size, so we don't risk panicking.
-        let len = min(src.len(), dst.len());
-        dst[0..len].clone_from_slice(&src[0..len]);
-        self.cursor += len;
-        Ok(())
-    }
-}
 
 #[allow(dead_code)]
 fn _panic(info: &core::panic::PanicInfo) -> ! {
@@ -57,24 +16,26 @@ fn _panic(info: &core::panic::PanicInfo) -> ! {
         if (msg.data && msg.len) {
             panic("Rust panic: %.*s", (int)msg.len, msg.data);
         } else {
-            panic("Rust panic with no message");
+            panic("Rust panic with no message or panicking encountered an error");
         }
         "#
     }
 
-    let mut buf = [0; 128];
     let msg = info.message();
-    let out: &[u8] = match msg.as_str() {
-        Some(s) => s.as_bytes(),
+    match msg.as_str() {
+        Some(s) => panic(s.as_bytes()),
         None => {
-            let mut out = SliceWriter::new(buf.as_mut_slice());
-            match write!(out, "{}", msg) {
-                Ok(()) => &buf,
-                Err(_) => "<error while formatting panic message>".as_bytes(),
-            }
+            KBoxWriter::<KmallocAllocator<{ GFPFlags::Atomic }>, _>::with_writer(
+                "[...]",
+                128,
+                |mut writer| {
+                    // Not much we can do with a write error here since we already are panicking.
+                    let _ = write!(writer, "{}", msg);
+                    panic(writer.written())
+                },
+            );
         }
     };
-    panic(out);
 
     #[allow(clippy::empty_loop)]
     loop {}

@@ -50,6 +50,7 @@ RUST_C_SHIMS_DIR := $(RUST_BUILD_DIR)/rust_c_shims
 RUST_OBJECT_RAW := $(RUST_BUILD_DIR)/rust.raw.o
 RUST_SYMBOLS := $(RUST_BUILD_DIR)/exported.list
 RUST_SYMBOLS_CLI := $(RUST_BUILD_DIR)/exported.cli
+RUST_START_STOP_LDS := $(RUST_BUILD_DIR)/start_stop.lds
 
 RUST_CBINDGEN_H := $(RUST_SRC)/cbindgen.h
 RUST_CBINDGEN_BIN := $(CARGO_HOME)/bin/cbindgen
@@ -86,8 +87,15 @@ $(RUST_OBJECT_RAW): $(RUST_BUILD_DIR) $(CARGO_TARGET_DIR)
 
 
 $(RUST_OBJECT): $(RUST_BUILD_DIR) $(RUST_OBJECT_RAW)
-	# Get the list of exported symbols
-	python3 "$(MODULE_SRC)/rust_exported_symbols.py" --rust-object $(RUST_OBJECT_RAW) --out-symbols-plain $(RUST_SYMBOLS) --out-symbols-cli $(RUST_SYMBOLS_CLI)
+	# Get:
+	# * The list of exported symbols
+	# * A linker script with __start_SECNAME and __stop_SECNAME symbols so
+	#   that libraries relying on such encapsulation symbols like linkme
+	#   work, despite the fact that a kernel module is never linked into an
+	#   executable or DSO (a .ko is a relocatable object file) and
+	#   therefore never getting those symbols created by the linker
+	#   automatically.
+	python3 "$(MODULE_SRC)/rust_exported_symbols.py" --rust-object $(RUST_OBJECT_RAW) --out-symbols-plain $(RUST_SYMBOLS) --out-symbols-cli $(RUST_SYMBOLS_CLI) --out-start-stop-lds $(RUST_START_STOP_LDS)
 
 	# Garbage collect unused sections in the object file, after we have
 	# extracted the binstore sections (otherwise they get discarded).
@@ -96,7 +104,7 @@ $(RUST_OBJECT): $(RUST_BUILD_DIR) $(RUST_OBJECT_RAW)
 	# EXTERN() command in a linker script since older GNU ld version seem
 	# to ignore the EXTERN() command with --gc-sections.
 	$(LD) --version
-	$(LD) $(KBUILD_LDFLAGS) $$(cat $(RUST_SYMBOLS_CLI)) --gc-sections -nostdlib -r -o $(RUST_OBJECT) $(RUST_OBJECT_RAW)
+	$(LD) $(KBUILD_LDFLAGS) $$(cat $(RUST_SYMBOLS_CLI)) -T $(RUST_LDS) -T $(RUST_START_STOP_LDS) --gc-sections -nostdlib -r -o $(RUST_OBJECT) $(RUST_OBJECT_RAW)
 
 	# Only keep as GLOBAL symbols the ones that are to be exported (and the
 	# undefined ones to be provided by C code)
@@ -167,7 +175,7 @@ SYMBOL_NAMESPACES_H := $(GENERATED)/symbol_namespaces.h
 MODULE_VERSION_H := $(GENERATED)/module_version.h
 KALLSYMS := $(GENERATED)/kallsyms
 
-ldflags-y += -T $(FEATURES_LDS) -T $(RUST_LDS) -T $(SYMBOLS_LDS)
+ldflags-y += -T $(FEATURES_LDS) -T $(SYMBOLS_LDS)
 
 INTROSPECTION_DATA_H := $(GENERATED)/introspection_data.h
 

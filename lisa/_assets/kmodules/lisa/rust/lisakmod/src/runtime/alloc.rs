@@ -11,8 +11,6 @@ use crate::{
     runtime::printk::pr_err,
 };
 
-struct KernelAllocator;
-
 #[inline]
 fn with_size<F: FnOnce(usize) -> *mut u8>(layout: Layout, f: F) -> *mut u8 {
     let minalign: usize =
@@ -35,6 +33,22 @@ fn with_size<F: FnOnce(usize) -> *mut u8>(layout: Layout, f: F) -> *mut u8 {
     }
 }
 
+// TODO: Replace by Option::unwrap_or() if it becomes const
+macro_rules! unwrap_or {
+    ($expr:expr, $default:expr) => {
+        match $expr {
+            Some(x) => x,
+            None => $default,
+        }
+    };
+}
+
+#[derive(core::marker::ConstParamTy, PartialEq, Eq)]
+pub enum GFPFlags {
+    Kernel = unwrap_or!(cconstant!("#include <linux/slab.h>", "GFP_KERNEL"), 0),
+    Atomic = unwrap_or!(cconstant!("#include <linux/slab.h>", "GFP_ATOMIC"), 1),
+}
+
 /// This function is guaranteed to return the pointer given by the kernel's kmalloc() without
 /// re-aligning it in any way. This makes it suitable to pass to kfree() without knowing the
 /// original layout.
@@ -42,16 +56,23 @@ fn with_size<F: FnOnce(usize) -> *mut u8>(layout: Layout, f: F) -> *mut u8 {
 /// Note that any layout is admissible here, including if layout.size() == 0 unlike when going
 /// through the GlobalAlloc API.
 #[inline]
-pub fn kmalloc(layout: Layout) -> *mut u8 {
+pub fn kmalloc(layout: Layout, flags: GFPFlags) -> *mut u8 {
     #[cfunc]
-    fn alloc(size: usize) -> *mut u8 {
-        "#include <linux/slab.h>";
+    fn alloc(size: usize, flags: u64) -> *mut u8 {
+        r#"
+        #include <linux/slab.h>
+        #include <linux/types.h>
+        "#;
 
-        "return kmalloc(size, GFP_KERNEL);"
+        "return kmalloc(size, (gfp_t)flags);"
     }
-    with_size(layout, alloc)
+    with_size(layout, |size| alloc(size, flags as u64))
 }
 
+/// Counterpart to [kmalloc]
+///
+/// # Safety
+/// This function can only be called with a pointer allocated with the kernel's kmalloc() function.
 #[inline]
 pub unsafe fn kfree<T: ?Sized>(ptr: *mut T) {
     #[cfunc]
@@ -63,32 +84,82 @@ pub unsafe fn kfree<T: ?Sized>(ptr: *mut T) {
     unsafe { dealloc(ptr as *mut c_void) }
 }
 
-unsafe impl GlobalAlloc for KernelAllocator {
+pub trait KernelAlloc {
+    /// # Safety
+    /// This method must comply with all [GlobalAlloc::alloc] requirements. Additionally, it must
+    /// be able to handle Layout with size=0.
+    fn alloc(&self, layout: Layout) -> *mut u8;
+    /// # Safety
+    /// This method must comply with all [GlobalAlloc::dealloc] requirements.
+    unsafe fn dealloc(&self, ptr: *mut u8);
+}
+
+impl KernelAlloc for &dyn KernelAlloc {
+    #[inline]
+    fn alloc(&self, layout: Layout) -> *mut u8 {
+        (*self).alloc(layout)
+    }
+    #[inline]
+    unsafe fn dealloc(&self, ptr: *mut u8) {
+        unsafe { (*self).dealloc(ptr) }
+    }
+}
+
+impl<T> KernelAlloc for &T
+where
+    T: KernelAlloc,
+{
+    #[inline]
+    fn alloc(&self, layout: Layout) -> *mut u8 {
+        (*self).alloc(layout)
+    }
+    #[inline]
+    unsafe fn dealloc(&self, ptr: *mut u8) {
+        unsafe { (*self).dealloc(ptr) }
+    }
+}
+
+#[derive(Default, Clone)]
+pub struct KmallocAllocator<const FLAGS: GFPFlags>;
+
+impl<const FLAGS: GFPFlags> KernelAlloc for KmallocAllocator<FLAGS> {
+    #[inline]
+    fn alloc(&self, layout: Layout) -> *mut u8 {
+        kmalloc(layout, FLAGS)
+    }
+
+    #[inline]
+    unsafe fn dealloc(&self, ptr: *mut u8) {
+        unsafe { kfree(ptr) };
+    }
+}
+
+unsafe impl<const FLAGS: GFPFlags> GlobalAlloc for KmallocAllocator<FLAGS> {
     #[inline]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        kmalloc(layout)
+        <Self as KernelAlloc>::alloc(self, layout)
     }
 
     #[inline]
     unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
-        unsafe { kfree(ptr) };
+        unsafe { <Self as KernelAlloc>::dealloc(self, ptr) }
     }
 
     #[inline]
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         #[cfunc]
-        fn alloc_zeroed(size: usize) -> *mut u8 {
+        fn alloc_zeroed(size: usize, flags: u64) -> *mut u8 {
             "#include <linux/slab.h>";
 
-            "return kzalloc(size, GFP_KERNEL);"
+            "return kzalloc(size, (gfp_t)flags);"
         }
-        with_size(layout, alloc_zeroed)
+        with_size(layout, |size| alloc_zeroed(size, FLAGS as u64))
     }
 
     #[inline]
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         #[cfunc]
-        unsafe fn realloc(ptr: *mut u8, size: usize) -> *mut u8 {
+        unsafe fn realloc(ptr: *mut u8, size: usize, flags: u64) -> *mut u8 {
             "#include <linux/slab.h>";
 
             r#"
@@ -97,7 +168,7 @@ unsafe impl GlobalAlloc for KernelAllocator {
                 // leading to a double-free.
                 size = 1;
             }
-            return krealloc(ptr, size, GFP_KERNEL);
+            return krealloc(ptr, size, (gfp_t)flags);
             "#
         }
         let new_layout = Layout::from_size_align(new_size, layout.align());
@@ -105,10 +176,12 @@ unsafe impl GlobalAlloc for KernelAllocator {
             Ok(layout) => layout,
             Err(_) => handle_alloc_error(layout),
         };
-        with_size(new_layout, |size| unsafe { realloc(ptr, size) })
+        with_size(new_layout, |size| unsafe {
+            realloc(ptr, size, FLAGS as u64)
+        })
     }
 }
 
 #[global_allocator]
 /// cbindgen:ignore
-static GLOBAL: KernelAllocator = KernelAllocator;
+static GLOBAL: KmallocAllocator<{ GFPFlags::Kernel }> = KmallocAllocator;

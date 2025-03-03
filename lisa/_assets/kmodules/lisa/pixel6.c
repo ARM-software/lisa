@@ -128,7 +128,7 @@ static void read_and_process(char *buffer, unsigned int size, struct file *file,
 
 static int p6_emeter_worker(void *data) {
 	struct feature *feature = data;
-	struct p6_emeter_data *p6_emeter_data = feature->data;
+	struct p6_emeter_data *p6_emeter_data = feature_data(feature);
 	char content[POWER_METER_SAMPLE_FILE_MAX_SIZE];
 
 	read_and_process(content, ARRAY_SIZE(content), p6_emeter_data->sample_file_0, POWER_METER_SAMPLE_FILE_0, 0);
@@ -150,9 +150,9 @@ static int enable_p6_emeter(struct feature *feature) {
 	HANDLE_ERR(ENABLE_FEATURE(__workqueue))
 
 	data = kzalloc(sizeof(*data), GFP_KERNEL);
-	feature->data = data;
 	if (!data)
 		HANDLE_ERR(1);
+	feature_data_set(feature, data);
 
 	/* Note that this is the hardware sampling rate. Software will only see
 	 *an updated value every 8 hardware periods
@@ -185,7 +185,7 @@ finish:
 
 static int disable_p6_emeter(struct feature* feature) {
 	int ret = 0;
-	struct p6_emeter_data *data = feature->data;
+	struct p6_emeter_data *data = feature_data(feature);
 
 	if (data)
 		free_p6_emeter_data(data);

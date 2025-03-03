@@ -11,7 +11,7 @@ use core::{
 
 use crate::{
     inlinec::{cfunc, opaque_type},
-    runtime::kbox::KBox,
+    runtime::kbox::KernelKBox,
 };
 
 pub trait LockGuard<T>
@@ -55,14 +55,14 @@ pub struct SpinLock<T> {
     data: UnsafeCell<T>,
     // The Rust For Linux binding pins the spinlock binding, so do the same here to avoid any
     // problems.
-    c_lock: Pin<KBox<UnsafeCell<CSpinLock>>>,
+    c_lock: Pin<KernelKBox<UnsafeCell<CSpinLock>>>,
 }
 
 impl<T> SpinLock<T> {
     #[inline]
     pub fn new(x: T) -> Self {
         #[cfunc]
-        fn spinlock_alloc() -> Pin<KBox<UnsafeCell<CSpinLock>>> {
+        fn spinlock_alloc() -> Pin<KernelKBox<UnsafeCell<CSpinLock>>> {
             r#"
             #include <linux/spinlock.h>
             #include <linux/slab.h>
@@ -160,6 +160,8 @@ impl<T> Drop for SpinLockGuard<'_, T> {
 impl<T> LockGuard<T> for SpinLockGuard<'_, T> {}
 
 unsafe impl<T: Send> Sync for SpinLock<T> {}
+unsafe impl<T: Send> Send for SpinLock<T> {}
+
 impl<T: Send> Lock<T> for SpinLock<T> {
     type Guard<'a>
         = SpinLockGuard<'a, T>
@@ -189,7 +191,7 @@ impl<'a, T: 'a + Send> _LockMut<'a, T> for SpinLock<T> {}
 opaque_type!(pub struct CMutex, "struct mutex", "linux/mutex.h");
 
 enum AllocatedCMutex {
-    KBox(Pin<KBox<UnsafeCell<CMutex>>>),
+    KBox(Pin<KernelKBox<UnsafeCell<CMutex>>>),
     Static(Pin<&'static UnsafeCell<CMutex>>),
 }
 
@@ -242,7 +244,7 @@ impl<T> Mutex<T> {
     #[inline]
     pub fn new(x: T) -> Self {
         #[cfunc]
-        fn mutex_alloc() -> Pin<KBox<UnsafeCell<CMutex>>> {
+        fn mutex_alloc() -> Pin<KernelKBox<UnsafeCell<CMutex>>> {
             r#"
             #include <linux/mutex.h>
             #include <linux/slab.h>
@@ -346,7 +348,9 @@ impl<T> Drop for MutexGuard<'_, T> {
 
 impl<T> LockGuard<T> for MutexGuard<'_, T> {}
 
+unsafe impl<T: Send> Send for Mutex<T> {}
 unsafe impl<T: Send> Sync for Mutex<T> {}
+
 impl<T: Send> Lock<T> for Mutex<T> {
     type Guard<'a>
         = MutexGuard<'a, T>
@@ -479,6 +483,8 @@ impl<T> Drop for RcuGuard<'_, T> {
 }
 
 unsafe impl<T: Send> Sync for Rcu<T> {}
+unsafe impl<T: Send> Send for Rcu<T> {}
+
 impl<T: Send> Lock<T> for Rcu<T> {
     type Guard<'a>
         = RcuGuard<'a, T>
