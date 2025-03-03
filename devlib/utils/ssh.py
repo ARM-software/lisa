@@ -181,7 +181,7 @@ def _resolve_known_hosts(strict_host_check):
         if isinstance(strict_host_check, (str, os.PathLike)):
             path = Path(strict_host_check)
         else:
-            path = Path('~/.ssh/known_hosts').expandvars()
+            path = Path('~/.ssh/known_hosts').expanduser()
     else:
         path = Path('/dev/null')
 

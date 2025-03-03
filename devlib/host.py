@@ -30,7 +30,7 @@ from devlib.connection import ConnectionBase, PopenBackgroundCommand
 
 if sys.version_info >= (3, 8):
     def copy_tree(src, dst):
-        from shutils import copy, copytree
+        from shutil import copy, copytree
         copytree(
             src,
             dst,
