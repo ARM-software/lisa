@@ -169,9 +169,9 @@ impl Metadata<'_> {
         let time_range = self.time_range;
 
         let mut json_value = serde_json::json!({
-            "pid-comms": header.pid_comms().into_iter().collect::<Vec<_>>(),
+            "pid-comms": header.pid_comms().collect::<Vec<_>>(),
             "cpus-count": header.nr_cpus(),
-            "symbols-address": header.kallsyms().into_iter().map(|(addr, syms)| (addr, syms.collect())).collect::<Vec<(Address, Vec<&str>)>>(),
+            "symbols-address": header.kallsyms().map(|(addr, syms)| (addr, syms.collect())).collect::<Vec<(Address, Vec<&str>)>>(),
             // We cannot provide all events the kernel support here, as most of them
             // were not enabled during the trace.
             // "available-events": header.event_descs().into_iter().map(|desc| desc.name.deref()).collect::<Vec<&str>>(),
@@ -1359,7 +1359,7 @@ where
         fields.push(("common_pid".into(), Type::I32));
         let event_name = event_name.ok_or(MainError::NotAMetaEvent)?;
         let (full_schema, fields_schema) = Self::make_schemas(&event_name, header, fields)?;
-        Ok((event_name.into(), full_schema, fields_schema))
+        Ok((event_name, full_schema, fields_schema))
     }
 
     fn make_schemas<FieldsIterator>(

@@ -886,7 +886,7 @@ impl PrintAtom {
     >(
         mut args: I1,
         mut atoms: I2,
-    ) -> impl IntoIterator<Item = (T, Option<&'atom PrintAtom>)> {
+    ) -> impl Iterator<Item = (T, Option<&'atom PrintAtom>)> {
         let mut count = 0;
         core::iter::from_fn(move || {
             let arg = args.next()?;

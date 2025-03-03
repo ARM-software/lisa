@@ -640,7 +640,7 @@ impl<'a> Value<'a> {
 
     /// Iterate over the bytes of array-like values, including [Value::Raw].
     /// [Value::Str] iterator will yield the null terminator of the C string.
-    pub fn to_bytes(&self) -> Option<impl IntoIterator<Item = u8> + '_> {
+    pub fn to_bytes(&self) -> Option<impl Iterator<Item = u8> + '_> {
         use Value::*;
 
         let (add_null, slice) = match self {

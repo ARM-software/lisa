@@ -246,6 +246,6 @@ pub fn print_events<R: BorrowingReadCore + Send, W: Write>(
     }
     let res: Result<_, MainError> =
         flyrecord(buffers, print_event!(), EventCtx::from_event_desc).map_err(Into::into);
-    res?.into_iter().collect::<Result<(), _>>()?;
+    res?.collect::<Result<(), _>>()?;
     Ok(())
 }

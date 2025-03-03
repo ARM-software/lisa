@@ -409,21 +409,19 @@ impl Header {
 
     /// Returns an iterator of [EventDesc] for all the ftrace events defined in the header.
     #[inline]
-    pub fn event_descs(&self) -> impl IntoIterator<Item = &EventDesc> {
-        attr!(self, event_descs)
+    pub fn event_descs(&self) -> impl Iterator<Item = &EventDesc> {
+        attr!(self, event_descs).iter()
     }
 
     #[inline]
     pub fn event_desc_by_id(&self, id: EventId) -> Option<&EventDesc> {
         self.event_descs()
-            .into_iter()
             .find(move |desc| desc.id == id)
     }
 
     #[inline]
     pub fn event_desc_by_name(&self, name: &str) -> Option<&EventDesc> {
         self.event_descs()
-            .into_iter()
             .find(move |desc| desc.name == name)
     }
 
@@ -471,8 +469,8 @@ impl Header {
 
     /// Header options encoded in the header.
     #[inline]
-    pub fn options(&self) -> impl IntoIterator<Item = &Options> {
-        attr!(self, options)
+    pub fn options(&self) -> impl Iterator<Item = &Options> {
+        attr!(self, options).iter()
     }
 
     /// Parsed content of `/proc/kallsyms` encoded in the header.
@@ -488,7 +486,7 @@ impl Header {
 
     /// Content of the PID/task name table as an iterator.
     #[inline]
-    pub fn pid_comms(&self) -> impl IntoIterator<Item = (Pid, &str)> {
+    pub fn pid_comms(&self) -> impl Iterator<Item = (Pid, &str)> {
         attr!(self, pid_comms).iter().map(|(k, v)| (*k, v.deref()))
     }
 
@@ -957,10 +955,10 @@ impl EventFmt {
     /// Evaluators for the arguments to interpolate in the printk-style format of the event.
     pub fn print_args(
         &self,
-    ) -> Result<impl IntoIterator<Item = &Result<Arc<dyn Evaluator>, CompileError>>, HeaderError>
+    ) -> Result<impl Iterator<Item = &Result<Arc<dyn Evaluator>, CompileError>>, HeaderError>
     {
         match &self.print_fmt_args {
-            Ok(x) => Ok(&x.1),
+            Ok(x) => Ok(x.1.iter()),
             Err(err) => Err(err.clone()),
         }
     }
@@ -1352,7 +1350,6 @@ fn parse_event_fmt<'a>(
                                 print_args.into_iter(),
                                 print_fmt.atoms.iter()
                             )
-                            .into_iter()
                             .map(fixup_arg)
                             .map(|expr| Ok(
                                 Arc::from(expr.compile(&cenv)?))

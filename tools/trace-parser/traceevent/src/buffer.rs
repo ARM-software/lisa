@@ -87,7 +87,6 @@ where
             header,
             cold_map: header
                 .event_descs()
-                .into_iter()
                 .map(|desc| (desc.id, desc))
                 .collect(),
             hot_map: BTreeMap::new(),
@@ -886,7 +885,7 @@ pub fn flyrecord<'i, 'h, R, F, IntoIter, MakeCtx, Ctx>(
     buffers: IntoIter,
     mut f: F,
     make_ctx: MakeCtx,
-) -> Result<impl IntoIterator<Item = R> + 'h + CaptureLifetime<'i>, BufferError>
+) -> Result<impl Iterator<Item = R> + 'h + CaptureLifetime<'i>, BufferError>
 where
     IntoIter: IntoIterator<Item = Buffer<'i, 'h>>,
     F: 'h
@@ -1422,7 +1421,7 @@ impl PrintFmtStr {
         header: &'a Header,
         scratch: &'a ScratchAlloc,
         input: &'a [u32],
-    ) -> impl IntoIterator<Item = Result<PrintArg<'a>, BufferError>> {
+    ) -> impl Iterator<Item = Result<PrintArg<'a>, BufferError>> {
         let mut i = 0;
         let mut decoders = self.vbin_decoders(header).iter();
         let mut failed = false;
