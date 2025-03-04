@@ -463,7 +463,7 @@ impl Header {
             map.range((Unbounded, Included(addr)))
                 .last()
                 .map(|(base, syms)| {
-                    let size = next_addr.map(|next| next - addr);
+                    let size = next_addr.map(|next| next - base);
                     let offset = addr - base;
                     let sym = syms.last().expect("No symbol name");
                     (offset, size, sym.deref())
