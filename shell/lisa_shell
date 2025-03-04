@@ -277,6 +277,7 @@ function lisa-install {
     # and that the installation process will give the same result on all
     # machines at a given point in time.
     (cd "$LISA_HOME" && _lisa-python -m pip install --no-cache-dir "${pip_options[@]}" "$@")
+    local pip_ret=$?
 
     # Workaround the inability to easily depend on a single polars
     # implementation:
@@ -287,6 +288,7 @@ function lisa-install {
     # subsequent install of `polars` (e.g. as a dependency of another tool) will
     # do nothing and we get to keep the sources installed by `polars-lts-cpu`
     _lisa-python -m pip install --force "$(lisa-polars-pkg)"
+    local pip_ret=$(($pip_ret | $?))
 
     # Make sure the shell has taken into account the new content of directories
     # listed in $PATH.
@@ -317,6 +319,11 @@ function lisa-install {
 
     # Install some git-hooks
     _lisa-install-git-hooks
+
+    if [[ $pip_ret != 0 ]]; then
+        echo -ne "\n\n${LISASHELL_RED}Errors happened while installing Python packages, the venv will not be functional${LISASHELL_RESET}\n"
+    fi
+    return $pip_ret
 }
 
 ################################################################################
