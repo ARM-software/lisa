@@ -846,6 +846,8 @@ where
 {
     /// Provide an [Evaluator] that will give the value of the `id` event field when evaluated.
     fn field_getter(&self, id: &str) -> Result<Box<dyn Evaluator>, CompileError>;
+
+    fn as_dyn(&self) -> &dyn CompileEnv<'ce>;
 }
 
 /// Evaluation environment.
@@ -869,66 +871,6 @@ where
 
     /// Current [Header].
     fn header(&self) -> Result<&Header, EvalError>;
-}
-
-impl<'ee, 'eeref> EvalEnv<'eeref> for &'eeref (dyn CompileEnv<'ee> + 'ee) {
-    #[inline]
-    fn deref_static(&self, addr: u64) -> Result<Value<'_>, EvalError> {
-        (*self).deref_static(addr)
-    }
-
-    #[inline]
-    fn variable_value(&self, id: &str) -> Result<Value<'_>, EvalError> {
-        (*self).variable_value(id)
-    }
-
-    #[inline]
-    fn event_data(&self) -> Result<&[u8], EvalError> {
-        (*self).event_data()
-    }
-
-    #[inline]
-    fn scratch(&self) -> &ScratchAlloc {
-        (*self).scratch()
-    }
-
-    #[inline]
-    fn header(&self) -> Result<&Header, EvalError> {
-        (*self).header()
-    }
-}
-
-impl ParseEnv for &(dyn ParseEnv + '_) {
-    fn field_typ(&self, id: &str) -> Result<Type, CompileError> {
-        (*self).field_typ(id)
-    }
-    fn abi(&self) -> &Abi {
-        (*self).abi()
-    }
-
-    fn variable_typ(&self, id: &str) -> Result<Type, CompileError> {
-        (*self).variable_typ(id)
-    }
-}
-
-impl<'ce> ParseEnv for &(dyn CompileEnv<'ce> + 'ce) {
-    fn field_typ(&self, id: &str) -> Result<Type, CompileError> {
-        (*self).field_typ(id)
-    }
-
-    fn variable_typ(&self, id: &str) -> Result<Type, CompileError> {
-        (*self).variable_typ(id)
-    }
-
-    fn abi(&self) -> &Abi {
-        (*self).abi()
-    }
-}
-
-impl<'ce, 'ceref> CompileEnv<'ceref> for &'ceref (dyn CompileEnv<'ce> + 'ce) {
-    fn field_getter(&self, id: &str) -> Result<Box<dyn Evaluator>, CompileError> {
-        (*self).field_getter(id)
-    }
 }
 
 pub(crate) struct BasicEnv<'pe, PE: ?Sized> {
@@ -998,6 +940,11 @@ where
     #[inline]
     fn field_getter(&self, id: &str) -> Result<Box<dyn Evaluator>, CompileError> {
         Err(CompileError::UnknownField(id.into()))
+    }
+
+    #[inline]
+    fn as_dyn(&self) -> &dyn CompileEnv<'ce> {
+        self
     }
 }
 
@@ -1233,7 +1180,7 @@ fn convert_arith_op<'ce, CE>(
     expr: &Expr,
 ) -> Result<(Type, Box<ArithConverter>), CompileError>
 where
-    CE: CompileEnv<'ce>,
+    CE: ?Sized + CompileEnv<'ce>,
 {
     let typ = expr.typ(cenv)?;
     let promoted = typ.promote();
@@ -1484,7 +1431,7 @@ impl Expr {
 
     fn _simplify<'ce, CE>(self, cenv: &'ce CE) -> Expr
     where
-        CE: CompileEnv<'ce>,
+        CE: ?Sized + CompileEnv<'ce>,
     {
         let compiled = self.clone()._compile(cenv);
         self._do_simplify(cenv, compiled)
@@ -1496,11 +1443,11 @@ impl Expr {
         compiled: Result<Box<dyn Evaluator>, CompileError>,
     ) -> Expr
     where
-        CE: CompileEnv<'ce>,
+        CE: ?Sized + CompileEnv<'ce>,
     {
         match compiled {
             Ok(eval) => match self.typ(cenv) {
-                Ok(typ) => match eval.eval(cenv) {
+                Ok(typ) => match eval.eval(cenv.as_dyn()) {
                     Ok(value) => match value.into_static() {
                         Ok(value) => Expr::Evaluated(typ, value),
                         Err(_) => self,
@@ -1520,7 +1467,7 @@ impl Expr {
     /// the same expression over and over again.
     pub fn compile<'ce, CE>(self, cenv: &'ce CE) -> Result<Box<dyn Evaluator>, CompileError>
     where
-        CE: CompileEnv<'ce>,
+        CE: ?Sized + CompileEnv<'ce>,
     {
         // Type check the AST. This should be done only once on the root node, so any recursive
         // compilation invocations are done via _compile() to avoid re-doing it and avoid an O(N^2)
@@ -1531,7 +1478,7 @@ impl Expr {
 
     fn _compile<'ce, CE>(self, cenv: &'ce CE) -> Result<Box<dyn Evaluator>, CompileError>
     where
-        CE: CompileEnv<'ce>,
+        CE: ?Sized + CompileEnv<'ce>,
     {
         use Expr::*;
         let abi = cenv.abi();
@@ -1825,7 +1772,7 @@ impl Expr {
                 }
 
                 let eval = recurse(*expr)?;
-                match eval.eval(cenv) {
+                match eval.eval(cenv.as_dyn()) {
                     Err(_) => Ok(new_dyn_evaluator(move |env| {
                         let value = eval.eval(env)?;
                         negate!(value)
@@ -1926,7 +1873,7 @@ impl Expr {
                 let eval_idx = recurse(*idx)?;
                 let eval_expr = recurse(expr.clone())?;
 
-                match eval_idx.eval(cenv) {
+                match eval_idx.eval(cenv.as_dyn()) {
                     // If we access element 0 at compile time, that is simply
                     // dereferencing the value as a pointer.
                     Ok(Value::U64Scalar(0) | Value::I64Scalar(0)) => {
@@ -2003,14 +1950,14 @@ impl Expr {
                     ExtensionMacroKind::FunctionLike { .. } => cannot_handle(ExtensionMacro(desc)),
                 }
             }
-            ExtensionMacroCall(call) => (call.compiler.compiler)(cenv),
+            ExtensionMacroCall(call) => (call.compiler.compiler)(cenv.as_dyn()),
 
             expr @ FuncCall(..) => cannot_handle(expr),
         }?;
 
         // Compile-time evaluation, if that succeeds we simply replace the evaluator
         // by a closure that clones the precomputed value.
-        match eval.eval(cenv) {
+        match eval.eval(cenv.as_dyn()) {
             Ok(value) => match value.into_static() {
                 Err(_) => Ok(eval),
                 Ok(value) => Ok(new_dyn_evaluator(move |_| Ok(value.clone()))),
@@ -2081,7 +2028,7 @@ mod tests {
         }
     }
 
-    impl CompileEnv<'_> for TestEnv {
+    impl<'ce> CompileEnv<'ce> for TestEnv {
         #[inline]
         fn field_getter(&self, id: &str) -> Result<Box<dyn Evaluator>, CompileError> {
             match id {
@@ -2129,6 +2076,11 @@ mod tests {
                 }
                 id => Err(CompileError::UnknownField(id.into())),
             }
+        }
+
+        #[inline]
+        fn as_dyn(&self) -> &dyn CompileEnv<'ce> {
+            self
         }
     }
 

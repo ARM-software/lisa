@@ -1153,6 +1153,11 @@ impl<'ce> CompileEnv<'ce> for HeaderEnv<'ce> {
         }
         Err(CompileError::UnknownField(id.into()))
     }
+
+    #[inline]
+    fn as_dyn(&self) -> &dyn CompileEnv<'ce> {
+        self
+    }
 }
 
 /// Parse event format as found in `/sys/kernel/tracing/events/*/*/format`

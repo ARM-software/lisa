@@ -564,8 +564,8 @@ fn print_array_hex(separator: &'static str) -> Result<ExtensionMacroKind, CParse
                     ),
                     |(val, _, array_size)| {
                         let compiler = Arc::new(move |cenv: &dyn CompileEnv<'_>| {
-                            let cval = val.clone().compile(&cenv)?;
-                            let carray_size = array_size.clone().compile(&cenv)?;
+                            let cval = val.clone().compile(cenv)?;
+                            let carray_size = array_size.clone().compile(cenv)?;
 
                             let eval = new_dyn_evaluator(move |env: &_| {
                                 let array_size = match carray_size.eval(env)? {
@@ -709,14 +709,14 @@ fn print_symbolic<const EXACT_MATCH: bool>() -> Result<ExtensionMacroKind, CPars
                             .collect::<Result<Vec<_>, InterpError>>()?;
 
                         let compiler = Arc::new(move |cenv: &dyn CompileEnv<'_>| {
-                            let cval = val.clone().compile(&cenv)?;
+                            let cval = val.clone().compile(cenv)?;
                             #[allow(clippy::type_complexity)]
                             let cdelim: Box<
                                 dyn Fn(&dyn EvalEnv) -> Result<String, EvalError> + Send + Sync,
                             > = if EXACT_MATCH {
                                 Box::new(|_env| Ok("".into()))
                             } else {
-                                let cdelim = delim.clone().compile(&cenv)?;
+                                let cdelim = delim.clone().compile(cenv)?;
                                 Box::new(move |env| {
                                     let cdelim = cdelim.eval(env)?;
                                     let cdelim = cdelim.deref_ptr(env)?;
@@ -819,7 +819,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                         Ok(ExtensionMacroCallCompiler {
                             ret_typ,
                             compiler: Arc::new(move |cenv: &dyn CompileEnv| {
-                                expr.clone().compile(&cenv)
+                                expr.clone().compile(cenv)
                             }),
                         })
                     })
@@ -877,7 +877,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                                 Ok(ExtensionMacroCallCompiler {
                                     ret_typ,
                                     compiler: Arc::new(move |cenv: &dyn CompileEnv| {
-                                        ret_expr.clone().compile(&cenv)
+                                        ret_expr.clone().compile(cenv)
                                     }),
                                 })
                             }
@@ -896,7 +896,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                         Ok(ExtensionMacroCallCompiler {
                             ret_typ: Type::U64,
                             compiler: Arc::new(move |cenv: &dyn CompileEnv| {
-                                let cexpr = expr.clone().compile(&cenv)?;
+                                let cexpr = expr.clone().compile(cenv)?;
 
                                 let eval =
                                     new_dyn_evaluator(move |env: &_| match cexpr.eval(env)? {
@@ -924,7 +924,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                         Ok(ExtensionMacroCallCompiler {
                             ret_typ: Type::U32,
                             compiler: Arc::new(move |cenv: &dyn CompileEnv| {
-                                let cexpr = expr.clone().compile(&cenv)?;
+                                let cexpr = expr.clone().compile(cenv)?;
 
                                 let eval =
                                     new_dyn_evaluator(move |env: &_| match cexpr.eval(env)? {
@@ -953,7 +953,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                         Ok(ExtensionMacroCallCompiler {
                             ret_typ,
                             compiler: Arc::new(move |cenv: &dyn CompileEnv| {
-                                let cexpr = Expr::record_field(field.clone()).compile(&cenv)?;
+                                let cexpr = Expr::record_field(field.clone()).compile(cenv)?;
 
                                 let eval =
                                     new_dyn_evaluator(move |env: &_| match cexpr.eval(env)? {
@@ -981,7 +981,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                                     // Compile "__get_str(field)" as "REC->field", since the compiler
                                     // of REC->field will take care of getting the value and present
                                     // it as an array already.
-                                    Expr::record_field(field.clone()).compile(&cenv)
+                                    Expr::record_field(field.clone()).compile(cenv)
                                 }),
                             })
                         })
@@ -999,7 +999,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                             Ok(ExtensionMacroCallCompiler {
                                 ret_typ: penv.abi().long_typ(),
                                 compiler: Arc::new(move |cenv: &dyn CompileEnv| {
-                                    let expr = Expr::record_field(field.clone()).compile(&cenv)?;
+                                    let expr = Expr::record_field(field.clone()).compile(cenv)?;
                                     Ok(new_dyn_evaluator(move |env: &_| {
                                         match expr.eval(env)? {
                                             Value::Raw(_, arr) => Ok(arr.len()),
@@ -1041,8 +1041,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                             Ok(ExtensionMacroCallCompiler {
                                 ret_typ: penv.abi().char_typ(),
                                 compiler: Arc::new(move |cenv: &dyn CompileEnv| {
-                                    let bitmap =
-                                        Expr::record_field(field.clone()).compile(&cenv)?;
+                                    let bitmap = Expr::record_field(field.clone()).compile(cenv)?;
                                     let abi = cenv.abi().clone();
                                     Ok(new_dyn_evaluator(move |env: &_| {
                                         macro_rules! to_string {
@@ -1128,9 +1127,9 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                             ),
                             |(val, _, array_size, _, item_size)| {
                                 let compiler = Arc::new(move |cenv: &dyn CompileEnv<'_>| {
-                                    let cval = val.clone().compile(&cenv)?;
-                                    let carray_size = array_size.clone().compile(&cenv)?;
-                                    let citem_size = item_size.clone().compile(&cenv)?;
+                                    let cval = val.clone().compile(cenv)?;
+                                    let carray_size = array_size.clone().compile(cenv)?;
+                                    let citem_size = item_size.clone().compile(cenv)?;
 
                                     let eval = new_dyn_evaluator(move |env: &_| {
                                         let item_size: usize = match citem_size.eval(env)? {
@@ -1306,17 +1305,17 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                                 let compiler = Arc::new(move |cenv: &dyn CompileEnv<'_>| {
                                     let endianness = cenv.abi().endianness;
 
-                                    let cprefix_str = prefix_str.clone().compile(&cenv)?;
-                                    let cprefix_type = prefix_type.clone().compile(&cenv)?;
-                                    let crow_size = row_size.clone().compile(&cenv)?;
+                                    let cprefix_str = prefix_str.clone().compile(cenv)?;
+                                    let cprefix_type = prefix_type.clone().compile(cenv)?;
+                                    let crow_size = row_size.clone().compile(cenv)?;
                                     // Group size is ignored, as using any group size
                                     // different than the underlying buffer type is
                                     // undefined behavior. Therefore we can simply look at
                                     // the kind of array we get at runtime and format it
                                     // normally.
-                                    let cbuf = buf.clone().compile(&cenv)?;
-                                    let clength = length.clone().compile(&cenv)?;
-                                    let cascii = ascii.clone().compile(&cenv)?;
+                                    let cbuf = buf.clone().compile(cenv)?;
+                                    let clength = length.clone().compile(cenv)?;
+                                    let cascii = ascii.clone().compile(cenv)?;
 
                                     let eval = new_dyn_evaluator(move |env: &_| {
                                         macro_rules! eval_int {

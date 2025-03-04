@@ -43,6 +43,7 @@ install_rust() {
 
 build_tracedump() {
     cd trace-parser/trace-tools &&
+    export RUSTC_BOOTSTRAP=1
     time RUSTFLAGS="$RUSTFLAGS -C target-feature=+crt-static" cargo build --locked --profile release-lisa --target="$(make_triplet)"
 }
 
