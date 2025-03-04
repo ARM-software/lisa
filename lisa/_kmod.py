@@ -396,6 +396,12 @@ def _install_rust(rust_spec, run_cmd):
     for crate, crate_spec in sorted(crates.items()):
         run(f"cargo +{rust_version} install --locked --version {quote(crate_spec['version'])} {quote(crate)}")
 
+    # Workaround rustup creating absolute symlinks, which breaks as soon as the
+    # cache folder gets renamed to its final name:
+    # https://github.com/rust-lang/rustup/issues/4222
+    for home in (rust_spec['rustup_home'], rust_spec['cargo_home']):
+        run(f"""find {quote(str(home))} -type l -print0 | xargs -I '{{}}' -0 -n1 -- 'sh' '-c' 'ln -srfT $(readlink -f {{}}) {{}}'""")
+
 
 def _resolve_alpine_version(version):
     version = version or _ALPINE_DEFAULT_VERSION
@@ -756,7 +762,7 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
         rust_dir_cache = DirCache(
             category='rust_for_alpine_chroot',
             populate=populate_rust,
-            fmt_version='1',
+            fmt_version='2',
         )
         # Add the Alpine key to the Rust key, so that the Rust install is
         # allowed to depend on the state of the Alpine install (e.g. packages
@@ -2837,7 +2843,7 @@ class KmodSrc(Loggable):
                 dir_cache = DirCache(
                     category='rust_home',
                     populate=populate,
-                    fmt_version='1',
+                    fmt_version='2',
                 )
                 key = sorted(rust_spec.items())
                 rust_home = dir_cache.get_entry(key)
