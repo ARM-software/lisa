@@ -20,21 +20,21 @@ use core::{
     cmp::Ordering,
     fmt,
     fmt::{Debug, Write as _},
-    str::{from_utf8, Utf8Error},
+    str::{Utf8Error, from_utf8},
 };
 use std::{error::Error, io, string::String as StdString};
 
 use bitflags::bitflags;
 use itertools::Itertools as _;
 use nom::{
+    Parser,
     branch::alt,
     bytes::complete::{is_not, tag},
     character::complete::{char, u64 as txt_u64},
     combinator::{cut, opt, success},
-    error::{context, ContextError, FromExternalError, ParseError},
+    error::{ContextError, FromExternalError, ParseError, context},
     multi::{many0, many1},
     sequence::{preceded, separated_pair},
-    Parser,
 };
 use once_cell::sync::OnceCell;
 
@@ -44,7 +44,7 @@ use crate::{
     cparser::{CParseError, Expr},
     error::convert_err_impl,
     header::{Abi, Endianness, Header, LongSize, Signedness},
-    parser::{map_res_cut, FromParseError, NomParserExt as _, VerboseParseError},
+    parser::{FromParseError, NomParserExt as _, VerboseParseError, map_res_cut},
     str::{InnerStr, Str, String},
 };
 
@@ -664,11 +664,11 @@ impl PrintFmtStr {
                 PrintSpecifier::SymbolWithOffset => Ok(print_symbol(out, val, true)?),
                 PrintSpecifier::HexBuffer(sep) => {
                     let val = val.deref_ptr(env)?;
-                    let res = match val.to_bytes() {
+
+                    match val.to_bytes() {
                         Some(arr) => print_hex_buffer!(out, arr, *sep),
                         _ => Err(PrintError::NotABuffer(val.clone().into_static().ok()))?,
-                    };
-                    res
+                    }
                 }
 
                 PrintSpecifier::IpGeneric(endianness) => {
@@ -898,9 +898,7 @@ impl PrintAtom {
                     match atoms.next() {
                         Some(PrintAtom::Fixed(_)) => continue,
                         curr @ Some(PrintAtom::Variable {
-                            ref width,
-                            ref precision,
-                            ..
+                            width, precision, ..
                         }) => {
                             count = 0;
                             count += match width {

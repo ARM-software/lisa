@@ -28,28 +28,28 @@ use std::{rc::Rc, string::String as StdString, sync::Arc};
 use bytemuck::cast_slice;
 use itertools::Itertools as _;
 use nom::{
+    AsBytes, Finish as _, Parser,
     branch::alt,
     bytes::complete::{is_not, tag, take},
     character::complete::{alpha1, alphanumeric1, char, u64 as dec_u64},
     combinator::{all_consuming, cut, fail, map_res, not, opt, recognize, success},
-    error::{context, FromExternalError},
-    multi::{fold_many1, many0, many0_count, many1, many_m_n, separated_list0, separated_list1},
+    error::{FromExternalError, context},
+    multi::{fold_many1, many_m_n, many0, many0_count, many1, separated_list0, separated_list1},
     number::complete::u8,
     sequence::{delimited, pair, preceded, separated_pair, terminated},
-    AsBytes, Finish as _, Parser,
 };
 
 use crate::{
     cinterp::{
-        new_dyn_evaluator, BasicEnv, Bitmap, CompileEnv, CompileError, EvalEnv, EvalError,
-        Evaluator, InterpError, Value,
+        BasicEnv, Bitmap, CompileEnv, CompileError, EvalEnv, EvalError, Evaluator, InterpError,
+        Value, new_dyn_evaluator,
     },
     error::convert_err_impl,
-    grammar::{grammar, PackratGrammar as _},
+    grammar::{PackratGrammar as _, grammar},
     header::{Abi, Endianness, FileSize, Identifier, LongSize},
     parser::{
-        error, failure, hex_u64, lexeme, map_res_cut, parenthesized, success_with, FromParseError,
-        VerboseParseError,
+        FromParseError, VerboseParseError, error, failure, hex_u64, lexeme, map_res_cut,
+        parenthesized, success_with,
     },
     scratch::{OwnedScratchBox, ScratchVec},
     str::{Str, String},
@@ -479,9 +479,7 @@ pub enum CParseError {
     DataLocArrayWithoutIdentifier(Type),
     #[error("Found no identifier in the scalar __data_loc declaration")]
     DataLocWithoutIdentifier,
-    #[error(
-        "Found ambiguous identifiers in the scalar __data_loc declaration: \"{0}\" or \"{1}\""
-    )]
+    #[error("Found ambiguous identifiers in the scalar __data_loc declaration: \"{0}\" or \"{1}\"")]
     DataLocAmbiguousIdentifier(Identifier, Identifier),
 
     #[error("Invalid type name")]
@@ -495,7 +493,9 @@ pub enum CParseError {
     #[error("Character value is out of range ({0}), only 8 bit values are supported")]
     CharOutOfRange(u64),
 
-    #[error("Invalid variable identifier \"{0}\". Only the REC identifier is recognized as a variable, every other identifier is assumed to be an enumeration constant")]
+    #[error(
+        "Invalid variable identifier \"{0}\". Only the REC identifier is recognized as a variable, every other identifier is assumed to be an enumeration constant"
+    )]
     InvalidVariableIdentifier(Identifier),
 
     #[error("Could not guess the type of the expression: {0:?}")]
@@ -1241,7 +1241,9 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                                         } else {
                                             Err(EvalError::ExtensionMacroError {
                                                 call: "__print_array(...)".into(),
-                                                error: format!("Wrong size for array item. Expected {item_size} bytes, got {real_item_size} bytes")
+                                                error: format!(
+                                                    "Wrong size for array item. Expected {item_size} bytes, got {real_item_size} bytes"
+                                                ),
                                             })
                                         }
                                     });
@@ -1705,7 +1707,7 @@ where
                                             return error(
                                                 input,
                                                 CParseError::DecodeUtf8(err.to_string()),
-                                            )
+                                            );
                                         }
                                         Ok(s) => s,
                                     };

@@ -37,8 +37,9 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use itertools::{izip, Itertools as _};
+use itertools::{Itertools as _, izip};
 use nom::{
+    Finish as _, Parser,
     branch::alt,
     bytes::complete::{is_a, is_not, tag},
     character::complete::{
@@ -48,7 +49,6 @@ use nom::{
     error::context,
     multi::{fold_many0, many0, separated_list0},
     sequence::{delimited, pair, preceded, separated_pair, terminated},
-    Finish as _, Parser,
 };
 use once_cell::sync::OnceCell;
 
@@ -56,21 +56,21 @@ use crate::{
     array::Array,
     buffer::{Buffer, BufferError, FieldDecoder},
     cinterp::{
-        new_dyn_evaluator, BasicEnv, CompileEnv, CompileError, EvalEnv, EvalError, Evaluator, Value,
+        BasicEnv, CompileEnv, CompileError, EvalEnv, EvalError, Evaluator, Value, new_dyn_evaluator,
     },
     closure::closure,
     compress::{Decompressor, DynDecompressor, ZlibDecompressor, ZstdDecompressor},
     cparser::{
-        identifier, string_literal, ArrayKind, CGrammar, CGrammarCtx, Declaration, Expr,
-        ExtensionMacroCall, ExtensionMacroCallCompiler, ExtensionMacroDesc, ParseEnv, Type,
+        ArrayKind, CGrammar, CGrammarCtx, Declaration, Expr, ExtensionMacroCall,
+        ExtensionMacroCallCompiler, ExtensionMacroDesc, ParseEnv, Type, identifier, string_literal,
     },
     error::convert_err_impl,
     grammar::PackratGrammar as _,
     io::{BorrowingCursor, BorrowingRead},
     nested_pointer::NestedPointer,
     parser::{
-        error, failure, hex_u64, lexeme, map_res_cut, to_str, FromParseError, NomError,
-        NomParserExt as _, VerboseParseError,
+        FromParseError, NomError, NomParserExt as _, VerboseParseError, error, failure, hex_u64,
+        lexeme, map_res_cut, to_str,
     },
     print::{PrintAtom, PrintFmtError, PrintFmtStr, PrintSpecifier, StringWriter},
     scratch::{ScratchAlloc, ScratchVec},
@@ -512,7 +512,7 @@ impl Header {
     }
 
     /// Returns a timestamp fixup closure based on he header options that can affect it.
-    pub(crate) fn timestamp_fixer(&self) -> impl Fn(Timestamp) -> Timestamp {
+    pub(crate) fn timestamp_fixer(&self) -> impl Fn(Timestamp) -> Timestamp + use<> {
         let mut offset_signed: i64 = 0;
         let mut offset_unsigned: u64 = 0;
         let mut _multiplier: u32 = 1;
@@ -1605,7 +1605,9 @@ pub enum HeaderError {
         size: u64,
     },
 
-    #[error("Sign of type \"{typ:?}\" was inferred to be {inferred_signedness:?} but kernel reported {signedness}")]
+    #[error(
+        "Sign of type \"{typ:?}\" was inferred to be {inferred_signedness:?} but kernel reported {signedness}"
+    )]
     InvalidTypeSign {
         typ: Type,
         inferred_signedness: Signedness,

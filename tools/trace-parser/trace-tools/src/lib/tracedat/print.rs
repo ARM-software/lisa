@@ -17,7 +17,7 @@
 use std::{io::Write, ops::Deref as _};
 
 use traceevent::{
-    buffer::{flyrecord, BufferError, EventVisitor},
+    buffer::{BufferError, EventVisitor, flyrecord},
     cinterp::{BufferEnv, CompileError, Value},
     header::{EventDesc, FieldFmt, Header, HeaderError},
     io::BorrowingReadCore,

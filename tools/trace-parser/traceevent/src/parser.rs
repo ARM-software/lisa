@@ -23,12 +23,12 @@ use core::{
 use std::string::String as StdString;
 
 use nom::{
+    Finish as _, Parser,
     bytes::complete::is_a,
     character::complete::{char, multispace0},
     combinator::all_consuming,
     error::{ContextError, ErrorKind, FromExternalError, ParseError},
     sequence::delimited,
-    Finish as _, Parser,
 };
 
 pub trait FromParseError<I, E>: Sized {
@@ -473,7 +473,7 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
     use nom::Finish as _;
-    use nom_language::error::{convert_error, VerboseError};
+    use nom_language::error::{VerboseError, convert_error};
 
     use super::*;
 

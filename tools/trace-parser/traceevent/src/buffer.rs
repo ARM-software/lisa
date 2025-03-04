@@ -23,14 +23,14 @@ use core::{
     ops::{Deref, DerefMut as _},
 };
 use std::{
-    collections::{btree_map::Entry, BTreeMap},
+    collections::{BTreeMap, btree_map::Entry},
     io,
     sync::{Arc, Mutex},
 };
 
 use bytemuck::cast_slice;
 use deref_map::DerefMap;
-use genawaiter::{sync::gen, yield_};
+use genawaiter::{sync::r#gen as gen_, yield_};
 use once_cell::unsync::OnceCell;
 
 use crate::{
@@ -41,9 +41,9 @@ use crate::{
     cparser::{ArrayKind, DynamicKind, Type},
     error::convert_err_impl,
     header::{
-        buffer_locations, Abi, BufferId, Cpu, EventDesc, EventId, FieldFmt, FileSize, Header,
-        HeaderError, HeaderV6, HeaderV7, LongSize, MemAlign, MemOffset, MemSize, Options,
-        Signedness, Timestamp,
+        Abi, BufferId, Cpu, EventDesc, EventId, FieldFmt, FileSize, Header, HeaderError, HeaderV6,
+        HeaderV7, LongSize, MemAlign, MemOffset, MemSize, Options, Signedness, Timestamp,
+        buffer_locations,
     },
     io::{BorrowingRead, BorrowingReadCore},
     iterator::MergedIterator,
@@ -212,23 +212,14 @@ impl<'i, 'h, 'edm, MakeCtx, Ctx> EventVisitor<'i, 'h, 'edm, MakeCtx, Ctx> {
     }
 }
 
-/// Capture a lifetime syntactically to avoid E0700 when using impl in return position
-pub trait CaptureLifetime<'a> {}
-impl<T: ?Sized> CaptureLifetime<'_> for T {}
-
 impl<'i, 'h, 'edm, MakeCtx, Ctx> EventVisitor<'i, 'h, 'edm, MakeCtx, Ctx>
 where
     MakeCtx: 'h + FnMut(&'h Header, &'h EventDesc) -> Ctx,
 {
     pub fn fields<'a>(
         &'a self,
-    ) -> Result<
-        impl Iterator<Item = (&'a FieldFmt, Result<Value<'a>, BufferError>)>
-            + CaptureLifetime<'h>
-            + CaptureLifetime<'edm>
-            + CaptureLifetime<'i>,
-        BufferError,
-    > {
+    ) -> Result<impl Iterator<Item = (&'a FieldFmt, Result<Value<'a>, BufferError>)>, BufferError>
+    {
         let event_desc = self.event_desc()?;
         let struct_fmt = &event_desc.event_fmt()?.struct_fmt()?;
         let mut fields = struct_fmt.fields.iter();
@@ -859,12 +850,12 @@ impl HeaderV6 {
 
 #[inline]
 unsafe fn transmute_lifetime<'b, T: ?Sized>(x: &T) -> &'b T {
-    core::mem::transmute(x)
+    unsafe { core::mem::transmute(x) }
 }
 
 #[inline]
 unsafe fn transmute_lifetime_mut<'b, T: ?Sized>(x: &mut T) -> &'b mut T {
-    core::mem::transmute(x)
+    unsafe { core::mem::transmute(x) }
 }
 
 /// Parse the flyrecord buffers.
@@ -882,7 +873,7 @@ pub fn flyrecord<'i, 'h, R, F, IntoIter, MakeCtx, Ctx>(
     buffers: IntoIter,
     mut f: F,
     make_ctx: MakeCtx,
-) -> Result<impl Iterator<Item = R> + 'h + CaptureLifetime<'i>, BufferError>
+) -> Result<impl Iterator<Item = R> + 'h, BufferError>
 where
     IntoIter: IntoIterator<Item = Buffer<'i, 'h>>,
     F: 'h
@@ -903,7 +894,7 @@ where
         // in the header and is shared. This ensures we will not parse event
         // format more than once, which is the main cost here.
         let mut desc_map = EventDescMap::new(header, make_ctx);
-        gen!({
+        gen_!({
             let buf_id = buffer.id;
             let page_size = buffer.page_size;
             loop {
@@ -1166,7 +1157,7 @@ fn extract_page<'a, 'b: 'a, 'h, I>(
     page_size: MemSize,
 ) -> Result<
     Option<(
-        impl Deref<Target = [u8]> + 'a,
+        impl Deref<Target = [u8]> + 'a + use<'a, I>,
         Timestamp,
         Option<BufferError>,
     )>,

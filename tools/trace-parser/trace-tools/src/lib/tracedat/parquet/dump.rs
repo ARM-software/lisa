@@ -20,7 +20,7 @@ use core::{
     ops::{Deref, DerefMut},
 };
 use std::{
-    collections::{btree_map::Entry, BTreeMap},
+    collections::{BTreeMap, btree_map::Entry},
     fs::File,
     io::Write,
     path::PathBuf,
@@ -30,18 +30,18 @@ use std::{
 
 use arrow::datatypes::{DataType, Field, Fields, Schema};
 use arrow_array::{
+    RecordBatch,
     array::Array,
     builder::{
-        ArrayBuilder, BinaryBuilder, BooleanBuilder, Int16Builder, Int32Builder, Int64Builder,
-        Int8Builder, ListBuilder, StringBuilder, UInt16Builder, UInt32Builder, UInt64Builder,
-        UInt8Builder,
+        ArrayBuilder, BinaryBuilder, BooleanBuilder, Int8Builder, Int16Builder, Int32Builder,
+        Int64Builder, ListBuilder, StringBuilder, UInt8Builder, UInt16Builder, UInt32Builder,
+        UInt64Builder,
     },
-    RecordBatch,
 };
 use arrow_schema::ArrowError;
 use crossbeam::{
-    channel::{bounded, Sender},
-    thread::{scope, Scope, ScopedJoinHandle},
+    channel::{Sender, bounded},
+    thread::{Scope, ScopedJoinHandle, scope},
 };
 use nom::{Finish as _, Parser as _};
 use parquet::{
@@ -58,7 +58,7 @@ use serde::Serialize;
 use traceevent::{
     buffer::{BufferError, EventVisitor},
     cinterp::{EvalEnv, EvalError, Value},
-    cparser::{identifier, ArrayKind, Type},
+    cparser::{ArrayKind, Type, identifier},
     header::{Address, EventDesc, EventId, FieldFmt, Header, HeaderError, LongSize, Timestamp},
     io::BorrowingReadCore,
     print::{PrintArg, PrintAtom, PrintFmtError, PrintFmtStr, VBinSpecifier},
@@ -296,7 +296,7 @@ where
                             x => {
                                 break Err(MainError::DataMismatchingSchema(
                                     x.into_static().map(Box::new).ok(),
-                                ))
+                                ));
                             }
                         }
                     }
@@ -343,8 +343,7 @@ where
                             ReadState::new(header, event_desc, chunk_size, &event_desc.name, make_props_builder(), scope, max_errors)
                         };
 
-                        let state = EventCtx::Selected(SharedState::new(state));
-                        state
+                        EventCtx::Selected(SharedState::new(state))
                     } else {
                         EventCtx::NotSelected
                     };
@@ -1009,7 +1008,10 @@ where
         visitor: &'ret EventVisitor<'i, 'h, 'edm, InitDescF, Ctx>,
         mut f: F,
         only_events: &Option<Vec<String>>,
-    ) -> Result<impl DerefMut<Target = TableState<'scope>> + 'ret, MainError>
+    ) -> Result<
+        impl DerefMut<Target = TableState<'scope>> + 'ret + use<'scope, 'ret, InitDescF, Ctx, F>,
+        MainError,
+    >
     where
         'i: 'ret,
         'h: 'ret,
@@ -1229,7 +1231,7 @@ where
         }
     }
 
-    fn drain_states(self) -> impl Iterator<Item = TableState<'scope>> {
+    fn drain_states(self) -> impl Iterator<Item = TableState<'scope>> + use<'scope> {
         match self.variant {
             ReadStateVariant::Generic(state) => {
                 Box::new([state].into_iter()) as Box<dyn Iterator<Item = _>>

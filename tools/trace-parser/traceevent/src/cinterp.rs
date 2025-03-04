@@ -802,9 +802,7 @@ impl<'a> Value<'a> {
 impl fmt::Display for Value<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         macro_rules! display {
-            ($x:expr) => {{
-                fmt::Display::fmt(&$x, f)
-            }};
+            ($x:expr) => {{ fmt::Display::fmt(&$x, f) }};
         }
 
         match self {

@@ -27,10 +27,10 @@ use core::{
 };
 use std::sync::Arc;
 
-#[cfg(feature = "smartstring")]
-pub use smartstring::alias::String;
 #[cfg(not(feature = "smartstring"))]
 pub use String;
+#[cfg(feature = "smartstring")]
+pub use smartstring::alias::String;
 
 use crate::{
     memo::Memo,
