@@ -61,8 +61,8 @@ use crate::{
     closure::closure,
     compress::{Decompressor, DynDecompressor, ZlibDecompressor, ZstdDecompressor},
     cparser::{
-        identifier, is_identifier, string_literal, ArrayKind, CGrammar, CGrammarCtx, Declaration,
-        Expr, ExtensionMacroCall, ExtensionMacroCallCompiler, ExtensionMacroDesc, ParseEnv, Type,
+        identifier, string_literal, ArrayKind, CGrammar, CGrammarCtx, Declaration, Expr,
+        ExtensionMacroCall, ExtensionMacroCallCompiler, ExtensionMacroDesc, ParseEnv, Type,
     },
     error::convert_err_impl,
     grammar::PackratGrammar as _,
@@ -1472,11 +1472,12 @@ fn parse_kallsyms(
                     |(name, module)| match from_utf8(name) {
                         // Filter-out symbols starting with "$" as they are probably just mapping
                         // symbols that can sometimes have the same value as real function symbols,
-                        // thereby breaking the output.  (see "ELF for the Arm© 64-bit Architecture
+                        // thereby breaking the output. (see "ELF for the Arm© 64-bit Architecture
                         // (AArch64)" document).
                         // Also filter out all the compiler-generated symbols, e.g. ones that have
                         // a suffix as a result of some optimization pass.
-                        Ok(name) if is_identifier(name) => Ok(Some(match module.map(from_utf8) {
+                        Ok(name) if name.contains('$') => Ok(None),
+                        Ok(name) => Ok(Some(match module.map(from_utf8) {
                             Some(Ok(module)) => {
                                 let mut full: SymbolName = name.into();
                                 full.push(' ');
@@ -1485,7 +1486,6 @@ fn parse_kallsyms(
                             }
                             _ => name.into(),
                         })),
-                        Ok(_) => Ok(None),
                         Err(err) => Err(HeaderError::DecodeUtf8(err.to_string())),
                     },
                 ),
