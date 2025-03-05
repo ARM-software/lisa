@@ -530,8 +530,7 @@ html_theme_options['announcement'] = f'''
 <p>
 <span class="versionmodified deprecated">
     This documentation was obtained by building the "master" git branch. LISA
-    project has moved to the "main" branch.  The "master" branch is now a
-    mirror of "main" but will eventually be abandonned, please see the
+    project has moved to the "main" branch. Please see the
     <a href="https://tooling.sites.arm.com/lisa/latest">latest
     documentation</a>.
 </span>
