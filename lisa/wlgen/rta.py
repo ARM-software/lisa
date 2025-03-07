@@ -664,7 +664,7 @@ class RTA(Workload):
         :param res_dir: Host folder to store artifacts in.
         :type res_dir: str or None
 
-        :Variable keyword arguments: Forwarded to :meth:`RTAConf.from_profile`
+        :Other arguments: Forwarded to :meth:`RTAConf.from_profile`
         """
         logger = cls.get_logger()
         self = cls.__new__(cls)
@@ -719,7 +719,7 @@ class RTA(Workload):
         :param res_dir: Host folder to store artifacts in.
         :type res_dir: str or None
 
-        :Variable keyword arguments: Forwarded to :meth:`RTAConf.from_profile`
+        :Other arguments: Forwarded to :meth:`RTAConf.from_profile`
         """
         self = cls.__new__(cls)
         self._early_init(**_early_init_kwargs)
