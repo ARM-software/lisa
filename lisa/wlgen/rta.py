@@ -2139,7 +2139,8 @@ class _UsecSimpleConcreteProperty(SimpleConcreteProperty):
 
 class DeadlineRuntimeProperty(_UsecSimpleConcreteProperty):
     """
-    ``SCHED_DEADLINE`` scheduler policy's runtime property.
+    ``SCHED_DEADLINE`` scheduler policy's runtime property or,
+    since Linux 6.12, ``SCHED_OTHER`` scheduler policy's custom slice length.
 
     :param val: runtime in seconds
     :type val: int
@@ -2152,7 +2153,7 @@ class DeadlineRuntimeProperty(_UsecSimpleConcreteProperty):
 
     @classmethod
     def _to_default_json(cls, plat_info, properties):
-        if properties.get('policy') != 'SCHED_DEADLINE':
+        if properties.get('policy') not in ['SCHED_DEADLINE', 'SCHED_OTHER']:
             return {}
         else:
             return {cls.JSON_KEY: 0}
