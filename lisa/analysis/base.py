@@ -1271,6 +1271,10 @@ class TraceAnalysisBase(AnalysisHelpers):
 
             trace = self.trace
             spec = dict(
+                bound_class=(
+                    self.__class__.__module__,
+                    self.__class__.__qualname__,
+                ),
                 module=f.__module__,
                 func=f.__qualname__,
                 # Include the trace window in the spec since that influences
