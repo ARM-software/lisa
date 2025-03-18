@@ -2448,6 +2448,7 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                         checksum=dir_cache.get_key_token(key),
                     )
             else:
+                logger.debug(f'Kernel tree prepare step will not be cached as no cache key could be computed for it.')
                 with _overlay_folders([base_path], backend=overlay_backend, copy_filter=copy_filter) as path:
                     prepare_overlay(path)
                     yield dict(
@@ -2466,15 +2467,17 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                     repo_root = git.find_root(tree_path)
                     sha1 = git.get_sha1(tree_path)
                     patch = git.get_uncommitted_patch(tree_path)
-                except (FileNotFoundError, subprocess.CalledProcessError):
-                    key = None
+                except (FileNotFoundError, subprocess.CalledProcessError) as e:
+                    logger.debug(f'Could not compute a cache key for kernel tree at {tree_path}: ({e.__class__.__qualname__}) {e}')
+                    tree_key = None
                 else:
                     if repo_root.resolve() == Path(tree_path).resolve():
                         patch_sha1 = hashlib.sha1(patch.encode()).hexdigest()
-                        key = f'{sha1}-{patch_sha1}'
+                        tree_key = ('checksum', f'{sha1}-{patch_sha1}')
                     else:
-                        key = None
-                yield (tree_path, key)
+                        logger.debug(f'Could not compute a cache key for kernel tree at {tree_path} as the root of the kernel tree is not the root of a git repository')
+                        tree_key = None
+                yield (tree_path, tree_key)
             elif version is None:
                 raise ValueError('Kernel version is required in order to download the kernel sources')
             elif cache:
@@ -2488,13 +2491,13 @@ class _KernelBuildEnv(Loggable, SerializeViaConstructor):
                 # Assume that the URL will always provide the same tarball
                 yield (
                     dir_cache.get_entry(url),
-                    url,
+                    ('url', url),
                 )
             else:
                 with tempfile.TemporaryDirectory() as path:
                     yield (
                         cls._make_tree(version, path),
-                        version,
+                        ('version', version),
                     )
 
         cm = chain_cm(overlay_cm, tree_cm)
