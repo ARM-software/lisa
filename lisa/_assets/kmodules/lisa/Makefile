@@ -32,6 +32,15 @@ clean-files := $(GENERATED)
 RUST_VERSION ?= nightly
 RUSTFLAGS := -Clinker=rust-lld -Clink-self-contained=y -Clto=n -Crelocation-model=static -Cno-redzone=y -Ctarget-cpu=generic -Cforce-frame-pointers=y -Ccodegen-units=1 -Zfunction-sections=y
 
+# For now, simply make Rust transparent wrt to the shadow callstack:
+# https://doc.rust-lang.org/beta/unstable-book/compiler-flags/fixed-x18.html
+ifeq ($(ARCH),arm64)
+    ifneq ($(CONFIG_SHADOW_CALL_STACK),)
+        RUSTFLAGS += -Zfixed-x18
+    endif
+endif
+
+
 LISA_EVAL_C := $(MODULE_SRC)/lisa-eval-c.sh
 
 RUSTUP_HOME ?= $(HOME)/.rustup

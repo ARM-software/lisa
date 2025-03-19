@@ -21,9 +21,11 @@ trap cleanup EXIT
 # extract the symbol size from the symbol table after compiling. This is works
 # reliably on any compiler and provides the value in hex format.
 
+# We add +1 to the expression, as symbol size for a zero-sized array seems to
+# be 1 weirdly enough. That +1 is then substracted in the awk post-processing
 cat > $src << EOM
 $c_headers
-static char __attribute__((used)) LISA_C_CONST_VALUE[$c_expr];
+static char __attribute__((used)) LISA_C_CONST_VALUE[($c_expr) + 1];
 EOM
 
 CC=${CC:=cc}
@@ -54,5 +56,5 @@ fi
 
 # All -I are relative to the kernel tree root, so we need to run from there.
 cd "$KERNEL_SRC" &&
-$CC $LISA_EVAL_C_CFLAGS "${clang_args[@]}" -c "$src" -o "$object" && $NM -S "$object" | awk '{if ($4 == "LISA_C_CONST_VALUE") {print "0x" $2}}'
+$CC $LISA_EVAL_C_CFLAGS "${clang_args[@]}" -c "$src" -o "$object" && $NM -S "$object" | awk '{if ($4 == "LISA_C_CONST_VALUE")  {print strtonum("0x" $2) - 1}}'
 
