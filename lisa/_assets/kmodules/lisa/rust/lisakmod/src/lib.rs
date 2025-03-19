@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 #![no_std]
 #![no_builtins]
-#![feature(once_cell_try)]
 #![feature(adt_const_params)]
 #![feature(maybe_uninit_fill)]
 #![feature(coerce_unsized)]
