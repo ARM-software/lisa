@@ -19,8 +19,7 @@ opaque_type!(
     struct CKObj,
     "struct kobject",
     "linux/kobject.h",
-    attr_by_value {fn state_in_sysfs(&self) -> bool},
-    attr_by_value {fn ktype(&self) -> &CKObjType},
+    attr_accessors {ktype: &'a CKObjType},
 );
 opaque_type!(struct CKObjType, "struct kobj_type", "linux/kobject.h");
 
@@ -110,7 +109,7 @@ impl KObjectInner {
             r#"
             #include <linux/string.h>
             #include <linux/kobject.h>
-            #include <utils.h>
+            #include "utils.h"
             "#;
 
             r#"
@@ -189,7 +188,19 @@ impl KObjectInner {
 
     #[inline]
     fn is_in_sysfs(&self) -> bool {
-        self.with_c_kobj(|c_kobj| c_kobj.state_in_sysfs())
+        // We cannot use opaque_type!() attribute accessor facilities as state_in_sysfs is a
+        // bitfield, so taking its address is not allowed
+        #[cfunc]
+        fn state_in_sysfs(c_kobj: &CKObj) -> bool {
+            r#"
+            #include <linux/kobject.h>
+            "#;
+
+            r#"
+            return c_kobj->state_in_sysfs;
+            "#
+        }
+        self.with_c_kobj(state_in_sysfs)
     }
 
     unsafe fn update_refcount(&self, increase: bool) {
@@ -402,3 +413,15 @@ impl Clone for KObject<Finalized> {
         Self::from_inner(inner)
     }
 }
+
+// FIXME: clean that up
+// fn foo() {
+// use crate::runtime::sysfs::{KObjType, KObject};
+
+// let root = KObject::module_root();
+// let kobj_type = Arc::new(KObjType::new());
+// let kobject = KObject::new(kobj_type.clone());
+// let kobject2 = KObject::new(kobj_type.clone());
+// kobject.add(Some(&root), "foo");
+// kobject2.add(Some(&kobject), "bar");
+// }

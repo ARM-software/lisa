@@ -3,8 +3,8 @@
 use core::fmt::Write as _;
 
 use crate::{
+    fmt::{KBoxWriter, PRINT_PREFIX},
     inlinec::cfunc,
-    misc::KBoxWriter,
     runtime::alloc::{GFPFlags, KmallocAllocator},
 };
 
@@ -23,17 +23,17 @@ pub enum DmesgLevel {
 }
 
 pub fn __pr_level_impl(level: DmesgLevel, fmt: core::fmt::Arguments<'_>) -> core::fmt::Result {
-    fn write_dmesg<T: AsRef<[u8]>>(level: DmesgLevel, msg: T) -> core::fmt::Result {
+    fn write_dmesg<T: AsRef<[u8]>>(level: DmesgLevel, prefix: T, msg: T) -> core::fmt::Result {
         #[cfunc]
-        fn printk<'a>(level: u8, msg: &[u8]) {
+        fn printk<'a>(level: u8, prefix: &[u8], msg: &[u8]) {
             "#include <linux/printk.h>";
 
             r#"
             #pragma push_macro("pr_fmt")
             #undef pr_fmt
-            #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+            #define pr_fmt(fmt) fmt
 
-            #define HANDLE(level, f) case level: f("%.*s\n", (int)msg.len, msg.data); break;
+            #define HANDLE(level, f) case level: f("%.*s%.*s\n", (int)prefix.len, prefix.data, (int)msg.len, msg.data); break;
             switch (level) {
                 HANDLE(0, pr_emerg);
                 HANDLE(1, pr_alert);
@@ -50,16 +50,17 @@ pub fn __pr_level_impl(level: DmesgLevel, fmt: core::fmt::Arguments<'_>) -> core
             "#
         }
 
-        printk(level as u8, msg.as_ref());
+        printk(level as u8, prefix.as_ref(), msg.as_ref());
         Ok(())
     }
 
     match fmt.as_str() {
         // If the format is just a plain string, we can simply display it directly, no need to
         // allocate anything.
-        Some(s) => write_dmesg(level, s),
+        Some(s) => write_dmesg(level, PRINT_PREFIX, s),
         None => {
             KBoxWriter::<KmallocAllocator<{ GFPFlags::Atomic }>, _>::with_writer(
+                PRINT_PREFIX,
                 "[...]",
                 128,
                 |mut writer| {
@@ -67,7 +68,7 @@ pub fn __pr_level_impl(level: DmesgLevel, fmt: core::fmt::Arguments<'_>) -> core
                     // Make sure we always print what we have, even if we had some errors when rendering the
                     // string to the buffer. Errors could be as mundane as running out of space in the buffer,
                     // but we still want to see what _could_ be rendered.
-                    write_dmesg(level, writer.written()).and(res)
+                    write_dmesg(level, &b""[..], writer.written()).and(res)
                 },
             )
         }

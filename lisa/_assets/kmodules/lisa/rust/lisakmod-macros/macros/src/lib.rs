@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
+#![feature(iter_intersperse)]
 
 use proc_macro::TokenStream;
 use syn::Error;

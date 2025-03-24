@@ -6,11 +6,15 @@
 #![feature(coerce_unsized)]
 #![feature(unsize)]
 #![feature(maybe_uninit_write_slice)]
+#![feature(type_alias_impl_trait)]
+#![feature(arbitrary_self_types_pointers)]
+#![feature(formatting_options)]
 
 extern crate alloc;
 
 pub mod error;
 pub mod features;
+pub mod fmt;
 pub mod graph;
 pub mod init;
 pub mod inlinec;
@@ -19,5 +23,4 @@ pub mod misc;
 pub mod prelude;
 pub mod registry;
 pub mod runtime;
-pub mod tests;
 pub mod typemap;

@@ -4,7 +4,7 @@ use core::{
     alloc::{Layout, LayoutError},
     borrow::{Borrow, BorrowMut},
     cmp::Ordering,
-    convert::{AsMut, AsRef},
+    convert::{AsMut, AsRef, TryFrom},
     fmt,
     hash::{Hash, Hasher},
     marker::Unsize,
@@ -301,13 +301,23 @@ where
     }
 }
 
-impl<T, KA> From<T> for KBox<T, KA>
+impl<T, KA> TryFrom<&[T]> for KBox<[T], KA>
 where
+    T: Clone + Sized,
     KA: KernelAlloc + Default,
 {
+    type Error = AllocError;
+
     #[inline]
-    fn from(t: T) -> Self {
-        Self::new(t)
+    fn try_from(slice: &[T]) -> Result<Self, AllocError> {
+        let mut kbox: KBox<[MaybeUninit<T>], KA> =
+            KBox::<T, KA>::try_new_uninit_slice_in(slice.len(), Default::default())?;
+
+        for (i, x) in slice.iter().enumerate() {
+            kbox[i].write(x.clone());
+        }
+        // SAFETY: we initialized each item
+        Ok(unsafe { kbox.assume_init() })
     }
 }
 

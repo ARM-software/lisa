@@ -20,4 +20,3 @@ macro_rules! define_event_feature {
         }
     };
 }
-pub(crate) use define_event_feature;
