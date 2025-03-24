@@ -5,14 +5,15 @@ use core::{
     alloc::Layout,
     cell::UnsafeCell,
     convert::Infallible,
-    ffi::{c_char, c_int, c_void, CStr},
+    ffi::{CStr, c_char, c_int, c_uchar, c_void},
     mem::MaybeUninit,
     ops::Deref,
     pin::Pin,
-    ptr::{null, null_mut, NonNull},
+    ptr::{NonNull, null, null_mut},
 };
 
 pub use lisakmod_macros_proc::{cconstant, cexport, cfunc, cstatic};
+pub use paste::paste as __paste;
 
 pub trait FfiType {
     // TODO: if and when Rust gains const trait methods, we can just define a const function to
@@ -221,8 +222,10 @@ where
 {
     #[inline]
     unsafe fn from_ffi(x: Self::FfiType) -> Self {
-        let ptr: ConstPtr<T> = FromFfi::from_ffi(x);
-        ptr.0
+        unsafe {
+            let ptr: ConstPtr<T> = FromFfi::from_ffi(x);
+            ptr.0
+        }
     }
 }
 
@@ -274,8 +277,10 @@ where
 {
     #[inline]
     unsafe fn from_ffi(x: Self::FfiType) -> Self {
-        let ptr: MutPtr<T> = FromFfi::from_ffi(x);
-        ptr.0
+        unsafe {
+            let ptr: MutPtr<T> = FromFfi::from_ffi(x);
+            ptr.0
+        }
     }
 }
 
@@ -367,9 +372,11 @@ where
 {
     #[inline]
     unsafe fn from_ffi(x: Self::FfiType) -> Self {
-        let ptr = <ConstPtr<T> as FromFfi>::from_ffi(x).0;
-        assert!(PtrToMaybeSized::is_aligned(&ptr).unwrap_or(true));
-        ptr.as_ref()
+        unsafe {
+            let ptr = <ConstPtr<T> as FromFfi>::from_ffi(x).0;
+            assert!(PtrToMaybeSized::is_aligned(&ptr).unwrap_or(true));
+            ptr.as_ref()
+        }
     }
 }
 
@@ -380,7 +387,7 @@ where
 {
     #[inline]
     unsafe fn from_ffi(x: Self::FfiType) -> Self {
-        <Option<&'a T> as FromFfi>::from_ffi(x).expect("Unexpected NULL pointer")
+        unsafe { <Option<&'a T> as FromFfi>::from_ffi(x).expect("Unexpected NULL pointer") }
     }
 }
 
@@ -438,9 +445,11 @@ where
 {
     #[inline]
     unsafe fn from_ffi(x: Self::FfiType) -> Self {
-        let ptr = <MutPtr<T> as FromFfi>::from_ffi(x).0;
-        assert!(PtrToMaybeSized::is_aligned(&ptr).unwrap_or(true));
-        ptr.as_mut()
+        unsafe {
+            let ptr = <MutPtr<T> as FromFfi>::from_ffi(x).0;
+            assert!(PtrToMaybeSized::is_aligned(&ptr).unwrap_or(true));
+            ptr.as_mut()
+        }
     }
 }
 
@@ -452,7 +461,7 @@ where
 {
     #[inline]
     unsafe fn from_ffi(x: Self::FfiType) -> Self {
-        <Option<&'a mut T> as FromFfi>::from_ffi(x).expect("Unexpected NULL pointer")
+        unsafe { <Option<&'a mut T> as FromFfi>::from_ffi(x).expect("Unexpected NULL pointer") }
     }
 }
 
@@ -547,7 +556,7 @@ where
 {
     #[inline]
     unsafe fn from_ffi(x: Self::FfiType) -> Self {
-        let x: T = FromFfi::from_ffi(x);
+        let x: T = unsafe { FromFfi::from_ffi(x) };
         // SAFETY: We get the value transferred from C to Rust, so C should not preserve ownership
         // of the data.
         unsafe { Pin::new_unchecked(x) }
@@ -736,12 +745,14 @@ where
 {
     #[inline]
     unsafe fn from_ffi(x: Self::FfiType) -> Self {
-        let ptr: MutPtr<T> = FromFfi::from_ffi(x);
-        let ptr = ptr.0;
-        if ptr.is_null() {
-            None
-        } else {
-            Some(NonNull::new(ptr).unwrap())
+        unsafe {
+            let ptr: MutPtr<T> = FromFfi::from_ffi(x);
+            let ptr = ptr.0;
+            if ptr.is_null() {
+                None
+            } else {
+                Some(NonNull::new(ptr).unwrap())
+            }
         }
     }
 }
@@ -774,15 +785,23 @@ where
 {
     #[inline]
     unsafe fn from_ffi(x: Self::FfiType) -> Self {
-        let x = <Option<NonNull<T>> as FromFfi>::from_ffi(x);
-        x.expect("NULL pointer was passed to NonNull<T>")
+        unsafe {
+            let x = <Option<NonNull<T>> as FromFfi>::from_ffi(x);
+            x.expect("NULL pointer was passed to NonNull<T>")
+        }
     }
 }
 
+// We cannot rely on the blanket implementation for &T and Option<&T> as this would require
+// implementing the traits for ConstPtr<CStr> and MutPtr<CStr>, which is impossible given that we
+// cannot build a NULL pointer for *const CStr, since it is a fat pointer.
+//
+// The kernel is compiled with -funsigned-char, so regardless of the platform, we always have a u8
+// here.
 impl FfiType for Option<&CStr> {
-    const C_TYPE: &'static str = <&'static c_char as FfiType>::C_TYPE;
-    const C_HEADER: Option<&'static str> = <&'static c_char as FfiType>::C_HEADER;
-    type FfiType = <&'static c_char as FfiType>::FfiType;
+    const C_TYPE: &'static str = <&'static c_uchar as FfiType>::C_TYPE;
+    const C_HEADER: Option<&'static str> = <&'static c_uchar as FfiType>::C_HEADER;
+    type FfiType = <&'static c_uchar as FfiType>::FfiType;
 }
 
 impl IntoFfi for Option<&CStr> {
@@ -790,7 +809,7 @@ impl IntoFfi for Option<&CStr> {
     fn into_ffi(self) -> Self::FfiType {
         match self {
             None => null(),
-            Some(s) => s.as_ptr(),
+            Some(s) => s.as_ptr() as *const c_uchar,
         }
     }
 }
@@ -798,10 +817,12 @@ impl IntoFfi for Option<&CStr> {
 impl FromFfi for Option<&CStr> {
     #[inline]
     unsafe fn from_ffi(x: Self::FfiType) -> Self {
-        if x.is_null() {
-            None
-        } else {
-            Some(CStr::from_ptr(x))
+        unsafe {
+            if x.is_null() {
+                None
+            } else {
+                Some(CStr::from_ptr(x as *const c_char))
+            }
         }
     }
 }
@@ -822,23 +843,10 @@ impl IntoFfi for &CStr {
 impl FromFfi for &CStr {
     #[inline]
     unsafe fn from_ffi(x: Self::FfiType) -> Self {
-        Option::<&CStr>::from_ffi(x)
-            .expect("NULL pointer was returned as a &CStr, use Option<&CStr> to allow that.")
-    }
-}
-
-impl<'a> FfiType for &'a str {
-    const C_TYPE: &'static str = <&'a CStr as FfiType>::C_TYPE;
-    const C_HEADER: Option<&'static str> = <&'a CStr as FfiType>::C_HEADER;
-    type FfiType = <&'a CStr as FfiType>::FfiType;
-}
-
-impl FromFfi for &str {
-    #[inline]
-    unsafe fn from_ffi(x: Self::FfiType) -> Self {
-        <&CStr>::from_ffi(x)
-            .to_str()
-            .expect("Invalid UTF-8 content in C string")
+        unsafe {
+            Option::<&CStr>::from_ffi(x)
+                .expect("NULL pointer was returned as a &CStr, use Option<&CStr> to allow that.")
+        }
     }
 }
 
@@ -854,11 +862,29 @@ impl<'a> FfiType for Option<&'a str> {
 impl FromFfi for Option<&str> {
     #[inline]
     unsafe fn from_ffi(x: Self::FfiType) -> Self {
-        Some(
-            <Option<&CStr>>::from_ffi(x)?
-                .to_str()
-                .expect("Invalid UTF-8 content in C string"),
-        )
+        unsafe {
+            Some(
+                <Option<&CStr>>::from_ffi(x)?
+                    .to_str()
+                    .expect("Invalid UTF-8 content in C string"),
+            )
+        }
+    }
+}
+
+impl<'a> FfiType for &'a str {
+    const C_TYPE: &'static str = <&'a CStr as FfiType>::C_TYPE;
+    const C_HEADER: Option<&'static str> = <&'a CStr as FfiType>::C_HEADER;
+    type FfiType = <&'a CStr as FfiType>::FfiType;
+}
+
+impl FromFfi for &str {
+    #[inline]
+    unsafe fn from_ffi(x: Self::FfiType) -> Self {
+        unsafe {
+            <Option<&str>>::from_ffi(x)
+                .expect("NULL pointer was returned as a &str, use Option<&str> to allow that.")
+        }
     }
 }
 
@@ -891,17 +917,20 @@ where
 
 macro_rules! impl_slice {
     ($ty:ty, $c_name_const:literal, $c_name_mut:literal, $c_header:expr) => {
-        impl FfiType for ConstPtr<[$ty]> {
-            const C_TYPE: &'static str = $c_name_const;
-            const C_HEADER: Option<&'static str> = Some($c_header);
-            type FfiType = FfiSlice<*const $ty>;
-        }
+        const _: () = {
+            type Type<'a> = $ty;
+            impl<'a> FfiType for ConstPtr<[Type<'a>]> {
+                const C_TYPE: &'static str = $c_name_const;
+                const C_HEADER: Option<&'static str> = Some($c_header);
+                type FfiType = FfiSlice<*const Type<'a>>;
+            }
 
-        impl FfiType for MutPtr<[$ty]> {
-            const C_TYPE: &'static str = $c_name_mut;
-            const C_HEADER: Option<&'static str> = Some($c_header);
-            type FfiType = FfiSlice<*mut $ty>;
-        }
+            impl<'a> FfiType for MutPtr<[Type<'a>]> {
+                const C_TYPE: &'static str = $c_name_mut;
+                const C_HEADER: Option<&'static str> = Some($c_header);
+                type FfiType = FfiSlice<*mut Type<'a>>;
+            }
+        };
     };
 }
 
@@ -909,6 +938,13 @@ impl_slice!(
     u8,
     "struct slice_const_u8",
     "struct slice_u8",
+    "rust/lisakmod-macros/cffi.h"
+);
+
+impl_slice!(
+    &'a str,
+    "struct slice_const_rust_str",
+    "struct slice_rust_str",
     "rust/lisakmod-macros/cffi.h"
 );
 
@@ -1030,6 +1066,10 @@ make_getaligned!(
 );
 
 pub trait Opaque {
+    /// # Safety
+    ///
+    /// The passed `init` function must initialize fully the new value, so that calling
+    /// MaybeUninit::assume_init() on it is sound.
     #[inline]
     unsafe fn try_new<F, E>(init: F) -> Result<Self, E>
     where
@@ -1045,9 +1085,15 @@ pub trait Opaque {
     where
         Self: Sized,
     {
-        MaybeUninit::uninit()
+        // Use zeroed() here so that we are more robust against API/ABI change in the kernel for
+        // all the structs that are expected to be statically allocated in C.
+        MaybeUninit::zeroed()
     }
 
+    /// # Safety
+    ///
+    /// The passed `init` function must initialize fully the new value, so that calling
+    /// MaybeUninit::assume_init() on it is sound.
     #[inline]
     unsafe fn new_stack<E, F>(init: F) -> Result<Self, E>
     where
@@ -1060,6 +1106,10 @@ pub trait Opaque {
         init(ptr).map(|_| unsafe { new.assume_init() })
     }
 
+    /// # Safety
+    ///
+    /// The passed `init` function must initialize fully the new value, so that calling
+    /// MaybeUninit::assume_init() on it is sound.
     #[inline]
     unsafe fn new_arc<E, F>(init: F) -> Result<Arc<Self>, E>
     where
@@ -1072,6 +1122,10 @@ pub trait Opaque {
         init(ptr).map(|_| unsafe { arc.assume_init() })
     }
 
+    /// # Safety
+    ///
+    /// The passed `init` function must initialize fully the new value, so that calling
+    /// MaybeUninit::assume_init() on it is sound.
     #[inline]
     unsafe fn new_box<E, F>(init: F) -> Result<Box<Self>, E>
     where
@@ -1176,57 +1230,103 @@ macro_rules! __internal_opaque_type {
             }
         }
     };
-    (@opt attr_by_ref, $name:ident, $c_header:expr, fn $attr:ident(&self) -> &$attr_ty:ty) => {
-        impl $name {
-            #[inline]
-            fn $attr(&self) -> &$attr_ty {
-                #[$crate::inlinec::cfunc]
-                fn get(this: &$name) -> &$attr_ty {
-                    $crate::misc::concatcp!(
-                        "#include \"", $c_header, "\"\n"
-                    );
-
-                    $crate::misc::concatcp!(
-                        "return &this->", ::core::stringify!($attr), ";"
-                    )
-                }
-                get(self)
-            }
-        }
+    (@opt attr_accessors, $name:ident, $c_header:expr, $c_attr:ident as $attr:ident: $attr_ty:ty) => {
+        $crate::inlinec::opaque_type!(@__attr_accessors, $name, $c_header, $attr, $c_attr, $attr_ty);
     };
-    (@opt attr_by_mut, $name:ident, $c_header:expr, fn $attr:ident(&mut self) -> &mut $attr_ty:ty) => {
-        impl $name {
-            #[inline]
-            fn $attr(&mut self) -> &mut $attr_ty {
-                #[$crate::inlinec::cfunc]
-                fn get(this: &mut $name) -> &mut $attr_ty {
-                    $crate::misc::concatcp!(
-                        "#include \"", $c_header, "\"\n"
-                    );
 
-                    $crate::misc::concatcp!(
-                        "return &this->", ::core::stringify!($attr), ";"
-                    )
-                }
-                get(self)
-            }
-        }
+    (@opt attr_accessors, $name:ident, $c_header:expr, $attr:ident: $attr_ty:ty) => {
+        $crate::inlinec::opaque_type!(@__attr_accessors, $name, $c_header, $attr, $attr, $attr_ty);
     };
-    (@opt attr_by_value, $name:ident, $c_header:expr, fn $attr:ident(&self) -> $attr_ty:ty) => {
-        impl $name {
-            #[inline]
-            fn $attr(&self) -> $attr_ty {
-                #[$crate::inlinec::cfunc]
-                fn get(this: &$name) -> $attr_ty {
-                    $crate::misc::concatcp!(
-                        "#include \"", $c_header, "\"\n"
-                    );
 
-                    $crate::misc::concatcp!(
-                        "return this->", ::core::stringify!($attr), ";"
-                    )
+    (@__attr_accessors, $name:ident, $c_header:expr, $attr:ident, $c_attr:ident, $attr_ty:ty) => {
+        $crate::inlinec::__paste! {
+            impl $name {
+                #[inline]
+                fn $attr<'a>(&'a self) -> $attr_ty
+                    where
+                        $attr_ty: ::core::marker::Copy,
+                {
+                    unsafe {
+                        self. [< __unsafe_ $attr >] ()
+                    }
                 }
-                get(self)
+
+                #[inline]
+                unsafe fn [< __unsafe_ $attr >]<'a>(&'a self) -> $attr_ty
+                {
+                    #[$crate::inlinec::cfunc]
+                    fn get<'a>(this: &'a $name) -> $attr_ty {
+                        $crate::misc::concatcp!(
+                            "#include \"", $c_header, "\"\n"
+                        );
+
+                        $crate::misc::concatcp!(
+                            "return this->", ::core::stringify!($c_attr), ";"
+                        )
+                    }
+                    get(self)
+                }
+
+                #[inline]
+                fn [<$attr _ref>]<'a>(&'a self) -> &'a $attr_ty {
+                    #[$crate::inlinec::cfunc]
+                    fn get<'a>(this: &'a $name) -> &'a $attr_ty {
+                        $crate::misc::concatcp!(
+                            "#include \"", $c_header, "\"\n"
+                        );
+
+                        // Cast to FUNC_RET_TYPE (which is defined as being the return type of the
+                        // current function) to deal with a few issues:
+                        // 1. "char" is a type incompatible with "unsigned char" and "signed char".
+                        //    Unfortunately, Rust can only ever represent "unsigned char" and
+                        //    "signed char", leading to type errors in the C code.
+                        //
+                        // 2. A "T**" cannot be returned from a function returning "const T**".
+                        //    In C, casting "T**" to "const T**" would open the door to mutating a
+                        //    "const T" in a way that typechecks. However, that problem does not
+                        //    exist in Rust as making a reference point at something else is
+                        //    impossible.
+                        //
+                        // Both those mismatches in what Rust and C model in their type system can
+                        // be papered over by a cast, so that's what we do. We should not loose too
+                        // much type safety in doing so, as the $attr() function does not do any
+                        // cast, and therefore should be properly typechecked.
+                        $crate::misc::concatcp!(
+                            "return (FUNC_RET_TYPE)(&this->", ::core::stringify!($c_attr), ");"
+                        )
+                    }
+                    get(self)
+                }
+
+                #[inline]
+                fn [<$attr _mut>]<'a>(&'a mut self) -> &'a mut $attr_ty {
+                    #[$crate::inlinec::cfunc]
+                    fn get<'a>(this: &'a mut $name) -> &'a mut $attr_ty {
+                        $crate::misc::concatcp!(
+                            "#include \"", $c_header, "\"\n"
+                        );
+
+                        $crate::misc::concatcp!(
+                            "return (FUNC_RET_TYPE)(&this->", ::core::stringify!($c_attr), ");"
+                        )
+                    }
+                    get(self)
+                }
+
+                #[inline]
+                fn [<$attr _raw_mut>]<'a>(self: *mut Self) -> *mut $attr_ty {
+                    #[$crate::inlinec::cfunc]
+                    fn get<'a>(this: *mut $name) -> *mut $attr_ty {
+                        $crate::misc::concatcp!(
+                            "#include \"", $c_header, "\"\n"
+                        );
+
+                        $crate::misc::concatcp!(
+                            "return (FUNC_RET_TYPE)(&this->", ::core::stringify!($c_attr), ");"
+                        )
+                    }
+                    get(self)
+                }
             }
         }
     };

@@ -1,7 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
 pub mod events;
+pub mod legacy;
 pub mod pixel6;
+pub mod tests;
+pub mod tracepoint;
 
 use alloc::{sync::Arc, vec::Vec};
 use core::{
@@ -13,11 +16,11 @@ use core::{
 use linkme::distributed_slice;
 
 use crate::{
-    error::{AllErrors, Error},
+    error::{Error, MultiResult},
     graph::{Cursor, DfsPostTraversal, Graph, TraversalDirection},
-    lifecycle::{self, LifeCycle, new_lifecycle},
+    lifecycle::{self, FinishedKind, LifeCycle, new_lifecycle},
     runtime::{
-        printk::{pr_debug, pr_err},
+        printk::{pr_debug, pr_err, pr_info},
         sync::Lock,
     },
     typemap,
@@ -82,13 +85,23 @@ mod private {
     use super::*;
     use crate::{
         error::{ContextExt, Error, error},
-        runtime::sync::Mutex,
+        runtime::sync::{LockdepClass, Mutex},
     };
 
     pub struct LiveFeature {
         lifecycle: Mutex<Box<dyn Any + Send>>,
         feature: Arc<dyn Feature + Send + Sync>,
         children_config: FeaturesConfig,
+    }
+
+    macro_rules! lock_lifecycle {
+        ($Feat:ident, $live:expr, $guard:ident, $lifecycle:ident) => {
+            let mut $guard = $live.lifecycle.lock();
+            let lifecycle: &mut FeatureLifeCycle<$Feat> = $guard
+                .downcast_mut()
+                .expect("A LiveFeature for the wrong Feature was given");
+            let $lifecycle = &mut lifecycle.inner;
+        };
     }
 
     // Split some methods in a super trait so we can have a blanket implementation for those, so the
@@ -151,7 +164,10 @@ mod private {
                 .configure(&mut for_us)
                 .with_context(|| format!("Failed to configure feature {name}"))?;
             let lifecycle = FeatureLifeCycle::<Feat>::new(lifecycle);
-            let lifecycle = Mutex::new(Box::new(lifecycle) as Box<dyn Any + Send>);
+            let lifecycle = Mutex::new(
+                Box::new(lifecycle) as Box<dyn Any + Send>,
+                LockdepClass::new(),
+            );
 
             Ok(LiveFeature {
                 feature: self as Arc<dyn Feature + Send + Sync>,
@@ -169,19 +185,19 @@ mod private {
             parents_service: &mut FeaturesService,
             start_children: &mut dyn FnMut(&mut FeaturesService) -> Result<(), Error>,
         ) -> Result<(), Error> {
-            let mut lifecycle = live.lifecycle.lock();
-            let lifecycle: &mut FeatureLifeCycle<Feat> = lifecycle
-                .downcast_mut()
-                .expect("A LiveFeature for the wrong Feature was given");
-            let lifecycle = &mut lifecycle.inner;
+            lock_lifecycle!(Feat, live, guard, lifecycle);
 
             let mut register_service = |service: &_| {
                 parents_service.insert::<Feat>(Arc::clone(service));
             };
 
             match lifecycle.state() {
-                lifecycle::State::Init | lifecycle::State::Finished(Ok(_)) => {
+                lifecycle::State::Init | lifecycle::State::Finished(_, Ok(_)) => {
                     let mut children_service = FeaturesService::new();
+
+                    // Release the lock before recursing in the children so that lockdep does not
+                    // get upset
+                    drop(guard);
                     start_children(&mut children_service)?;
 
                     // INVARIANT: if a child failed to start, then we do not attempt starting the
@@ -189,9 +205,14 @@ mod private {
                     // leaves by following a path of other started nodes. Therefore, a
                     // partially-started graph can always be stopped by traversing it from the
                     // leaves.
+
+                    lock_lifecycle!(Feat, live, guard, lifecycle);
+
+                    pr_info!("Starting feature {}", self.name());
                     let service = lifecycle
                         .start(children_service)
                         .with_context(|| format!("Failed to start feature {}", self.name()))?;
+                    pr_debug!("Started feature {}", self.name());
 
                     register_service(service);
                     Ok(())
@@ -203,7 +224,10 @@ mod private {
                 lifecycle::State::Started(Err(err)) => Err(err),
                 // Disallow re-starting a feature that failed to finish properly, as external
                 // resources may be in an unknown state.
-                lifecycle::State::Finished(Err(err)) => Err(err),
+                lifecycle::State::Finished(_, Err(err)) => Err(err.context(format!(
+                    "Cannot restart feature {} as it may be in a broken state",
+                    self.name()
+                ))),
             }
         }
 
@@ -212,21 +236,21 @@ mod private {
             live: &LiveFeature,
             stop_parents: &mut dyn FnMut() -> Result<(), Error>,
         ) -> Result<(), Error> {
-            let lifecycle = &mut *live.lifecycle.lock();
-            let lifecycle: &mut FeatureLifeCycle<Feat> = lifecycle
-                .downcast_mut()
-                .expect("A LiveFeature for the wrong Feature was given");
-            let lifecycle = &mut lifecycle.inner;
+            lock_lifecycle!(Feat, live, guard, lifecycle);
 
             match lifecycle.state() {
                 // We rely on the invariant that if a feature was not started, none of its parent
                 // can be started either so we don't need to explore that way.
                 lifecycle::State::Started(_) => {
+                    // Release the lock before recursing in the parents so that lockdep does not
+                    // get upset
+                    drop(guard);
                     // Bail out if we cannot stop the parents, as it would be unsafe to stop ourselves if a
                     // parent has failed to stop and might still be relying on us.
                     stop_parents()?;
 
-                    pr_debug!("Stopping feature {}", self.name());
+                    pr_info!("Stopping feature {}", self.name());
+                    lock_lifecycle!(Feat, live, guard, lifecycle);
                     lifecycle
                         .stop()
                         .with_context(|| format!("Failed to stop feature {}", self.name()))?;
@@ -234,7 +258,11 @@ mod private {
                     Ok(())
                 }
                 lifecycle::State::Init => Ok(()),
-                lifecycle::State::Finished(res) => res,
+                // If the feature did an early exit, either it was successful or an error was
+                // returned, but it will have already been passed back to the caller back then, so
+                // make stopping it a successful no-op.
+                lifecycle::State::Finished(FinishedKind::Early, _) => Ok(()),
+                lifecycle::State::Finished(FinishedKind::Normal, res) => res.clone(),
             }
         }
     }
@@ -247,32 +275,33 @@ mod private {
             match cursor.value() {
                 Some(live) => {
                     let mut start_children = |children_service: &mut _| {
-                        cursor.children().try_for_each(|child| {
-                            process(&child, children_service).with_context(|| {
+                        cursor
+                            .children()
+                            .try_for_each(|child| process(&child, children_service))
+                            .with_context(|| {
                                 format!(
-                                    "Failed to start feature {} as child of feature {}",
-                                    match child.value() {
-                                        Some(child) => child.feature.name(),
-                                        None => "<unselected feature>",
-                                    },
-                                    live.feature.name()
+                                    "Error while starting children of feature {}",
+                                    &live.feature.name()
                                 )
                             })
-                        })
                     };
                     live.feature
                         .__start(live, parents_service, &mut start_children)
                 }
                 None => cursor
                     .children()
-                    .try_for_each(|child| process(&child, &mut FeaturesService::new())),
+                    .map(|child| process(&child, &mut FeaturesService::new()))
+                    .collect::<MultiResult<(), Error>>()
+                    .into_result(),
             }
         }
 
         let mut parents_service = FeaturesService::new();
         graph
             .roots()
-            .try_for_each(|root| process(&root, &mut parents_service))
+            .map(|root| process(&root, &mut parents_service))
+            .collect::<MultiResult<(), Error>>()
+            .into_result()
     }
 
     pub fn stop_features(graph: &Graph<Option<LiveFeature>>) -> Result<(), Error> {
@@ -285,27 +314,30 @@ mod private {
                             .map(process)
                             // Stop all the features we can and only then propagate all the issues we
                             // encountered.
-                            .collect::<AllErrors<Error>>()
-                            .combine(error!(
-                                "Error while stopping children of feature {}",
-                                &live.feature.name()
-                            ))
+                            .collect::<MultiResult<(), Error>>()
+                            .into_result()
+                            .with_context(|| {
+                                format!(
+                                    "Error while stopping parents of feature {}",
+                                    &live.feature.name()
+                                )
+                            })
                     };
                     live.feature.__stop(live, &mut stop_parents)
                 }
                 None => cursor
                     .parents()
                     .map(process)
-                    .collect::<AllErrors<Error>>()
-                    .combine(error!("Error while stopping features",)),
+                    .collect::<MultiResult<(), Error>>()
+                    .into_result(),
             }
         }
 
         graph
             .leaves()
             .map(process)
-            .collect::<AllErrors<Error>>()
-            .combine(error!("Error while stopping features"))
+            .collect::<MultiResult<(), Error>>()
+            .into_result()
     }
 }
 
@@ -330,6 +362,7 @@ pub trait Feature: private::BlanketFeature {
         FeatureId::new::<Self>()
     }
 
+    #[allow(clippy::type_complexity)]
     fn configure(
         &self,
         configs: &mut dyn Iterator<Item = &Self::Config>,
@@ -387,30 +420,14 @@ where
     let graph = graph.expect("Error while configuring features");
 
     new_lifecycle!(|_| {
-        // FIXME: clean that up
-        // use crate::runtime::sysfs::{KObjType, KObject};
-
-        // let root = KObject::module_root();
-        // let kobj_type = Arc::new(KObjType::new());
-        // let kobject = KObject::new(kobj_type.clone());
-        // let kobject2 = KObject::new(kobj_type.clone());
-        // kobject.add(Some(&root), "foo");
-        // kobject2.add(Some(&kobject), "bar");
         if let Err(err) = private::start_features(&graph) {
-            pr_err!("Error while starting features: {err}");
+            pr_err!("Error while starting features: {err:#}");
         }
-        let res = match crate::tests::init_tests() {
-            Err(x) => {
-                pr_err!("Lisa module Rust support validation failed: {x}");
-                Ok(())
-            }
-            Ok(()) => Ok(()),
-        };
 
-        yield_!(res);
+        yield_!(Ok(()));
 
         if let Err(err) = private::stop_features(&graph) {
-            pr_err!("Error while stopping features: {err}");
+            pr_err!("Error while stopping features: {err:#}");
         }
         Ok(())
     })
@@ -510,16 +527,20 @@ macro_rules! define_feature {
 
             fn configure(
                 &self,
-                configs: &mut dyn Iterator<Item = &Self::Config>,
-            ) -> Result<
+                configs: &mut dyn ::core::iter::Iterator<Item = &Self::Config>,
+            ) -> ::core::result::Result<
                 (
-                    FeaturesConfig,
-                    LifeCycle<FeaturesService, Arc<Self::Service>, $crate::error::Error>,
+                    $crate::features::FeaturesConfig,
+                    $crate::lifecycle::LifeCycle<
+                        $crate::features::FeaturesService,
+                        ::alloc::sync::Arc<Self::Service>,
+                        $crate::error::Error
+                    >,
                 ),
                 $crate::error::Error,
             >
             {
-                let init: Result<_, Error> = $init(configs);
+                let init: ::core::result::Result<_, $crate::error::Error> = $init(configs);
                 let init: $crate::features::InitBundle<Self> = init?.into();
                 Ok((init.configs, init.lifecycle))
             }

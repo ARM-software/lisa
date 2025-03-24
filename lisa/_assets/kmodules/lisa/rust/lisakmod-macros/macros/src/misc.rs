@@ -2,7 +2,7 @@
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{punctuated::Punctuated, Error, Expr, Ident, Token};
+use syn::{Error, Expr, Ident, Token, punctuated::Punctuated};
 
 // Use getrandom instead of e.g. uuid crate as it has far fewer dependencies, so faster build
 // time.
