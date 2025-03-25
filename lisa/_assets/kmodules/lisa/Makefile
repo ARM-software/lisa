@@ -79,6 +79,7 @@ RUST_OBJECT := $(RUST_GENERATED)/rust.o
 RUST_OBJECT_CMD := $(RUST_GENERATED)/.rust.o.cmd
 RUST_C_SHIMS_H := $(RUST_GENERATED)/rust_c_shims.h
 RUST_C_SHIMS_C := $(RUST_GENERATED)/rust_c_shims.c
+RUST_TRACE_EVENTS_HEADER := $(RUST_GENERATED)/trace_events.h
 
 RUST_BUILD_DIR := $(RUST_GENERATED)/build
 RUST_C_SHIMS_DIR := $(RUST_BUILD_DIR)/rust_c_shims
@@ -145,7 +146,7 @@ $(RUST_OBJECT): $(RUST_GENERATED) $(RUST_BUILD_DIR) $(RUST_OBJECT_RAW) $(RUST_JS
 	#   executable or DSO (a .ko is a relocatable object file) and
 	#   therefore never getting those symbols created by the linker
 	#   automatically.
-	python3 "$(MODULE_SRC)/process_rust.py" --rust-object $(RUST_OBJECT_RAW) --json $(RUST_JSON_DATA) --out-symbols-plain $(RUST_SYMBOLS) --out-symbols-cli $(RUST_SYMBOLS_CLI) --out-start-stop-lds $(RUST_START_STOP_LDS)
+	python3 "$(MODULE_SRC)/process_rust.py" --rust-object $(RUST_OBJECT_RAW) --json $(RUST_JSON_DATA) --out-symbols-plain $(RUST_SYMBOLS) --out-symbols-cli $(RUST_SYMBOLS_CLI) --out-start-stop-lds $(RUST_START_STOP_LDS) --out-trace-events-header $(RUST_TRACE_EVENTS_HEADER)
 
 	# Garbage collect unused sections in the object file, after we have
 	# extracted the binstore sections (otherwise they get discarded).

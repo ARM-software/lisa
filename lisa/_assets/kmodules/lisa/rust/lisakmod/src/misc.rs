@@ -48,3 +48,11 @@ macro_rules! destructure {
     }}
 }
 pub(crate) use destructure;
+
+// Join the parameters using the given separator, avoiding any trailing separator
+macro_rules! join{
+    ($sep:expr, $first:expr $(, $rest:expr)* $(,)?) => {
+        ::core::concat!($first $(, $sep, $rest)*)
+    };
+}
+pub(crate) use join;

@@ -10,10 +10,12 @@
 #    include "linux/args.h"
 #endif
 
-#include "linux/kernel.h"
-#include "linux/module.h"
-#include "linux/version.h"
-#include "linux/stringify.h"
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/stringify.h>
+#include <linux/version.h>
+#include <linux/tracepoint.h>
+
 
 #define IGNORE_WARNING(warning, expr) ({ \
 	__diag_push(); \
@@ -45,6 +47,15 @@
 #    define LISA_MODULE_IMPORT_NS(ns) MODULE_IMPORT_NS(ns)
 #else
 #    define LISA_MODULE_IMPORT_NS(ns) MODULE_IMPORT_NS(__stringify(ns))
+#endif
+
+// __assign_str() takes only one parameter since commit 2c92ca849fcc as
+// __string() contains the source already. This allows ftrace to reserve the
+// appropriate buffer size before-hand.
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,10,0)
+#    define __lisa_assign_str(field, src) __assign_str(field, src)
+#else
+#    define __lisa_assign_str(field, src) __assign_str(field)
 #endif
 
 #endif /* _UTILS_H */

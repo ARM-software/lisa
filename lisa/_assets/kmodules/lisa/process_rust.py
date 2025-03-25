@@ -54,6 +54,7 @@ def main():
     parser.add_argument('--out-symbols-plain', help='File to write the exported symbol list, one per line')
     parser.add_argument('--out-symbols-cli', help='File to write the exported symbol list as ld CLI --undefined options')
     parser.add_argument('--out-start-stop-lds', help='File to write the linker script to provide __start_SECNAME and __stop_SECNAME symbols, which are not provided by Kbuild since the module is never linked into an executable or DSO')
+    parser.add_argument('--out-trace-events-header', help='File to write the ftrace event definitions')
 
     args = parser.parse_args()
 
@@ -135,6 +136,123 @@ def main():
 
         lds = '\n'.join(map(make_lds, sections)) + '\n'
         Path(path).write_text(lds)
+
+    if (path := args.out_trace_events_header):
+
+        class Field:
+            def __init__(self, name, logical_type, c_arg_type):
+                self.name = name
+                self.logical_type = logical_type
+                self.c_arg_type = c_arg_type
+
+            @property
+            def tp_struct_entry(self):
+                typ = self.logical_type
+                # TODO: support arrays
+                if typ == 'string':
+                    return f'__string({self.name}, {self.name})'
+                elif typ in ('u8', 's8', 'u16', 's16', 'u32', 's32', 'u64', 's64'):
+                    return f'__field({self.c_arg_type}, {self.name})'
+                else:
+                    raise ValueError(f'Unsupported logical type: {typ}')
+
+            @property
+            def entry(self):
+                return f'__entry->{self.name}'
+
+            @property
+            def tp_fast_assign(self):
+                typ = self.logical_type
+                # TODO: support arrays
+                if typ == 'string':
+                    return f'__lisa_assign_str({self.name}, {self.name});'
+                elif typ in ('u8', 's8', 'u16', 's16', 'u32', 's32', 'u64', 's64'):
+                    return f'{self.entry} = {self.name};'
+                else:
+                    raise ValueError(f'Unsupported logical type: {typ}')
+
+            @property
+            def tp_printk(self):
+                typ = self.logical_type
+                # TODO: support arrays
+                if typ in ('s8', 's16', 's32'):
+                    return (f'{self.name}=%d', [self.entry])
+                elif typ in ('u8', 'u16', 'u32'):
+                    return (f'{self.name}=%u', [self.entry])
+                elif typ == 's64':
+                    return (f'{self.name}=%lld', [self.entry])
+                elif typ == 'u64':
+                    return (f'{self.name}=%llu', [self.entry])
+                elif typ == 'string':
+                    return (f'{self.name}=%s', [f'__get_str({self.name})'])
+                else:
+                    raise ValueError(f'Unsupported logical type: {typ}')
+
+        def make_event(entry):
+            name = entry['name']
+            fields = [
+                Field(
+                    name=field['name'],
+                    logical_type=field['logical-type'],
+                    c_arg_type=field['c-arg-type'],
+                )
+                for field in entry['fields']
+            ]
+
+            nl = '\n                    '
+            proto = ', '.join(
+                f'__typeof__({field.c_arg_type}) {field.name}'
+                for field in fields
+            )
+            args = ', '.join(
+                field.name
+                for field in fields
+            )
+            struct_entry = nl.join(
+                field.tp_struct_entry
+                for field in fields
+            )
+
+            assign = nl.join(
+                field.tp_fast_assign
+                for field in fields
+            )
+            printk_fmts, printk_args = zip(*(
+                field.tp_printk
+                for field in fields
+            ))
+            printk_fmt = ' '.join(printk_fmts)
+            # Use json escaping as an easy way to produce a C string literal.
+            printk_fmt = json.dumps(printk_fmt)
+            printk_args = ', '.join(itertools.chain.from_iterable(printk_args))
+
+            return textwrap.dedent(f'''
+            TRACE_EVENT({name},
+                TP_PROTO({proto}),
+                TP_ARGS({args}),
+                TP_STRUCT__entry(
+                    {struct_entry}
+                ),
+                TP_fast_assign(
+                    {assign}
+                ),
+                TP_printk(
+                    {printk_fmt}, {printk_args}
+                )
+            )
+            ''')
+
+        events = sorted(
+            (
+                entry
+                for entry in get_data()
+                if entry["type"] == "define-ftrace-event"
+            ),
+            key=itemgetter('name'),
+        )
+        out = '\n\n'.join(map(make_event, events))
+        Path(path).write_text(out)
+
 
 
 if __name__ == '__main__':
