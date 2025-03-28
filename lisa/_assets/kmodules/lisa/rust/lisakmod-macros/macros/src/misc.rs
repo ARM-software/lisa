@@ -8,7 +8,7 @@ use syn::{Error, Expr, Ident, Token, punctuated::Punctuated};
 // time.
 pub(crate) fn get_random() -> u128 {
     let mut buf: [u8; 128 / 8] = [0; 128 / 8];
-    getrandom::getrandom(&mut buf).expect("Could not get random number");
+    getrandom::fill(&mut buf).expect("Could not get random number");
     u128::from_le_bytes(buf)
 }
 
