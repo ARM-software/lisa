@@ -1,17 +1,19 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-use alloc::{ffi::CString, sync::Arc, vec::Vec};
+use alloc::{boxed::Box, ffi::CString, vec::Vec};
 use core::{
     any::Any,
     cell::UnsafeCell,
     ffi::{CStr, c_int, c_void},
     fmt,
     marker::PhantomData,
+    pin::Pin,
 };
+
+use lisakmod_macros::inlinec::{cfunc, opaque_type};
 
 use crate::{
     error::{Error, error},
-    inlinec::{cfunc, opaque_type},
     runtime::{
         printk::pr_debug,
         sync::{Lock as _, LockdepClass, Mutex},
@@ -24,20 +26,20 @@ opaque_type!(
     "linux/tracepoint.h",
 );
 
-pub struct Tracepoint<'tp, F> {
+pub struct Tracepoint<'tp, Args> {
     // struct tracepoint API allows mutation but protects it with an internal mutex
     // (tracepoint_mutex static variable in tracepoint.c)
     c_tp: &'tp UnsafeCell<CTracepoint>,
-    _phantom: PhantomData<F>,
+    _phantom: PhantomData<Args>,
 }
 // SAFETY: The Tracepoint is safe to pass around as it only stores shared references.
-unsafe impl<'tp, F> Send for Tracepoint<'tp, F> {}
+unsafe impl<'tp, Args> Send for Tracepoint<'tp, Args> {}
 
 // SAFETY: the tracepoint kernel API is protected with "tracepoints_mutex" mutex (see
 // tracepoint.c), so it safe to call it from multiple threads.
-unsafe impl<'tp, F> Sync for Tracepoint<'tp, F> {}
+unsafe impl<'tp, Args> Sync for Tracepoint<'tp, Args> {}
 
-impl<F> Tracepoint<'static, F> {
+impl<Args> Tracepoint<'static, Args> {
     /// # Safety
     ///
     /// The tracepoint being looked up must be defined in the base kernel image, not in a module.
@@ -96,7 +98,7 @@ pub enum TracepointError {
     Kernel(c_int),
 }
 
-impl<'tp, F> Tracepoint<'tp, F> {
+impl<'tp, Args> Tracepoint<'tp, Args> {
     // We cannot use the facilities of opaque_type!() as they require a &Self, which we cannot
     // safely materialize for CTracepoint as there may be concurrent users of the struct.
     pub fn name<'a>(&'a self) -> &'a str {
@@ -115,8 +117,8 @@ impl<'tp, F> Tracepoint<'tp, F> {
 
     pub fn register_probe<'probe>(
         &'probe self,
-        probe: &'probe Probe<'probe, F>,
-    ) -> Result<RegisteredProbe<'probe, F>, Error>
+        probe: &'probe Probe<'probe, Args>,
+    ) -> Result<RegisteredProbe<'probe, Args>, Error>
     where
         'tp: 'probe,
     {
@@ -127,34 +129,28 @@ impl<'tp, F> Tracepoint<'tp, F> {
         #[cfunc]
         unsafe fn register(
             tp: *mut CTracepoint,
-            probe: *mut c_void,
-            data: *mut c_void,
+            probe: *const c_void,
+            data: *const c_void,
         ) -> Result<(), c_int> {
             r#"
             #include <linux/tracepoint.h>
             "#;
 
             r#"
-            return tracepoint_probe_register(tp, probe, data);
+            return tracepoint_probe_register(tp, CONST_CAST(void *, probe), CONST_CAST(void *, data));
             "#
         }
 
         // SAFETY: If the Probe is alive, then its closure is alive too. Probe will be kept alive
         // until the last RegisteredProbe is dropped, at which point we known that
         // tracepoint_probe_unregister() has been called.
-        unsafe {
-            register(
-                self.c_tp.get(),
-                probe.probe as *mut c_void,
-                probe.closure as *mut c_void,
-            )
-        }
-        .map_err(|code| error!("Tracepoint probe registration failed: {code}"))?;
+        unsafe { register(self.c_tp.get(), probe.probe, probe.closure) }
+            .map_err(|code| error!("Tracepoint probe registration failed: {code}"))?;
         Ok(RegisteredProbe { probe, tp: self })
     }
 }
 
-impl<'tp, F> fmt::Debug for Tracepoint<'tp, F> {
+impl<'tp, Args> fmt::Debug for Tracepoint<'tp, Args> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_struct("Tracepoint")
             .field("name", &self.name())
@@ -162,12 +158,12 @@ impl<'tp, F> fmt::Debug for Tracepoint<'tp, F> {
     }
 }
 
-pub struct RegisteredProbe<'probe, F> {
-    probe: &'probe Probe<'probe, F>,
-    tp: &'probe Tracepoint<'probe, F>,
+pub struct RegisteredProbe<'probe, Args> {
+    probe: &'probe Probe<'probe, Args>,
+    tp: &'probe Tracepoint<'probe, Args>,
 }
 
-impl<'probe, F> Drop for RegisteredProbe<'probe, F> {
+impl<'probe, Args> Drop for RegisteredProbe<'probe, Args> {
     fn drop(&mut self) {
         /// # Safety
         ///
@@ -176,29 +172,23 @@ impl<'probe, F> Drop for RegisteredProbe<'probe, F> {
         #[cfunc]
         unsafe fn unregister(
             tp: *mut CTracepoint,
-            probe: *mut c_void,
-            data: *mut c_void,
+            probe: *const c_void,
+            data: *const c_void,
         ) -> Result<(), c_int> {
             r#"
             #include <linux/tracepoint.h>
             "#;
 
             r#"
-            return tracepoint_probe_unregister(tp, probe, data);
+            return tracepoint_probe_unregister(tp, CONST_CAST(void *, probe), CONST_CAST(void *, data));
             "#
         }
 
         let probe = self.probe;
         // SAFETY: Since we only create RegisteredProbe values when the registration succeeded, we
         // ensure that this will be the only matching call to tracepoint_probe_unregister()
-        unsafe {
-            unregister(
-                self.tp.c_tp.get(),
-                probe.probe as *mut c_void,
-                probe.closure as *mut c_void,
-            )
-        }
-        .expect("Failed to unregister tracepoint probe");
+        unsafe { unregister(self.tp.c_tp.get(), probe.probe, probe.closure as *mut _) }
+            .expect("Failed to unregister tracepoint probe");
 
         pr_debug!(
             "Called tracepoint_probe_unregister() for a probe attached to {:?}",
@@ -208,7 +198,7 @@ impl<'probe, F> Drop for RegisteredProbe<'probe, F> {
 }
 
 pub struct ProbeDropper {
-    droppers: Mutex<Vec<Option<Arc<dyn Any + Send + Sync>>>>,
+    droppers: Mutex<Vec<Option<Pin<Box<dyn Any + Send + Sync>>>>>,
 }
 
 impl fmt::Debug for ProbeDropper {
@@ -263,32 +253,35 @@ impl Drop for ProbeDropper {
     }
 }
 
-pub struct Probe<'probe, F> {
-    closure: *const (),
-    probe: *mut (),
-    _phantom: PhantomData<&'probe F>,
+pub struct Probe<'probe, Args> {
+    closure: *const c_void,
+    probe: *const c_void,
+    _phantom: PhantomData<(&'probe (), Args)>,
 }
 
-impl<'probe, F> Probe<'probe, F> {
+impl<'probe, Args> Probe<'probe, Args> {
     /// # Safety
     ///
     /// The `probe` must be compatible with the [`Closure`] type in use.
     #[inline]
     pub unsafe fn __private_new<Closure>(
-        closure: Arc<Closure>,
-        probe: *mut (),
+        closure: Pin<Box<Closure>>,
+        probe: *const c_void,
+        // SAFETY: we borrow ProbeDropper for &'probe, which ensures the ProbeDropper will not be
+        // dropped before Probe<'probe, _>
         dropper: &'probe ProbeDropper,
-    ) -> Probe<'probe, F>
+    ) -> Probe<'probe, Args>
     where
         Closure: 'static + Send + Sync,
     {
-        let ptr = Arc::as_ptr(&closure) as *const ();
+        let ptr: &Closure = &closure;
+        let ptr: *const Closure = ptr;
 
         dropper.droppers.lock().push(Some(closure));
         // SAFETY: the probe and closure pointer we store here are guaranteed to be valid for the
         // lifetime of the Probe object, as we borrow the ProbeDropper for that duration.
         Probe {
-            closure: ptr,
+            closure: ptr as *const c_void,
             probe,
             _phantom: PhantomData,
         }
@@ -296,9 +289,9 @@ impl<'probe, F> Probe<'probe, F> {
 }
 
 // SAFETY: this is ok as the closure we store is also Send
-unsafe impl<'probe, F> Send for Probe<'probe, F> {}
+unsafe impl<'probe, Args> Send for Probe<'probe, Args> {}
 // SAFETY: this is ok as the closure we store is also Sync
-unsafe impl<'probe, F> Sync for Probe<'probe, F> {}
+unsafe impl<'probe, Args> Sync for Probe<'probe, Args> {}
 
 macro_rules! new_probe {
     ($dropper:expr, ( $($arg_name:ident: $arg_ty:ty),* ) $body:block) => {
@@ -307,13 +300,13 @@ macro_rules! new_probe {
             // soundly implement Send and Sync
             type Closure = impl Fn($($arg_ty),*) + ::core::marker::Send + ::core::marker::Sync + 'static;
 
-            let closure: ::alloc::sync::Arc<Closure> = ::alloc::sync::Arc::new(
+            let closure: ::core::pin::Pin<::alloc::boxed::Box<Closure>> = ::alloc::boxed::Box::pin(
                 move |$($arg_name: $arg_ty),*| {
                     $body
                 }
             );
 
-            #[$crate::inlinec::cexport]
+            #[::lisakmod_macros::inlinec::cexport]
             fn probe(closure: *const c_void, $($arg_name: $arg_ty),*) {
                 let closure = closure as *const Closure;
                 // SAFETY: Since we call tracepoint_probe_unregister() in <RegisteredProbe as
@@ -325,13 +318,15 @@ macro_rules! new_probe {
 
             #[allow(unused_unsafe)]
             unsafe {
-                $crate::runtime::tracepoint::Probe::<fn( $($arg_ty),* )>::__private_new(
+                $crate::runtime::tracepoint::Probe::<( $($arg_ty),* )>::__private_new(
                     closure,
-                    probe as *mut (),
+                    probe as *const c_void,
                     $dropper,
                 )
             }
         }
     }
 }
+
+#[allow(unused_imports)]
 pub(crate) use new_probe;
