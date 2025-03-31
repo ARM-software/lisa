@@ -12,7 +12,7 @@ use core::{
 
 use lisakmod_macros::inlinec::{c_eval, cexport, cfunc, opaque_type};
 
-use crate::misc::{container_of, mut_container_of};
+use crate::mem::{container_of, mut_container_of};
 
 opaque_type!(
     struct CKObj,

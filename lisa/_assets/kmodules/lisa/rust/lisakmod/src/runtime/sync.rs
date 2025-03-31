@@ -84,38 +84,40 @@ impl Drop for LockdepClass {
     }
 }
 
-pub trait LockGuard<'guard, T>
+pub trait LockGuard<'guard>
 where
-    Self: Deref<Target = T>,
+    Self: Deref<Target = Self::T>,
 {
+    type T;
 }
 
-pub trait Lock<T>
+pub trait Lock
 where
     Self: Sync,
 {
-    type Guard<'a>: LockGuard<'a, T>
+    type T;
+    type Guard<'a>: LockGuard<'a, T = Self::T>
     where
         Self: 'a;
     fn lock(&self) -> Self::Guard<'_>;
 
     #[inline]
-    fn with_lock<U, F: FnOnce(&T) -> U>(&self, f: F) -> U {
+    fn with_lock<U, F: FnOnce(&Self::T) -> U>(&self, f: F) -> U {
         f(self.lock().deref())
     }
 }
 
 #[allow(private_bounds)]
-pub trait LockMut<T>: for<'a> _LockMut<'a, T> {}
+pub trait LockMut: for<'a> _LockMut<'a> {}
 
 // TODO: We need to share the 'a lifetime between the Guard<'a> type and Self: 'a. Unfortunately,
 // there seems to be no direct way of doing that since a for<> lifetime only affects what comes
 // immediately after it. As a workaround, we can just hide that in a trait, and then use
-// for<'a>_LockMut<'a, T> in the user-exposed trait.
-trait _LockMut<'a, T>
+// for<'a>_LockMut<'a> in the user-exposed trait.
+trait _LockMut<'a>
 where
-    <Self as Lock<T>>::Guard<'a>: DerefMut,
-    Self: 'a + Lock<T>,
+    <Self as Lock>::Guard<'a>: DerefMut,
+    Self: 'a + Lock,
 {
 }
 
@@ -233,14 +235,17 @@ impl<T> Drop for SpinLockGuard<'_, T> {
     }
 }
 
-impl<'guard, T> LockGuard<'guard, T> for SpinLockGuard<'guard, T> {}
+impl<'guard, T> LockGuard<'guard> for SpinLockGuard<'guard, T> {
+    type T = T;
+}
 
 unsafe impl<T: Send> Sync for SpinLock<T> {}
 unsafe impl<T: Send> Send for SpinLock<T> {}
 
-impl<T: Send> Lock<T> for SpinLock<T> {
+impl<T: Send> Lock for SpinLock<T> {
+    type T = T;
     type Guard<'a>
-        = SpinLockGuard<'a, T>
+        = SpinLockGuard<'a, Self::T>
     where
         Self: 'a;
 
@@ -262,7 +267,7 @@ impl<T: Send> Lock<T> for SpinLock<T> {
     }
 }
 
-impl<'a, T: 'a + Send> _LockMut<'a, T> for SpinLock<T> {}
+impl<'a, T: 'a + Send> _LockMut<'a> for SpinLock<T> {}
 
 opaque_type!(pub struct CMutex, "struct mutex", "linux/mutex.h");
 
@@ -424,14 +429,17 @@ impl<T> Drop for MutexGuard<'_, T> {
     }
 }
 
-impl<'guard, T> LockGuard<'guard, T> for MutexGuard<'guard, T> {}
+impl<'guard, T> LockGuard<'guard> for MutexGuard<'guard, T> {
+    type T = T;
+}
 
 unsafe impl<T: Send> Send for Mutex<T> {}
 unsafe impl<T: Send> Sync for Mutex<T> {}
 
-impl<T: Send> Lock<T> for Mutex<T> {
+impl<T: Send> Lock for Mutex<T> {
+    type T = T;
     type Guard<'a>
-        = MutexGuard<'a, T>
+        = MutexGuard<'a, Self::T>
     where
         Self: 'a;
 
@@ -451,7 +459,7 @@ impl<T: Send> Lock<T> for Mutex<T> {
     }
 }
 
-impl<'a, T: 'a + Send> _LockMut<'a, T> for Mutex<T> {}
+impl<'a, T: 'a + Send> _LockMut<'a> for Mutex<T> {}
 
 pub struct Rcu<T> {
     // This pointer is actually a Box in disguise obtained with Box::into_raw(). We keep it as a
@@ -533,7 +541,9 @@ pub struct RcuGuard<'a, T> {
     _phantom: PhantomData<&'a T>,
 }
 
-impl<'guard, T> LockGuard<'guard, T> for RcuGuard<'guard, T> {}
+impl<'guard, T> LockGuard<'guard> for RcuGuard<'guard, T> {
+    type T = T;
+}
 
 impl<T> Deref for RcuGuard<'_, T> {
     type Target = T;
@@ -563,9 +573,10 @@ impl<T> Drop for RcuGuard<'_, T> {
 unsafe impl<T: Send> Sync for Rcu<T> {}
 unsafe impl<T: Send> Send for Rcu<T> {}
 
-impl<T: Send> Lock<T> for Rcu<T> {
+impl<T: Send> Lock for Rcu<T> {
+    type T = T;
     type Guard<'a>
-        = RcuGuard<'a, T>
+        = RcuGuard<'a, Self::T>
     where
         Self: 'a;
 
