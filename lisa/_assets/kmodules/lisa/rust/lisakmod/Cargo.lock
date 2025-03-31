@@ -97,6 +97,7 @@ name = "lisakmod_macros_proc"
 version = "0.1.0"
 dependencies = [
  "getrandom",
+ "itertools",
  "proc-macro2",
  "quote",
  "syn",

@@ -22,13 +22,3 @@ pub const fn concat<const N: usize>(slices: &[&'static str]) -> [u8; N] {
     }
     out
 }
-
-pub const fn slice_to_array<const N: usize>(slice: &[u8]) -> [u8; N] {
-    let mut arr = [0u8; N];
-    let mut idx: usize = 0;
-    while idx < N {
-        arr[idx] = slice[idx];
-        idx += 1;
-    }
-    arr
-}

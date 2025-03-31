@@ -8,6 +8,7 @@ syn = { version = "2.0", default-features = false, features = ["proc-macro", "pa
 quote = { version = "1.0", default-features = false }
 proc-macro2 = { version = "1.0", default-features = false, features = ["span-locations"]}
 getrandom = {version = "0.3.2", default-features = false }
+itertools = "0.14.0"
 
 [lib]
 proc-macro = true
