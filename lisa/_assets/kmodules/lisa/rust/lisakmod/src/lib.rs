@@ -17,7 +17,6 @@ pub mod features;
 pub mod fmt;
 pub mod graph;
 pub mod init;
-pub mod inlinec;
 pub mod lifecycle;
 pub mod misc;
 pub mod prelude;

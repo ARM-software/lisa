@@ -9,10 +9,9 @@ use core::{
     pin::Pin,
 };
 
-use crate::{
-    inlinec::{cfunc, opaque_type},
-    runtime::kbox::KernelKBox,
-};
+use lisakmod_macros::inlinec::{cfunc, opaque_type};
+
+use crate::runtime::kbox::KernelKBox;
 
 opaque_type!(struct CLockClassKey, "struct lock_class_key", "linux/lockdep.h");
 
@@ -286,7 +285,7 @@ macro_rules! new_static_mutex {
     ($vis:vis $name:ident, $ty:ty, $data:expr) => {
         $vis static $name: $crate::runtime::sync::Mutex<$ty> =
             $crate::runtime::sync::Mutex::__internal_from_ref($data, {
-                #[$crate::inlinec::cstatic]
+                #[::lisakmod_macros::inlinec::cstatic]
                 static STATIC_MUTEX: $crate::runtime::sync::CMutex = (
                     "#include <linux/mutex.h>",
                     "DEFINE_MUTEX(STATIC_VARIABLE);"

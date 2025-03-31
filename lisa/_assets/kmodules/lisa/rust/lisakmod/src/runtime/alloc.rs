@@ -6,10 +6,9 @@ use core::{
     ffi::c_void,
 };
 
-use crate::{
-    inlinec::{cconstant, cfunc},
-    runtime::printk::pr_err,
-};
+use lisakmod_macros::inlinec::{cconstant, cfunc};
+
+use crate::runtime::printk::pr_err;
 
 #[inline]
 fn with_size<F: FnOnce(usize) -> *mut u8>(layout: Layout, f: F) -> *mut u8 {

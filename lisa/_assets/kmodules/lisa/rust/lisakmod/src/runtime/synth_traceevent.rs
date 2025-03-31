@@ -9,9 +9,10 @@ use core::{
     ffi::{CStr, c_int, c_uchar},
 };
 
+use lisakmod_macros::inlinec::{cfunc, incomplete_opaque_type, opaque_type};
+
 use crate::{
     error::{Error, error},
-    inlinec::{cfunc, incomplete_opaque_type, opaque_type},
 };
 
 pub trait FieldTy {

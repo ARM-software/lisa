@@ -3,10 +3,11 @@
 use alloc::{collections::BTreeMap, sync::Arc, vec, vec::Vec};
 use core::ffi::CStr;
 
+use lisakmod_macros::inlinec::{c_eval, cconstant, cfunc};
+
 use crate::{
     error::Error,
     features::define_feature,
-    inlinec::{c_eval, cconstant, cfunc},
     lifecycle::new_lifecycle,
     runtime::{
         kbox::KernelKBox,
