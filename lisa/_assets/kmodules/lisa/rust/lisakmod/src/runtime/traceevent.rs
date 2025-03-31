@@ -8,7 +8,7 @@ use core::{
 
 use crate::{
     error::{Error, error},
-    inlinec::{cfunc, opaque_type},
+    inlinec::{cfunc, incomplete_opaque_type, opaque_type},
 };
 
 pub trait FieldTy {
@@ -60,9 +60,11 @@ opaque_type!(
     "linux/trace_events.h",
 );
 
-// Since "struct synth_event" is an incomplete type, we cannot use opaque_type!() as sizeof(struct
-// synth_event) is invalid
-type CSynthEvent = core::ffi::c_void;
+incomplete_opaque_type!(
+    pub struct CSynthEvent,
+    "struct synth_event",
+    "linux/trace_events.h"
+);
 
 opaque_type!(
     struct CSynthFieldDesc,
