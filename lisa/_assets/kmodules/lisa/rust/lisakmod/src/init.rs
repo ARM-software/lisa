@@ -8,22 +8,14 @@ use crate::{
 };
 
 // FIXME: clean that up
-// use core::ffi::c_void;
-// use core::ffi::c_ulong;
-// use alloc::sync::Arc;
-// use crate::features::define_feature;
-// use crate::lifecycle::new_lifecycle;
-// use crate::runtime::printk::pr_info;
-// use alloc::vec::Vec;
-// use crate::features::FeaturesService;
-// use crate::features::tracepoint::TracepointFeature;
+
 // define_feature! {
 //     struct Feature1,
 //     name: "feature1",
 //     visibility: Public,
 //     Service: (),
 //     Config: (),
-//     dependencies: [Feature2, TracepointFeature],
+//     dependencies: [Feature2, TracepointFeature, WqFeature],
 //     init: |configs| {
 //         Ok(new_lifecycle!(|services| {
 //             let services: FeaturesService = services;
@@ -32,27 +24,44 @@ use crate::{
 //                 .probe_dropper();
 //             pr_info!("FEATURE1 start");
 //
-//             use crate::runtime::tracepoint::{Tracepoint, new_probe};
+//             use crate::runtime::tracepoint::Tracepoint;
 //             use core::sync::atomic::{AtomicUsize, Ordering};
 //
-//             let x = AtomicUsize::new(0);
-//             let probe = new_probe!(
-//                 &dropper,
-//                 (_preempt: bool, _prev: *const c_void, _next:* const c_void, _prev_state: c_ulong) {
-//                     let x = x.fetch_add(1, Ordering::SeqCst);
-//                     crate::runtime::printk::pr_info!("SCHED_SWITCH {x}");
-//                 }
-//             );
+//             // let x = AtomicUsize::new(0);
+//             // let probe = new_probe!(
+//                 // &dropper,
+//                 // (_preempt: bool, _prev: *const c_void, _next:* const c_void, _prev_state: c_ulong) {
+//                     // let x = x.fetch_add(1, Ordering::SeqCst);
+//                     // crate::runtime::printk::pr_info!("SCHED_SWITCH {x}");
+//                 // }
+//             // );
 //
 //             let tp = unsafe {
-//                 Tracepoint::<fn(preempt: bool, prev: *const c_void, next:* const c_void, prev_state: c_ulong)>::lookup("sched_switch").expect("tp not found")
+//                 Tracepoint::<(bool, *const c_void, * const c_void, c_ulong)>::lookup("sched_switch").expect("tp not found")
 //             };
 //
 //             // let registered = tp.register_probe(&probe);
 //             // drop(probe);
 //             // drop(dropper);
 //             // drop(registered);
+//             //
 //
+//             use crate::runtime::wq;
+//             let wq = services.get::<WqFeature>()
+//                 .expect("Could not get service for WqFeature")
+//                 .wq();
+//
+//             let work_item_n = AtomicUsize::new(1);
+//             let work_item = wq::new_work_item!(wq, move |work| {
+//                 pr_info!("FROM WORKER");
+//                 let n = work_item_n.fetch_add(1, Ordering::SeqCst);
+//                 if n < 10 {
+//                     work.enqueue(10);
+//                 }
+//             });
+//             work_item.enqueue(0);
+//             msleep(100);
+//             // work_item.enqueue(0);
 //
 //
 //             use core::ffi::CStr;
@@ -65,7 +74,7 @@ use crate::{
 //                 }
 //             }?;
 //
-//             use crate::inlinec::cfunc;
+//             use lisakmod_macros::inlinec::cfunc;
 //             #[cfunc]
 //             fn msleep(ms: u64) {
 //                 r#"
@@ -108,6 +117,7 @@ use crate::{
 //             // run(c"/trace-cmd start -Bmybuffer -e all > stdout.start 2>&1");
 //             run(c"/trace-cmd start -e all > stdout.start 2>&1");
 //             pr_info!("TRACING STARTED");
+//             run(c"echo mymsg > /dev/kmsg");
 //
 //             f(1, c"hello", 42);
 //             f(2, c"world", 43);
@@ -123,6 +133,7 @@ use crate::{
 //             pr_info!("FEATURE1 stop");
 //
 //             drop(f);
+//             drop(work_item);
 //             // drop(registered);
 //             Ok(())
 //         }))
@@ -135,21 +146,21 @@ use crate::{
 // }
 //
 // define_feature! {
-// struct Feature2,
-// name: "feature2",
-// visibility: Public,
-// Service: Feature2Service,
-// Config: (),
-// dependencies: [],
-// init: |configs| {
-// Ok(new_lifecycle!(|services| {
-// pr_info!("FEATURE2 start");
-// let service = Feature2Service { a: 42 };
-// yield_!(Ok(Arc::new(service)));
-// pr_info!("FEATURE2 stop");
-// Ok(())
-// }))
-// },
+//     struct Feature2,
+//     name: "feature2",
+//     visibility: Public,
+//     Service: Feature2Service,
+//     Config: (),
+//     dependencies: [],
+//     init: |configs| {
+//         Ok(new_lifecycle!(|services| {
+//             pr_info!("FEATURE2 start");
+//             let service = Feature2Service { a: 42 };
+//             yield_!(Ok(Arc::new(service)));
+//             pr_info!("FEATURE2 stop");
+//             Ok(())
+//         }))
+//     },
 // }
 
 // define_event_feature!(struct myevent);
