@@ -648,11 +648,6 @@ class TasksAnalysis(TraceAnalysisBase):
         ######################################################
         # A) Assemble the sched_switch and sched_wakeup events
         ######################################################
-        dtypes = dict(
-            state=pl.Int64,
-            comm=pl.Categorical,
-        )
-
         def filters_comm(task):
             try:
                 return task.comm is not None
@@ -660,7 +655,7 @@ class TasksAnalysis(TraceAnalysisBase):
                 return isinstance(task, str)
 
         def state(value):
-            return pl.lit(value, dtypes['state'])
+            return pl.lit(value, pl.Int64)
 
         # Add the rename events if we are interested in the comm of tasks
         add_rename = any(map(filters_comm, tasks or []))
@@ -683,26 +678,11 @@ class TasksAnalysis(TraceAnalysisBase):
             ]
         )
 
-        def get_df(event):
-            df = trace.df_event(event)
-            if event == 'sched_switch':
-                df = df.with_columns(
-                    pl.col('prev_state').cast(dtypes['state']),
-                    pl.col('prev_comm').cast(dtypes['comm']),
-                    pl.col('next_comm').cast(dtypes['comm']),
-                )
-            elif event in ('sched_wakeup', 'sched_wakeup_new'):
-                df = df.with_columns(
-                    pl.col('comm').cast(dtypes['comm']),
-                )
-
-            return df
-
-        wk_df = get_df('sched_wakeup')
-        sw_df = get_df('sched_switch')
+        wk_df = trace.df_event('sched_wakeup')
+        sw_df = trace.df_event('sched_switch')
 
         try:
-            wkn_df = get_df('sched_wakeup_new')
+            wkn_df = trace.df_event('sched_wakeup_new')
         except MissingTraceEventError:
             pass
         else:
@@ -732,7 +712,7 @@ class TasksAnalysis(TraceAnalysisBase):
         all_sw_df = pl.concat([prev_sw_df, next_sw_df], how='diagonal_relaxed')
 
         if add_rename:
-            rename_df = get_df('task_rename').rename({
+            rename_df = trace.df_event('task_rename').rename({
                 'oldcomm': 'comm',
                 '__pid': 'pid',
             })
