@@ -298,8 +298,10 @@ class TasksAnalysis(TraceAnalysisBase):
             except MissingTraceEventError as e:
                 missing.append(e.missing_events)
 
-        load('task_rename', 'oldcomm', 'pid')
-        load('task_rename', 'newcomm', 'pid')
+        # The "pid" field of task_rename has disappeared since:
+        # https://lkml.org/lkml/2024/11/8/665
+        load('task_rename', 'oldcomm', '__pid')
+        load('task_rename', 'newcomm', '__pid')
 
         load('sched_switch', 'prev_comm', 'prev_pid')
         load('sched_switch', 'next_comm', 'next_pid')
@@ -670,7 +672,7 @@ class TasksAnalysis(TraceAnalysisBase):
                 SignalDesc('sched_switch', ['next_pid', 'next_comm']),
                 SignalDesc('sched_wakeup', ['pid', 'comm']),
                 SignalDesc('sched_wakeup_new', ['pid', 'comm']),
-                SignalDesc('task_rename', ['pid']),
+                SignalDesc('task_rename', ['__pid']),
             ],
             compress_signals_init=True,
             events=[
@@ -732,6 +734,7 @@ class TasksAnalysis(TraceAnalysisBase):
         if add_rename:
             rename_df = get_df('task_rename').rename({
                 'oldcomm': 'comm',
+                '__pid': 'pid',
             })
             rename_df = rename_df.select(['Time', 'pid', 'comm'])
             rename_df = rename_df.with_columns(
