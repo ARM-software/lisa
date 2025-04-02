@@ -18,7 +18,7 @@ use core::{
 use lisakmod_macros::inlinec::{FfiType, FromFfi, IntoFfi, MutPtr, Opaque};
 
 use crate::{
-    misc::destructure,
+    mem::destructure,
     runtime::alloc::{GFPFlags, KernelAlloc, KmallocAllocator},
 };
 

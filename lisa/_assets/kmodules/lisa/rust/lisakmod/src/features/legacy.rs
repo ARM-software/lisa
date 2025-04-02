@@ -3,9 +3,10 @@
 use alloc::{sync::Arc, vec::Vec};
 use core::ffi::c_int;
 
+use lisakmod_macros::inlinec::cfunc;
+
 use crate::{
-    error::error, features::define_feature, inlinec::cfunc, lifecycle::new_lifecycle,
-    runtime::printk::pr_err,
+    error::error, features::define_feature, lifecycle::new_lifecycle, runtime::printk::pr_err,
 };
 
 define_feature! {

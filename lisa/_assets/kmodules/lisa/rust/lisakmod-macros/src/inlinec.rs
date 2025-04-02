@@ -1065,7 +1065,9 @@ make_getaligned!(
     262144, 524288
 );
 
-pub trait Opaque {
+pub trait Opaque {}
+
+pub trait SizedOpaque: Opaque {
     /// # Safety
     ///
     /// The passed `init` function must initialize fully the new value, so that calling
@@ -1152,7 +1154,7 @@ macro_rules! __internal_opaque_type {
         //   this member. The member in question is an array of u8, which is FFI-safe.
         #[repr(transparent)]
         $vis struct $name {
-            // Since we cannot make Opaque types aligned with a simple attribute
+            // Since we cannot make opaque types aligned with a simple attribute
             // (#[repr(align(my_macro!()))] is rejected since my_macro!() is not an integer
             // literal), we add a zero-sized member that allows specifying the alignment as a
             // generic const parameter.
@@ -1209,8 +1211,10 @@ macro_rules! __internal_opaque_type {
 
         $crate::inlinec::__impl_primitive_ptr!($name, $c_name, Some($c_header));
 
-        use $crate::inlinec::Opaque as _;
+        use $crate::inlinec::{Opaque as _, SizedOpaque as _};
         impl $crate::inlinec::Opaque for $name {}
+        impl $crate::inlinec::SizedOpaque for $name {}
+
         impl $crate::inlinec::FfiType for $name {
             type FfiType = $name;
             const C_TYPE: &'static str = $c_name;
@@ -1338,6 +1342,30 @@ macro_rules! __internal_opaque_type {
 pub use crate::__internal_opaque_type as opaque_type;
 
 #[macro_export]
+macro_rules! __internal_incomplete_opaque_type {
+    ($vis:vis struct $name:ident, $c_name:literal, $c_header:expr) => {
+        #[repr(transparent)]
+        $vis struct $name {
+            _data: ::core::ffi::c_void,
+        }
+
+        $crate::inlinec::__impl_primitive_ptr!($name, $c_name, Some($c_header));
+
+        use $crate::inlinec::Opaque as _;
+        impl $crate::inlinec::Opaque for $name {}
+
+        // No FromFfi or IntoFfi implementations as we cannot manipulate values directly. We
+        // however do provide implementation for reference and pointer types
+        impl $crate::inlinec::FfiType for $name {
+            type FfiType = $name;
+            const C_TYPE: &'static str = $c_name;
+            const C_HEADER: Option<&'static str> = Some($c_header);
+        }
+    };
+}
+pub use crate::__internal_incomplete_opaque_type as incomplete_opaque_type;
+
+#[macro_export]
 macro_rules! __internal_c_static_assert {
     ($headers:literal, $expr:tt) => {{
         #[$crate::inlinec::cfunc]
@@ -1355,3 +1383,19 @@ macro_rules! __internal_c_static_assert {
     }};
 }
 pub use crate::__internal_c_static_assert as c_static_assert;
+
+#[macro_export]
+macro_rules! __internal_c_eval {
+    ($header:expr, $expr:literal, $ty:ty) => {{
+        // Emit the C function code that will be extracted from the Rust object file and then
+        // compiled as C.
+        #[$crate::inlinec::cfunc]
+        #[allow(non_snake_case)]
+        fn snippet() -> $ty {
+            concat!("#include<", $header, ">");
+            concat!("return (", $expr, ");")
+        }
+        snippet()
+    }};
+}
+pub use crate::__internal_c_eval as c_eval;

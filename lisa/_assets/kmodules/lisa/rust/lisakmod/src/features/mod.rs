@@ -5,6 +5,7 @@ pub mod legacy;
 pub mod pixel6;
 pub mod tests;
 pub mod tracepoint;
+pub mod wq;
 
 use alloc::{sync::Arc, vec::Vec};
 use core::{
@@ -42,7 +43,35 @@ where
 {
     type Value = Arc<<Feat as Feature>::Service>;
 }
-pub type FeaturesService = typemap::TypeMap<FeaturesServiceIndex>;
+
+pub struct FeaturesService {
+    map: typemap::TypeMap<FeaturesServiceIndex>,
+}
+
+impl FeaturesService {
+    #[inline]
+    fn new() -> FeaturesService {
+        FeaturesService {
+            map: typemap::TypeMap::new(),
+        }
+    }
+
+    #[inline]
+    pub fn get<Feat>(&self) -> Option<&<Feat as Feature>::Service>
+    where
+        Feat: 'static + Feature,
+    {
+        self.map.get::<Feat>().map(|service| &**service)
+    }
+
+    #[inline]
+    pub fn insert<Feat>(&mut self, service: Arc<<Feat as Feature>::Service>)
+    where
+        Feat: 'static + Feature,
+    {
+        self.map.insert::<Feat>(service)
+    }
+}
 
 type LifeCycleAlias<Feat> = LifeCycle<FeaturesService, Arc<<Feat as Feature>::Service>, Error>;
 

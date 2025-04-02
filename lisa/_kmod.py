@@ -3307,12 +3307,20 @@ class FtraceDynamicKmod(DynamicKmod):
         """
         decomment = re.compile(rb'^.*//.*?$|/\*.*?\*/', flags=re.MULTILINE)
 
-        # We match trace_lisa__XXX tokens, as these are the events that are
-        # actually used inside the module.
-        find_event = re.compile(rb'\btrace_(lisa__.*?)\b')
+        find_event = [
+                # We match trace_lisa__XXX tokens, as these are the events that
+                # are actually used inside the module C code.
+                re.compile(rb'\btrace_(lisa__.*?)\b'),
+                # Match the events defined in Rust code
+                re.compile(rb'\bnew_event\s*!\s*\(\s*(.*?)\s*,', flags=re.DOTALL),
+                re.compile(rb'\bnew_event\s*!\s*{\s*(.*?)\s*,', flags=re.DOTALL),
+        ]
         def find_events(code):
             code = decomment.sub(b'', code)
-            return map(bytes.decode, find_event.findall(code))
+            return itertools.chain.from_iterable(
+                map(bytes.decode, regex.findall(code))
+                for regex in find_event
+            )
 
         return sorted({
             possible_event

@@ -15,7 +15,10 @@
 #include <linux/tracepoint.h>
 #include <linux/version.h>
 
+#include "utils.h"
 #include "sched_helpers.h"
+
+#include "generated/rust/trace_events.h"
 
 #if HAS_MEMBER(struct, sched_avg, runnable_load_avg)
 #define RBL_LOAD_ENTRY		rbl_load
