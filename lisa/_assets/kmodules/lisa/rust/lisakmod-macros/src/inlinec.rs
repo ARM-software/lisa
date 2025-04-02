@@ -1385,7 +1385,7 @@ macro_rules! __internal_c_static_assert {
 pub use crate::__internal_c_static_assert as c_static_assert;
 
 #[macro_export]
-macro_rules! __internal_c_eval {
+macro_rules! __internal_ceval {
     ($header:expr, $expr:literal, $ty:ty) => {{
         // Emit the C function code that will be extracted from the Rust object file and then
         // compiled as C.
@@ -1398,8 +1398,7 @@ macro_rules! __internal_c_eval {
         snippet()
     }};
 }
-pub use crate::__internal_c_eval as c_eval;
-
+pub use crate::__internal_ceval as ceval;
 
 #[macro_export]
 macro_rules! __internal_cpp {
@@ -1421,5 +1420,3 @@ macro_rules! __internal_cpp {
     }};
 }
 pub use crate::__internal_cpp as cpp;
-
-

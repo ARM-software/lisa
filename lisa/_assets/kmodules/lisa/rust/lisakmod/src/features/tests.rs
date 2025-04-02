@@ -3,7 +3,7 @@
 use alloc::{collections::BTreeMap, sync::Arc, vec, vec::Vec};
 use core::ffi::CStr;
 
-use lisakmod_macros::inlinec::{c_eval, cconstant, cfunc};
+use lisakmod_macros::inlinec::{cconstant, ceval, cfunc};
 
 use crate::{
     error::Error,
@@ -57,7 +57,7 @@ test! {
 test! {
     test3,
     {
-        let minalign = c_eval!("linux/slab.h", "ARCH_KMALLOC_MINALIGN", usize);
+        let minalign = ceval!("linux/slab.h", "ARCH_KMALLOC_MINALIGN", usize);
         // Check we don't get any C compilation error with duplicated code.
         let minalign2: usize = cconstant!("#include <linux/slab.h>", "ARCH_KMALLOC_MINALIGN").unwrap();
         assert_eq!(minalign, minalign2);
@@ -187,7 +187,7 @@ test! {
         }
 
         {
-            let zst_addr = c_eval!("linux/slab.h", "ZERO_SIZE_PTR", *const u8);
+            let zst_addr = ceval!("linux/slab.h", "ZERO_SIZE_PTR", *const u8);
             let b = KernelKBox::new(());
             assert_eq!(b.as_ptr() as usize, zst_addr as usize);
             drop(b);
