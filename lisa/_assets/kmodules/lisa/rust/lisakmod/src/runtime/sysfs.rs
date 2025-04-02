@@ -10,10 +10,9 @@ use core::{
     pin::Pin,
 };
 
-use crate::{
-    inlinec::{c_eval, cexport, cfunc, opaque_type},
-    misc::{container_of, mut_container_of},
-};
+use lisakmod_macros::inlinec::{c_eval, cexport, cfunc, opaque_type};
+
+use crate::mem::{container_of, mut_container_of};
 
 opaque_type!(
     struct CKObj,

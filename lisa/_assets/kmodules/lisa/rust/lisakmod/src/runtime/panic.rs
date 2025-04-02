@@ -2,9 +2,10 @@
 
 use core::fmt::Write;
 
+use lisakmod_macros::inlinec::cfunc;
+
 use crate::{
     fmt::{KBoxWriter, PRINT_PREFIX},
-    inlinec::cfunc,
     runtime::alloc::{GFPFlags, KmallocAllocator},
 };
 

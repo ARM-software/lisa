@@ -10,7 +10,13 @@ use syn::{
     parse::Parse, parse_quote, punctuated::Punctuated, spanned::Spanned, token,
 };
 
-use crate::misc::{concatcp, get_random};
+use crate::misc::{_dump_to_binstore, concatcp, get_random};
+
+fn _export_symbol(sym: Ident) -> Result<TokenStream, Error> {
+    Ok(quote! {
+        ::lisakmod_macros::misc::export_symbol!(#sym);
+    })
+}
 
 struct CFuncInput {
     name: Ident,
@@ -131,8 +137,8 @@ fn make_c_func(
     )?;
 
     let c_out = [
-        make_c_out(c_out, &format!(".binstore.c.code.{}", c_name))?,
-        make_c_out(c_header_out, &format!(".binstore.c.header.{}", c_name))?,
+        _dump_to_binstore(&format!("c.code.{}", c_name), c_out)?,
+        _dump_to_binstore(&format!("c.header.{}", c_name), c_header_out)?,
     ];
 
     Ok(quote! {
@@ -664,38 +670,6 @@ pub fn cexport(attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Err
     Ok(out)
 }
 
-pub fn export_symbol(args: TokenStream) -> Result<TokenStream, Error> {
-    let ident = syn::parse2::<Ident>(args)?;
-    _export_symbol(ident)
-}
-
-fn _export_symbol(ident: Ident) -> Result<TokenStream, Error> {
-    let marker = format_ident!("__export_rust_symbol_{ident}");
-
-    Ok(quote! {
-        const _:() = {
-            #[used]
-            #[unsafe(no_mangle)]
-            static #marker: () = ();
-        };
-    })
-}
-
-fn make_c_out(c_code: TokenStream, section: &str) -> Result<TokenStream, Error> {
-    Ok(quote! {
-        const _: () = {
-            const CODE_SLICE: &[u8] = #c_code.as_bytes();
-            const CODE_LEN: usize = CODE_SLICE.len();
-
-            // Store the C function in a section of the binary, that will be extracted by the
-            // module Makefile and compiled separately as C code.
-            #[unsafe(link_section = #section)]
-            #[used]
-            static CODE: [u8; CODE_LEN] = ::lisakmod_macros::private::misc::slice_to_array::<{CODE_LEN}>(CODE_SLICE);
-        };
-    })
-}
-
 struct CStaticInput {
     name: Ident,
     c_code: (
@@ -810,7 +784,7 @@ pub fn cstatic(attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Err
         }
     };
 
-    let section = format!(".binstore.c.code.{}", c_name);
+    let section = format!("c.code.{}", c_name);
     let c_out = concatcp(quote! {
         "#define STATIC_VARIABLE ", #c_name, "\n",
         "\n#line ", #pre_c_code_line, " \"", file!(), "\"\n",
@@ -829,7 +803,7 @@ pub fn cstatic(attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Err
         "#undef STATIC_VARIABLE\n"
     })?;
 
-    let c_out = make_c_out(c_out, &section)?;
+    let c_out = _dump_to_binstore(&section, c_out)?;
 
     Ok(quote! {
         #c_out

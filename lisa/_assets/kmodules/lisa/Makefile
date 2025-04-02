@@ -79,6 +79,7 @@ RUST_OBJECT := $(RUST_GENERATED)/rust.o
 RUST_OBJECT_CMD := $(RUST_GENERATED)/.rust.o.cmd
 RUST_C_SHIMS_H := $(RUST_GENERATED)/rust_c_shims.h
 RUST_C_SHIMS_C := $(RUST_GENERATED)/rust_c_shims.c
+RUST_TRACE_EVENTS_HEADER := $(RUST_GENERATED)/trace_events.h
 
 RUST_BUILD_DIR := $(RUST_GENERATED)/build
 RUST_C_SHIMS_DIR := $(RUST_BUILD_DIR)/rust_c_shims
@@ -86,6 +87,8 @@ RUST_OBJECT_RAW := $(RUST_BUILD_DIR)/rust.raw.o
 RUST_SYMBOLS := $(RUST_BUILD_DIR)/exported.list
 RUST_SYMBOLS_CLI := $(RUST_BUILD_DIR)/exported.cli
 RUST_START_STOP_LDS := $(RUST_BUILD_DIR)/start_stop.lds
+RUST_JSON_DATA_DIR := $(RUST_BUILD_DIR)/rust_data/
+RUST_JSON_DATA := $(RUST_BUILD_DIR)/rust_data.json
 
 RUST_CBINDGEN_H := $(RUST_SRC)/cbindgen.h
 RUST_CBINDGEN_BIN := $(CARGO_HOME)/bin/cbindgen
@@ -107,7 +110,7 @@ export LISA_EVAL_C_CFLAGS=$(shell echo $(c_flags))
 rust_cmd = chmod +x '$(LISA_EVAL_C)' && export RUSTC_BOOTSTRAP=1 PATH="$(CARGO_HOME)/bin:$$PATH" 'RUSTUP_HOME=$(RUSTUP_HOME)' 'CARGO_HOME=$(CARGO_HOME)' 'CARGO_TARGET_DIR=$(CARGO_TARGET_DIR)' 'LISA_EVAL_C=$(LISA_EVAL_C)' && $(1)
 cargo_cmd = $(call rust_cmd,cargo +$(RUST_VERSION) $(1))
 
-$(CARGO_TARGET_DIR) $(GENERATED) $(RUST_GENERATED) $(RUST_BUILD_DIR) $(RUST_C_SHIMS_DIR):
+$(CARGO_TARGET_DIR) $(GENERATED) $(RUST_GENERATED) $(RUST_BUILD_DIR) $(RUST_C_SHIMS_DIR) $(RUST_JSON_DATA_DIR):
 	mkdir -p "$@"
 
 # Build the rust code into a static archive, then prelink it into an object
@@ -121,7 +124,20 @@ $(RUST_OBJECT_RAW): $(RUST_BUILD_DIR) $(CARGO_TARGET_DIR)
 	$(LD) $(KBUILD_LDFLAGS) -nostdlib -r -o $(RUST_OBJECT_RAW) --whole-archive $(CARGO_TARGET_DIR)/target/release/liblisakmod.a
 
 
-$(RUST_OBJECT): $(RUST_BUILD_DIR) $(RUST_OBJECT_RAW)
+define extract-binstore
+	cp $(1) $(1)_objdump.o
+	$(OBJDUMP) -h $(1)_objdump.o | awk '{ print $$2 }' | grep '^.binstore.$(2)' | sort | xargs -r -P$$(nproc) -n1 sh -c '$(OBJCOPY) --dump-section $$0=$(3)/_$$0 $(1) /dev/null'
+endef
+
+
+$(RUST_JSON_DATA): $(RUST_BUILD_DIR) $(RUST_JSON_DATA_DIR) $(RUST_OBJECT_RAW)
+
+	touch $(RUST_JSON_DATA)
+	$(call extract-binstore,$(RUST_OBJECT_RAW),json,$(RUST_JSON_DATA_DIR))
+	LC_ALL=C cat $(RUST_JSON_DATA_DIR)/_.binstore.json > $(RUST_JSON_DATA)
+
+
+$(RUST_OBJECT): $(RUST_GENERATED) $(RUST_BUILD_DIR) $(RUST_OBJECT_RAW) $(RUST_JSON_DATA)
 	# Get:
 	# * The list of exported symbols
 	# * A linker script with __start_SECNAME and __stop_SECNAME symbols so
@@ -130,7 +146,7 @@ $(RUST_OBJECT): $(RUST_BUILD_DIR) $(RUST_OBJECT_RAW)
 	#   executable or DSO (a .ko is a relocatable object file) and
 	#   therefore never getting those symbols created by the linker
 	#   automatically.
-	python3 "$(MODULE_SRC)/rust_exported_symbols.py" --rust-object $(RUST_OBJECT_RAW) --out-symbols-plain $(RUST_SYMBOLS) --out-symbols-cli $(RUST_SYMBOLS_CLI) --out-start-stop-lds $(RUST_START_STOP_LDS)
+	python3 "$(MODULE_SRC)/process_rust.py" --rust-object $(RUST_OBJECT_RAW) --json $(RUST_JSON_DATA) --out-symbols-plain $(RUST_SYMBOLS) --out-symbols-cli $(RUST_SYMBOLS_CLI) --out-start-stop-lds $(RUST_START_STOP_LDS) --out-trace-events-header $(RUST_TRACE_EVENTS_HEADER)
 
 	# Garbage collect unused sections in the object file, after we have
 	# extracted the binstore sections (otherwise they get discarded).
@@ -150,20 +166,20 @@ $(RUST_OBJECT): $(RUST_BUILD_DIR) $(RUST_OBJECT_RAW)
 	touch $(RUST_OBJECT_CMD)
 
 
-$(RUST_C_SHIMS_H): $(RUST_OBJECT_RAW) $(RUST_C_SHIMS_DIR)
+$(RUST_C_SHIMS_H): $(RUST_GENERATED) $(RUST_OBJECT_RAW) $(RUST_C_SHIMS_DIR)
 	# Extract the C shims created by our inlinec Rust module from the
 	# binary, so they can be compiled and linked later.
 
 	# Create some empty files so that the globbing pattern later on always
 	# matches something.
-	touch $(RUST_C_SHIMS_DIR)/shim_.binstore.c.header. $(RUST_C_SHIMS_DIR)/shim_.binstore.c.code.
+	touch $(RUST_C_SHIMS_DIR)/_.binstore.c.header. $(RUST_C_SHIMS_DIR)/_.binstore.c.code.
 
-	cp $(RUST_OBJECT_RAW) $(RUST_OBJECT_RAW)_objdump.o
-	$(OBJDUMP) -h $(RUST_OBJECT_RAW)_objdump.o | awk '{ print $$2 }' | grep '^.binstore.c.' | sort | xargs -P$$(nproc) -n1 sh -c '$(OBJCOPY) --dump-section $$0=$(RUST_C_SHIMS_DIR)/shim_$$0 $(RUST_OBJECT_RAW) /dev/null'
-	LC_ALL=C cat $(RUST_C_SHIMS_DIR)/shim_.binstore.c.header.* > $(RUST_C_SHIMS_H)
-	LC_ALL=C cat $(RUST_C_SHIMS_DIR)/shim_.binstore.c.code.* > $(RUST_C_SHIMS_C)
+	$(call extract-binstore,$(RUST_OBJECT_RAW),c.,$(RUST_C_SHIMS_DIR))
+	LC_ALL=C cat $(RUST_C_SHIMS_DIR)/_.binstore.c.header.* > $(RUST_C_SHIMS_H)
+	LC_ALL=C cat $(RUST_C_SHIMS_DIR)/_.binstore.c.code.* > $(RUST_C_SHIMS_C)
 	cat $(RUST_C_SHIMS_H) $(RUST_C_SHIMS_C) | if which clang-format 2>&1 1>/dev/null; then clang-format; else cat; fi
 
+$(RUST_C_SHIMS_H): $(RUST_OBJECT_RAW) $(RUST_C_SHIMS_DIR)
 
 # This rule is necessary as Kbuild cannot cope with absolute paths on the
 # object file list to link in the module. Unfortunately, make is not smart

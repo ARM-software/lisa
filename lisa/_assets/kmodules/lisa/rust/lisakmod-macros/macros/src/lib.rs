@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 #![feature(iter_intersperse)]
+#![feature(proc_macro_expand)]
 
 use proc_macro::TokenStream;
 use syn::Error;
@@ -29,9 +30,9 @@ pub fn cconstant(args: TokenStream) -> TokenStream {
     convert(inlinec::cconstant(args.into()))
 }
 
-#[proc_macro]
-pub fn export_symbol(args: TokenStream) -> TokenStream {
-    convert(inlinec::export_symbol(args.into()))
+#[proc_macro_attribute]
+pub fn cstatic(attrs: TokenStream, code: TokenStream) -> TokenStream {
+    convert(inlinec::cstatic(attrs.into(), code.into()))
 }
 
 #[proc_macro]
@@ -39,7 +40,12 @@ pub fn concatcp(args: TokenStream) -> TokenStream {
     convert(misc::concatcp(args.into()))
 }
 
-#[proc_macro_attribute]
-pub fn cstatic(attrs: TokenStream, code: TokenStream) -> TokenStream {
-    convert(inlinec::cstatic(attrs.into(), code.into()))
+#[proc_macro]
+pub fn dump_to_binstore(args: TokenStream) -> TokenStream {
+    convert(misc::dump_to_binstore(args.into()))
+}
+
+#[proc_macro]
+pub fn json_metadata(args: TokenStream) -> TokenStream {
+    convert(misc::json_metadata(args.into()))
 }

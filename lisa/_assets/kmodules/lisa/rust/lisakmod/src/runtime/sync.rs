@@ -9,10 +9,9 @@ use core::{
     pin::Pin,
 };
 
-use crate::{
-    inlinec::{cfunc, opaque_type},
-    runtime::kbox::KernelKBox,
-};
+use lisakmod_macros::inlinec::{cfunc, opaque_type};
+
+use crate::{mem::impl_from_contained, runtime::kbox::KernelKBox};
 
 opaque_type!(struct CLockClassKey, "struct lock_class_key", "linux/lockdep.h");
 
@@ -85,39 +84,106 @@ impl Drop for LockdepClass {
     }
 }
 
-pub trait LockGuard<'guard, T>
+pub trait LockGuard<'guard>
 where
-    Self: Deref<Target = T>,
+    Self: Deref<Target = Self::T>,
 {
+    type T;
 }
 
-pub trait Lock<T>
+pub trait Lock
 where
     Self: Sync,
 {
-    type Guard<'a>: LockGuard<'a, T>
+    type T;
+    type Guard<'a>: LockGuard<'a, T = Self::T>
     where
         Self: 'a;
     fn lock(&self) -> Self::Guard<'_>;
 
     #[inline]
-    fn with_lock<U, F: FnOnce(&T) -> U>(&self, f: F) -> U {
+    fn with_lock<U, F: FnOnce(&Self::T) -> U>(&self, f: F) -> U {
         f(self.lock().deref())
     }
 }
 
 #[allow(private_bounds)]
-pub trait LockMut<T>: for<'a> _LockMut<'a, T> {}
+pub trait LockMut: for<'a> _LockMut<'a> {}
 
 // TODO: We need to share the 'a lifetime between the Guard<'a> type and Self: 'a. Unfortunately,
 // there seems to be no direct way of doing that since a for<> lifetime only affects what comes
 // immediately after it. As a workaround, we can just hide that in a trait, and then use
-// for<'a>_LockMut<'a, T> in the user-exposed trait.
-trait _LockMut<'a, T>
+// for<'a>_LockMut<'a> in the user-exposed trait.
+trait _LockMut<'a>
 where
-    <Self as Lock<T>>::Guard<'a>: DerefMut,
-    Self: 'a + Lock<T>,
+    <Self as Lock>::Guard<'a>: DerefMut,
+    Self: 'a + Lock,
 {
+}
+
+pub struct PinnedGuard<'a, L>
+where
+    L: Lock + 'a,
+{
+    guard: <L as Lock>::Guard<'a>,
+}
+
+impl<'a, L> PinnedGuard<'a, L>
+where
+    L: Lock + 'a,
+{
+    #[inline]
+    pub fn as_ref(&self) -> Pin<&<L as Lock>::T> {
+        // SAFETY: The guard we have can only come from a pinned lock, and that lock is hidden
+        // internally so that the only way to lock it is via a pinned reference. Since we do not
+        // allow unlocking that lock via a regular reference, it is not possible to circumvent the
+        // pinning guarantee and get a plain &mut T with Pin::get_ref(&Lock<T>).
+        unsafe { Pin::new_unchecked(self.guard.deref()) }
+    }
+
+    #[inline]
+    pub fn as_mut(&mut self) -> Pin<&mut <L as Lock>::T>
+    where
+        <L as Lock>::Guard<'a>: DerefMut,
+    {
+        // SAFETY: See PinnedGuard::as_ref()
+        unsafe { Pin::new_unchecked(self.guard.deref_mut()) }
+    }
+}
+
+/// # Safety
+///
+/// This trait can only be implemented for types that do not allow creating multiple locks that can
+/// all be used to get an ``&mut T``. For example, ``&Mutex<T>`` could not implement this trait, as
+/// it is possible to just copy it, and such reference can then be used to gain access to a ``&mut
+/// T``.
+pub unsafe trait PinnableLock: Lock {}
+unsafe impl<T: Send> PinnableLock for Mutex<T> {}
+unsafe impl<T: Send> PinnableLock for SpinLock<T> {}
+
+pub struct PinnedLock<L> {
+    inner: L,
+}
+
+impl_from_contained!((L) PinnedLock<L>, inner: L);
+
+impl<L> PinnedLock<L>
+where
+    L: PinnableLock,
+{
+    #[inline]
+    pub fn new(lock: L) -> PinnedLock<L> {
+        PinnedLock { inner: lock }
+    }
+
+    #[inline]
+    pub fn lock<'a>(self: Pin<&'a Self>) -> PinnedGuard<'a, L> {
+        // SAFETY: As per PinnableLock guarantees, there is nothing else that can leak an &mut T,
+        // so we can safely create a PinnedGuard that will allow getting an Pin<&mut T>
+        PinnedGuard {
+            guard: self.get_ref().inner.lock(),
+        }
+    }
 }
 
 opaque_type!(struct CSpinLock, "spinlock_t", "linux/spinlock.h");
@@ -234,14 +300,17 @@ impl<T> Drop for SpinLockGuard<'_, T> {
     }
 }
 
-impl<'guard, T> LockGuard<'guard, T> for SpinLockGuard<'guard, T> {}
+impl<'guard, T> LockGuard<'guard> for SpinLockGuard<'guard, T> {
+    type T = T;
+}
 
 unsafe impl<T: Send> Sync for SpinLock<T> {}
 unsafe impl<T: Send> Send for SpinLock<T> {}
 
-impl<T: Send> Lock<T> for SpinLock<T> {
+impl<T: Send> Lock for SpinLock<T> {
+    type T = T;
     type Guard<'a>
-        = SpinLockGuard<'a, T>
+        = SpinLockGuard<'a, Self::T>
     where
         Self: 'a;
 
@@ -263,7 +332,7 @@ impl<T: Send> Lock<T> for SpinLock<T> {
     }
 }
 
-impl<'a, T: 'a + Send> _LockMut<'a, T> for SpinLock<T> {}
+impl<'a, T: 'a + Send> _LockMut<'a> for SpinLock<T> {}
 
 opaque_type!(pub struct CMutex, "struct mutex", "linux/mutex.h");
 
@@ -286,7 +355,7 @@ macro_rules! new_static_mutex {
     ($vis:vis $name:ident, $ty:ty, $data:expr) => {
         $vis static $name: $crate::runtime::sync::Mutex<$ty> =
             $crate::runtime::sync::Mutex::__internal_from_ref($data, {
-                #[$crate::inlinec::cstatic]
+                #[::lisakmod_macros::inlinec::cstatic]
                 static STATIC_MUTEX: $crate::runtime::sync::CMutex = (
                     "#include <linux/mutex.h>",
                     "DEFINE_MUTEX(STATIC_VARIABLE);"
@@ -366,6 +435,8 @@ impl<T> Mutex<T> {
     }
 }
 
+impl_from_contained!((T) Mutex<T>, data: T);
+
 impl<T> Drop for Mutex<T> {
     #[inline]
     fn drop(&mut self) {
@@ -425,14 +496,17 @@ impl<T> Drop for MutexGuard<'_, T> {
     }
 }
 
-impl<'guard, T> LockGuard<'guard, T> for MutexGuard<'guard, T> {}
+impl<'guard, T> LockGuard<'guard> for MutexGuard<'guard, T> {
+    type T = T;
+}
 
 unsafe impl<T: Send> Send for Mutex<T> {}
 unsafe impl<T: Send> Sync for Mutex<T> {}
 
-impl<T: Send> Lock<T> for Mutex<T> {
+impl<T: Send> Lock for Mutex<T> {
+    type T = T;
     type Guard<'a>
-        = MutexGuard<'a, T>
+        = MutexGuard<'a, Self::T>
     where
         Self: 'a;
 
@@ -452,7 +526,7 @@ impl<T: Send> Lock<T> for Mutex<T> {
     }
 }
 
-impl<'a, T: 'a + Send> _LockMut<'a, T> for Mutex<T> {}
+impl<'a, T: 'a + Send> _LockMut<'a> for Mutex<T> {}
 
 pub struct Rcu<T> {
     // This pointer is actually a Box in disguise obtained with Box::into_raw(). We keep it as a
@@ -534,7 +608,9 @@ pub struct RcuGuard<'a, T> {
     _phantom: PhantomData<&'a T>,
 }
 
-impl<'guard, T> LockGuard<'guard, T> for RcuGuard<'guard, T> {}
+impl<'guard, T> LockGuard<'guard> for RcuGuard<'guard, T> {
+    type T = T;
+}
 
 impl<T> Deref for RcuGuard<'_, T> {
     type Target = T;
@@ -564,9 +640,10 @@ impl<T> Drop for RcuGuard<'_, T> {
 unsafe impl<T: Send> Sync for Rcu<T> {}
 unsafe impl<T: Send> Send for Rcu<T> {}
 
-impl<T: Send> Lock<T> for Rcu<T> {
+impl<T: Send> Lock for Rcu<T> {
+    type T = T;
     type Guard<'a>
-        = RcuGuard<'a, T>
+        = RcuGuard<'a, Self::T>
     where
         Self: 'a;
 

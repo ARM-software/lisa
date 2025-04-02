@@ -9,3 +9,9 @@ pub mod sync;
 pub mod sysfs;
 pub mod traceevent;
 pub mod tracepoint;
+pub mod wq;
+
+// FIXME: remove ?
+// This module is not currently used, as synthetic trace events are not actually supported
+// upstream.
+// pub mod synth_traceevent;
