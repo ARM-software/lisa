@@ -121,6 +121,69 @@ where
 {
 }
 
+pub struct PinnedGuard<'a, L>
+where
+    L: Lock + 'a,
+{
+    guard: <L as Lock>::Guard<'a>,
+}
+
+impl<'a, L> PinnedGuard<'a, L>
+where
+    L: Lock + 'a,
+{
+    #[inline]
+    pub fn as_ref(&self) -> Pin<&<L as Lock>::T> {
+        // SAFETY: The guard we have can only come from a pinned lock, and that lock is hidden
+        // internally so that the only way to lock it is via a pinned reference. Since we do not
+        // allow unlocking that lock via a regular reference, it is not possible to circumvent the
+        // pinning guarantee and get a plain &mut T with Pin::get_ref(&Lock<T>).
+        unsafe { Pin::new_unchecked(self.guard.deref()) }
+    }
+
+    #[inline]
+    pub fn as_mut(&mut self) -> Pin<&mut <L as Lock>::T>
+    where
+        <L as Lock>::Guard<'a>: DerefMut,
+    {
+        // SAFETY: See PinnedGuard::as_ref()
+        unsafe { Pin::new_unchecked(self.guard.deref_mut()) }
+    }
+}
+
+/// # Safety
+///
+/// This trait can only be implemented for types that do not allow creating multiple locks that can
+/// all be used to get an ``&mut T``. For example, ``&Mutex<T>`` could not implement this trait, as
+/// it is possible to just copy it, and such reference can then be used to gain access to a ``&mut
+/// T``.
+pub unsafe trait PinnableLock: Lock {}
+unsafe impl<T: Send> PinnableLock for Mutex<T> {}
+unsafe impl<T: Send> PinnableLock for SpinLock<T> {}
+
+pub struct PinnedLock<L> {
+    inner: L,
+}
+
+impl<L> PinnedLock<L>
+where
+    L: PinnableLock,
+{
+    #[inline]
+    pub fn new(lock: L) -> PinnedLock<L> {
+        PinnedLock { inner: lock }
+    }
+
+    #[inline]
+    pub fn lock<'a>(self: Pin<&'a Self>) -> PinnedGuard<'a, L> {
+        // SAFETY: As per PinnableLock guarantees, there is nothing else that can leak an &mut T,
+        // so we can safely create a PinnedGuard that will allow getting an Pin<&mut T>
+        PinnedGuard {
+            guard: self.get_ref().inner.lock(),
+        }
+    }
+}
+
 opaque_type!(struct CSpinLock, "spinlock_t", "linux/spinlock.h");
 
 pub struct SpinLock<T> {
