@@ -39,10 +39,10 @@ typedef struct emeter_buffer_private {
 	unsigned int device;
 } emeter_buffer_private_t;
 
-static struct file *open_file(int *error, const char *path, umode_t mode)
+static struct file *open_file(int *error, const char *path, int flags)
 {
 	struct file *file;
-	file = filp_open(path, mode, 0);
+	file = filp_open(path, flags, 0);
 	if (IS_ERR_OR_NULL(file)) {
 		pr_err("Could not open %s: %li\n", path, file ? PTR_ERR(file) : 0);
 		*error |= 1;

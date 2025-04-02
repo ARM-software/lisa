@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
 pub mod alloc;
+pub mod fs;
 pub mod kbox;
 pub mod module;
 pub mod panic;

@@ -86,6 +86,13 @@ impl StdError for Error {
     // }
 }
 
+impl embedded_io::Error for Error {
+    #[inline]
+    fn kind(&self) -> embedded_io::ErrorKind {
+        embedded_io::ErrorKind::Other
+    }
+}
+
 /// Mirror the anyhow::Context API, but returns the original Result<T, E> type rather than
 /// Result<T, anyhow::Error>
 pub trait ContextExt {
