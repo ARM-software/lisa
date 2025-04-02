@@ -1399,3 +1399,27 @@ macro_rules! __internal_c_eval {
     }};
 }
 pub use crate::__internal_c_eval as c_eval;
+
+
+#[macro_export]
+macro_rules! __internal_cpp {
+    ($cpp_expr:literal $(, $c_header:literal)*) => {{
+        let x: Option<u32> = $crate::inlinec::cconstant!(
+            (
+                $(
+                    "#include \"", $c_header, "\"\n"
+                ),*
+            ),
+            (
+                "\n#if (", $cpp_expr, ")\n1\n#else\n0\n#endif\n",
+            )
+        );
+        match x {
+            Some(x) => x != 0,
+            None => true,
+        }
+    }};
+}
+pub use crate::__internal_cpp as cpp;
+
+
