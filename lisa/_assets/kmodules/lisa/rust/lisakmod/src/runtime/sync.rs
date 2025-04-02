@@ -11,7 +11,7 @@ use core::{
 
 use lisakmod_macros::inlinec::{cfunc, opaque_type};
 
-use crate::runtime::kbox::KernelKBox;
+use crate::{mem::impl_from_contained, runtime::kbox::KernelKBox};
 
 opaque_type!(struct CLockClassKey, "struct lock_class_key", "linux/lockdep.h");
 
@@ -164,6 +164,8 @@ unsafe impl<T: Send> PinnableLock for SpinLock<T> {}
 pub struct PinnedLock<L> {
     inner: L,
 }
+
+impl_from_contained!((L) PinnedLock<L>, inner: L);
 
 impl<L> PinnedLock<L>
 where
@@ -432,6 +434,8 @@ impl<T> Mutex<T> {
         mutex_is_locked(&self.c_mutex.as_pin_ref())
     }
 }
+
+impl_from_contained!((T) Mutex<T>, data: T);
 
 impl<T> Drop for Mutex<T> {
     #[inline]

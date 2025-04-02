@@ -20,6 +20,26 @@ macro_rules! mut_container_of {
 #[allow(unused_imports)]
 pub(crate) use mut_container_of;
 
+pub trait FromContained<Contained> {
+    unsafe fn from_contained(contained: *const Contained) -> *const Self;
+}
+
+macro_rules! impl_from_contained {
+    (($($generic:tt)*) $ty:ty, $attr:ident: $attr_ty:ty) => {
+        impl<$($generic)*> $crate::mem::FromContained<$attr_ty> for $ty {
+            unsafe fn from_contained(contained: *const $attr_ty) -> *const Self {
+                unsafe {
+                    $crate::mem::container_of!(
+                        Self, $attr, contained
+                    )
+                }
+            }
+        }
+    }
+}
+#[allow(unused_imports)]
+pub(crate) use impl_from_contained;
+
 macro_rules! destructure {
     ($value:expr, $($field:ident),*) => {{
         // Ensure there is no duplicate in the list of fields. If there is any duplicate, the code
