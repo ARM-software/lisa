@@ -4,7 +4,7 @@ use alloc::{boxed::Box, sync::Arc};
 use core::{
     alloc::Layout,
     cell::UnsafeCell,
-    convert::Infallible,
+    convert::{Infallible, TryFrom},
     error::Error as StdError,
     ffi::{CStr, c_char, c_int, c_uchar, c_void},
     fmt,
@@ -1048,6 +1048,90 @@ impl FromFfi for Result<(), Infallible> {
     #[inline]
     unsafe fn from_ffi(_: Self::FfiType) -> Self {
         Ok(())
+    }
+}
+
+pub trait Unsigned
+where
+    Self: TryInto<Self::Signed>,
+    Self::Signed: TryInto<Self>,
+{
+    type Signed;
+    const SIGNED_ZERO: Self::Signed;
+}
+
+macro_rules! impl_unsigned {
+    ($unsigned:ty, $signed:ty) => {
+        impl Unsigned for $unsigned {
+            type Signed = $signed;
+            const SIGNED_ZERO: Self::Signed = 0;
+        }
+    };
+}
+
+impl_unsigned!(usize, isize);
+impl_unsigned!(u64, i64);
+impl_unsigned!(u32, i32);
+impl_unsigned!(u16, i16);
+impl_unsigned!(u8, i8);
+
+#[derive(Debug, Clone, Copy)]
+pub struct NegativeError<T: Unsigned> {
+    pub code: T::Signed,
+}
+
+impl<T> fmt::Display for NegativeError<T>
+where
+    T: Unsigned,
+    <T as Unsigned>::Signed: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.code)
+    }
+}
+
+impl<T> FfiType for Result<T, NegativeError<T>>
+where
+    T: Unsigned,
+    <T as Unsigned>::Signed: FfiType,
+{
+    const C_TYPE: &'static str = <<T as Unsigned>::Signed as FfiType>::C_TYPE;
+    const C_HEADER: Option<&'static str> = <<T as Unsigned>::Signed as FfiType>::C_HEADER;
+    type FfiType = <<T as Unsigned>::Signed as FfiType>::FfiType;
+}
+
+impl<T> IntoFfi for Result<T, NegativeError<T>>
+where
+    T: Unsigned,
+    <T as Unsigned>::Signed: FfiType + IntoFfi + fmt::Debug,
+    <T as TryInto<<T as Unsigned>::Signed>>::Error: fmt::Debug,
+{
+    #[inline]
+    fn into_ffi(self) -> Self::FfiType {
+        match self {
+            Ok(val) => val
+                .try_into()
+                .expect("Unsigned value overflowed")
+                .into_ffi(),
+            Err(err) => err.code.into_ffi(),
+        }
+    }
+}
+
+impl<T> FromFfi for Result<T, NegativeError<T>>
+where
+    T: Unsigned,
+    <T as Unsigned>::Signed: FfiType + FromFfi + TryFrom<u8, Error: fmt::Debug> + PartialOrd,
+    <<T as Unsigned>::Signed as TryInto<T>>::Error: fmt::Debug,
+{
+    #[inline]
+    unsafe fn from_ffi(val: Self::FfiType) -> Self {
+        let val = unsafe { <T as Unsigned>::Signed::from_ffi(val) };
+        if val < <T as Unsigned>::SIGNED_ZERO {
+            Err(NegativeError { code: val })
+        } else {
+            Ok(val.try_into().unwrap())
+        }
     }
 }
 
