@@ -5,7 +5,9 @@ use core::{
     alloc::Layout,
     cell::UnsafeCell,
     convert::Infallible,
+    error::Error as StdError,
     ffi::{CStr, c_char, c_int, c_uchar, c_void},
+    fmt,
     mem::MaybeUninit,
     ops::Deref,
     pin::Pin,
@@ -124,8 +126,15 @@ impl_ptr!(*const T, ConstPtr<T>, &'a T);
 
 impl<T: ?Sized> From<ConstPtr<T>> for *const T {
     #[inline]
-    fn from(x: ConstPtr<T>) -> *const T {
-        x.0
+    fn from(ptr: ConstPtr<T>) -> *const T {
+        ptr.0
+    }
+}
+
+impl<T: ?Sized> From<*const T> for ConstPtr<T> {
+    #[inline]
+    fn from(ptr: *const T) -> ConstPtr<T> {
+        ConstPtr(ptr)
     }
 }
 
@@ -170,8 +179,15 @@ impl_ptr!(*mut T, MutPtr<T>, &'a mut T);
 
 impl<T: ?Sized> From<MutPtr<T>> for *mut T {
     #[inline]
-    fn from(x: MutPtr<T>) -> *mut T {
-        x.0
+    fn from(ptr: MutPtr<T>) -> *mut T {
+        ptr.0
+    }
+}
+
+impl<T: ?Sized> From<*mut T> for MutPtr<T> {
+    #[inline]
+    fn from(ptr: *mut T) -> MutPtr<T> {
+        MutPtr(ptr)
     }
 }
 
@@ -1032,6 +1048,103 @@ impl FromFfi for Result<(), Infallible> {
     #[inline]
     unsafe fn from_ffi(_: Self::FfiType) -> Self {
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub enum PtrError {
+    Code(usize),
+    Null,
+}
+
+impl fmt::Display for PtrError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PtrError::Null => f.write_str("pointer is NULL"),
+            PtrError::Code(code) => write!(f, "error code: {code}"),
+        }
+    }
+}
+
+impl StdError for PtrError {
+    #[inline]
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        None
+    }
+}
+
+impl PtrError {
+    // We need Sized as we need *mut T to be a thin pointer type, as we cannot build fat pointers
+    // out of thin air.
+    pub fn into_ptr<T: Sized>(self) -> *mut T {
+        #[cfunc]
+        fn err_ptr(code: usize) -> *mut c_void {
+            r#"
+            #include <linux/err.h>
+            "#;
+
+            r#"
+            return ERR_PTR(code);
+            "#
+        }
+        match self {
+            PtrError::Code(code) => err_ptr(code) as *mut T,
+            PtrError::Null => core::ptr::null_mut(),
+        }
+    }
+
+    pub fn from_ptr<T: Sized>(ptr: *mut T) -> Result<NonNull<T>, PtrError> {
+        #[cfunc]
+        fn ptr_err_or_zero(ptr: *mut c_void) -> usize {
+            r#"
+            #include <linux/err.h>
+            "#;
+
+            r#"
+            return PTR_ERR_OR_ZERO(ptr);
+            "#
+        }
+        if ptr.is_null() {
+            Err(PtrError::Null)
+        } else {
+            match ptr_err_or_zero(ptr as *mut c_void) {
+                0 => Ok(NonNull::new(ptr).unwrap()),
+                err => Err(PtrError::Code(err)),
+            }
+        }
+    }
+}
+
+impl<T> FfiType for Result<NonNull<T>, PtrError>
+where
+    *mut T: FfiType,
+{
+    const C_TYPE: &'static str = <*mut T as FfiType>::C_TYPE;
+    const C_HEADER: Option<&'static str> = <*mut T as FfiType>::C_HEADER;
+    type FfiType = <*mut T as FfiType>::FfiType;
+}
+
+impl<T> IntoFfi for Result<NonNull<T>, PtrError>
+where
+    *mut T: FfiType + IntoFfi,
+{
+    #[inline]
+    fn into_ffi(self) -> Self::FfiType {
+        match self {
+            Ok(ptr) => ptr.as_ptr().into_ffi(),
+            Err(err) => err.into_ptr::<T>().into_ffi(),
+        }
+    }
+}
+
+impl<T> FromFfi for Result<NonNull<T>, PtrError>
+where
+    *mut T: FfiType + FromFfi,
+{
+    #[inline]
+    unsafe fn from_ffi(ptr: Self::FfiType) -> Self {
+        let ptr: *mut T = unsafe { FromFfi::from_ffi(ptr) };
+        PtrError::from_ptr(ptr)
     }
 }
 
