@@ -84,6 +84,7 @@ macro_rules! __pr_level {
         ).expect("Could not write to dmesg")
     }}
 }
+#[allow(unused_imports)]
 pub(crate) use __pr_level;
 
 macro_rules! pr_debug {
@@ -94,6 +95,7 @@ macro_rules! pr_debug {
         )
     }}
 }
+#[allow(unused_imports)]
 pub(crate) use pr_debug;
 
 macro_rules! pr_info {
@@ -104,6 +106,7 @@ macro_rules! pr_info {
         )
     }}
 }
+#[allow(unused_imports)]
 pub(crate) use pr_info;
 
 macro_rules! pr_err {
@@ -114,4 +117,5 @@ macro_rules! pr_err {
         )
     }}
 }
+#[allow(unused_imports)]
 pub(crate) use pr_err;

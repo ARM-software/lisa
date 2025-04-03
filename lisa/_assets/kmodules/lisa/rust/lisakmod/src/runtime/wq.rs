@@ -353,4 +353,5 @@ macro_rules! new_work_item {
         $crate::runtime::wq::WorkItem::__private_new($wq, closure)
     }};
 }
+#[allow(unused_imports)]
 pub(crate) use new_work_item;

@@ -145,6 +145,7 @@ macro_rules! new_lifecycle {
         unsafe { funcs.new_lifecycle(closure) }
     }};
 }
+#[allow(unused_imports)]
 pub(crate) use new_lifecycle;
 
 enum InternalState<A, Y, E> {

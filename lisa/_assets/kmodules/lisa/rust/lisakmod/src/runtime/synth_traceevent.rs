@@ -296,4 +296,5 @@ macro_rules! new_event {
         }
     };
 }
+#[allow(unused_imports)]
 pub(crate) use new_event;

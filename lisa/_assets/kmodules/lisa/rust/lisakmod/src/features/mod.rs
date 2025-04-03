@@ -576,6 +576,7 @@ macro_rules! define_feature {
         }
     };
 }
+#[allow(unused_imports)]
 pub(crate) use define_feature;
 
 #[distributed_slice]

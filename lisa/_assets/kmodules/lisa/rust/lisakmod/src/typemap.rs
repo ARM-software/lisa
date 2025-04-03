@@ -182,6 +182,7 @@ macro_rules! make_index {
         impl $trait for $ty {}
     };
 }
+#[allow(unused_imports)]
 pub(crate) use make_index;
 
 macro_rules! add_index_key {
