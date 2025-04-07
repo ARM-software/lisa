@@ -181,6 +181,7 @@ unsafe impl<const FLAGS: GFPFlags> GlobalAlloc for KmallocAllocator<FLAGS> {
     }
 }
 
+#[cfg(not(test))]
 #[global_allocator]
 /// cbindgen:ignore
 static GLOBAL: KmallocAllocator<{ GFPFlags::Kernel }> = KmallocAllocator;
