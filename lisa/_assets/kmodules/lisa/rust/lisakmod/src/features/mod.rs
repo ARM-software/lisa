@@ -370,7 +370,7 @@ mod private {
     }
 }
 
-pub trait Feature: private::BlanketFeature {
+pub trait Feature: Send + Sync + private::BlanketFeature {
     // Add Self: Sized bound for all associated types so that Feature is dyn-usable.
     type Service: Send + Sync + Debug
     where
