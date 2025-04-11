@@ -15,6 +15,10 @@
 
 extern crate alloc;
 
+// Allow std in unit tests for convenience, so we can use e.g. println!()
+#[cfg(test)]
+extern crate std;
+
 pub mod error;
 pub mod features;
 pub mod fmt;
