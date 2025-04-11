@@ -23,6 +23,7 @@ pub mod init;
 pub mod lifecycle;
 pub mod mem;
 pub mod misc;
+pub mod parsec;
 pub mod prelude;
 pub mod registry;
 pub mod runtime;
