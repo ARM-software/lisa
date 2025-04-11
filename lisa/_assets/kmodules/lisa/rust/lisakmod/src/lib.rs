@@ -9,6 +9,9 @@
 #![feature(type_alias_impl_trait)]
 #![feature(arbitrary_self_types_pointers)]
 #![feature(formatting_options)]
+#![feature(try_trait_v2)]
+#![feature(fn_traits)]
+#![feature(unboxed_closures)]
 
 extern crate alloc;
 
