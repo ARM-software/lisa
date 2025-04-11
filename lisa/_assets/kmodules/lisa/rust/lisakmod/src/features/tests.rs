@@ -82,15 +82,22 @@ test! {
 
         #[cfunc]
         unsafe fn my_cfunc_3(x: &CStr) -> &str {
-            "return x;"
+            r#"
+            #include <linux/string.h>
+            "#;
+            "return (struct const_rust_str){.data = x, .len = strlen(x)};"
         }
         assert_eq!(unsafe { my_cfunc_3(c"hello") }, "hello");
 
         #[cfunc]
         fn my_cfunc_4() -> &'static str {
             r#"
+            #include <linux/string.h>
+            "#;
+
+            r#"
             static const char *mystring = "hello world";
-            return mystring;
+            return (struct const_rust_str){.data = mystring, .len = strlen(mystring)};
             "#
         }
         assert_eq!(my_cfunc_4(), "hello world");
@@ -125,7 +132,7 @@ test! {
         fn my_cfunc_8() -> Option<&'static str> {
             r#"
             static const char *mystring = "hello world";
-            return mystring;
+            return (struct const_rust_str){.data = mystring, .len = strlen(mystring)};
             "#
         }
         assert_eq!(my_cfunc_8(), Some("hello world"));
@@ -133,7 +140,7 @@ test! {
         #[cfunc]
         fn my_cfunc_9() -> Option<&'static str> {
             r#"
-            return NULL;
+            return (struct const_rust_str){.data = NULL};
             "#
         }
         assert_eq!(my_cfunc_9(), None);
@@ -141,7 +148,7 @@ test! {
         #[cfunc]
         unsafe fn my_cfunc_10<'a>() -> Option<&'a str> {
             r#"
-            return NULL;
+            return (struct const_rust_str){.data = NULL};
             "#
         }
         assert_eq!(unsafe { my_cfunc_10() }, None);
@@ -159,7 +166,7 @@ test! {
         fn my_cfunc_12() -> &'static [u8] {
             r#"
             unsigned char *s = "hello world";
-            struct slice_const_u8 x = {.data = s, .len = strlen(s)};
+            struct const_slice_u8 x = {.data = s, .len = strlen(s)};
             return x;
             "#
         }
