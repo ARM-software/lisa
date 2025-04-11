@@ -2,9 +2,17 @@
 
 use core::ffi::CStr;
 
-use lisakmod_macros::inlinec::IntoFfi;
+use lisakmod_macros::inlinec::{FfiType, IntoFfi};
 
-pub trait FieldTy: IntoFfi {
+pub type AsPtrArg<T> = *mut <T as FfiType>::FfiType;
+
+pub trait FieldTy
+where
+    Self: FfiType + IntoFfi,
+    // Since the tracepoint parameters have to fit in a u64 due to some kernel constraints, we pass
+    // everything by reference.
+    AsPtrArg<Self>: FfiType + IntoFfi,
+{
     const NAME: &'static str;
 }
 
@@ -26,7 +34,8 @@ impl_field!(u32, "u32");
 impl_field!(i32, "s32");
 impl_field!(u64, "u64");
 impl_field!(i64, "s64");
-impl_field!(&CStr, "string");
+impl_field!(&CStr, "c-string");
+impl_field!(&str, "rust-string");
 
 macro_rules! new_event {
     ($name:ident, fields: {$($field_name:ident: $field_ty:ty),* $(,)?}) => {{
@@ -38,7 +47,17 @@ macro_rules! new_event {
                     {
                         "name": (::core::stringify!($field_name)),
                         "logical-type": (<$field_ty as $crate::runtime::traceevent::FieldTy>::NAME),
-                        "c-arg-type": (<$field_ty as ::lisakmod_macros::inlinec::FfiType>::C_TYPE)
+                        "c-field-type": (<$field_ty as ::lisakmod_macros::inlinec::FfiType>::C_TYPE),
+                        // All values are passed by pointer rather than being passed directly, as
+                        // tracepoints parameters must not be larger than 64 bits. Since some
+                        // parameter are (e.g. &str), we simply pass everything by reference.
+                        "c-arg-type": (<$crate::runtime::traceevent::AsPtrArg::<$field_ty> as ::lisakmod_macros::inlinec::FfiType>::C_TYPE),
+                        "c-arg-header": (
+                            match <$crate::runtime::traceevent::AsPtrArg::<$field_ty> as ::lisakmod_macros::inlinec::FfiType>::C_HEADER {
+                                Some(header) => header,
+                                None => ""
+                            }
+                        )
                     }
                 ),*
             ]
@@ -46,7 +65,7 @@ macro_rules! new_event {
 
         {
             #[::lisakmod_macros::inlinec::cfunc]
-            fn emit($($field_name: $field_ty),*) {
+            fn emit($($field_name: $crate::runtime::traceevent::AsPtrArg::<$field_ty>),*) {
                 r#"
                 #include "ftrace_events.h"
                 "#;
@@ -68,11 +87,11 @@ macro_rules! new_event {
             //    with a closure.
             // 2. Make the closure !Copy, so that client code does not accidentally relies on that.
             struct NonCopy;
-            let x = NonCopy;
+            let noncopy = NonCopy;
             Ok::<_, $crate::error::Error>(
                 move |$($field_name: $field_ty),*| {
-                    let _ = &x;
-                    emit($($field_name),*)
+                    let _ = &noncopy;
+                    emit($(&mut ::lisakmod_macros::inlinec::IntoFfi::into_ffi($field_name)),*)
                 }
             )
         }
