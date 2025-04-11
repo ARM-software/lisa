@@ -79,7 +79,7 @@ RUST_OBJECT := $(RUST_GENERATED)/rust.o
 RUST_OBJECT_CMD := $(RUST_GENERATED)/.rust.o.cmd
 RUST_C_SHIMS_H := $(RUST_GENERATED)/rust_c_shims.h
 RUST_C_SHIMS_C := $(RUST_GENERATED)/rust_c_shims.c
-RUST_TRACE_EVENTS_HEADER := $(RUST_GENERATED)/trace_events.h
+RUST_TRACE_EVENTS_H := $(RUST_GENERATED)/trace_events.h
 
 RUST_BUILD_DIR := $(RUST_GENERATED)/build
 RUST_C_SHIMS_DIR := $(RUST_BUILD_DIR)/rust_c_shims
@@ -125,8 +125,7 @@ $(RUST_OBJECT_RAW): $(RUST_BUILD_DIR) $(CARGO_TARGET_DIR)
 
 
 define extract-binstore
-	cp $(1) $(1)_objdump.o
-	$(OBJDUMP) -h $(1)_objdump.o | awk '{ print $$2 }' | grep '^.binstore.$(2)' | sort | xargs -r -P$$(nproc) -n1 sh -c '$(OBJCOPY) --dump-section $$0=$(3)/_$$0 $(1) /dev/null'
+	$(OBJDUMP) -h $(1) | awk '{ print $$2 }' | grep '^.binstore.$(2)' | sort | xargs -r -P$$(nproc) -n1 sh -c '$(OBJCOPY) --dump-section $$0=$(3)/_$$0 $(1) /dev/null'
 endef
 
 
@@ -146,7 +145,8 @@ $(RUST_OBJECT): $(RUST_GENERATED) $(RUST_BUILD_DIR) $(RUST_OBJECT_RAW) $(RUST_JS
 	#   executable or DSO (a .ko is a relocatable object file) and
 	#   therefore never getting those symbols created by the linker
 	#   automatically.
-	python3 "$(MODULE_SRC)/process_rust.py" --rust-object $(RUST_OBJECT_RAW) --json $(RUST_JSON_DATA) --out-symbols-plain $(RUST_SYMBOLS) --out-symbols-cli $(RUST_SYMBOLS_CLI) --out-start-stop-lds $(RUST_START_STOP_LDS) --out-trace-events-header $(RUST_TRACE_EVENTS_HEADER)
+	python3 "$(MODULE_SRC)/process_rust.py" --rust-object $(RUST_OBJECT_RAW) --json $(RUST_JSON_DATA) --out-symbols-plain $(RUST_SYMBOLS) --out-symbols-cli $(RUST_SYMBOLS_CLI) --out-start-stop-lds $(RUST_START_STOP_LDS) --out-trace-events-header $(RUST_TRACE_EVENTS_H)
+	cat $(RUST_TRACE_EVENTS_H)
 
 	# Garbage collect unused sections in the object file, after we have
 	# extracted the binstore sections (otherwise they get discarded).
@@ -210,7 +210,7 @@ ifneq ($(KERNELRELEASE),)
 
 LISA_KMOD_NAME ?= lisa
 obj-m := $(LISA_KMOD_NAME).o
-$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o introspection_data.o rust/lisakmod/runtime.o rust/lisakmod/tests.o generated/rust/rust.o
+$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o introspection_data.o rust/lisakmod/runtime.o rust/lisakmod/tests.o generated/rust/rust.o
 
 # -fno-stack-protector is needed to avoid possibly undefined __stack_chk_guard symbol
 ccflags-y := "-I$(MODULE_SRC)" "-I$(MODULE_OBJ)" -std=gnu11 -fno-stack-protector -Wno-declaration-after-statement -Wno-error
