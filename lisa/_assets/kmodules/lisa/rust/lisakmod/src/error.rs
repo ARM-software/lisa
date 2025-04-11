@@ -5,6 +5,8 @@ use core::{error::Error as StdError, fmt};
 
 use anyhow;
 
+use crate::runtime::printk::pr_err;
+
 /// Cloneable error type suitable for memoization
 #[derive(Clone)]
 pub struct Error {
@@ -95,7 +97,7 @@ impl embedded_io::Error for Error {
 
 /// Mirror the anyhow::Context API, but returns the original Result<T, E> type rather than
 /// Result<T, anyhow::Error>
-pub trait ContextExt {
+pub trait ResultExt {
     fn context<C>(self, context: C) -> Self
     where
         C: fmt::Display + Send + Sync + 'static;
@@ -104,9 +106,11 @@ pub trait ContextExt {
     where
         C: fmt::Display + Send + Sync + 'static,
         F: FnOnce() -> C;
+
+    fn print_err(self);
 }
 
-impl<T> ContextExt for Result<T, Error> {
+impl<T> ResultExt for Result<T, Error> {
     #[inline]
     fn context<C>(self, context: C) -> Self
     where
@@ -122,6 +126,14 @@ impl<T> ContextExt for Result<T, Error> {
         F: FnOnce() -> C,
     {
         Ok(<Self as anyhow::Context<_, _>>::with_context(self, f)?)
+    }
+
+    #[inline]
+    fn print_err(self) {
+        match self {
+            Ok(_) => {}
+            Err(err) => pr_err!("{err:#}"),
+        }
     }
 }
 

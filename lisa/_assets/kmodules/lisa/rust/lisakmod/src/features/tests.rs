@@ -7,7 +7,7 @@ use lisakmod_macros::inlinec::{cconstant, ceval, cfunc};
 
 use crate::{
     error::Error,
-    features::define_feature,
+    features::{FeaturesConfig, define_feature},
     lifecycle::new_lifecycle,
     runtime::{
         kbox::KernelKBox,
@@ -299,10 +299,13 @@ define_feature! {
     Config: (),
     dependencies: [],
     init: |configs| {
-        Ok(new_lifecycle!(|_| {
-            init_tests()?;
-            yield_!(Ok(Arc::new(())));
-            Ok(())
-        }))
+        Ok((
+            FeaturesConfig::new(),
+            new_lifecycle!(|_| {
+                init_tests()?;
+                yield_!(Ok(Arc::new(())));
+                Ok(())
+            })
+        ))
     },
 }
