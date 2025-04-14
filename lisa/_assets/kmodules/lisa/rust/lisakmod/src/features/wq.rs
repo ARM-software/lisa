@@ -3,7 +3,10 @@
 use alloc::{sync::Arc, vec::Vec};
 
 pub use crate::runtime::wq::*;
-use crate::{features::define_feature, lifecycle::new_lifecycle};
+use crate::{
+    features::{FeaturesConfig, define_feature},
+    lifecycle::new_lifecycle,
+};
 
 #[derive(Debug)]
 pub struct WqService {
@@ -28,9 +31,12 @@ define_feature! {
     Config: (),
     dependencies: [],
     init: |configs| {
-        Ok(new_lifecycle!(|services| {
-            yield_!(Ok(Arc::new(WqService::new())));
-            Ok(())
-        }))
+        Ok((
+            FeaturesConfig::new(),
+            new_lifecycle!(|services| {
+                yield_!(Ok(Arc::new(WqService::new())));
+                Ok(())
+            })
+        ))
     },
 }

@@ -3,11 +3,11 @@
 use alloc::{collections::BTreeMap, sync::Arc, vec, vec::Vec};
 use core::ffi::CStr;
 
-use lisakmod_macros::inlinec::{c_eval, cconstant, cfunc};
+use lisakmod_macros::inlinec::{cconstant, ceval, cfunc};
 
 use crate::{
     error::Error,
-    features::define_feature,
+    features::{FeaturesConfig, define_feature},
     lifecycle::new_lifecycle,
     runtime::{
         kbox::KernelKBox,
@@ -57,7 +57,7 @@ test! {
 test! {
     test3,
     {
-        let minalign = c_eval!("linux/slab.h", "ARCH_KMALLOC_MINALIGN", usize);
+        let minalign = ceval!("linux/slab.h", "ARCH_KMALLOC_MINALIGN", usize);
         // Check we don't get any C compilation error with duplicated code.
         let minalign2: usize = cconstant!("#include <linux/slab.h>", "ARCH_KMALLOC_MINALIGN").unwrap();
         assert_eq!(minalign, minalign2);
@@ -82,15 +82,22 @@ test! {
 
         #[cfunc]
         unsafe fn my_cfunc_3(x: &CStr) -> &str {
-            "return x;"
+            r#"
+            #include <linux/string.h>
+            "#;
+            "return (struct const_rust_str){.data = x, .len = strlen(x)};"
         }
         assert_eq!(unsafe { my_cfunc_3(c"hello") }, "hello");
 
         #[cfunc]
         fn my_cfunc_4() -> &'static str {
             r#"
+            #include <linux/string.h>
+            "#;
+
+            r#"
             static const char *mystring = "hello world";
-            return mystring;
+            return (struct const_rust_str){.data = mystring, .len = strlen(mystring)};
             "#
         }
         assert_eq!(my_cfunc_4(), "hello world");
@@ -125,7 +132,7 @@ test! {
         fn my_cfunc_8() -> Option<&'static str> {
             r#"
             static const char *mystring = "hello world";
-            return mystring;
+            return (struct const_rust_str){.data = mystring, .len = strlen(mystring)};
             "#
         }
         assert_eq!(my_cfunc_8(), Some("hello world"));
@@ -133,7 +140,7 @@ test! {
         #[cfunc]
         fn my_cfunc_9() -> Option<&'static str> {
             r#"
-            return NULL;
+            return (struct const_rust_str){.data = NULL};
             "#
         }
         assert_eq!(my_cfunc_9(), None);
@@ -141,7 +148,7 @@ test! {
         #[cfunc]
         unsafe fn my_cfunc_10<'a>() -> Option<&'a str> {
             r#"
-            return NULL;
+            return (struct const_rust_str){.data = NULL};
             "#
         }
         assert_eq!(unsafe { my_cfunc_10() }, None);
@@ -159,7 +166,7 @@ test! {
         fn my_cfunc_12() -> &'static [u8] {
             r#"
             unsigned char *s = "hello world";
-            struct slice_const_u8 x = {.data = s, .len = strlen(s)};
+            struct const_slice_u8 x = {.data = s, .len = strlen(s)};
             return x;
             "#
         }
@@ -187,7 +194,7 @@ test! {
         }
 
         {
-            let zst_addr = c_eval!("linux/slab.h", "ZERO_SIZE_PTR", *const u8);
+            let zst_addr = ceval!("linux/slab.h", "ZERO_SIZE_PTR", *const u8);
             let b = KernelKBox::new(());
             assert_eq!(b.as_ptr() as usize, zst_addr as usize);
             drop(b);
@@ -292,10 +299,13 @@ define_feature! {
     Config: (),
     dependencies: [],
     init: |configs| {
-        Ok(new_lifecycle!(|_| {
-            init_tests()?;
-            yield_!(Ok(Arc::new(())));
-            Ok(())
-        }))
+        Ok((
+            FeaturesConfig::new(),
+            new_lifecycle!(|_| {
+                init_tests()?;
+                yield_!(Ok(Arc::new(())));
+                Ok(())
+            })
+        ))
     },
 }
