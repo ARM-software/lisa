@@ -10,6 +10,11 @@ use lisakmod_macros::inlinec::{cconstant, cfunc};
 
 use crate::runtime::printk::pr_err;
 
+pub const PAGE_SIZE: usize = match cconstant!("#include <asm/page.h>", "PAGE_SIZE") {
+    None => 1,
+    Some(x) => x,
+};
+
 #[inline]
 fn with_size<F: FnOnce(usize) -> *mut u8>(layout: Layout, f: F) -> *mut u8 {
     let minalign: usize =
@@ -181,6 +186,7 @@ unsafe impl<const FLAGS: GFPFlags> GlobalAlloc for KmallocAllocator<FLAGS> {
     }
 }
 
+#[cfg(not(test))]
 #[global_allocator]
 /// cbindgen:ignore
 static GLOBAL: KmallocAllocator<{ GFPFlags::Kernel }> = KmallocAllocator;

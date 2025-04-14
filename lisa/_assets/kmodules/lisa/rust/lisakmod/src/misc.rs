@@ -6,4 +6,5 @@ macro_rules! join{
         ::core::concat!($first $(, $sep, $rest)*)
     };
 }
+#[allow(unused_imports)]
 pub(crate) use join;

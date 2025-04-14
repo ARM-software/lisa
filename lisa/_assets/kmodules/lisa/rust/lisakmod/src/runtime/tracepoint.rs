@@ -103,7 +103,7 @@ impl<'tp, Args> Tracepoint<'tp, Args> {
     // safely materialize for CTracepoint as there may be concurrent users of the struct.
     pub fn name<'a>(&'a self) -> &'a str {
         #[cfunc]
-        fn name<'a>(tp: *const CTracepoint) -> Option<&'a str> {
+        fn name<'a>(tp: *const CTracepoint) -> Option<&'a CStr> {
             r#"
             #include <linux/tracepoint.h>
             "#;
@@ -112,7 +112,9 @@ impl<'tp, Args> Tracepoint<'tp, Args> {
             return tp->name;
             "#
         }
-        name::<'a>(self.c_tp.get()).unwrap_or("<unnamed>")
+        name::<'a>(self.c_tp.get())
+            .map(|s| s.to_str().expect("Invalid UTF-8 in C string"))
+            .unwrap_or("<unnamed>")
     }
 
     pub fn register_probe<'probe>(

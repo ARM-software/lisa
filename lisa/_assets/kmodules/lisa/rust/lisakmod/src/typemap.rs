@@ -8,7 +8,6 @@ use core::{
 };
 
 trait Value: Any + fmt::Debug {
-    fn as_any(&self) -> &dyn Any;
     // We need to know the key name from the trait object directly for
     // the Debug implementation. This way we can debug-print key/value without
     // knowing what is the concrete type of any of the values.
@@ -40,11 +39,6 @@ where
     Key: ?Sized + KeyOf<Idx>,
     <Key as KeyOf<Idx>>::Value: Any + fmt::Debug,
 {
-    #[inline]
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     #[inline]
     fn key_name(&self) -> &str {
         core::any::type_name::<Key>()
@@ -138,10 +132,10 @@ where
     {
         let key = TypeId::of::<Key>();
         self.get_any(&key).map(|v| {
-            &v.as_any()
+            &((v as &dyn Any)
                 .downcast_ref::<ValueOf<Idx, Key>>()
                 .expect("An Any value of the wrong concrete type was inserted for that key.")
-                .value
+                .value)
         })
     }
 
@@ -188,6 +182,7 @@ macro_rules! make_index {
         impl $trait for $ty {}
     };
 }
+#[allow(unused_imports)]
 pub(crate) use make_index;
 
 macro_rules! add_index_key {

@@ -43,16 +43,16 @@
 #endif
 
 #define __make_slice_ty(name, ty) \
-	struct slice_##name { \
+	struct name { \
 		__typeof__(ty) *data; \
 		size_t len; \
 	} __no_randomize_layout; \
-	struct slice_const_##name { \
+	struct const_##name { \
 		const __typeof__(ty) *data; \
 		const size_t len; \
 	} __no_randomize_layout;
 
-__make_slice_ty(u8, uint8_t)
-__make_slice_ty(rust_str, struct slice_u8)
+__make_slice_ty(slice_u8, uint8_t)
+__make_slice_ty(rust_str, char)
 
 #endif /* _CFFI_H */

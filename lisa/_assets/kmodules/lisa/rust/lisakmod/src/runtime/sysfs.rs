@@ -10,7 +10,7 @@ use core::{
     pin::Pin,
 };
 
-use lisakmod_macros::inlinec::{c_eval, cexport, cfunc, opaque_type};
+use lisakmod_macros::inlinec::{ceval, cexport, cfunc, opaque_type};
 
 use crate::mem::{container_of, mut_container_of};
 
@@ -371,7 +371,7 @@ impl KObject<Finalized> {
     }
     #[inline]
     pub fn sysfs_module_root() -> Self {
-        let c_kobj = c_eval!("linux/kobject.h", "&THIS_MODULE->mkobj.kobj", *mut CKObj);
+        let c_kobj = ceval!("linux/kobject.h", "&THIS_MODULE->mkobj.kobj", *mut CKObj);
         let inner = KObjectInner::from_c_kobj(c_kobj);
         // SAFETY: We assume that the pointer we got is valid as it is comming from a well-known
         // kernel API.

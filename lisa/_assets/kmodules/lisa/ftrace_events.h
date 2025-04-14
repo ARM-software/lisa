@@ -474,33 +474,6 @@ TRACE_EVENT(lisa__sched_cpu_capacity,
 );
 #endif
 
-
-#define PIXEL6_EMETER_CHAN_NAME_MAX_SIZE 64
-
-TRACE_EVENT(lisa__pixel6_emeter,
-	TP_PROTO(unsigned long ts, unsigned int device, unsigned int chan, const char *chan_name, unsigned long value),
-	TP_ARGS(ts, device, chan, chan_name, value),
-
-	TP_STRUCT__entry(
-		__field(unsigned long,		ts			)
-		__field(unsigned long,		value			)
-		__field(unsigned int,		device			)
-		__field(unsigned int,		chan			)
-		__array(char,			chan_name,	PIXEL6_EMETER_CHAN_NAME_MAX_SIZE	)
-	),
-
-	TP_fast_assign(
-		__entry->ts		    = ts;
-		__entry->device		= device;
-		__entry->chan		= chan;
-		__entry->value		= value;
-		strscpy(__entry->chan_name, chan_name, PIXEL6_EMETER_CHAN_NAME_MAX_SIZE);
-	),
-
-	TP_printk("ts=%lu device=%u chan=%u chan_name=%s value=%lu",
-		  __entry->ts, __entry->device, __entry->chan, __entry->chan_name, __entry->value)
-);
-
 #endif /* _FTRACE_EVENTS_H */
 
 /* This part must be outside protection */

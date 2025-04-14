@@ -3,7 +3,7 @@
 #[allow(unused_imports)]
 pub(crate) use ::alloc::boxed::Box;
 #[allow(unused_imports)]
-pub(crate) use lisakmod_macros::inlinec::{c_eval, cconstant, cexport, cfunc, cstatic};
+pub(crate) use lisakmod_macros::inlinec::{cconstant, ceval, cexport, cfunc, cstatic};
 
 #[allow(unused_imports)]
 pub(crate) use crate::{

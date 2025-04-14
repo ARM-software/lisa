@@ -113,7 +113,7 @@ mod private {
 
     use super::*;
     use crate::{
-        error::{ContextExt, Error, error},
+        error::{Error, ResultExt as _, error},
         runtime::sync::{LockdepClass, Mutex},
     };
 
@@ -370,7 +370,7 @@ mod private {
     }
 }
 
-pub trait Feature: private::BlanketFeature {
+pub trait Feature: Send + Sync + private::BlanketFeature {
     // Add Self: Sized bound for all associated types so that Feature is dyn-usable.
     type Service: Send + Sync + Debug
     where
@@ -462,64 +462,6 @@ where
     })
 }
 
-pub struct InitBundle<Feat: Feature> {
-    pub configs: FeaturesConfig,
-    pub lifecycle: LifeCycleAlias<Feat>,
-}
-
-impl<Feat> From<LifeCycleAlias<Feat>> for InitBundle<Feat>
-where
-    Feat: Feature,
-{
-    fn from(lifecycle: LifeCycleAlias<Feat>) -> InitBundle<Feat> {
-        InitBundle {
-            configs: FeaturesConfig::new(),
-            lifecycle,
-        }
-    }
-}
-
-impl<Feat, Service> From<FeaturesConfig> for InitBundle<Feat>
-where
-    Service: 'static + Send + Sync + From<()>,
-    Feat: Feature<Service = Service>,
-{
-    fn from(configs: FeaturesConfig) -> InitBundle<Feat> {
-        InitBundle {
-            configs,
-            lifecycle: new_lifecycle!(|_| {
-                yield_!(Ok(Arc::new(().into())));
-                Ok(())
-            }),
-        }
-    }
-}
-
-impl<Feat> From<(FeaturesConfig, LifeCycleAlias<Feat>)> for InitBundle<Feat>
-where
-    Feat: Feature,
-{
-    fn from((configs, lifecycle): (FeaturesConfig, LifeCycleAlias<Feat>)) -> InitBundle<Feat> {
-        InitBundle { configs, lifecycle }
-    }
-}
-
-impl<Feat, Service> From<()> for InitBundle<Feat>
-where
-    Service: 'static + Send + Sync + From<()>,
-    Feat: Feature<Service = Service>,
-{
-    fn from(_: ()) -> InitBundle<Feat> {
-        InitBundle {
-            configs: FeaturesConfig::new(),
-            lifecycle: new_lifecycle!(|_| {
-                yield_!(Ok(Arc::new(().into())));
-                Ok(())
-            }),
-        }
-    }
-}
-
 macro_rules! define_feature {
     (
         $vis:vis struct $type:ident,
@@ -569,13 +511,12 @@ macro_rules! define_feature {
                 $crate::error::Error,
             >
             {
-                let init: ::core::result::Result<_, $crate::error::Error> = $init(configs);
-                let init: $crate::features::InitBundle<Self> = init?.into();
-                Ok((init.configs, init.lifecycle))
+                $init(configs)
             }
         }
     };
 }
+#[allow(unused_imports)]
 pub(crate) use define_feature;
 
 #[distributed_slice]

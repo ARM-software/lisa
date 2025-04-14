@@ -11,6 +11,7 @@ macro_rules! container_of {
         container
     }};
 }
+#[allow(unused_imports)]
 pub(crate) use container_of;
 
 #[allow(unused_macros)]
@@ -67,4 +68,5 @@ macro_rules! destructure {
         )
     }}
 }
+#[allow(unused_imports)]
 pub(crate) use destructure;

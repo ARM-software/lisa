@@ -140,19 +140,24 @@ def main():
     if (path := args.out_trace_events_header):
 
         class Field:
-            def __init__(self, name, logical_type, c_arg_type):
+            def __init__(self, name, logical_type, c_field_type, c_arg_type, c_arg_header):
                 self.name = name
                 self.logical_type = logical_type
                 self.c_arg_type = c_arg_type
+                self.c_arg_header = c_arg_header
+                self.c_field_type = c_field_type
 
             @property
             def tp_struct_entry(self):
                 typ = self.logical_type
                 # TODO: support arrays
-                if typ == 'string':
-                    return f'__string({self.name}, {self.name})'
+                if typ == 'c-string':
+                    return f'__string({self.name}, *({self.name}))'
+                elif typ == 'rust-string':
+                    # Add +1 for the null-terminator
+                    return f'__dynamic_array(char, {self.name}, {self.name}->len + 1)'
                 elif typ in ('u8', 's8', 'u16', 's16', 'u32', 's32', 'u64', 's64'):
-                    return f'__field({self.c_arg_type}, {self.name})'
+                    return f'__field({self.c_field_type}, {self.name})'
                 else:
                     raise ValueError(f'Unsupported logical type: {typ}')
 
@@ -164,10 +169,15 @@ def main():
             def tp_fast_assign(self):
                 typ = self.logical_type
                 # TODO: support arrays
-                if typ == 'string':
-                    return f'__lisa_assign_str({self.name}, {self.name});'
+                if typ == 'c-string':
+                    return f'__lisa_assign_str({self.name}, *({self.name}));'
+                elif typ == 'rust-string':
+                    return textwrap.dedent(f'''
+                    memcpy(__get_dynamic_array({self.name}), {self.name}->data, {self.name}->len * sizeof(char));
+                    ((char *)__get_dynamic_array({self.name}))[{self.name}->len] = 0;
+                    ''')
                 elif typ in ('u8', 's8', 'u16', 's16', 'u32', 's32', 'u64', 's64'):
-                    return f'{self.entry} = {self.name};'
+                    return f'{self.entry} = *({self.name});'
                 else:
                     raise ValueError(f'Unsupported logical type: {typ}')
 
@@ -183,7 +193,7 @@ def main():
                     return (f'{self.name}=%lld', [self.entry])
                 elif typ == 'u64':
                     return (f'{self.name}=%llu', [self.entry])
-                elif typ == 'string':
+                elif typ in ('rust-string', 'c-string'):
                     return (f'{self.name}=%s', [f'__get_str({self.name})'])
                 else:
                     raise ValueError(f'Unsupported logical type: {typ}')
@@ -195,6 +205,8 @@ def main():
                     name=field['name'],
                     logical_type=field['logical-type'],
                     c_arg_type=field['c-arg-type'],
+                    c_arg_header=field['c-arg-header'],
+                    c_field_type=field['c-field-type'],
                 )
                 for field in entry['fields']
             ]
@@ -217,6 +229,7 @@ def main():
                 field.tp_fast_assign
                 for field in fields
             )
+
             printk_fmts, printk_args = zip(*(
                 field.tp_printk
                 for field in fields
@@ -226,7 +239,15 @@ def main():
             printk_fmt = json.dumps(printk_fmt)
             printk_args = ', '.join(itertools.chain.from_iterable(printk_args))
 
+            headers = '\n'.join(
+                f'#include "{header}"'
+                for field in fields
+                if (header := field.c_arg_header)
+            )
+
             return textwrap.dedent(f'''
+            {headers}
+
             TRACE_EVENT({name},
                 TP_PROTO({proto}),
                 TP_ARGS({args}),

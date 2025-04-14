@@ -378,6 +378,7 @@ macro_rules! new_static_mutex {
             });
     };
 }
+#[allow(unused_imports)]
 pub(crate) use new_static_mutex;
 
 pub struct Mutex<T> {

@@ -3,7 +3,10 @@
 use alloc::{sync::Arc, vec::Vec};
 
 pub use crate::runtime::tracepoint::*;
-use crate::{features::define_feature, lifecycle::new_lifecycle};
+use crate::{
+    features::{FeaturesConfig, define_feature},
+    lifecycle::new_lifecycle,
+};
 
 #[derive(Debug)]
 pub struct TracepointService {
@@ -30,9 +33,12 @@ define_feature! {
     Config: (),
     dependencies: [],
     init: |configs| {
-        Ok(new_lifecycle!(|services| {
-            yield_!(Ok(Arc::new(TracepointService::new())));
-            Ok(())
-        }))
+        Ok((
+            FeaturesConfig::new(),
+            new_lifecycle!(|services| {
+                yield_!(Ok(Arc::new(TracepointService::new())));
+                Ok(())
+            })
+        ))
     },
 }
