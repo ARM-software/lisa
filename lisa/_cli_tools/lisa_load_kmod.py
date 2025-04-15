@@ -26,10 +26,27 @@ import textwrap
 import logging
 import tempfile
 import shlex
+import itertools
+import pathlib
 
 from lisa.target import Target
-from lisa._kmod import LISADynamicKmod
+from lisa._kmod import LISADynamicKmod, KmodSrc
 from lisa.utils import ignore_exceps
+
+
+def lisa_kmod(logger, target, args):
+    features = args.feature
+
+    kmod_params = {}
+    if features is not None:
+        kmod_params['features'] = list(features)
+
+    kmod = target.get_kmod(LISADynamicKmod)
+    pretty_events = ', '.join(kmod.defined_events)
+    logger.info(f'Kernel module provides the following ftrace events: {pretty_events}')
+
+    return kmod.run(kmod_params=kmod_params)
+
 
 def main():
     params = {
@@ -41,7 +58,6 @@ def main():
             nargs=argparse.REMAINDER,
             help='Load the module, run the given command then unload the module. If not command is provided, just load the module and exit.'
         )
-
     }
 
     args, target = Target.from_custom_cli(
@@ -66,39 +82,13 @@ def main():
 def _main(args, target):
     logger = logging.getLogger('lisa-load-kmod')
 
-    features = args.feature
     keep_loaded = not bool(args.cmd)
 
     cmd = args.cmd or []
     if cmd and cmd[0] == '--':
         cmd = cmd[1:]
 
-    kmod_params = {}
-    if features is not None:
-        kmod_params['features'] = list(features)
-
-    kmod = target.get_kmod(LISADynamicKmod)
-    pretty_events = ', '.join(kmod.defined_events)
-    logger.info(f'Kernel module provides the following ftrace events: {pretty_events}')
-
-    _kmod_cm = kmod.run(kmod_params=kmod_params)
-
-    if keep_loaded:
-        @contextlib.contextmanager
-        def cm():
-            logger.info('Loading kernel module ...')
-            yield _kmod_cm.__enter__()
-            logger.info(f'Loaded kernel module as "{kmod.mod_name}"')
-    else:
-        @contextlib.contextmanager
-        def cm():
-            with _kmod_cm:
-                logger.info('Loading kernel module ...')
-                try:
-                    yield
-                finally:
-                    logger.info('Unloading kernel module')
-    kmod_cm = cm()
+    kmod_cm = lisa_kmod(logger, target, args)
 
     def run_cmd():
         if cmd:
@@ -108,10 +98,27 @@ def _main(args, target):
         else:
             return 0
 
-    with kmod_cm:
+    if keep_loaded:
+        @contextlib.contextmanager
+        def cm():
+            logger.info('Loading kernel module ...')
+            yield kmod_cm.__enter__()
+            logger.info(f'Loaded kernel module as "{kmod.mod_name}"')
+    else:
+        @contextlib.contextmanager
+        def cm():
+            with kmod_cm:
+                logger.info('Loading kernel module ...')
+                try:
+                    yield
+                finally:
+                    logger.info('Unloading kernel module')
+
+    with cm():
         ret = run_cmd()
 
     return ret
+
 
 
 if __name__ == '__main__':
