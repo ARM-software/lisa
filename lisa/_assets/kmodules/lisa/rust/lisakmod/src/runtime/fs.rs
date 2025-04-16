@@ -42,7 +42,7 @@ pub struct File {
 }
 
 impl File {
-    pub fn open(path: &str, flags: OpenFlags, _mode: u32) -> Result<File, Error> {
+    pub fn open(path: &str, flags: OpenFlags, mode: u32) -> Result<File, Error> {
         // kernel_file_open() would be more appropriate for in-kernel use, as filp_open() opens in
         // the context of the current userspace thread. It's somewhat ok since we only open files
         // during module init, and this runs as root anyway.
@@ -63,7 +63,7 @@ impl File {
         }
         let path: CString = CString::new(path)
             .map_err(|err| error!("Could not convert path {path} to CString: {err}"))?;
-        let c_file = filp_open(path.as_c_str(), flags.into(), 0)
+        let c_file = filp_open(path.as_c_str(), flags.into(), mode)
             .map_err(|err| error!("Could not open file at {path:?}: {err}"))?;
         Ok(File {
             c_file,

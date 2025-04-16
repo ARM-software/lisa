@@ -129,7 +129,7 @@ impl Device {
 struct DeviceConfig {
     id: DeviceId,
     folder: String,
-    hardware_sampling_rate_us: u64,
+    hardware_sampling_rate_hz: u64,
 }
 
 struct Pixel6EmeterConfig {
@@ -157,18 +157,19 @@ define_feature! {
                     .expect("Could not get service for WqFeature")
                     .wq();
 
-                let hardware_sampling_rate_us = 500;
+                // 250 Hz works for pixel 6, 7, 8 and 9 so we just use that.
+                let hardware_sampling_rate_hz = 250;
                 let config = Pixel6EmeterConfig {
                     devices: vec![
                         DeviceConfig {
                            id: 0,
                            folder: "/sys/bus/iio/devices/iio:device0/".into(),
-                           hardware_sampling_rate_us,
+                           hardware_sampling_rate_hz,
                         },
                         DeviceConfig {
                            id: 1,
                            folder: "/sys/bus/iio/devices/iio:device1/".into(),
-                           hardware_sampling_rate_us,
+                           hardware_sampling_rate_hz,
                         },
                     ]
                 };
@@ -187,7 +188,13 @@ define_feature! {
 
                     // Note that this is the hardware sampling rate. Software will only see an
                     // updated value every 8 hardware periods
-                    writeln!(rate_file, "{}", device_config.hardware_sampling_rate_us).map_err(|err| error!("Could not write to sampling_rate file: {err}"))?;
+                    let sampling_rate = device_config.hardware_sampling_rate_hz;
+                    let content = format!("{sampling_rate}\n");
+                    // Ensure we have a _single_ kernel_write() call. Otherwise, sysfs will be
+                    // confused by the partial write.
+                    rate_file.write(content.as_bytes())
+                        .map_err(|err| error!("Could not write \"{sampling_rate}\" to sampling_rate file: {err}"))?;
+                    rate_file.flush();
 
                     let device = Device {
                         value_file,
@@ -208,10 +215,11 @@ define_feature! {
                     }
                 }?;
 
+                let hardware_sampling_period_us = 1_000_000 / hardware_sampling_rate_hz;
                 // There is no point in setting this value to less than 8 times what is written in
                 // usec to the sampling_rate file, as the hardware will only expose a new value
                 // every 8 hardware periods.
-                let software_sampling_rate_us = hardware_sampling_rate_us / 8;
+                let software_sampling_rate_us = hardware_sampling_period_us * 8;
 
                 let work_item = wq::new_work_item!(wq, move |work| {
                     let process_device = |device: &mut Device| -> Result<(), Error> {
