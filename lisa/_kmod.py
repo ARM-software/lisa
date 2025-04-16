@@ -864,7 +864,7 @@ def _overlay_folders(lowers, backend, upper=None, copy_filter=None):
                 )
 
         @destroyablecontextmanager
-        def do_mount(dirs):
+        def do_mount_overlayfs(dirs):
             dirs['lower'] = ':'.join(map(str, reversed(list(lowers))))
             cmd = [
                 'mount',
@@ -893,6 +893,30 @@ def _overlay_folders(lowers, backend, upper=None, copy_filter=None):
                 # supported).
                 _subprocess_log(
                     ['umount', '-nl', '--', mount_point],
+                    logger=logger,
+                    level=logging.DEBUG
+                )
+
+        @destroyablecontextmanager
+        def do_mount_fuse_overlayfs(dirs):
+            dirs['lower'] = ':'.join(map(str, reversed(list(lowers))))
+            cmd = [
+                'fuse-overlayfs',
+                '-o', 'lowerdir={lower},workdir={work},upperdir={upper}'.format(**dirs),
+                mount_point,
+            ]
+            _subprocess_log(cmd, logger=logger, level=logging.DEBUG)
+
+            try:
+                yield mount_point
+            except ContextManagerExit:
+                # Use lazy unmount, so it will not fail if it still in use for
+                # some reason. That said, all supporting folders are going to
+                # be removed so an external user working outside of the "with"
+                # statement will have issues, which is expected (and not
+                # supported).
+                _subprocess_log(
+                    ['fusermount', '-u', mount_point],
                     logger=logger,
                     level=logging.DEBUG
                 )
@@ -975,7 +999,9 @@ def _overlay_folders(lowers, backend, upper=None, copy_filter=None):
                     shutil.move(src=mount_point, dst=upper)
 
         if backend == 'overlayfs':
-            action = do_mount
+            action = do_mount_overlayfs
+        elif backend == 'fuse-overlayfs':
+            action = do_mount_fuse_overlayfs
         elif backend == 'copy':
             action = do_copy
         else:
@@ -1162,7 +1188,7 @@ class _KernelBuildEnvConf(SimpleMultiSrcConf):
                 )),
             )),
 
-            KeyDesc('overlay-backend', 'Backend to use for overlaying folders while building modules. Can be "overlayfs" (overlayfs filesystem, recommended and fastest) or "copy (plain folder copy)', [str]),
+            KeyDesc('overlay-backend', 'Backend to use for overlaying folders while building modules. Can be "overlayfs" (overlayfs filesystem, recommended and fastest), "fuse-overlayfs" (suitable for environments where user namespaces are disabled), "copy (plain folder copy)', [str]),
             KeyDesc('make-variables', 'Extra variables to pass to "make" command, such as "CC"', [typing.Dict[str, object]]),
 
             VariadicLevelKeyDesc('modules', 'modules settings',
@@ -3029,7 +3055,13 @@ class DynamicKmod(Loggable):
         make_vars = dict(make_vars)
 
         if self._compile_needs_root:
-            compile_ = ensure_root(self._do_compile_subprocess.__func__, inline=True)
+            def compile_(*args, **kwargs):
+                try:
+                    return ensure_root(self._do_compile_subprocess.__func__, inline=True)(*args, **kwargs)
+                except Exception as e:
+                    if self.kernel_build_env.conf['overlay-backend'] == 'overlayfs':
+                        self.logger.error('If user namespace could not be setup, you may want to try "overlay-backend: fuse-overlayfs"')
+                    raise e
         else:
             compile_ = self._do_compile.__func__
 

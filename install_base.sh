@@ -252,7 +252,13 @@ for arg in "${args[@]}"; do
         handled=1
         ;;&
 
-    "--install-toolchains" | "--install-all")
+    "--install-build-env" | "--install-all")
+        apt_packages+=(fuse-overlayfs)
+        pacman_packages+=(fuse-overlayfs)
+        handled=1
+        ;;&
+
+    "--install-toolchains" | "--install-build-env" | "--install-all")
         apt_packages+=(build-essential gcc-arm-linux-gnueabi gcc-aarch64-linux-gnu)
         # arm-linux-gnueabihf-gcc can be installed from the AUR
         pacman_packages+=(base-devel aarch64-linux-gnu-gcc flex)
@@ -265,7 +271,7 @@ for arg in "${args[@]}"; do
         handled=1
         ;;&
 
-    "--install-kernel-build-dependencies" | "--install-all")
+    "--install-kernel-build-dependencies" | "--install-build-env" | "--install-all")
         apt_packages+=(build-essential gcc bc bison flex libssl-dev libncurses5-dev libelf-dev)
 
         if test_os_release NAME "Ubuntu"; then
