@@ -2179,7 +2179,7 @@ def get_short_doc(obj, strip_rst=False, style=None):
         r'^\s*:\s*meta.*$\n?',
         '',
         docstring,
-        re.MULTILINE,
+        flags=re.MULTILINE,
     )
 
     if strip_rst:
