@@ -1,4 +1,4 @@
-#    Copyright 2014-2018 ARM Limited
+#    Copyright 2014-2025 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,10 +14,10 @@
 #
 from collections import defaultdict
 from http.server import SimpleHTTPRequestHandler, HTTPServer
-import logging
+from urllib.parse import urlencode
+import lzma
 import os
 import re
-import subprocess
 import tarfile
 import tempfile
 import threading
@@ -36,7 +36,7 @@ class Speedometer(Workload):
 
     name = "speedometer"
     description = """
-    A workload to execute the speedometer 2.0 web based benchmark. Requires device to be rooted.
+    A workload to execute the speedometer web based benchmark. Requires device to be rooted.
     This workload will only with Android 9+ devices if connected via TCP, or Android 5+ if
     connected via USB.
 
@@ -54,14 +54,15 @@ class Speedometer(Workload):
 
     1. Run 'git clone https://github.com/WebKit/webkit'
 
-    2. Copy PerformanceTests/Speedometer to a directory called document_root, renaming Speedometer to Speedometer2.0
+    2. Copy PerformanceTests/Speedometer to a directory called document_root, renaming Speedometer
+      to Speedometer<version>. For example, Speedometer2.0.
 
-    3. Modify document_root/Speedometer2.0/index.html:
+    3. Modify document_root/Speedometer<version>/index.html:
 
-      3a. Remove the 'defer' attribute from the <script> tags within the <head> section.
+      3a. (Skip for v3.0) Remove the 'defer' attribute from the <script> tags within the <head> section.
       3b. Add '<script>startTest();</script>' to the very end of the <body> section.
 
-    4. Modify document_root/Speedometer2.0/resources/main.js:
+    4. Modify document_root/Speedometer<version>/resources/main.js (it's main.mjs for 3.0):
 
       4a. Add the listed code after this line:
 
@@ -81,7 +82,7 @@ class Speedometer(Workload):
                     }
                 }
 
-    5. Run 'tar -cpzf speedometer_archive.tgz document_root'
+    5. Run 'tar -cpzf speedometer_archive-<version>.tar document_root; xz --format=lzma -9 -e speedometer_archive-<version>.tar'
 
     6. Copy the tarball into the workloads/speedometer directory
 
@@ -120,6 +121,15 @@ class Speedometer(Workload):
                   The app package for the browser that will be launched.
                   """,
         ),
+        Parameter(
+            "version",
+            allowed_values=["2.0", "3.0"],
+            kind=str,
+            default="2.0",
+            description="""
+                  Speedometer version to run. Currently supports 2.0 and 3.0.
+                  """,
+        ),
     ]
 
     def __init__(self, target, **kwargs):
@@ -154,13 +164,16 @@ class Speedometer(Workload):
         Speedometer.document_root = os.path.join(self.temp_dir.name, "document_root")
 
         # Host a copy of Speedometer locally
-        tarball = context.get_resource(File(self, "speedometer_archive.tgz"))
-        with tarfile.open(name=tarball) as handle:
-            safe_extract(handle, self.temp_dir.name)
+        tarball = context.get_resource(File(self, f"speedometer_archive-{self.version}.tar.lzma"))
+        with lzma.open(tarball) as lzma_handle:
+            with tarfile.open(fileobj=lzma_handle) as handle:
+                safe_extract(handle, self.temp_dir.name)
+
         self.archive_server.start(self.document_root)
 
-        Speedometer.speedometer_url = "http://localhost:{}/Speedometer2.0/index.html".format(
-            self.archive_server.get_port()
+        Speedometer.speedometer_url = "http://localhost:{}/Speedometer{}/index.html".format(
+            self.archive_server.get_port(),
+            self.version,
         )
 
     def setup(self, context):
@@ -240,10 +253,14 @@ class Speedometer(Workload):
         # Generate a UUID to search for in the browser's local storage to find out
         # when the workload has ended.
         report_end_id = uuid.uuid4().hex
-        url_with_unique_id = "{}?reportEndId={}".format(
-            self.speedometer_url, report_end_id
-        )
 
+        query_params = {"reportEndId": report_end_id}
+        # Speedometer 3.0 does not start the test automatically, so we need to
+        # pass the "startAutomatically=true" parameter.
+        if self.version == "3.0":
+            query_params["startAutomatically"] = "true"
+
+        url_with_unique_id = f"{self.speedometer_url}?{urlencode(query_params)}"
         browser_launch_cmd = "am start -a android.intent.action.VIEW -d '{}' {}".format(
             url_with_unique_id, self.chrome_package
         )
@@ -275,6 +292,7 @@ class Speedometer(Workload):
         benchmark_complete = False
         while not benchmark_complete:
             if self.target_file_was_created(local_storage):
+                candidate_files = []
                 if (
                     iterations % (find_period_s // sleep_period_s) == 0
                     or not local_storage_seen
@@ -308,12 +326,12 @@ class Speedometer(Workload):
             iterations += 1
 
             if iterations > ((timeout_period_m * 60) // sleep_period_s):
-                # We've been waiting 15 minutes for Speedometer to finish running - give up.
+                # We've been waiting <timeout_period_m> minutes for Speedometer to finish running - give up.
                 if not local_storage_seen:
                     raise WorkloadError(
-                        "Speedometer did not complete within 15m - Local Storage wasn't found"
+                        f"Speedometer did not complete within {timeout_period_m} minutes - Local Storage wasn't found"
                     )
-                raise WorkloadError("Speedometer did not complete within 15 minutes.")
+                raise WorkloadError(f"Speedometer did not complete within {timeout_period_m} minutes.")
 
             time.sleep(sleep_period_s)
 
