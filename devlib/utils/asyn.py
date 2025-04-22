@@ -123,6 +123,10 @@ class AsyncManager:
         except BaseException:
             for task in tasks:
                 task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
             raise
         finally:
 
