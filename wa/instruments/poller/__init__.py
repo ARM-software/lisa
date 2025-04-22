@@ -59,6 +59,12 @@ class FilePoller(Instrument):
                   Whether or not the poller will be run as root. This should be
                   used when the file you need to poll can only be accessed by root.
                   """),
+        Parameter('reopen', kind=bool, default=False,
+                  description="""
+                  When enabled files will be re-opened with each read. This is
+                  useful for some sysfs/debugfs entries that only generate a
+                  value when opened.
+                  """),
     ]
 
     def validate(self):
@@ -91,13 +97,17 @@ class FilePoller(Instrument):
         if self.align_with_ftrace:
             marker_option = '-m'
             signal.connect(self._adjust_timestamps, signal.AFTER_JOB_OUTPUT_PROCESSED)
-        self.command = '{} -t {} {} -l {} {} > {} 2>{}'.format(target_poller,
-                                                               self.sample_interval * 1000,
-                                                               marker_option,
-                                                               ','.join(self.labels),
-                                                               ' '.join(self.files),
-                                                               self.target_output_path,
-                                                               self.target_log_path)
+        reopen_option = ''
+        if self.reopen:
+            reopen_option = '-r'
+        self.command = '{} {} -t {} {} -l {} {} > {} 2>{}'.format(target_poller,
+                                                                  reopen_option,
+                                                                  self.sample_interval * 1000,
+                                                                  marker_option,
+                                                                  ','.join(self.labels),
+                                                                  ' '.join(self.files),
+                                                                  self.target_output_path,
+                                                                  self.target_log_path)
 
     def start(self, context):
         self.target.kick_off(self.command, as_root=self.as_root)
