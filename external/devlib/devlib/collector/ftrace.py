@@ -201,6 +201,19 @@ class FtraceCollector(CollectorBase):
         self._selected_events = selected_events
 
     @property
+    def _buffer_size(self):
+        top = self.top_buffer_size
+        nontop = self.buffer_size
+        if top is None and nontop is None:
+            return None
+        elif top is None:
+            return nontop
+        elif nontop is None:
+            return top
+        else:
+            return max(top, nontop)
+
+    @property
     def event_string(self):
         return _build_trace_events(self._selected_events)
 
@@ -254,19 +267,25 @@ class FtraceCollector(CollectorBase):
         except TargetStableError:
             kprobe_events = None
 
-        self.target.execute('{} reset -B devlib'.format(self.target_binary),
+        self.target.execute('{} reset'.format(self.target_binary),
                             as_root=True, timeout=TIMEOUT)
+
+
+        # This code is currently not necessary as we are not using alternate
+        # instances (not using -B parameter). If we end up using it again, it
+        # may very well be that trace-cmd at that point takes care of that
+        # problem itself somehow, so this should be re-evaluated.
 
         # trace-cmd start will not set the top-level buffer size if passed -B
         # parameter, but unfortunately some events still end up there (e.g.
         # print event). So we still need to set that size, otherwise the buffer
         # might be too small and some event lost.
-        top_buffer_size = self.top_buffer_size if self.top_buffer_size else self.buffer_size
-        if top_buffer_size:
-            self.target.write_value(
-                self.target.path.join(self.tracing_path, 'buffer_size_kb'),
-                top_buffer_size, verify=False
-            )
+        #  top_buffer_size = self.top_buffer_size or self.buffer_size
+        #  if top_buffer_size:
+            #  self.target.write_value(
+                #  self.target.path.join(self.tracing_path, 'buffer_size_kb'),
+                #  top_buffer_size, verify=False
+            #  )
 
         if self.functions:
             self.target.write_value(self.function_profile_file, 0, verify=False)
@@ -315,11 +334,11 @@ class FtraceCollector(CollectorBase):
         with contextlib.suppress(TargetStableError):
             self.target.write_value('/proc/sys/kernel/kptr_restrict', 0)
 
-        params = '-B devlib {buffer_size} {cmdlines_size} {clock} {events} {tracer} {functions}'.format(
+        params = '{buffer_size} {cmdlines_size} {clock} {events} {tracer} {functions}'.format(
             events=self.event_string,
             tracer=tracer_string,
             functions=tracecmd_functions,
-            buffer_size='-b {}'.format(self.buffer_size) if self.buffer_size is not None else '',
+            buffer_size='-b {}'.format(self._buffer_size) if self._buffer_size is not None else '',
             clock='-C {}'.format(self.trace_clock) if self.trace_clock else '',
             cmdlines_size='--cmdlines-size {}'.format(self.saved_cmdlines_nr) if self.saved_cmdlines_nr is not None else '',
         )
@@ -381,7 +400,7 @@ class FtraceCollector(CollectorBase):
             bg_cmd.communicate()
             bg_cmd.__exit__(None, None, None)
         elif mode == 'write-to-memory':
-            self.target.execute('{} stop -B devlib'.format(self.target_binary),
+            self.target.execute('{} stop'.format(self.target_binary),
                                 timeout=TIMEOUT, as_root=True)
         else:
             raise ValueError(f'Unknown mode {mode}')
@@ -404,7 +423,7 @@ class FtraceCollector(CollectorBase):
             # Interrupting trace-cmd record will make it create the file
             pass
         elif mode == 'write-to-memory':
-            cmd = f'{self.target_binary} extract -B devlib -o {self.target_output_file} && {busybox} chmod 666 {self.target_output_file}'
+            cmd = f'{self.target_binary} extract -o {self.target_output_file} && {busybox} chmod 666 {self.target_output_file}'
             self.target.execute(cmd, timeout=TIMEOUT, as_root=True)
         else:
             raise ValueError(f'Unknown mode {mode}')
