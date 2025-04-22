@@ -23,7 +23,7 @@ from contextlib import contextmanager
 
 from pytest import skip, raises
 
-from devlib.utils.asyn import run, asynccontextmanager
+from devlib.utils.asyn import run, asynccontextmanager, AsyncManager
 
 
 class AsynTestExcep(Exception):
@@ -516,6 +516,53 @@ def _do_test_run(top_run):
         assert top_run(anext(agen)) == 1
 
     test_async_gen1()
+
+    def test_async_map_concurrently():
+        async def agen_f():
+            manager = AsyncManager()
+
+            async def f1():
+                return 1
+
+            async def f2():
+                return 2
+
+            return await manager.concurrently([f1(), f2()])
+
+        agen = agen_f()
+        assert top_run(agen) == [1, 2]
+
+    test_async_map_concurrently()
+
+    def test_async_map_concurrently_cancel():
+        class MyException(Exception):
+            pass
+
+        async def agen_f():
+            manager = AsyncManager()
+            cancelled1 = False
+
+            async def f1():
+                nonlocal cancelled1
+
+                try:
+                    # Await on a future that will never be available. We should
+                    # get canceled at some point, so it does not matter.
+                    await asyncio.Future()
+                except asyncio.CancelledError:
+                    cancelled1 = True
+
+            async def f2():
+                raise MyException('from f2')
+
+            with raises(MyException):
+                await manager.concurrently([f1(), f2()])
+
+            assert cancelled1
+
+        top_run(agen_f())
+
+    test_async_map_concurrently_cancel()
 
 
 def _test_in_thread(setup, test):

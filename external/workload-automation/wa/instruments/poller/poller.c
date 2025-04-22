@@ -77,9 +77,10 @@ int main(int argc, char ** argv) {
     char *labels;
     int labelCount = 0;
     int should_write_marker = 0;
+    int reopen_files = 0;
     int ret;
 
-    static char usage[] = "usage: %s [-h] [-m] [-t INTERVAL] FILE [FILE ...]\n"
+    static char usage[] = "usage: %s [-h] [-m] [-r] [-t INTERVAL] FILE [FILE ...]\n"
                           "polls FILE(s) every INTERVAL microseconds and outputs\n"
                           "the results in CSV format including a timestamp to STDOUT\n"
                           "\n"
@@ -87,6 +88,7 @@ int main(int argc, char ** argv) {
                           "    -m     Insert a marker into ftrace at the time of the first\n"
                           "           sample. This marker may be used to align the timestamps\n"
                           "           produced by the poller with those of ftrace events.\n"
+                          "    -r     Reopen files on each read (needed for some sysfs/debugfs files)\n"
                           "    -t     The polling sample interval in microseconds\n"
                           "           Defaults to 1000000 (1 second)\n"
                           "    -l     Comma separated list of labels to use in the CSV\n"
@@ -94,7 +96,7 @@ int main(int argc, char ** argv) {
 
 
     //Handling command line arguments
-    while ((c = getopt(argc, argv, "hmt:l:")) != -1)
+    while ((c = getopt(argc, argv, "hmrt:l:")) != -1)
     {
         switch(c) {
             case 'h':
@@ -104,7 +106,10 @@ int main(int argc, char ** argv) {
                 break;
             case 'm':
                 should_write_marker = 1;
-		break;
+                break;
+            case 'r':
+                reopen_files = 1;
+                break;
             case 't':
                 interval = (useconds_t)atoi(optarg);
                 break;
@@ -184,7 +189,20 @@ int main(int argc, char ** argv) {
         time_float += ((double)current_time.tv_nsec)/1000/1000/1000;
         printf("%f", time_float);
         for (i = 0; i < num_files; i++) {
-            lseek(files_to_poll[i].fd, 0, SEEK_SET);
+            if (reopen_files) {
+                // Close and reopen the file to get fresh data
+                close(files_to_poll[i].fd);
+                files_to_poll[i].fd = open(files_to_poll[i].path, O_RDONLY);
+                if (files_to_poll[i].fd == -1) {
+                    fprintf(stderr, "WARNING: Could not reopen \"%s\", got: %s\n",
+                            files_to_poll[i].path, strerror(errno));
+                    printf(",");
+                    continue;
+                }
+            } else {
+                lseek(files_to_poll[i].fd, 0, SEEK_SET);
+            }
+
             bytes_read = read(files_to_poll[i].fd, buf, 1024);
 
             if (bytes_read < 0) {

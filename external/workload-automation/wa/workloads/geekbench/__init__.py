@@ -1,4 +1,4 @@
-#    Copyright 2013-2018 ARM Limited
+#    Copyright 2013-2025 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,10 +20,11 @@ import tempfile
 import json
 from collections import defaultdict
 
-from wa import ApkUiautoWorkload, Parameter
+from wa import Workload, ApkUiautoWorkload, Parameter
 from wa.framework.exception import ConfigError, WorkloadError
 from wa.utils.misc import capitalize
-from wa.utils.types import version_tuple
+from wa.utils.types import version_tuple, list_or_integer
+from wa.utils.exec_control import once
 
 
 class Geekbench(ApkUiautoWorkload):
@@ -370,3 +371,233 @@ class GeekbenchCorproate(Geekbench):  # pylint: disable=too-many-ancestors
 
 def namemify(basename, i):
     return basename + (' {}'.format(i) if i else '')
+
+
+class GeekbenchCmdline(Workload):
+
+    name = "geekbench_cli"
+    description = "Workload for running command line version Geekbench"
+
+    gb6_workloads = {
+        # Single-Core and Multi-Core
+        101: 'File Compression',
+        102: 'Navigation',
+        103: 'HTML5 Browser',
+        104: 'PDF Renderer',
+        105: 'Photo Library',
+        201: 'Clang',
+        202: 'Text Processing',
+        203: 'Asset Compression',
+        301: 'Object Detection',
+        402: 'Object Remover',
+        403: 'HDR',
+        404: 'Photo Filter',
+        501: 'Ray Tracer',
+        502: 'Structure from Motion',
+        # OpenCL and Vulkan
+        303: 'Face Detection',
+        406: 'Edge Detection',
+        407: 'Gaussian Blur',
+        503: 'Feature Matching',
+        504: 'Stereo Matching',
+        601: 'Particle Physics',
+        # Single-Core, Multi-Core, OpenCL, and Vulkan
+        302: 'Background Blur',
+        401: 'Horizon Detection',
+    }
+
+    gb5_workloads = {
+        # Single-Core and Multi-Core
+        101: 'AES-XTS',
+        201: 'Text Compression',
+        202: 'Image Compression',
+        203: 'Navigation',
+        204: 'HTML5',
+        205: 'SQLite',
+        206: 'PDF Rendering',
+        207: 'Text Rendering',
+        208: 'Clang',
+        209: 'Camera',
+        301: 'N-Body Physics',
+        302: 'Rigid Body Physics',
+        307: 'Image Inpainting',
+        308: 'HDR',
+        309: 'Ray Tracing',
+        310: 'Structure from Motion',
+        312: 'Speech Recognition',
+        313: 'Machine Learning',
+        # OpenCL and Vulkan
+        220: 'Sobel',
+        221: 'Canny',
+        222: 'Stereo Matching',
+        230: 'Histogram Equalization',
+        304: 'Depth of Field',
+        311: 'Feature Matching',
+        320: 'Particle Physics',
+        321: 'SFFT',
+        # Single-Core, Multi-Core, OpenCL, and Vulkan
+        303: 'Gaussian Blur',
+        305: 'Face Detection',
+        306: 'Horizon Detection',
+    }
+
+    binary_name = 'geekbench_aarch64'
+
+    allowed_extensions = ['json', 'csv', 'xml', 'html', 'text']
+
+    parameters = [
+        Parameter('cpumask', kind=str, default='',
+                  description='CPU mask used by taskset.'),
+        Parameter('section', kind=int, default=1, allowed_values=[1, 4, 9],
+                  description="""Run the specified sections. It should be 1 for CPU benchmarks,
+                  4 for OpenCL benchmarks and 9 for Vulkan benchmarks."""),
+        Parameter('upload', kind=bool, default=False,
+                  description='Upload results to Geekbench Browser'),
+        Parameter('is_single_core', kind=bool, default=True,
+                  description='Run workload in single-core or multi-core mode.'),
+        Parameter('workload', kind=list_or_integer, default=301,
+                  description='Specify workload to run'),
+        Parameter('iterations', kind=int, default=5,
+                  description='Number of iterations'),
+        Parameter('workload_gap', kind=int, default=2000,
+                  description='N milliseconds gap between workloads'),
+        Parameter('output_file', kind=str, default='gb_cli.json',
+                  description=f"""Specify the name of the output results file.
+                  If it is not specified, the output file will be generated as a JSON file.
+                  It can be {', '.join(allowed_extensions)} files."""),
+        Parameter('timeout', kind=int, default=2000,
+                  description='The test timeout in ms. It should be long for 1000 iterations.'),
+        Parameter('version', kind=str, default='6.3.0',
+                  description='Specifies which version of the Geekbench should run.'),
+    ]
+
+    def __init__(self, target, **kwargs):
+        super(GeekbenchCmdline, self).__init__(target, **kwargs)
+        self.target_result_json = None
+        self.host_result_json = None
+        self.workloads = self.gb6_workloads
+        self.params = ''
+        self.output = ''
+        self.target_exec_directory = ''
+        self.tar_file_src = ''
+        self.tar_file_dst = ''
+        self.file_exists = False
+
+    def init_resources(self, context):
+        """
+        Retrieves necessary files to run the benchmark in TAR format.
+        WA will look for `gb_cli_artifacts_<version>.tar` file to deploy them to the
+        working directory. If there is no specified version, it will look for version
+        6.3.0 by default.
+        """
+        self.deployable_assets = [''.join(['gb_cli_artifacts', '_', self.version, '.tar'])]
+
+        # Create an executables directory
+        self.target_exec_directory = self.target.path.join(self.target.executables_directory, f'gb_cli-{self.version}')
+        self.target.execute("mkdir -p {}".format(self.target_exec_directory))
+
+        # Source and Destination paths for the artifacts tar file
+        self.tar_file_src = self.target.path.join(self.target.working_directory, self.deployable_assets[0])
+        self.tar_file_dst = self.target.path.join(self.target_exec_directory, self.deployable_assets[0])
+        # Check the tar file if it already exists
+        if self.target.file_exists(self.tar_file_dst):
+            self.file_exists = True
+        else:
+            # Get the assets file
+            super(GeekbenchCmdline, self).init_resources(context)
+
+    @once
+    def initialize(self, context):
+        if self.version[0] == '5':
+            self.workloads = self.gb5_workloads
+        # If the tar file does not exist in the target, deploy the assets
+        if not self.file_exists:
+            super(GeekbenchCmdline, self).initialize(context)
+            # Move the tar file to the executables directory
+            self.target.execute(
+                '{} mv {} {}'.format(
+                    self.target.busybox, self.tar_file_src, self.tar_file_dst))
+            # Extract the tar file
+            self.target.execute(
+                '{} tar -xf {} -C {}'.format(
+                    self.target.busybox, self.tar_file_dst, self.target_exec_directory))
+
+    def setup(self, context):
+        super(GeekbenchCmdline, self).setup(context)
+
+        self.params = ''
+
+        self.params += '--section {} '.format(self.section)
+        if self.section == 1:
+            self.params += '--single-core ' if self.is_single_core else '--multi-core '
+
+        self.params += '--upload ' if self.upload else '--no-upload '
+
+        known_workloads = '\n'.join("{}: {}".format(k, v) for k, v in self.workloads.items())
+        if any([t not in self.workloads.keys() for t in self.workload]):
+            msg = 'Unknown workload(s) specified. Known workloads: {}'
+            raise ValueError(msg.format(known_workloads))
+
+        self.params += '--workload {} '.format(''.join("{},".format(i) for i in self.workload))
+
+        if self.iterations:
+            self.params += '--iterations {} '.format(self.iterations)
+
+        if self.workload_gap:
+            self.params += '--workload-gap {} '.format(self.workload_gap)
+
+        extension = os.path.splitext(self.output_file)[1][1:]
+        if self.output_file and extension not in self.allowed_extensions:
+            msg = f"No allowed extension specified. Allowed extensions: {', '.join(self.allowed_extensions)}"
+            raise ValueError(msg)
+        elif self.output_file:
+            # Output results file with the given name and extension
+            self.target_result_json = os.path.join(self.target_exec_directory, self.output_file)
+            self.params += '--export-{} {}'.format(extension, self.target_result_json)
+            self.host_result_json = os.path.join(context.output_directory, self.output_file)
+        else:
+            # The output file is not specified
+            self.target_result_json = os.path.join(self.target_exec_directory, self.output_file)
+            self.params += '--save {}'.format(self.target_result_json)
+            self.host_result_json = os.path.join(context.output_directory, self.output_file)
+
+    def run(self, context):
+        super(GeekbenchCmdline, self).run(context)
+        taskset = f"taskset {self.cpumask}" if self.cpumask else ""
+        binary = self.target.path.join(self.target_exec_directory, self.binary_name)
+        cmd = '{} {} {}'.format(taskset, binary, self.params)
+
+        try:
+            self.output = self.target.execute(cmd, timeout=self.timeout, as_root=True)
+        except KeyboardInterrupt:
+            self.target.killall(self.binary_name)
+            raise
+
+    def update_output(self, context):
+        super(GeekbenchCmdline, self).update_output(context)
+        if not self.output:
+            return
+        for workload in self.workload:
+            scores = []
+            matches = re.findall(self.workloads[workload] + '(.+\d)', self.output)
+            for match in matches:
+                scores.append(int(re.search(r'\d+', match).group(0)))
+            if self.section == 4:
+                context.add_metric("OpenCL Score " + self.workloads[workload], scores[0])
+            elif self.section == 9:
+                context.add_metric("Vulkan Score " + self.workloads[workload], scores[0])
+            else:
+                context.add_metric("Single-Core Score " + self.workloads[workload], scores[0])
+                if not self.is_single_core:
+                    context.add_metric("Multi-Core Score " + self.workloads[workload], scores[1])
+
+    def extract_results(self, context):
+        # Extract results on the target
+        super(GeekbenchCmdline, self).extract_results(context)
+        self.target.pull(self.target_result_json, self.host_result_json)
+        context.add_artifact('GeekbenchCmdline_results', self.host_result_json, kind='raw')
+
+    @once
+    def finalize(self, context):
+        if self.cleanup_assets:
+            self.target.remove(self.target_exec_directory)
