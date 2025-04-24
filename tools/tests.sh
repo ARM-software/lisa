@@ -38,10 +38,16 @@ exekall run "$LISA_HOME/tools/exekall/src/exekall/_tests"
 echo "Starting documentation pedantic build ..."
 lisa-doc-build
 
+MANPAGE_PYTHON_VERSION="3.11"
+
 echo "Checking that the man pages are up to date ..."
-if ! git diff --exit-code doc/man1/; then
-    echo "Please regenerate man pages in doc/man1 and commit them"
-    exit 1
+if python3 --version | grep -F "$MANPAGE_PYTHON_VERSION" ; then
+    if ! git diff --exit-code doc/man1/; then
+        echo "Please regenerate man pages in doc/man1 and commit them"
+        exit 1
+    fi
+else
+    echo "Skipped man page check as it only runs for $MANPAGE_PYTHON_VERSION"
 fi
 
 # FIXME: cbindgen does not work on our source anymore due to that issue:
