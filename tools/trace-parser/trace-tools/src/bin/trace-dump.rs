@@ -164,11 +164,7 @@ fn _main() -> Result<(), Box<dyn Error>> {
 
     if let Some(path) = &cli.errors_json {
         let errors = match &res {
-            Err(err) => err
-                .errors()
-                .into_iter()
-                .map(|err| err.to_string())
-                .collect(),
+            Err(err) => err.errors().map(|err| err.to_string()).collect(),
             Ok(_) => Vec::new(),
         };
         let mut file = File::create(path)?;

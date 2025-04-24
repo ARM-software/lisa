@@ -5701,12 +5701,17 @@ class _Trace(Loggable, _InternalTraceBase):
             elif key == 'symbols-address':
                 # Unzip the dict into a list of keys and list of values, since
                 # that will be cheaper to deserialize and serialize to JSON
-                value = tuple(unzip_into(
+                addrs, names = tuple(unzip_into(
                     2,
                     # Turn to a list to allow JSON caching, since JSON cannot
                     # have non-string keys
                     dict(value).items()
                 ))
+                names = [
+                    [name] if isinstance(name, str) else name
+                    for name in names
+                ]
+                value = (addrs, names)
 
             return value
 
@@ -5768,6 +5773,33 @@ class _Trace(Loggable, _InternalTraceBase):
                     })
                     # Note that this will not take into account meta-events.
                     self._source_events_known = True
+
+            elif key == 'symbols-address':
+                # The parsers can provide a list of names for each address, but
+                # our API only exposes a single name, so we pick the best one
+                def pick(names):
+                    # If we can, we choose from the names that are valid
+                    # identifiers. This will weed-out strange symbols like arm
+                    # mapping symbols and the likes.
+                    best_names = sorted(
+                        (
+                            name
+                            for name in names
+                            if name.isidentifier()
+                        ),
+                        key=len,
+                    )
+                    if best_names:
+                        # Return the longest name, as it's less likely to be a
+                        # less descriptive section name or something like that.
+                        return best_names[-1]
+                    else:
+                        return names[0]
+
+                value = {
+                    addr: pick(names)
+                    for addr, names in value.items()
+                }
 
             return value
 

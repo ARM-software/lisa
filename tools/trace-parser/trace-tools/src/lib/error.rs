@@ -28,8 +28,8 @@ impl<E> MultiError<E> {
         }
     }
 
-    pub fn errors(&self) -> impl IntoIterator<Item = &E> {
-        &self.errors
+    pub fn errors(&self) -> impl Iterator<Item = &E> {
+        self.errors.iter()
     }
 }
 
@@ -61,8 +61,8 @@ impl DynMultiError {
         })
     }
 
-    pub fn errors(&self) -> impl IntoIterator<Item = &dyn Error> {
-        self.0.errors().into_iter().map(AsRef::as_ref)
+    pub fn errors(&self) -> impl Iterator<Item = &dyn Error> {
+        self.0.errors().map(AsRef::as_ref)
     }
 }
 

@@ -17,7 +17,7 @@
 use std::{io::Write, ops::Deref as _};
 
 use traceevent::{
-    buffer::{flyrecord, BufferError, EventVisitor},
+    buffer::{BufferError, EventVisitor, flyrecord},
     cinterp::{BufferEnv, CompileError, Value},
     header::{EventDesc, FieldFmt, Header, HeaderError},
     io::BorrowingReadCore,
@@ -43,6 +43,9 @@ pub enum MainError {
     #[error("Error while parsing pretty printing: {0}")]
     PrintError(#[from] PrintError),
 
+    #[error("Error while compiling pretty printing: {0}")]
+    CompileError(#[from] CompileError),
+
     #[error("Unexpected type for PID value {}", match .0 {
         Some(val) => val.to_string(),
         None => "<unavailable>".into()
@@ -67,16 +70,21 @@ pub fn print_events<R: BorrowingReadCore + Send, W: Write>(
         .unwrap_or(0);
 
     struct EventCtx<'h> {
-        pid_fmt: Option<&'h FieldFmt>,
+        // We cannot clone MainError, so instead we keep a closure that can re-materialize the
+        // error.
+        pid_fmt: Result<&'h FieldFmt, Box<dyn Fn() -> MainError + 'h>>,
     }
     impl<'h> EventCtx<'h> {
         fn from_event_desc(_header: &'h Header, desc: &'h EventDesc) -> Self {
             let get = || {
-                let struct_fmt = &desc.event_fmt().ok()?.struct_fmt().ok()?;
-                let pid_fmt = struct_fmt.field_by_name("common_pid")?;
-                Some(pid_fmt)
+                let struct_fmt = &desc.event_fmt()?.struct_fmt()?;
+                let pid_fmt = struct_fmt
+                    .field_by_name("common_pid")
+                    .ok_or_else(|| CompileError::UnknownField("common_pid".into()))?;
+                Ok(pid_fmt)
             };
-            let pid_fmt = get();
+            let pid_fmt = get()
+                .map_err(|_| Box::new(move || get().unwrap_err()) as Box<dyn Fn() -> MainError>);
 
             EventCtx { pid_fmt }
         }
@@ -94,11 +102,7 @@ pub fn print_events<R: BorrowingReadCore + Send, W: Write>(
             let desc = visitor.event_desc()?;
             let ctx: &EventCtx = visitor.event_ctx()?;
 
-            let pid_fmt = ctx.pid_fmt.ok_or_else(|| {
-                let err: BufferError = CompileError::UnknownField("common_pid".into()).into();
-                err
-            })?;
-
+            let pid_fmt = ctx.pid_fmt.as_ref().map_err(|err| err())?;
             let pid = visitor.field_by_fmt(pid_fmt)?;
             let pid = match pid {
                 Value::I64Scalar(x) => Ok(x.try_into().unwrap()),
@@ -246,6 +250,6 @@ pub fn print_events<R: BorrowingReadCore + Send, W: Write>(
     }
     let res: Result<_, MainError> =
         flyrecord(buffers, print_event!(), EventCtx::from_event_desc).map_err(Into::into);
-    res?.into_iter().collect::<Result<(), _>>()?;
+    res?.collect::<Result<(), _>>()?;
     Ok(())
 }

@@ -27,16 +27,15 @@ use core::{
 };
 use std::sync::Arc;
 
+#[cfg(not(feature = "smartstring"))]
+pub use String;
+#[cfg(feature = "smartstring")]
+pub use smartstring::alias::String;
+
 use crate::{
     memo::Memo,
     scratch::{OwnedScratchBox, OwnedScratchBox_as_dyn, ScratchAlloc},
 };
-
-#[cfg(feature = "smartstring")]
-pub use smartstring::alias::String;
-
-#[cfg(not(feature = "smartstring"))]
-pub use String;
 
 /// String type with various ownership model available.
 #[derive(Debug, Clone)]

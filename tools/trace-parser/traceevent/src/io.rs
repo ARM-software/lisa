@@ -467,16 +467,18 @@ impl<T> MmapFileInner<T> {
     where
         T: AsRawFd,
     {
-        // Try to map all the remainder of the file range of interest.
-        let len = if offset > self.offset {
-            self.len - (offset - self.offset)
-        } else {
-            self.len + (self.offset - offset)
-        };
+        unsafe {
+            // Try to map all the remainder of the file range of interest.
+            let len = if offset > self.offset {
+                self.len - (offset - self.offset)
+            } else {
+                self.len + (self.offset - offset)
+            };
 
-        // Saturate at the max size possible for a mmap
-        let len: MemSize = len.try_into().unwrap_or(MemSize::MAX);
-        Mmap::new(self.file.lock().unwrap().deref(), offset, len)
+            // Saturate at the max size possible for a mmap
+            let len: MemSize = len.try_into().unwrap_or(MemSize::MAX);
+            Mmap::new(self.file.lock().unwrap().deref(), offset, len)
+        }
     }
 }
 
@@ -497,10 +499,12 @@ impl<T> MmapFile<T> {
     where
         T: AsRawFd + Seek,
     {
-        let offset = 0;
-        let len = file_len(&mut file)?;
-        let file = Arc::new(Mutex::new(file));
-        Self::from_cell(file, offset, None, len)
+        unsafe {
+            let offset = 0;
+            let len = file_len(&mut file)?;
+            let file = Arc::new(Mutex::new(file));
+            Self::from_cell(file, offset, None, len)
+        }
     }
 
     unsafe fn from_cell(
@@ -512,27 +516,29 @@ impl<T> MmapFile<T> {
     where
         T: AsRawFd,
     {
-        let len = len.unwrap_or(file_len - offset);
+        unsafe {
+            let len = len.unwrap_or(file_len - offset);
 
-        // Check that we are not trying to mmap past the end of the
-        // file, as mmap() will let us do it but we will get SIGBUS upon
-        // access.
-        if offset + len > file_len {
-            Err(ErrorKind::UnexpectedEof.into())
-        } else {
-            let mmap_len = len.try_into().unwrap_or(MemSize::MAX);
-            let mmap = Mmap::new(file.lock().unwrap().deref(), offset, mmap_len)?;
+            // Check that we are not trying to mmap past the end of the
+            // file, as mmap() will let us do it but we will get SIGBUS upon
+            // access.
+            if offset + len > file_len {
+                Err(ErrorKind::UnexpectedEof.into())
+            } else {
+                let mmap_len = len.try_into().unwrap_or(MemSize::MAX);
+                let mmap = Mmap::new(file.lock().unwrap().deref(), offset, mmap_len)?;
 
-            Ok(MmapFile {
-                inner: MmapFileInner {
-                    file,
-                    len,
-                    file_len,
-                    mmap,
-                    offset,
-                },
-                scratch: ScratchAlloc::new(),
-            })
+                Ok(MmapFile {
+                    inner: MmapFileInner {
+                        file,
+                        len,
+                        file_len,
+                        mmap,
+                        offset,
+                    },
+                    scratch: ScratchAlloc::new(),
+                })
+            }
         }
     }
 
@@ -1008,4 +1014,6 @@ macro_rules! impl_DecodeBinary {
     }
 }
 
-impl_DecodeBinary!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize);
+impl_DecodeBinary!(
+    u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize
+);

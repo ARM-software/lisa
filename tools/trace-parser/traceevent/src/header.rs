@@ -37,8 +37,9 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use itertools::izip;
+use itertools::{Itertools as _, izip};
 use nom::{
+    Finish as _, Parser,
     branch::alt,
     bytes::complete::{is_a, is_not, tag},
     character::complete::{
@@ -48,7 +49,6 @@ use nom::{
     error::context,
     multi::{fold_many0, many0, separated_list0},
     sequence::{delimited, pair, preceded, separated_pair, terminated},
-    Finish as _, Parser,
 };
 use once_cell::sync::OnceCell;
 
@@ -56,21 +56,21 @@ use crate::{
     array::Array,
     buffer::{Buffer, BufferError, FieldDecoder},
     cinterp::{
-        new_dyn_evaluator, BasicEnv, CompileEnv, CompileError, EvalEnv, EvalError, Evaluator, Value,
+        BasicEnv, CompileEnv, CompileError, EvalEnv, EvalError, Evaluator, Value, new_dyn_evaluator,
     },
     closure::closure,
     compress::{Decompressor, DynDecompressor, ZlibDecompressor, ZstdDecompressor},
     cparser::{
-        identifier, is_identifier, string_literal, ArrayKind, CGrammar, CGrammarCtx, Declaration,
-        Expr, ExtensionMacroCall, ExtensionMacroCallCompiler, ExtensionMacroDesc, ParseEnv, Type,
+        ArrayKind, CGrammar, CGrammarCtx, Declaration, Expr, ExtensionMacroCall,
+        ExtensionMacroCallCompiler, ExtensionMacroDesc, ParseEnv, Type, identifier, string_literal,
     },
     error::convert_err_impl,
     grammar::PackratGrammar as _,
     io::{BorrowingCursor, BorrowingRead},
     nested_pointer::NestedPointer,
     parser::{
-        error, failure, hex_u64, lexeme, map_res_cut, to_str, FromParseError, NomError,
-        NomParserExt as _, VerboseParseError,
+        FromParseError, NomError, NomParserExt as _, VerboseParseError, error, failure, hex_u64,
+        lexeme, map_res_cut, to_str,
     },
     print::{PrintAtom, PrintFmtError, PrintFmtStr, PrintSpecifier, StringWriter},
     scratch::{ScratchAlloc, ScratchVec},
@@ -307,6 +307,10 @@ impl ParseEnv for Abi {
     fn field_typ(&self, id: &str) -> Result<Type, CompileError> {
         Err(CompileError::UnknownField(id.into()))
     }
+
+    fn variable_typ(&self, id: &str) -> Result<Type, CompileError> {
+        Err(CompileError::UnknownVariable(id.to_owned()))
+    }
 }
 
 /// ID of a buffer in a trace.dat file.
@@ -336,7 +340,7 @@ pub(crate) struct HeaderV6 {
     pub(crate) kernel_abi: Abi,
     pub(crate) page_size: FileSize,
     pub(crate) event_descs: Vec<EventDesc>,
-    pub(crate) kallsyms: BTreeMap<Address, SymbolName>,
+    pub(crate) kallsyms: BTreeMap<Address, Vec<SymbolName>>,
     pub(crate) str_table: BTreeMap<Address, String>,
     pub(crate) pid_comms: BTreeMap<Pid, TaskName>,
     pub(crate) options: Vec<Options>,
@@ -351,7 +355,7 @@ pub(crate) struct HeaderV7 {
     pub(crate) kernel_abi: Abi,
     pub(crate) page_size: FileSize,
     pub(crate) event_descs: Vec<EventDesc>,
-    pub(crate) kallsyms: BTreeMap<Address, SymbolName>,
+    pub(crate) kallsyms: BTreeMap<Address, Vec<SymbolName>>,
     pub(crate) str_table: BTreeMap<Address, String>,
     pub(crate) pid_comms: BTreeMap<Pid, TaskName>,
     pub(crate) options: Vec<Options>,
@@ -407,24 +411,28 @@ impl Header {
         }
     }
 
+    /// Provide the value of a global variable that some events rely on.
+    pub fn constant_value(&self, id: &str) -> Result<Value<'_>, EvalError> {
+        match self.sym_addr(id) {
+            None => Err(EvalError::UnknownVariable(id.to_owned())),
+            Some(addr) => Ok(Value::U64Scalar(addr)),
+        }
+    }
+
     /// Returns an iterator of [EventDesc] for all the ftrace events defined in the header.
     #[inline]
-    pub fn event_descs(&self) -> impl IntoIterator<Item = &EventDesc> {
-        attr!(self, event_descs)
+    pub fn event_descs(&self) -> impl Iterator<Item = &EventDesc> {
+        attr!(self, event_descs).iter()
     }
 
     #[inline]
     pub fn event_desc_by_id(&self, id: EventId) -> Option<&EventDesc> {
-        self.event_descs()
-            .into_iter()
-            .find(move |desc| desc.id == id)
+        self.event_descs().find(move |desc| desc.id == id)
     }
 
     #[inline]
     pub fn event_desc_by_name(&self, name: &str) -> Option<&EventDesc> {
-        self.event_descs()
-            .into_iter()
-            .find(move |desc| desc.name == name)
+        self.event_descs().find(move |desc| desc.name == name)
     }
 
     /// ABI of the kernel that generated the ftrace this header is representing.
@@ -454,12 +462,24 @@ impl Header {
                 .map(|(addr, _)| addr);
             map.range((Unbounded, Included(addr)))
                 .last()
-                .map(|(base, s)| {
-                    let size = next_addr.map(|next| next - addr);
+                .map(|(base, syms)| {
+                    let size = next_addr.map(|next| next - base);
                     let offset = addr - base;
-                    (offset, size, s.deref())
+                    let sym = syms.last().expect("No symbol name");
+                    (offset, size, sym.deref())
                 })
         }
+    }
+
+    pub fn sym_addr(&self, sym: &str) -> Option<AddressOffset> {
+        let map = attr!(self, kallsyms);
+        map.iter().find_map(|(addr, syms)| {
+            if syms.iter().any(|_sym| _sym == sym) {
+                Some(*addr)
+            } else {
+                None
+            }
+        })
     }
 
     /// Number of CPUs with a buffer in that trace.
@@ -470,8 +490,8 @@ impl Header {
 
     /// Header options encoded in the header.
     #[inline]
-    pub fn options(&self) -> impl IntoIterator<Item = &Options> {
-        attr!(self, options)
+    pub fn options(&self) -> impl Iterator<Item = &Options> {
+        attr!(self, options).iter()
     }
 
     /// Parsed content of `/proc/kallsyms` encoded in the header.
@@ -479,18 +499,20 @@ impl Header {
     /// Note: The addresses may not be the real addresses for security reasons depending on the
     /// kernel configuration.
     #[inline]
-    pub fn kallsyms(&self) -> impl IntoIterator<Item = (Address, &str)> {
-        attr!(self, kallsyms).iter().map(|(k, v)| (*k, v.deref()))
+    pub fn kallsyms(&self) -> impl Iterator<Item = (Address, impl Iterator<Item = &str>)> {
+        attr!(self, kallsyms)
+            .iter()
+            .map(|(k, v)| (*k, v.iter().map(|sym| &**sym)))
     }
 
     /// Content of the PID/task name table as an iterator.
     #[inline]
-    pub fn pid_comms(&self) -> impl IntoIterator<Item = (Pid, &str)> {
+    pub fn pid_comms(&self) -> impl Iterator<Item = (Pid, &str)> {
         attr!(self, pid_comms).iter().map(|(k, v)| (*k, v.deref()))
     }
 
     /// Returns a timestamp fixup closure based on he header options that can affect it.
-    pub(crate) fn timestamp_fixer(&self) -> impl Fn(Timestamp) -> Timestamp {
+    pub(crate) fn timestamp_fixer(&self) -> impl Fn(Timestamp) -> Timestamp + use<> {
         let mut offset_signed: i64 = 0;
         let mut offset_unsigned: u64 = 0;
         let mut _multiplier: u32 = 1;
@@ -954,10 +976,9 @@ impl EventFmt {
     /// Evaluators for the arguments to interpolate in the printk-style format of the event.
     pub fn print_args(
         &self,
-    ) -> Result<impl IntoIterator<Item = &Result<Arc<dyn Evaluator>, CompileError>>, HeaderError>
-    {
+    ) -> Result<impl Iterator<Item = &Result<Arc<dyn Evaluator>, CompileError>>, HeaderError> {
         match &self.print_fmt_args {
-            Ok(x) => Ok(&x.1),
+            Ok(x) => Ok(x.1.iter()),
             Err(err) => Err(err.clone()),
         }
     }
@@ -1058,6 +1079,11 @@ impl<'h> EvalEnv<'h> for HeaderEnv<'h> {
     fn event_data(&self) -> Result<&[u8], EvalError> {
         Err(EvalError::NoEventData)
     }
+
+    #[inline]
+    fn variable_value(&self, id: &str) -> Result<Value<'_>, EvalError> {
+        self.header.constant_value(id)
+    }
 }
 
 impl<'h> HeaderEnv<'h> {
@@ -1080,6 +1106,15 @@ impl ParseEnv for HeaderEnv<'_> {
         }
         Err(CompileError::UnknownField(id.into()))
     }
+
+    #[inline]
+    fn variable_typ(&self, id: &str) -> Result<Type, CompileError> {
+        match self.header.sym_addr(id) {
+            None => Err(CompileError::UnknownVariable(id.to_owned())),
+            Some(_) => Ok(Type::Pointer(Box::new(Type::Void))),
+        }
+    }
+
     #[inline]
     fn abi(&self) -> &Abi {
         self.header.kernel_abi()
@@ -1117,6 +1152,11 @@ impl<'ce> CompileEnv<'ce> for HeaderEnv<'ce> {
             }
         }
         Err(CompileError::UnknownField(id.into()))
+    }
+
+    #[inline]
+    fn as_dyn(&self) -> &dyn CompileEnv<'ce> {
+        self
     }
 }
 
@@ -1349,7 +1389,6 @@ fn parse_event_fmt<'a>(
                                 print_args.into_iter(),
                                 print_fmt.atoms.iter()
                             )
-                            .into_iter()
                             .map(fixup_arg)
                             .map(|expr| Ok(
                                 Arc::from(expr.compile(&cenv)?))
@@ -1421,7 +1460,7 @@ fn parse_event_desc(input: &[u8]) -> nom::IResult<&[u8], EventDesc, HeaderNomErr
 #[inline(never)]
 fn parse_kallsyms(
     input: &[u8],
-) -> nom::IResult<&[u8], BTreeMap<Address, SymbolName>, HeaderNomError<'_>> {
+) -> nom::IResult<&[u8], BTreeMap<Address, Vec<SymbolName>>, HeaderNomError<'_>> {
     context("kallsyms", move |input| {
         let line = terminated(
             separated_pair(
@@ -1438,20 +1477,20 @@ fn parse_kallsyms(
                     |(name, module)| match from_utf8(name) {
                         // Filter-out symbols starting with "$" as they are probably just mapping
                         // symbols that can sometimes have the same value as real function symbols,
-                        // thereby breaking the output.  (see "ELF for the Arm© 64-bit Architecture
+                        // thereby breaking the output. (see "ELF for the Arm© 64-bit Architecture
                         // (AArch64)" document).
                         // Also filter out all the compiler-generated symbols, e.g. ones that have
                         // a suffix as a result of some optimization pass.
-                        Ok(name) if is_identifier(name) => Ok(Some(match module.map(from_utf8) {
+                        Ok(name) if name.contains('$') => Ok(None),
+                        Ok(name) => Ok(Some(match module.map(from_utf8) {
                             Some(Ok(module)) => {
                                 let mut full: SymbolName = name.into();
-                                full.push_str(" ");
+                                full.push(' ');
                                 full.push_str(module);
                                 full
                             }
                             _ => name.into(),
                         })),
-                        Ok(_) => Ok(None),
                         Err(err) => Err(HeaderError::DecodeUtf8(err.to_string())),
                     },
                 ),
@@ -1463,10 +1502,14 @@ fn parse_kallsyms(
         let parsed = it
             .by_ref()
             .filter_map(|item| match item {
-                (addr, Some(name)) => Some(Ok((addr, name))),
+                (addr, Some(name)) => Some((addr, name)),
                 _ => None,
             })
-            .collect::<Result<BTreeMap<_, _>, _>>()?;
+            .sorted()
+            .chunk_by(|(addr, _)| *addr)
+            .into_iter()
+            .map(|(addr, names)| (addr, names.map(|(_, name)| name).collect()))
+            .collect::<BTreeMap<_, _>>();
         let (input, _) = it.finish()?;
         Ok((input, parsed))
     })
@@ -1562,7 +1605,9 @@ pub enum HeaderError {
         size: u64,
     },
 
-    #[error("Sign of type \"{typ:?}\" was inferred to be {inferred_signedness:?} but kernel reported {signedness}")]
+    #[error(
+        "Sign of type \"{typ:?}\" was inferred to be {inferred_signedness:?} but kernel reported {signedness}"
+    )]
     InvalidTypeSign {
         typ: Type,
         inferred_signedness: Signedness,
@@ -2400,7 +2445,7 @@ where
 fn parse_kallsyms_section<I>(
     abi: &Abi,
     input: &mut I,
-) -> Result<BTreeMap<Address, SymbolName>, HeaderError>
+) -> Result<BTreeMap<Address, Vec<SymbolName>>, HeaderError>
 where
     I: BorrowingRead,
 {
