@@ -3598,7 +3598,7 @@ def get_sphinx_role(obj, name=None):
     return role
 
 
-def newtype(cls, name, doc=None, module=None):
+def newtype(cls, name, doc=None, module=None, stacklevel=1):
     """
     Make a new class inheriting from ``cls`` with the given ``name``.
 
@@ -3625,6 +3625,11 @@ def newtype(cls, name, doc=None, module=None):
     class New(cls, metaclass=Meta): # pylint: disable=invalid-metaclass
         pass
 
+    # Set the __firstlineno__ attribute for Python 3.13 inspect.getsource().
+    # Otherwise we get the line number of the "class New" definition, which is
+    # right here and not matching where the newtype is logically defined
+    stack = inspect.stack()
+    New.__firstlineno__ = stack[stacklevel].lineno
     New.__name__ = name.split('.')[-1]
     New.__qualname__ = name
 
