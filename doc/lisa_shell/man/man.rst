@@ -105,6 +105,7 @@ Buildroot commands
 Misc commands
 -------------
 
+* ``lisa-load-kmod`` - Build and load the LISA kernel module on a running target.
 * ``lisa-plot`` - Generate various plots from a ``trace.dat`` file.
   See ``lisa-plot -h`` for available plots.
 * ``lisa-platinfo-extract`` - Extract a platform information file

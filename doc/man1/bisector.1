@@ -87,7 +87,7 @@ usage: bisector [\-h] [\-\-cli\-options CLI_OPTIONS]
     iterations to the report. The execution can later be resumed with \-\-resume.
     
 
-optional arguments:
+options:
   \-h, \-\-help            show this help message and exit
   \-\-cli\-options CLI_OPTIONS
                         YAML file containing command line option string in a
@@ -119,7 +119,7 @@ Run the given steps in a loop and record the result in a report file. The
 report file can be inspected using the \(dqreport\(dq subcommand. The exit status is
 suitable for git bisect.
 
-optional arguments:
+options:
   \-h, \-\-help            show this help message and exit
   \-\-cli\-options CLI_OPTIONS
                         YAML file containing command line option string in a
@@ -217,7 +217,7 @@ positional arguments:
   report                Read back a previous session saved using \-\-report
                         option of run subcommand.
 
-optional arguments:
+options:
   \-h, \-\-help            show this help message and exit
   \-\-cli\-options CLI_OPTIONS
                         YAML file containing command line option string in a
@@ -800,7 +800,7 @@ positional arguments:
   PID                   Slave PID to act on or \(dqall\(dq. Start a monitor\-server
                         before using \(dqall\(dq.
 
-optional arguments:
+options:
   \-h, \-\-help            show this help message and exit
   \-\-cli\-options CLI_OPTIONS
                         YAML file containing command line option string in a
@@ -839,7 +839,7 @@ usage: bisector monitor\-server [\-h] [\-\-cli\-options CLI_OPTIONS]
 Start the DBus server to allow monitoring all running instances. Note that the
 server is not necessary to monitor a specific run instance.
 
-optional arguments:
+options:
   \-h, \-\-help            show this help message and exit
   \-\-cli\-options CLI_OPTIONS
                         YAML file containing command line option string in a
@@ -869,7 +869,7 @@ Modify the properties of the steps in an existing report.
 positional arguments:
   report                Report to edit.
 
-optional arguments:
+options:
   \-h, \-\-help            show this help message and exit
   \-o OPTION, \-\-option OPTION
                         Step\-specific options. Can be repeated. The format is

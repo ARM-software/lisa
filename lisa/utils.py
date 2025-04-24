@@ -1033,12 +1033,15 @@ class Serializable(
         # really should be instance-related.
         class _YAML(YAML):
             @property
-            @memoized
             def constructor(self):
+                ctor = super().constructor
                 # This will rightfully raise in case constructor() is called
                 # from YAML.__init__(), so that we do not accidentally memoized
-                # an instance of the wrong type.
-                return _Constructor()
+                # an instance of the wrong type. Doing so would circumvent our
+                # attempt at making the configuration local to the YAML
+                # instance we create here.
+                assert isinstance(ctor, _Constructor)
+                return ctor
 
         # If the user requested an unsafe instance, we provide a safe instance
         # with a re-implementation of some unsafe bits. This is because
@@ -2179,7 +2182,7 @@ def get_short_doc(obj, strip_rst=False, style=None):
         r'^\s*:\s*meta.*$\n?',
         '',
         docstring,
-        re.MULTILINE,
+        flags=re.MULTILINE,
     )
 
     if strip_rst:
@@ -3595,7 +3598,7 @@ def get_sphinx_role(obj, name=None):
     return role
 
 
-def newtype(cls, name, doc=None, module=None):
+def newtype(cls, name, doc=None, module=None, stacklevel=1):
     """
     Make a new class inheriting from ``cls`` with the given ``name``.
 
@@ -3622,6 +3625,11 @@ def newtype(cls, name, doc=None, module=None):
     class New(cls, metaclass=Meta): # pylint: disable=invalid-metaclass
         pass
 
+    # Set the __firstlineno__ attribute for Python 3.13 inspect.getsource().
+    # Otherwise we get the line number of the "class New" definition, which is
+    # right here and not matching where the newtype is logically defined
+    stack = inspect.stack()
+    New.__firstlineno__ = stack[stacklevel].lineno
     New.__name__ = name.split('.')[-1]
     New.__qualname__ = name
 
