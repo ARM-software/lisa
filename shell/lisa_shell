@@ -203,7 +203,7 @@ function _lisa-install-system-check {
         fi
     }
 
-    _lisa-python-package-check tkinter python3-tkinter
+    _lisa-python-package-check tkinter python3-tk
     _lisa-python-package-check ensurepip python3-venv
 }
 

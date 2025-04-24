@@ -33,7 +33,7 @@ import warnings
 from operator import attrgetter
 import typing
 
-from datetime import datetime
+import datetime
 from collections import OrderedDict, ChainMap
 from collections.abc import Mapping
 from inspect import signature
@@ -279,7 +279,7 @@ class ResultBundle(ResultBundleBase):
     def __init__(self, result, utc_datetime=None, context=None):
         self.result = result
         self.metrics = {}
-        self.utc_datetime = utc_datetime or datetime.utcnow()
+        self.utc_datetime = utc_datetime or datetime.datetime.now(tz=datetime.UTC)
         self.context = context if context is not None else {}
 
     @classmethod
