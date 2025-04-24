@@ -23,12 +23,12 @@ use core::{
 use std::string::String as StdString;
 
 use nom::{
+    Finish as _, Parser,
     bytes::complete::is_a,
     character::complete::{char, multispace0},
     combinator::all_consuming,
     error::{ContextError, ErrorKind, FromExternalError, ParseError},
     sequence::delimited,
-    Finish as _, Parser,
 };
 
 pub trait FromParseError<I, E>: Sized {
@@ -374,14 +374,14 @@ where
 /// This allows correct error handling for all cases where the grammar is non-ambiguous and `f` is
 /// doing semantic checking. In such situation, a semantic error is not expected to trigger a
 /// backtrack in the parser, leading to much worse error messages.
-pub fn map_res_cut<I: Clone, O1, O2, E: FromExternalError<I, E2>, E2, F, G>(
+pub fn map_res_cut<I: Clone, O1, O2, E, E2, F, G>(
     mut parser: F,
     mut f: G,
 ) -> impl nom::Parser<I, Output = O2, Error = E>
 where
     F: Parser<I, Output = O1, Error = E>,
     G: FnMut(O1) -> Result<O2, E2>,
-    E: ParseError<I>,
+    E: ParseError<I> + FromExternalError<I, E2>,
 {
     move |input: I| {
         let i = input.clone();
@@ -473,7 +473,7 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
     use nom::Finish as _;
-    use nom_language::error::{convert_error, VerboseError};
+    use nom_language::error::{VerboseError, convert_error};
 
     use super::*;
 

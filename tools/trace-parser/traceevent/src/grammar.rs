@@ -64,8 +64,8 @@ pub trait PackratGrammar {
     /// context.
     #[allow(clippy::type_complexity)]
     #[inline]
-    fn grammar_ctx<'i, E>(
-    ) -> fn(Span<'i, Self>) -> nom::IResult<Span<'i, Self>, &'i Self::Ctx<'i>, E> {
+    fn grammar_ctx<'i, E>()
+    -> fn(Span<'i, Self>) -> nom::IResult<Span<'i, Self>, &'i Self::Ctx<'i>, E> {
         move |input: Span<'i, Self>| {
             let ctx = Self::get_ctx(&input);
             Ok((input, ctx))

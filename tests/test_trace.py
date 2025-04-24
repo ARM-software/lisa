@@ -386,6 +386,63 @@ class TraceTestCase(StorageTestCase):
         # Proxy check for detecting delta computation changes
         assert df.delta.sum() == pytest.approx(134.568219)
 
+    def test_metadata_symbols_address(self):
+        trace = self.get_trace('doc')
+        syms = trace.get_metadata('symbols-address')
+        assert len(syms) == 138329
+        assert all(
+            isinstance(key, int) and isinstance(value, str)
+            for key, value in syms.items()
+        )
+        assert syms[18446603336539106032] == 'sunrpc_net_id'
+
+    def test_metadata_time_range(self):
+        trace = self.get_trace('doc')
+        time_range = trace.get_metadata('time-range')
+        assert time_range[0].as_nanoseconds == 470783168860
+        assert time_range[1].as_nanoseconds == 473280164600
+
+    def test_metadata_cpus_count(self):
+        trace = self.get_trace('doc')
+        count = trace.get_metadata('cpus-count')
+        assert count == 6
+
+    def test_metadata_available_events(self):
+        trace = self.get_trace('doc')
+        events = trace.get_metadata('available-events')
+        assert set(events) == {
+            'cpu_frequency',
+            'cpu_idle',
+            'print',
+            'sched_cpu_capacity',
+            'sched_migrate_task',
+            'sched_overutilized',
+            'sched_pelt_cfs',
+            'sched_pelt_dl',
+            'sched_pelt_irq',
+            'sched_pelt_rt',
+            'sched_pelt_se',
+            'sched_process_exec',
+            'sched_process_exit',
+            'sched_process_fork',
+            'sched_process_free',
+            'sched_process_wait',
+            'sched_stat_runtime',
+            'sched_switch',
+            'sched_util_est_cfs',
+            'sched_util_est_se',
+            'sched_wakeup',
+            'sched_wakeup_new',
+            'sched_waking',
+            'task_newtask',
+            'task_rename',
+        }
+
+    def test_metadata_trace_id(self):
+        trace = self.get_trace('doc')
+        trace_id = trace.get_metadata('trace-id')
+        assert trace_id == 'trace.dat-8785260356321690258'
+
 
 class TestTrace(TraceTestCase):
     """Smoke tests for LISA's Trace class"""

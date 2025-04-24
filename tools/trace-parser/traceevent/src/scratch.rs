@@ -26,7 +26,7 @@ use core::{
 };
 use std::{io, sync::Arc};
 
-use bumpalo::{boxed::Box as BumpaloBox, collections::Vec as BumpaloVec, Bump};
+use bumpalo::{Bump, boxed::Box as BumpaloBox, collections::Vec as BumpaloVec};
 use thread_local::ThreadLocal;
 
 /// Allocator used for quick processing that will not need persistent memory allocation.
@@ -298,7 +298,9 @@ macro_rules! nodrop_impl {
         )*
     };
 }
-nodrop_impl!(u8, i8, u16, i16, u32, i32, u64, i64, u128, i128, f32, f64, bool, str);
+nodrop_impl!(
+    u8, i8, u16, i16, u32, i32, u64, i64, u128, i128, f32, f64, bool, str
+);
 impl<T: NoopDrop> NoopDrop for [T] {}
 impl<T: NoopDrop, const N: usize> NoopDrop for [T; N] {}
 impl<T> NoopDrop for &T {}

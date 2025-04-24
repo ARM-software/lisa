@@ -28,28 +28,28 @@ use std::{rc::Rc, string::String as StdString, sync::Arc};
 use bytemuck::cast_slice;
 use itertools::Itertools as _;
 use nom::{
+    AsBytes, Finish as _, Parser,
     branch::alt,
     bytes::complete::{is_not, tag, take},
     character::complete::{alpha1, alphanumeric1, char, u64 as dec_u64},
     combinator::{all_consuming, cut, fail, map_res, not, opt, recognize, success},
-    error::{context, FromExternalError},
-    multi::{fold_many1, many0, many0_count, many1, many_m_n, separated_list0, separated_list1},
+    error::{FromExternalError, context},
+    multi::{fold_many1, many_m_n, many0, many0_count, many1, separated_list0, separated_list1},
     number::complete::u8,
     sequence::{delimited, pair, preceded, separated_pair, terminated},
-    AsBytes, Finish as _, Parser,
 };
 
 use crate::{
     cinterp::{
-        new_dyn_evaluator, BasicEnv, Bitmap, CompileEnv, CompileError, EvalEnv, EvalError,
-        Evaluator, InterpError, Value,
+        BasicEnv, Bitmap, CompileEnv, CompileError, EvalEnv, EvalError, Evaluator, InterpError,
+        Value, new_dyn_evaluator,
     },
     error::convert_err_impl,
-    grammar::{grammar, PackratGrammar as _},
+    grammar::{PackratGrammar as _, grammar},
     header::{Abi, Endianness, FileSize, Identifier, LongSize},
     parser::{
-        error, failure, hex_u64, lexeme, map_res_cut, parenthesized, success_with, FromParseError,
-        VerboseParseError,
+        FromParseError, VerboseParseError, error, failure, hex_u64, lexeme, map_res_cut,
+        parenthesized, success_with,
     },
     scratch::{OwnedScratchBox, ScratchVec},
     str::{Str, String},
@@ -154,6 +154,9 @@ pub trait ParseEnv: Send + Sync {
     /// fixed size ones (such as `u8`) to avoid having to manipulate multiple type systems
     /// downstream. It will also use the abi to know if a `char` is signed or not.
     fn abi(&self) -> &Abi;
+
+    /// Get the type of the variable named `var`.
+    fn variable_typ(&self, id: &str) -> Result<Type, CompileError>;
 }
 
 /// C declarator.
@@ -476,12 +479,10 @@ pub enum CParseError {
     DataLocArrayWithoutIdentifier(Type),
     #[error("Found no identifier in the scalar __data_loc declaration")]
     DataLocWithoutIdentifier,
-    #[error(
-        "Found ambiguous identifiers in the scalar __data_loc declaration: \"{0}\" or \"{1}\""
-    )]
+    #[error("Found ambiguous identifiers in the scalar __data_loc declaration: \"{0}\" or \"{1}\"")]
     DataLocAmbiguousIdentifier(Identifier, Identifier),
 
-    #[error("Invalid type name (incompatible int/long/short/char usage)")]
+    #[error("Invalid type name")]
     InvalidTypeName,
 
     #[error(
@@ -492,7 +493,9 @@ pub enum CParseError {
     #[error("Character value is out of range ({0}), only 8 bit values are supported")]
     CharOutOfRange(u64),
 
-    #[error("Invalid variable identifier \"{0}\". Only the REC identifier is recognized as a variable, every other identifier is assumed to be an enumeration constant")]
+    #[error(
+        "Invalid variable identifier \"{0}\". Only the REC identifier is recognized as a variable, every other identifier is assumed to be an enumeration constant"
+    )]
     InvalidVariableIdentifier(Identifier),
 
     #[error("Could not guess the type of the expression: {0:?}")]
@@ -561,8 +564,8 @@ fn print_array_hex(separator: &'static str) -> Result<ExtensionMacroKind, CParse
                     ),
                     |(val, _, array_size)| {
                         let compiler = Arc::new(move |cenv: &dyn CompileEnv<'_>| {
-                            let cval = val.clone().compile(&cenv)?;
-                            let carray_size = array_size.clone().compile(&cenv)?;
+                            let cval = val.clone().compile(cenv)?;
+                            let carray_size = array_size.clone().compile(cenv)?;
 
                             let eval = new_dyn_evaluator(move |env: &_| {
                                 let array_size = match carray_size.eval(env)? {
@@ -706,14 +709,14 @@ fn print_symbolic<const EXACT_MATCH: bool>() -> Result<ExtensionMacroKind, CPars
                             .collect::<Result<Vec<_>, InterpError>>()?;
 
                         let compiler = Arc::new(move |cenv: &dyn CompileEnv<'_>| {
-                            let cval = val.clone().compile(&cenv)?;
+                            let cval = val.clone().compile(cenv)?;
                             #[allow(clippy::type_complexity)]
                             let cdelim: Box<
                                 dyn Fn(&dyn EvalEnv) -> Result<String, EvalError> + Send + Sync,
                             > = if EXACT_MATCH {
                                 Box::new(|_env| Ok("".into()))
                             } else {
-                                let cdelim = delim.clone().compile(&cenv)?;
+                                let cdelim = delim.clone().compile(cenv)?;
                                 Box::new(move |env| {
                                     let cdelim = cdelim.eval(env)?;
                                     let cdelim = cdelim.deref_ptr(env)?;
@@ -746,7 +749,7 @@ fn print_symbolic<const EXACT_MATCH: bool>() -> Result<ExtensionMacroKind, CPars
                                                 let found = if EXACT_MATCH {
                                                     val == *flag
                                                 } else {
-                                                    (val & flag) != 0
+                                                    (val & flag) == *flag
                                                 };
 
                                                 if found {
@@ -816,7 +819,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                         Ok(ExtensionMacroCallCompiler {
                             ret_typ,
                             compiler: Arc::new(move |cenv: &dyn CompileEnv| {
-                                expr.clone().compile(&cenv)
+                                expr.clone().compile(cenv)
                             }),
                         })
                     })
@@ -874,7 +877,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                                 Ok(ExtensionMacroCallCompiler {
                                     ret_typ,
                                     compiler: Arc::new(move |cenv: &dyn CompileEnv| {
-                                        ret_expr.clone().compile(&cenv)
+                                        ret_expr.clone().compile(cenv)
                                     }),
                                 })
                             }
@@ -893,7 +896,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                         Ok(ExtensionMacroCallCompiler {
                             ret_typ: Type::U64,
                             compiler: Arc::new(move |cenv: &dyn CompileEnv| {
-                                let cexpr = expr.clone().compile(&cenv)?;
+                                let cexpr = expr.clone().compile(cenv)?;
 
                                 let eval =
                                     new_dyn_evaluator(move |env: &_| match cexpr.eval(env)? {
@@ -921,7 +924,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                         Ok(ExtensionMacroCallCompiler {
                             ret_typ: Type::U32,
                             compiler: Arc::new(move |cenv: &dyn CompileEnv| {
-                                let cexpr = expr.clone().compile(&cenv)?;
+                                let cexpr = expr.clone().compile(cenv)?;
 
                                 let eval =
                                     new_dyn_evaluator(move |env: &_| match cexpr.eval(env)? {
@@ -950,7 +953,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                         Ok(ExtensionMacroCallCompiler {
                             ret_typ,
                             compiler: Arc::new(move |cenv: &dyn CompileEnv| {
-                                let cexpr = Expr::record_field(field.clone()).compile(&cenv)?;
+                                let cexpr = Expr::record_field(field.clone()).compile(cenv)?;
 
                                 let eval =
                                     new_dyn_evaluator(move |env: &_| match cexpr.eval(env)? {
@@ -978,7 +981,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                                     // Compile "__get_str(field)" as "REC->field", since the compiler
                                     // of REC->field will take care of getting the value and present
                                     // it as an array already.
-                                    Expr::record_field(field.clone()).compile(&cenv)
+                                    Expr::record_field(field.clone()).compile(cenv)
                                 }),
                             })
                         })
@@ -996,7 +999,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                             Ok(ExtensionMacroCallCompiler {
                                 ret_typ: penv.abi().long_typ(),
                                 compiler: Arc::new(move |cenv: &dyn CompileEnv| {
-                                    let expr = Expr::record_field(field.clone()).compile(&cenv)?;
+                                    let expr = Expr::record_field(field.clone()).compile(cenv)?;
                                     Ok(new_dyn_evaluator(move |env: &_| {
                                         match expr.eval(env)? {
                                             Value::Raw(_, arr) => Ok(arr.len()),
@@ -1038,8 +1041,7 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                             Ok(ExtensionMacroCallCompiler {
                                 ret_typ: penv.abi().char_typ(),
                                 compiler: Arc::new(move |cenv: &dyn CompileEnv| {
-                                    let bitmap =
-                                        Expr::record_field(field.clone()).compile(&cenv)?;
+                                    let bitmap = Expr::record_field(field.clone()).compile(cenv)?;
                                     let abi = cenv.abi().clone();
                                     Ok(new_dyn_evaluator(move |env: &_| {
                                         macro_rules! to_string {
@@ -1125,9 +1127,9 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                             ),
                             |(val, _, array_size, _, item_size)| {
                                 let compiler = Arc::new(move |cenv: &dyn CompileEnv<'_>| {
-                                    let cval = val.clone().compile(&cenv)?;
-                                    let carray_size = array_size.clone().compile(&cenv)?;
-                                    let citem_size = item_size.clone().compile(&cenv)?;
+                                    let cval = val.clone().compile(cenv)?;
+                                    let carray_size = array_size.clone().compile(cenv)?;
+                                    let citem_size = item_size.clone().compile(cenv)?;
 
                                     let eval = new_dyn_evaluator(move |env: &_| {
                                         let item_size: usize = match citem_size.eval(env)? {
@@ -1239,7 +1241,9 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                                         } else {
                                             Err(EvalError::ExtensionMacroError {
                                                 call: "__print_array(...)".into(),
-                                                error: format!("Wrong size for array item. Expected {item_size} bytes, got {real_item_size} bytes")
+                                                error: format!(
+                                                    "Wrong size for array item. Expected {item_size} bytes, got {real_item_size} bytes"
+                                                ),
                                             })
                                         }
                                     });
@@ -1303,17 +1307,17 @@ fn resolve_extension_macro(name: &str) -> Result<ExtensionMacroKind, CParseError
                                 let compiler = Arc::new(move |cenv: &dyn CompileEnv<'_>| {
                                     let endianness = cenv.abi().endianness;
 
-                                    let cprefix_str = prefix_str.clone().compile(&cenv)?;
-                                    let cprefix_type = prefix_type.clone().compile(&cenv)?;
-                                    let crow_size = row_size.clone().compile(&cenv)?;
+                                    let cprefix_str = prefix_str.clone().compile(cenv)?;
+                                    let cprefix_type = prefix_type.clone().compile(cenv)?;
+                                    let crow_size = row_size.clone().compile(cenv)?;
                                     // Group size is ignored, as using any group size
                                     // different than the underlying buffer type is
                                     // undefined behavior. Therefore we can simply look at
                                     // the kind of array we get at runtime and format it
                                     // normally.
-                                    let cbuf = buf.clone().compile(&cenv)?;
-                                    let clength = length.clone().compile(&cenv)?;
-                                    let cascii = ascii.clone().compile(&cenv)?;
+                                    let cbuf = buf.clone().compile(cenv)?;
+                                    let clength = length.clone().compile(cenv)?;
+                                    let cascii = ascii.clone().compile(cenv)?;
 
                                     let eval = new_dyn_evaluator(move |env: &_| {
                                         macro_rules! eval_int {
@@ -1703,7 +1707,7 @@ where
                                             return error(
                                                 input,
                                                 CParseError::DecodeUtf8(err.to_string()),
-                                            )
+                                            );
                                         }
                                         Ok(s) => s,
                                     };
@@ -2079,45 +2083,55 @@ grammar! {
                         ),
                         context(
                             "scalar",
-                            Self::identifier().map(|id| {
-                                match id.as_ref() {
-                                    "void" => Type::Void,
-                                    "_Bool" => Type::Bool,
-                                    _ => {
+                            |input| {
+                                let penv = Self::get_ctx(&input).penv;
+                                let (input, id) = Self::identifier().parse(input)?;
+
+                                match penv.variable_typ(&id) {
+                                    // If we recognize that identifier as a variable, then it is
+                                    // not a type name.
+                                    Ok(_) => error(input, CParseError::InvalidTypeName),
+                                    Err(_) => {
                                         let typ = match id.as_ref() {
-                                            "caddr_t" => Type::Pointer(Box::new(char_typ.clone())),
-                                            "bool" => Type::Bool,
+                                            "void" => Type::Void,
+                                            "_Bool" => Type::Bool,
+                                            _ => {
+                                                let typ = match id.as_ref() {
+                                                    "caddr_t" => Type::Pointer(Box::new(char_typ.clone())),
+                                                    "bool" => Type::Bool,
 
-                                            "s8" | "__s8" | "int8_t"  => Type::I8,
-                                            "u8" | "__u8" | "uint8_t" | "u_char" | "unchar" | "u_int8_t" => Type::U8,
+                                                    "s8" | "__s8" | "int8_t"  => Type::I8,
+                                                    "u8" | "__u8" | "uint8_t" | "u_char" | "unchar" | "u_int8_t" => Type::U8,
 
-                                            "s16" | "__s16" | "int16_t" => Type::I16,
-                                            "u16" | "__u16" | "uint16_t" | "u_short" | "ushort" | "u_int16_t" | "__le16" | "__be16" | "__sum16" => Type::U16,
+                                                    "s16" | "__s16" | "int16_t" => Type::I16,
+                                                    "u16" | "__u16" | "uint16_t" | "u_short" | "ushort" | "u_int16_t" | "__le16" | "__be16" | "__sum16" => Type::U16,
 
-                                            "s32" | "__s32" | "int32_t" => Type::I32,
-                                            "u32" | "__u32" | "uint32_t" | "u_int" | "uint" | "u_int32_t" | "gfp_t" | "slab_flags_t" | "fmode_t" | "OM_uint32" | "dev_t" | "nlink_t" | "__le32" | "__be32" | "__wsum" | "__poll_t" => Type::U32,
+                                                    "s32" | "__s32" | "int32_t" => Type::I32,
+                                                    "u32" | "__u32" | "uint32_t" | "u_int" | "uint" | "u_int32_t" | "gfp_t" | "slab_flags_t" | "fmode_t" | "OM_uint32" | "dev_t" | "nlink_t" | "__le32" | "__be32" | "__wsum" | "__poll_t" => Type::U32,
 
-                                            "s64" | "__s64" | "int64_t" | "loff_t" => Type::I64,
-                                            "u64" | "__u64" | "uint64_t" | "u_int64_t" | "sector_t" | "blkcnt_t" | "__le64" | "__be64" => Type::U64,
+                                                    "s64" | "__s64" | "int64_t" | "loff_t" => Type::I64,
+                                                    "u64" | "__u64" | "uint64_t" | "u_int64_t" | "sector_t" | "blkcnt_t" | "__le64" | "__be64" => Type::U64,
 
-                                            "pid_t" => Type::I32,
+                                                    "pid_t" => Type::I32,
 
-                                            "u_long" | "ulong" | "off_t" | "ssize_t" | "ptrdiff_t" | "clock_t" | "irq_hw_number_t" => match long_size {
-                                                LongSize::Bits32 => Type::I32,
-                                                LongSize::Bits64 => Type::I64,
-                                            },
+                                                    "u_long" | "ulong" | "off_t" | "ssize_t" | "ptrdiff_t" | "clock_t" | "irq_hw_number_t" => match long_size {
+                                                        LongSize::Bits32 => Type::I32,
+                                                        LongSize::Bits64 => Type::I64,
+                                                    },
 
-                                            "uintptr_t" | "size_t" => match long_size {
-                                                LongSize::Bits32 => Type::U32,
-                                                LongSize::Bits64 => Type::U64,
-                                            },
+                                                    "uintptr_t" | "size_t" => match long_size {
+                                                        LongSize::Bits32 => Type::U32,
+                                                        LongSize::Bits64 => Type::U64,
+                                                    },
 
-                                            _ => Type::Unknown,
+                                                    _ => Type::Unknown,
+                                                };
+                                                Type::Typedef(Box::new(typ), id)
+                                            }
                                         };
-                                        Type::Typedef(Box::new(typ), id)
+                                        Ok((input, typ))
                                     }
-                                }
-                            }),
+                                }                            }
                         ),
                     )))
                     .parse(input),
@@ -3156,7 +3170,12 @@ grammar! {
 
         rule enum_constant() -> Expr {
             lexeme(context("enum constant",
-                Self::identifier().map(|id| Expr::EnumConstant(Type::I32, id))
+                map_res(
+                    Self::identifier(),
+                    // We currently do not support any enum constant, so it's never the right
+                    // parse. Instead, we parse lexeme as type names or variable names.
+                    |id| Err(CParseError::InvalidVariableIdentifier(id)),
+                )
             ))
         }
 
@@ -3179,9 +3198,10 @@ grammar! {
                         Self::expr()
                     ),
                     Self::string_literal(),
-                    map_res(
-                        Self::identifier(),
-                        |id| match id.deref() {
+                    |input| {
+                        let penv = Self::get_ctx(&input).penv;
+                        let (input, id) = Self::identifier().parse(input)?;
+                        let expr = match id.deref() {
                             "REC" => {
                                 // Make a REC variable and then take its
                                 // address, rather than making a pointer-typed
@@ -3190,21 +3210,25 @@ grammar! {
                                 // that will get turned into "(*&REC).x" and
                                 // then "REC.x". Doing it this way plays nicely
                                 // with constant folding.
-                                let typ = Type::Variable(id.clone());
-                                Ok(Expr::Addr(Box::new(Expr::Variable(typ, id))))
+                                let typ = Type::Variable("REC".into());
+                                Expr::Addr(Box::new(Expr::Variable(typ, "REC".into())))
                             },
-                            _ => {
-                                let kind = resolve_extension_macro(&id)?;
-
-                                Ok(Expr::ExtensionMacro(Arc::new(
+                            _ => match resolve_extension_macro(&id) {
+                                Ok(kind) => Expr::ExtensionMacro(Arc::new(
                                     ExtensionMacroDesc {
                                         name: id,
                                         kind,
                                     }
-                                )))
-                            },
-                        }
-                    ),
+                                )),
+                                Err(_) => Expr::Variable(
+                                    penv.variable_typ(&id).unwrap_or(Type::Unknown),
+                                    id
+                                )
+                            }
+                        };
+
+                        Ok((input, expr))
+                    },
                     Self::constant(),
                 ))
             )
@@ -3509,14 +3533,14 @@ mod tests {
         test(
             b"f(1)",
             FuncCall(
-                Box::new(EnumConstant(Type::I32, "f".into())),
+                Box::new(Variable(Type::Unknown, "f".into())),
                 vec![IntConstant(Type::I32, 1)],
             ),
         );
         test(
             b" f (1, 2, 3) ",
             FuncCall(
-                Box::new(EnumConstant(Type::I32, "f".into())),
+                Box::new(Variable(Type::Unknown, "f".into())),
                 vec![
                     IntConstant(Type::I32, 1),
                     IntConstant(Type::I32, 2),
@@ -3774,7 +3798,8 @@ mod tests {
         // This is genuinely ambiguous: it can be either a cast to type "type"
         // of "+2" or the addition of a "type" variable and 2.
         // We parse it as a cast as the expressions we are interested in only
-        // contain one variable (REC).
+        // contain one variable (REC), unless "type" was recognized as a variable by
+        // ParseEnv::variable_typ(), in which case it would be parsed as a variable.
         test(
             b" (type) + (2) ",
             Cast(
@@ -4060,7 +4085,7 @@ mod tests {
                 Box::new(u64_typ.clone()),
                 ArrayKind::Fixed(Err(Box::new(InterpError::CompileError(Box::new(
                     CompileError::ExprNotHandled(Expr::EnumConstant(
-                        Type::I32,
+                        Type::Unknown,
                         "static_bar".into(),
                     )),
                 ))))),

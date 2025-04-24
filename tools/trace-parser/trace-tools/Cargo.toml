@@ -1,7 +1,7 @@
 [package]
 name = "trace-tools"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [lib]
 name = "lib"
@@ -13,7 +13,6 @@ path = "src/lib/lib.rs"
 traceevent = { path = "../traceevent", optional = true }
 
 thiserror = "2.0"
-smartstring = {version = "1.0", features = ["serde"]}
 arrow = { version = "54.0", default-features = false }
 arrow-schema = { version = "54.0", default-features = false }
 arrow-array = { version = "54.0" }
