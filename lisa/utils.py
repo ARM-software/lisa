@@ -1033,12 +1033,15 @@ class Serializable(
         # really should be instance-related.
         class _YAML(YAML):
             @property
-            @memoized
             def constructor(self):
+                ctor = super().constructor
                 # This will rightfully raise in case constructor() is called
                 # from YAML.__init__(), so that we do not accidentally memoized
-                # an instance of the wrong type.
-                return _Constructor()
+                # an instance of the wrong type. Doing so would circumvent our
+                # attempt at making the configuration local to the YAML
+                # instance we create here.
+                assert isinstance(ctor, _Constructor)
+                return ctor
 
         # If the user requested an unsafe instance, we provide a safe instance
         # with a re-implementation of some unsafe bits. This is because
