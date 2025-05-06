@@ -1318,15 +1318,22 @@ where
             } else {
                 match atom {
                     PrintAtom::Fixed(fixed) => {
-                        match nom::combinator::all_consuming(field_name_parser())
-                            .parse(fixed.as_bytes())
+                        let fixed = fixed.as_bytes();
+                        match nom::combinator::all_consuming(nom::character::complete::multispace1)
+                            .parse(fixed)
                             .finish()
                         {
-                            Err(()) => Some(Err(MainError::NotAMetaEvent)),
-                            Ok((_, name)) => {
-                                field_name = Some(name);
-                                None
-                            }
+                            Ok(_) => None,
+                            Err(()) => match nom::combinator::all_consuming(field_name_parser())
+                                .parse(fixed)
+                                .finish()
+                            {
+                                Err(()) => Some(Err(MainError::NotAMetaEvent)),
+                                Ok((_, name)) => {
+                                    field_name = Some(name);
+                                    None
+                                }
+                            },
                         }
                     }
                     PrintAtom::Variable { vbin_spec, .. } => {
