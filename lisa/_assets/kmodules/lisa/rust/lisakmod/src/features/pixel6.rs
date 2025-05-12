@@ -143,7 +143,7 @@ struct Pixel6EmeterConfig {
 
 define_feature! {
     struct Pixel6Emeter,
-    name: "lisa__pixel6_emeter",
+    name: "event__lisa__pixel6_emeter",
     visibility: Public,
     Service: (),
     Config: (),
