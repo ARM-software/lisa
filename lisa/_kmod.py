@@ -3231,11 +3231,6 @@ class DynamicKmod(Loggable):
             )
         )
 
-        try:
-            self.uninstall()
-        except Exception:
-            pass
-
         with kmod_cm as ko_path, tempfile.NamedTemporaryFile() as dmesg_out:
             dmesg_coll = ignore_exceps(
                 Exception,
@@ -3276,11 +3271,6 @@ class DynamicKmod(Loggable):
 
         :Variable keyword arguments: Forwarded to :meth:`install`.
         """
-        try:
-            self.uninstall()
-        except Exception:
-            pass
-
         x = self.install(**kwargs)
         try:
             yield x
