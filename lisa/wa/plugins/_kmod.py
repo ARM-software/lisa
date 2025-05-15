@@ -121,6 +121,11 @@ class LisaKmodInstrument(Instrument):
                   """),
     ]
 
+    # When running WA, we want the agenda to describe the expected
+    # state of the system so that runs are reproducible and not
+    # impacted by external factors.
+    _RESET_CONFIG = True
+
     def __init__(self, target, kernel_src, build_env, ftrace_events, **kwargs):
         super().__init__(target, **kwargs)
         self._lisa_target = LISATarget._from_devlib_target(
@@ -132,7 +137,7 @@ class LisaKmodInstrument(Instrument):
         self._ftrace_events = set(ftrace_events)
         self._kmod = None
         self._cm = None
-        self._features = set()
+        self._config = dict()
 
         # Add a new attribute to the devlib target so we can find ourselves
         # from the monkey-patched methods.
@@ -219,12 +224,11 @@ class LisaKmodInstrument(Instrument):
         return set(trace_cmd_events) | set(self._ftrace_events)
 
     def _run(self):
-        features = sorted(self._features)
-        self.logger.info(f'Enabling LISA kmod features {", ".join(features)}')
+        config = self._config
+        self.logger.info(f'Enabling LISA kmod: {config}')
         return self._kmod.run(
-            kmod_params={
-                'features': features,
-            }
+            config=config,
+            reset_config=self._RESET_CONFIG,
         )
 
     @contextmanager
@@ -233,13 +237,16 @@ class LisaKmodInstrument(Instrument):
         # instrument, unlike the other methods ran in job context.
         events = self._all_ftrace_events(context)
         kmod = self._lisa_target.get_kmod(LISADynamicKmod)
-        self._features = set(kmod._event_features(events))
         self._kmod = kmod
 
         # Load the module while running the instrument's initialize so that the
         # events are visible in the kernel at that point.
-        with self._run():
-            yield
+        with kmod.run(reset_config=self._RESET_CONFIG) as kmod:
+            features = kmod._event_features(events, strict=False)
+            config = dict.fromkeys(features)
+            self._config = config
+            with kmod._reconfigure(config=config):
+                yield
 
     @contextmanager
     def _setup_cm(self, context):

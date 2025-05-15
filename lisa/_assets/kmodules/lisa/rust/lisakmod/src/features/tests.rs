@@ -1,13 +1,16 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
 use alloc::{collections::BTreeMap, sync::Arc, vec, vec::Vec};
-use core::ffi::CStr;
+use core::{
+    ffi::CStr,
+    sync::atomic::{AtomicU32, Ordering},
+};
 
 use lisakmod_macros::inlinec::{cconstant, ceval, cfunc};
 
 use crate::{
     error::Error,
-    features::{FeaturesConfig, define_feature},
+    features::{DependenciesSpec, define_feature},
     lifecycle::new_lifecycle,
     runtime::{
         kbox::KernelKBox,
@@ -266,13 +269,56 @@ test! {
         let mut kobject = KObject::new(kobj_type.clone());
         let mut kobject2 = KObject::new(kobj_type.clone());
 
-        kobject.add(Some(&root), "foo");
-        let kobject = kobject.finalize().expect("Could not finalize kobject");
+        kobject.add(Some(&root), "foo")
+            .expect("Could not add kobject to sysfs");
+        let kobject = kobject.publish().expect("Could not publish kobject");
 
-        kobject2.add(Some(&kobject), "bar");
-        let kobject2 = kobject2.finalize().expect("Could not finalize kobject");
+        kobject2.add(Some(&kobject), "bar")
+            .expect("Could not add kobject to sysfs");
+        let kobject2 = kobject2.publish().expect("Could not publish kobject");
 
         drop(kobject2);
+    }
+}
+
+test! {
+    test8,
+    {
+        use crate::runtime::sysfs::{BinFile, BinRWContent, Folder};
+
+        let mut root = Folder::sysfs_module_root();
+        let file = BinFile::new(&mut root, "file1", 0o644, 1024*1024, BinRWContent::new());
+    }
+}
+
+test! {
+    test9,
+    {
+        use crate::runtime::wq::{Wq, new_work_item};
+        use crate::runtime::sync::{Lock, LockdepClass, Mutex};
+
+        let wq = Wq::new("lisa_test").expect("Could not create workqueue");
+
+
+        let barrier = Mutex::new((), LockdepClass::new("test_barrier"));
+        let x = AtomicU32::new(0);
+
+        let work = new_work_item!(&wq, {
+            let mut guard = Some(barrier.lock());
+            let x = &x;
+            move |work| {
+                let x_ = x.fetch_add(1, Ordering::SeqCst);
+                if x_ == 2 {
+                    drop(guard.take());
+                } else {
+                    work.enqueue(1);
+                }
+            }
+        });
+        work.enqueue(0);
+        // Low-effort barrier
+        barrier.lock();
+        assert!(x.load(Ordering::SeqCst) == 3);
     }
 }
 
@@ -286,6 +332,8 @@ pub fn init_tests() -> Result<(), Error> {
     test5();
     test6();
     test7();
+    test8();
+    test9();
 
     pr_info!("Rust tests finished");
     Ok(())
@@ -298,9 +346,10 @@ define_feature! {
     Service: (),
     Config: (),
     dependencies: [],
+    resources: Default::default,
     init: |configs| {
         Ok((
-            FeaturesConfig::new(),
+            DependenciesSpec::new(),
             new_lifecycle!(|_| {
                 init_tests()?;
                 yield_!(Ok(Arc::new(())));

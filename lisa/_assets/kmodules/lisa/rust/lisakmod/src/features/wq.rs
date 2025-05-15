@@ -4,7 +4,8 @@ use alloc::{sync::Arc, vec::Vec};
 
 pub use crate::runtime::wq::*;
 use crate::{
-    features::{FeaturesConfig, define_feature},
+    error::Error,
+    features::{DependenciesSpec, define_feature},
     lifecycle::new_lifecycle,
 };
 
@@ -14,8 +15,10 @@ pub struct WqService {
 }
 
 impl WqService {
-    fn new() -> WqService {
-        WqService { wq: Wq::new() }
+    fn new() -> Result<WqService, Error> {
+        Ok(WqService {
+            wq: Wq::new("lisa_features")?,
+        })
     }
 
     pub fn wq(&self) -> &Wq {
@@ -30,11 +33,12 @@ define_feature! {
     Service: WqService,
     Config: (),
     dependencies: [],
+    resources: Default::default,
     init: |configs| {
         Ok((
-            FeaturesConfig::new(),
+            DependenciesSpec::new(),
             new_lifecycle!(|services| {
-                yield_!(Ok(Arc::new(WqService::new())));
+                yield_!(Ok(Arc::new(WqService::new()?)));
                 Ok(())
             })
         ))

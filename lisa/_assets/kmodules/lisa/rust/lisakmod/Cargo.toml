@@ -14,6 +14,8 @@ linkme = "0.3.31"
 # hashbrown = "0.15"
 lisakmod_macros = { path = "../lisakmod-macros" }
 pin-project = "1.1"
+serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 
 [profile.release]
 panic = 'abort'

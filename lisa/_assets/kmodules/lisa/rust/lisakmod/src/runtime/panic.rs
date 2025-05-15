@@ -5,7 +5,7 @@ use core::fmt::Write;
 use lisakmod_macros::inlinec::cfunc;
 
 use crate::{
-    fmt::{KBoxWriter, PRINT_PREFIX},
+    fmt::{KBoxWriter, print_prefix},
     runtime::alloc::{GFPFlags, KmallocAllocator},
 };
 
@@ -24,15 +24,15 @@ fn _panic(info: &core::panic::PanicInfo) -> ! {
 
     let msg = info.message();
     match msg.as_str() {
-        Some(s) => panic(PRINT_PREFIX.as_bytes(), s.as_bytes()),
+        Some(s) => panic(print_prefix().as_bytes(), s.as_bytes()),
         None => {
             KBoxWriter::<KmallocAllocator<{ GFPFlags::Atomic }>, _>::with_writer(
-                PRINT_PREFIX,
+                print_prefix(),
                 "[...]",
                 128,
                 |mut writer| {
                     // Not much we can do with a write error here since we already are panicking.
-                    let _ = write!(writer, "{}", msg);
+                    let _ = write!(writer, "{msg}");
                     panic(&b""[..], writer.written())
                 },
             );

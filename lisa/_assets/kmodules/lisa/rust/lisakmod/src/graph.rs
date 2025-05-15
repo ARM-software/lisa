@@ -304,67 +304,6 @@ impl<T> Graph<T> {
     pub fn leaves(&self) -> impl Iterator<Item = Cursor<'_, T>> {
         self.links.leaves().map(|idx| self.cursor(idx))
     }
-
-    // FIXME: remove it if implementation is not finished
-    pub fn children_of<F>(self, filter: F) -> Self
-    where
-        F: Fn(&T) -> bool,
-    {
-        let select = |value, parents: &mut dyn Iterator<Item = &(bool, _)>| {
-            let selected = parents
-                .collect::<Vec<_>>()
-                .into_iter()
-                .any(|(selected, _)| *selected)
-                || filter(&value);
-            (selected, value)
-        };
-
-        let graph = self.dfs_map(DfsPostTraversal::new(
-            TraversalDirection::FromLeaves,
-            select,
-        ));
-
-        let filter_links = |links: &Vec<Vec<usize>>| {
-            links
-                .iter()
-                .map(|nodes_idx| {
-                    nodes_idx
-                        .iter()
-                        .copied()
-                        .filter(|idx: &usize| {
-                            let (selected, _) = &graph.nodes[*idx];
-                            *selected
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .collect::<Vec<_>>()
-        };
-
-        let parents_idx = filter_links(&graph.links.parents);
-        let children_idx = filter_links(&graph.links.children);
-
-        let links = Arc::new(Links {
-            parents: parents_idx,
-            children: children_idx,
-        });
-
-        // graph.nodes.into_iter().map(|(selected, value)|).collect(),
-        // for node in graph.nodes.into_iter() {
-
-        // }
-
-        // Graph {
-        // links: self.links,
-        // nodes: self.nodes.into_iter().map(f).collect(),
-        // }
-
-        // for node in self.
-
-        // for node in self.roots() {
-        // if filter(node.value())
-        // }
-        todo!()
-    }
 }
 
 impl<T, E> From<Graph<Result<T, E>>> for Result<Graph<T>, MultiError<E>> {

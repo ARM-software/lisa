@@ -34,18 +34,26 @@ from lisa._kmod import LISADynamicKmod, KmodSrc
 from lisa.utils import ignore_exceps
 
 
-def lisa_kmod(logger, target, args):
+def lisa_kmod(logger, target, args, reset_config):
     features = args.feature
-
-    kmod_params = {}
-    if features is not None:
-        kmod_params['features'] = list(features)
-
+    if features is None:
+        config = {
+            'all': {
+                'best-effort': True,
+            },
+        }
+    else:
+        config = dict.fromkeys(features)
     kmod = target.get_kmod(LISADynamicKmod)
-    pretty_events = ', '.join(kmod.defined_events)
-    logger.info(f'Kernel module provides the following ftrace events: {pretty_events}')
 
-    return kmod.run(kmod_params=kmod_params)
+    @contextlib.contextmanager
+    def cm():
+        with kmod.run(config=config, reset_config=reset_config) as _kmod:
+            pretty_events = ', '.join(_kmod._defined_events)
+            logger.info(f'Kernel module provides the following ftrace events: {pretty_events}')
+            yield _kmod
+
+    return cm()
 
 
 def main():
@@ -88,7 +96,17 @@ def _main(args, target):
     if cmd and cmd[0] == '--':
         cmd = cmd[1:]
 
-    kmod_cm = lisa_kmod(logger, target, args)
+    kmod_cm = lisa_kmod(
+        logger=logger,
+        target=target,
+        args=args,
+        # If we keep the module loaded after exiting, we treat that as
+        # resetting the state of the module so we reset the config.
+        #
+        # Otherwise, we will simply push our bit of config, and then pop it
+        # upon exiting.
+        reset_config=keep_loaded,
+    )
 
     def run_cmd():
         if cmd:
@@ -102,7 +120,8 @@ def _main(args, target):
         @contextlib.contextmanager
         def cm():
             logger.info('Loading kernel module ...')
-            yield kmod_cm.__enter__()
+            kmod = kmod_cm.__enter__()
+            yield
             logger.info(f'Loaded kernel module as "{kmod.mod_name}"')
     else:
         @contextlib.contextmanager

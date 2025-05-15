@@ -6,10 +6,7 @@ use core::{
 };
 
 use crate::runtime::{alloc::KernelAlloc, kbox::KBox};
-
-// FIXME: when we get config and values from Makefile available somehow, this should be set to
-// KBUILD_MODNAME
-pub const PRINT_PREFIX: &str = "lisa: ";
+pub use crate::version::print_prefix;
 
 // pub struct SliceWriter<W, Text> {
 //     inner: W,

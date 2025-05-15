@@ -1,24 +1,64 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-use alloc::collections::BTreeSet;
-use core::ffi::c_int;
-
-use crate::{
-    features::{Feature, Visibility, features_lifecycle},
-    lifecycle::LifeCycle,
+use alloc::{
+    boxed::Box,
+    collections::{BTreeMap, btree_map},
+    string::String,
+    sync::Arc,
+    vec,
+    vec::Vec,
+};
+use core::{
+    ffi::c_int,
+    ops::DerefMut,
+    pin::Pin,
+    sync::atomic::{AtomicU64, Ordering},
 };
 
-// FIXME: clean that up
-// use alloc::{collections::BTreeSet, sync::Arc, vec::Vec};
-// use core::ffi::{c_int, c_ulong, c_void};
+use lisakmod_macros::inlinec::cfunc;
+
+use crate::{
+    error::{Error, error},
+    features::{
+        DependenciesSpec, DependencySpec, Feature, GenericConfig,
+        all::{AllFeatures, AllFeaturesConfig},
+        features_lifecycle,
+    },
+    lifecycle::{LifeCycle, new_lifecycle},
+    query::{QueryService, QuerySession, SessionId},
+    runtime::{
+        printk::{pr_err, pr_info},
+        sync::{Lock as _, LockdepClass, Mutex},
+        sysfs::Folder,
+        wq::Wq,
+    },
+    version::module_version,
+};
+
+// use alloc::{collections::BTreeMap, string::String, sync::Arc, vec, vec::Vec};
+// use core::{
+//     ffi::{c_int, c_ulong, c_void},
+//     ops::DerefMut,
+// };
+//
+// use lisakmod_macros::inlinec::cfunc;
 //
 // use crate::{
+//     error::{Error, error},
 //     features::{
-//         Feature, FeaturesConfig, FeaturesService, Visibility, define_feature, features_lifecycle,
-//         tracepoint::TracepointFeature, wq::WqFeature,
+//         DependenciesSpec, DependencySpec, Feature, FeaturesService, GenericConfig,
+//         all::{AllFeatures, AllFeaturesConfig},
+//         define_feature, features_lifecycle,
+//         tracepoint::TracepointFeature,
+//         wq::WqFeature,
 //     },
 //     lifecycle::{LifeCycle, new_lifecycle},
-//     runtime::printk::pr_info,
+//     query::QueryService,
+//     runtime::{
+//         printk::{pr_err, pr_info},
+//         sync::{Lock as _, LockdepClass, Mutex},
+//     },
+//     version::module_version,
 // };
 // define_feature! {
 //     struct Feature1,
@@ -29,7 +69,7 @@ use crate::{
 //     dependencies: [Feature2, TracepointFeature, WqFeature],
 //     init: |configs| {
 //         Ok((
-//             FeaturesConfig::new(),
+//             DependenciesSpec::new(),
 //             new_lifecycle!(|services| {
 //                 let services: FeaturesService = services;
 //                 let dropper = services.get::<TracepointFeature>()
@@ -141,6 +181,23 @@ use crate::{
 //                 run(c"/trace-cmd extract -at > stdout.extract 2>&1");
 //                 pr_info!("TRACING STOPED");
 //
+//
+//                 use crate::runtime::sysfs::{KObjType, KObject};
+//
+//                 let root = KObject::sysfs_module_root();
+//
+//                 let kobj_type = Arc::new(KObjType::new());
+//                 let mut kobject = KObject::new(kobj_type.clone());
+//                 let mut kobject2 = KObject::new(kobj_type.clone());
+//
+//                 kobject.add(Some(&root), "folder1")
+//                     .expect("Could not add kobject to sysfs");
+//                 let kobject = kobject.publish().expect("Could not publish kobject");
+//
+//                 kobject2.add(Some(&kobject), "folder2")
+//                     .expect("Could not add kobject to sysfs");
+//                 let kobject2 = kobject2.publish().expect("Could not publish kobject");
+//
 //                 let feature2_service = services.get::<Feature2>();
 //                 pr_info!("FEATURE2 service: {feature2_service:?}");
 //                 yield_!(Ok(Arc::new(())));
@@ -154,7 +211,7 @@ use crate::{
 //         ))
 //     },
 // }
-//
+
 // #[derive(Debug)]
 // struct Feature2Service {
 //     a: u32,
@@ -169,7 +226,7 @@ use crate::{
 //     dependencies: [],
 //     init: |configs| {
 //         Ok((
-//             FeaturesConfig::new(),
+//             DependenciesSpec::new(),
 //             new_lifecycle!(|services| {
 //                 pr_info!("FEATURE2 start");
 //                 let service = Feature2Service { a: 42 };
@@ -182,23 +239,193 @@ use crate::{
 // }
 // define_event_feature!(struct myevent);
 
-pub fn module_main() -> LifeCycle<(), (), c_int> {
-    // Always enable the C legacy features, as it is just a proxy to enable the C features.
-    let select_legacy = |feature: &dyn Feature| feature.name() == "__legacy_features";
-    let select_public = |feature: &dyn Feature| {
-        select_legacy(feature) || feature.visibility() == Visibility::Public
-    };
+pub struct State {
+    lifecycle: Mutex<Option<LifeCycle<(), (), Error>>>,
+    config_stack: Mutex<Vec<BTreeMap<String, GenericConfig>>>,
+    sessions: Mutex<BTreeMap<SessionId, QuerySession>>,
+    session_id: AtomicU64,
+    wq: Pin<Box<Wq>>,
+}
 
-    let to_enable = crate::features::legacy::module_param_features();
-    match to_enable {
-        None => features_lifecycle(select_public),
-        Some(features) => {
-            let features: BTreeSet<_> = features.collect();
-            let select = |feature: &dyn Feature| {
-                select_legacy(feature)
-                    || (select_public(feature) && features.contains(feature.name()))
-            };
-            features_lifecycle(select)
+fn pop_configs<S>(mut stack: S, n: usize) -> Result<usize, Error>
+where
+    S: DerefMut<Target = Vec<BTreeMap<String, GenericConfig>>>,
+{
+    let len = stack.len();
+    if n > len {
+        Err(error!(
+            "Cannot pop {n} configs as only {len} are left in the stack"
+        ))
+    } else {
+        let new_len = len.saturating_sub(n);
+        stack.truncate(new_len);
+        Ok(new_len)
+    }
+}
+
+impl State {
+    fn new() -> Result<State, Error> {
+        Ok(State {
+            lifecycle: Mutex::new(None, LockdepClass::new()),
+            config_stack: Mutex::new(Vec::new(), LockdepClass::new()),
+            sessions: Mutex::new(BTreeMap::new(), LockdepClass::new()),
+            session_id: AtomicU64::new(0),
+            wq: Box::pin(Wq::new("lisa_state")?),
+        })
+    }
+
+    pub fn config_stack(&self) -> Result<Vec<BTreeMap<String, GenericConfig>>, Error> {
+        Ok(self.config_stack.lock().clone())
+    }
+
+    pub fn push_config(&self, config: BTreeMap<String, GenericConfig>) -> Result<(), Error> {
+        self.config_stack.lock().push(config);
+        Ok(())
+    }
+
+    pub fn pop_configs(&self, n: usize) -> Result<usize, Error> {
+        let stack = self.config_stack.lock();
+        pop_configs(stack, n)
+    }
+
+    pub fn pop_all_configs(&self) -> Result<usize, Error> {
+        let stack = self.config_stack.lock();
+        let n = stack.len();
+        pop_configs(stack, n)
+    }
+
+    pub fn restart<F>(&self, f: F) -> Result<(), Error>
+    where
+        F: FnOnce() -> Result<LifeCycle<(), (), Error>, Error>,
+    {
+        let mut lifecycle = self.lifecycle.lock();
+        match &mut *lifecycle {
+            None => Ok(()),
+            Some(lifecycle) => lifecycle.stop(),
+        }?;
+        *lifecycle = Some(f()?);
+        lifecycle.as_mut().unwrap().start(()).cloned()
+    }
+
+    pub fn stop(&self) -> Result<(), Error> {
+        match &mut *self.lifecycle.lock() {
+            None => Ok(()),
+            Some(lifecycle) => lifecycle.stop(),
         }
     }
+
+    pub fn new_session(&self, root: &mut Folder, state: Arc<State>) -> Result<String, Error> {
+        let id = self.session_id.fetch_add(1, Ordering::Relaxed);
+        let session = QuerySession::new(root, state, id)?;
+        match self.sessions.lock().entry(id) {
+            btree_map::Entry::Vacant(entry) => Ok(entry.insert(session).name()),
+            _ => Err(error!("Session ID {id} already exists")),
+        }
+    }
+
+    pub fn with_session<F, T>(&self, id: SessionId, f: F) -> Result<T, Error>
+    where
+        F: FnOnce(&mut QuerySession) -> T,
+    {
+        match self.sessions.lock().get_mut(&id) {
+            Some(session) => Ok(f(session)),
+            None => Err(error!("Could not find session ID {id}")),
+        }
+    }
+
+    pub fn close_session(&self, id: SessionId) {
+        // Ensure we drop the lock guard before dropping the removed value, otherwise we can get a
+        // deadlock as we are taking session lock first then sysfs lock. When accessing control
+        // files, the kernel takes the sysfs lock and then we take the session lock
+        drop({
+            let mut guard = self.sessions.lock();
+            let x = guard.remove(&id);
+            drop(guard);
+            x
+        })
+    }
+
+    pub fn finalize(&self) {
+        // This is needed in order to break the Arc cycle:
+        // State -> QuerySession -> State
+        // which would otherwise prevent deallocation of the State.
+        *self.sessions.lock() = BTreeMap::new();
+        self.wq.clear_owned_work();
+    }
+
+    pub fn wq(&self) -> Pin<&Wq> {
+        self.wq.as_ref()
+    }
+}
+
+#[cfunc]
+fn enable_all_param() -> bool {
+    r#"
+    #include <linux/module.h>
+
+    static bool ___param_enable_all_features = true;
+    module_param(___param_enable_all_features, bool, 0);
+    MODULE_PARM_DESC(___param_enable_all_features, "If true, make a best effort attempt to enable all the features with no specific configuration upon module load.");
+    "#;
+
+    r#"
+    return ___param_enable_all_features;
+    "#
+}
+
+pub fn module_main() -> LifeCycle<(), (), c_int> {
+    new_lifecycle!(|_| {
+        let version = module_version();
+        pr_info!("Loading Lisa module version {version}");
+
+        let state = Arc::new(State::new().map_err(|err| {
+            pr_err!("Error while creating the state workqueue: {err:#}");
+            1
+        })?);
+        let query_service = QueryService::new(Arc::clone(&state)).map_err(|err| {
+            pr_err!("Error while creating the query service: {err:#}");
+            1
+        })?;
+
+        let enable_all = enable_all_param();
+
+        // Legacy behavior: when loading the module without specifying any parameter, we load all
+        // the features on a best-effort basis. This allows a basic user to get all what they can
+        // that does not strictly require configuration out of the module.
+        if enable_all {
+            let mut spec = DependenciesSpec::new();
+            spec.insert::<AllFeatures>(DependencySpec::Mandatory {
+                configs: vec![AllFeaturesConfig { best_effort: true }],
+            });
+
+            let make_lifecycle =
+                || features_lifecycle(|feat| feat.name() == AllFeatures::NAME, spec, Vec::new());
+
+            // AFTER THIS POINT, NO MORE EARLY RETURN
+            // Since we are going to create a LifeCycle, it would need to be stop()-ed before exiting,
+            // so we don't want to do an early return and just drop it.
+
+            yield_!(match state.restart(make_lifecycle) {
+                Ok(()) => Ok(()),
+                Err(err) => {
+                    pr_err!("Error while starting features: {err:#}");
+                    // Best-effort basis, so we don't return an error code. If we did so, this
+                    // would prevent from unloading the module.
+                    Ok(())
+                }
+            });
+        } else {
+            yield_!(Ok(()));
+        }
+
+        state.stop().map_err(|err| {
+            pr_err!("Error while stopping features: {err:#}");
+            // This is ignored as the module_exit() returns void
+            0
+        })?;
+
+        state.finalize();
+        pr_info!("Unloaded Lisa module version {version}");
+        Ok(())
+    })
 }

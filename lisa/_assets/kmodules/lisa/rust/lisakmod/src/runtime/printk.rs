@@ -5,7 +5,7 @@ use core::fmt::Write as _;
 use lisakmod_macros::inlinec::cfunc;
 
 use crate::{
-    fmt::{KBoxWriter, PRINT_PREFIX},
+    fmt::{KBoxWriter, print_prefix},
     runtime::alloc::{GFPFlags, KmallocAllocator},
 };
 
@@ -58,10 +58,10 @@ pub fn __pr_level_impl(level: DmesgLevel, fmt: core::fmt::Arguments<'_>) -> core
     match fmt.as_str() {
         // If the format is just a plain string, we can simply display it directly, no need to
         // allocate anything.
-        Some(s) => write_dmesg(level, PRINT_PREFIX, s),
+        Some(s) => write_dmesg(level, print_prefix(), s),
         None => {
             KBoxWriter::<KmallocAllocator<{ GFPFlags::Atomic }>, _>::with_writer(
-                PRINT_PREFIX,
+                print_prefix(),
                 "[...]",
                 128,
                 |mut writer| {

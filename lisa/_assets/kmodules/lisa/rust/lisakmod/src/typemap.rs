@@ -140,6 +140,21 @@ where
     }
 
     #[inline]
+    pub fn get_mut<Key>(&mut self) -> Option<&mut <Key as KeyOf<Idx>>::Value>
+    where
+        Key: ?Sized + KeyOf<Idx>,
+        <Key as KeyOf<Idx>>::Value: 'static,
+    {
+        let key = TypeId::of::<Key>();
+        self.get_any_mut(&key).map(|v| {
+            &mut ((v as &mut dyn Any)
+                .downcast_mut::<ValueOf<Idx, Key>>()
+                .expect("An Any value of the wrong concrete type was inserted for that key.")
+                .value)
+        })
+    }
+
+    #[inline]
     fn insert_any(&mut self, type_id: TypeId, value: Box<dyn Value>) {
         self.inner.insert(type_id, value);
     }
@@ -147,6 +162,11 @@ where
     #[inline]
     fn get_any(&self, type_id: &TypeId) -> Option<&dyn Value> {
         self.inner.get(type_id).map(|x| &**x)
+    }
+
+    #[inline]
+    fn get_any_mut(&mut self, type_id: &TypeId) -> Option<&mut dyn Value> {
+        self.inner.get_mut(type_id).map(|x| &mut **x)
     }
 }
 

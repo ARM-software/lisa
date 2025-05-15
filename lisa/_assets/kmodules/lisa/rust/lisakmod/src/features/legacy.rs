@@ -1,75 +1,120 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-use alloc::{sync::Arc, vec::Vec};
+use alloc::{collections::BTreeSet, ffi::CString, string::String, sync::Arc, vec::Vec};
 use core::{
-    ffi::{CStr, c_char, c_int, c_uint, c_void},
+    ffi::{CStr, c_char, c_int, c_uchar},
     ptr::NonNull,
 };
 
-use lisakmod_macros::inlinec::cfunc;
+use itertools::Itertools as _;
+use lisakmod_macros::inlinec::{c_realchar, cfunc};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     error::error,
-    features::{FeaturesConfig, define_feature},
+    features::{DependenciesSpec, FeatureResources, ProvidedFeatureResources, define_feature},
     lifecycle::new_lifecycle,
-    runtime::printk::pr_err,
 };
 
-#[cfunc]
-fn features_array() -> Option<NonNull<c_void>> {
-    r#"
-    #include <linux/module.h>
-    #include "features.h"
+pub fn legacy_features() -> impl Iterator<Item = &'static str> {
+    #[cfunc]
+    fn nth(i: &mut usize) -> Option<NonNull<c_realchar>> {
+        r#"
+        #include "features.h"
+        "#;
 
-    static char *features[MAX_FEATURES];
-    static unsigned int features_len = 0;
-    module_param_array(features, charp, &features_len, 0);
-    MODULE_PARM_DESC(features, "Comma-separated list of features to enable. Available features are printed when loading the module");
-    "#;
+        r#"
+        const struct feature* base = __lisa_features_start;
+        const struct feature* stop = __lisa_features_stop;
+        size_t len = stop - base;
 
-    r#"
-    return features;
-    "#
+        while (1) {
+            if (*i >= len) {
+                return NULL;
+            } else {
+                const struct feature* nth = base + *i;
+                *i += 1;
+                if (nth->__internal) {
+                    continue;
+                } else {
+                    return nth->name;
+                }
+            }
+        }
+        "#
+    }
+
+    let mut i: usize = 0;
+    core::iter::from_fn(move || {
+        nth(&mut i).map(|ptr| {
+            let ptr = ptr.as_ptr();
+            unsafe { CStr::from_ptr(ptr as *const c_char) }
+                .to_str()
+                .expect("Invalid UTF-8")
+        })
+    })
 }
 
-#[cfunc]
-fn features_array_len() -> c_uint {
-    r#"
-    static unsigned int features_len;
-    "#;
-
-    r#"
-    return features_len;
-    "#
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LegacyConfig {
+    pub features: BTreeSet<String>,
 }
 
-pub fn module_param_features() -> Option<impl Iterator<Item = &'static str>> {
-    let len = match features_array_len() {
-        0 => None,
-        x => Some(x),
-    }?;
+impl Default for LegacyConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
-    let ptr = features_array()?;
-    let ptr = ptr.as_ptr() as *const *const c_char;
+impl LegacyConfig {
+    pub fn new() -> LegacyConfig {
+        LegacyConfig {
+            features: BTreeSet::new(),
+        }
+    }
 
-    let slice = unsafe { core::slice::from_raw_parts(ptr, len as usize) };
-    Some(slice.iter().map(|s| {
-        unsafe { CStr::from_ptr(*s) }
-            .to_str()
-            .expect("Invalid UTF-8 in feature name")
-    }))
+    fn merge<'a, I>(configs: I) -> LegacyConfig
+    where
+        I: Iterator<Item = &'a LegacyConfig>,
+    {
+        LegacyConfig {
+            features: configs
+                .flat_map(|config| &config.features)
+                .cloned()
+                .collect(),
+        }
+    }
+
+    pub fn new_all() -> LegacyConfig {
+        LegacyConfig {
+            features: legacy_features().map(|s| s.into()).collect(),
+        }
+    }
 }
 
 define_feature! {
-    struct LegacyFeatures,
+    pub struct LegacyFeatures,
     name: "__legacy_features",
     visibility: Private,
     Service: (),
-    Config: (),
+    Config: LegacyConfig,
     dependencies: [],
+    resources: || {
+        let events = legacy_features().filter_map(|name| {
+            name.strip_prefix("event__").map(|event| event.into())
+        }).collect();
+
+        FeatureResources {
+            provided: ProvidedFeatureResources {
+                ftrace_events: events,
+            }
+        }
+    },
     init: |configs| {
+        let config = LegacyConfig::merge(configs);
+
         Ok((
-            FeaturesConfig::new(),
+            DependenciesSpec::new(),
             new_lifecycle!(|services| {
                 #[cfunc]
                 fn list_kernel_features() {
@@ -90,13 +135,13 @@ define_feature! {
                 }
 
                 #[cfunc]
-                fn start(features: Option<NonNull<c_void>>, len: c_uint) -> Result<(), c_int> {
+                fn start(features: *const *const c_realchar, len: usize) -> Result<(), c_int> {
                     r#"
                     #include "features.h"
                     "#;
 
                     r#"
-                    return init_features(len ? features : NULL , len);
+                    return init_features(features, len);
                     "#
                 }
 
@@ -114,10 +159,31 @@ define_feature! {
 
                 list_kernel_features();
 
-                // We must not bail out here, otherwise we will never run stop(), which will leave
-                // tracepoint probes installed after modexit, leading to a kernel crash
-                if let Err(code) = start(features_array(), features_array_len()) { pr_err!("Failed to start legacy C features: {code}") }
-                yield_!(Ok(Arc::new(())));
+                // Drop the features name Vec before yield_!() as Vec<*const c_uchar> is not Send.
+                yield_!({
+                    let features: Vec<CString> = config.features
+                        .iter()
+                        .sorted()
+                        .map(|s| CString::new(&**s))
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|err| error!("Could not convert String to CString: {err}"))?;
+                    let features: Vec<*const c_uchar> = features
+                        .iter()
+                        .map(|s| s.as_ptr() as *const c_uchar)
+                        .collect();
+
+                    // SAFETY: We must not return early here, otherwise we will never run stop(),
+                    // which will leave tracepoint probes installed after modexit, leading to a
+                    // kernel crash
+                    match start(
+                        features.as_ptr() as *const *const c_realchar,
+                        features.len(),
+                    ) {
+                        Err(code) => Err(error!("Failed to start legacy C features: {code}")),
+                        Ok(()) => Ok(Arc::new(()))
+                    }
+                });
+
                 stop().map_err(|code| error!("Failed to stop legacy C features: {code}"))
             })
         ))
