@@ -2596,7 +2596,7 @@ class KmodSrc(Loggable):
         }
         self._mod_name = name
 
-        self.logger.debug(f'Created {self.__class__.__qualname__} with name {self._mod_name} and sources: {", ".join(self.src.keys())}')
+        self.logger.debug(f'Created {self.__class__.__qualname__} with name {self.mod_name} and sources: {", ".join(self.src.keys())}')
 
     @property
     def code_files(self):
@@ -2666,10 +2666,14 @@ class KmodSrc(Loggable):
                 return self.src['Makefile']
             except KeyError:
                 name = self.mod_name
+                def object_path(filename):
+                    path = Path(filename)
+                    path = path.parent / f'{path.stem}.o'
+                    return str(path)
                 return '\n'.join((
                     f'obj-m := {name}.o',
                     f'{name}-y := ' + ' '.join(
-                        f'{Path(filename).stem}.o'
+                        object_path(filename)
                         for filename in sorted(self.c_files.keys())
                     )
                 )).encode('utf-8')
@@ -2736,6 +2740,12 @@ class KmodSrc(Loggable):
 
         def find_mod_file(path):
             filenames = glob.glob(str(path.resolve() / '*.ko'))
+            if len(filenames) > 1:
+                filenames = [
+                    filename
+                    for filename in filenames
+                    if Path(filename).stem == self.mod_name
+                ]
 
             if not filenames:
                 raise FileNotFoundError(f'Could not find .ko file in {path}')
