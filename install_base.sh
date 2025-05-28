@@ -91,20 +91,6 @@ install_pacman() {
     sudo pacman -Sy --needed --noconfirm "${pacman_packages[@]}" || exit $?
 }
 
-register_pip_extra_requirements() {
-    local content
-    local requirements="$LISA_HOME/extra_requirements.txt"
-    local devmode_requirements="$LISA_HOME/devmode_extra_requirements.txt"
-
-    echo "Registering extra Python pip requirements in $requirements:"
-    content=$(printf "%s\n" "${pip_extra_requirements[@]}")
-    printf "%s\n\n" "$content" | tee "$requirements"
-
-    # All the requirements containing "./" are prefixed with "-e " to install
-    # them in editable mode
-    printf "%s\n\n" "$(printf "%s" "$content" | sed '/.\//s/^/-e /')" > "$devmode_requirements"
-}
-
 devlib_setup_host() {
     if [ ${#devlib_params[@]} -ne 0 ]; then
         "${LISA_HOME}/external/devlib/tools/android/setup_host.sh" "${devlib_params[@]}"
@@ -168,9 +154,7 @@ if test_os_release NAME "Ubuntu" && lower_or_equal "$(read_os_release VERSION_ID
 fi
 
 # Array of functions to call in order
-install_functions=(
-    register_pip_extra_requirements
-)
+install_functions=()
 
 # Detection based on the package-manager, so that it works on derivatives of
 # distributions we expect. Matching on distro name would prevent that.
@@ -197,8 +181,7 @@ fi
 usage() {
     echo "Usage: $0 [--help] [--cleanup-android-sdk] [--install-android-tools]
     [--install-android-platform-tools] [--install-doc-extras]
-    [--install-tests-extra] [--install-bisector-dbus] [--install-toolchains]
-    [--install-all]"
+    [--install-tests-extra] [--install-toolchains] [--install-all]"
     cat << EOF
 
 Install distribution packages and other bits that don't fit in the Python
@@ -289,22 +272,6 @@ for arg in "${args[@]}"; do
         handled=1
         ;;&
 
-    "--install-bisector-dbus")
-        apt_packages+=(
-            gobject-introspection
-            # Some of that seems to only be needed on some version of Ubuntu.
-            # GTK/Glib does not shine on packaging side, so ere on the side of
-            # caution and install all the things that seem to avoid issues ...
-            libcairo2-dev
-            libgirepository1.0-dev
-            gir1.2-gtk-3.0
-        )
-        # plantuml can be installed from the AUR
-        pacman_packages+=(gobject-introspection)
-        pip_extra_requirements+=(./tools/bisector[dbus])
-        handled=1
-        ;;&
-
     "--help")
         usage
         exit 0
@@ -326,7 +293,6 @@ ordered_functions=(
     # pre-requisites are there
     install_apt
     install_pacman
-    register_pip_extra_requirements
     devlib_setup_host
 )
 
