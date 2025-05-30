@@ -5,6 +5,7 @@ pub mod events;
 pub mod legacy;
 pub mod pixel6;
 pub mod tests;
+pub mod thermal;
 pub mod tracepoint;
 pub mod wq;
 
@@ -638,7 +639,7 @@ fn push_user_configs(
                 Some(feat) => match feat.visibility() {
                     Visibility::Public => feat.__push_user_config(stack, feat_config),
                     Visibility::Private => Err(error!(
-                        "Feature {feat_name} cannot be explicitly enabled as it is private"
+                        "Feature \"{feat_name}\" cannot be explicitly enabled as it is private"
                     )),
                 },
             }?;
