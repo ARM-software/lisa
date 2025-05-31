@@ -212,7 +212,7 @@ test! {
     {
         use core::ops::{Deref, DerefMut};
 
-        use crate::runtime::sync::{Lock, LockdepClass, Mutex, SpinLock};
+        use crate::runtime::sync::{Lock, LockdepClass,  Mutex, SpinLock};
         {
             new_static_mutex!(STATIC_MUTEX, u32, 42);
             macro_rules! test_lock {
@@ -243,14 +243,14 @@ test! {
                 }};
             }
 
-            test_lock!(SpinLock::new(42, LockdepClass::new()));
-            test_lock!(Mutex::new(42, LockdepClass::new()));
+            test_lock!(SpinLock::new(42, LockdepClass::new("test_spinlock")));
+            test_lock!(Mutex::new(42, LockdepClass::new("test_mutex")));
             test_lock!(&STATIC_MUTEX);
         }
 
         {
             use crate::runtime::sync::Rcu;
-            let rcu = Rcu::new(42, LockdepClass::new());
+            let rcu = Rcu::new(42, LockdepClass::new("test_rcu"));
             assert_eq!(*rcu.lock(), 42);
             rcu.update(43);
             assert_eq!(*rcu.lock(), 43);

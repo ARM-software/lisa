@@ -192,7 +192,7 @@ mod private {
     use super::*;
     use crate::{
         error::{Error, ResultExt as _, error},
-        runtime::sync::{LockdepClass, Mutex},
+        runtime::sync::{Mutex, new_static_lockdep_class},
     };
 
     pub struct LiveFeature {
@@ -359,9 +359,10 @@ mod private {
                 .configure(&mut for_us.iter())
                 .with_context(|| format!("Failed to configure feature {name}"))?;
             let lifecycle = FeatureLifeCycle::<Feat>::new(lifecycle);
+            new_static_lockdep_class!(LIVE_FEATURE_LIFECYCLE_LOCKDEP_CLASS);
             let lifecycle = Mutex::new(
                 Box::new(lifecycle) as Box<dyn Any + Send>,
-                LockdepClass::new(),
+                LIVE_FEATURE_LIFECYCLE_LOCKDEP_CLASS.clone(),
             );
 
             Ok(LiveFeature {

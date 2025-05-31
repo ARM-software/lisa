@@ -28,7 +28,7 @@ use crate::{
     query::{QueryService, QuerySession, SessionId},
     runtime::{
         printk::{pr_err, pr_info},
-        sync::{Lock as _, LockdepClass, Mutex},
+        sync::{Lock as _, Mutex, new_static_lockdep_class},
         sysfs::Folder,
         wq::Wq,
     },
@@ -265,10 +265,13 @@ where
 
 impl State {
     fn new() -> Result<State, Error> {
+        new_static_lockdep_class!(STATE_LIFECYCLE_LOCKDEP_CLASS);
+        new_static_lockdep_class!(STATE_CONFIG_STACK_LOCKDEP_CLASS);
+        new_static_lockdep_class!(STATE_SESSIONS_LOCKDEP_CLASS);
         Ok(State {
-            lifecycle: Mutex::new(None, LockdepClass::new()),
-            config_stack: Mutex::new(Vec::new(), LockdepClass::new()),
-            sessions: Mutex::new(BTreeMap::new(), LockdepClass::new()),
+            lifecycle: Mutex::new(None, STATE_LIFECYCLE_LOCKDEP_CLASS.clone()),
+            config_stack: Mutex::new(Vec::new(), STATE_CONFIG_STACK_LOCKDEP_CLASS.clone()),
+            sessions: Mutex::new(BTreeMap::new(), STATE_SESSIONS_LOCKDEP_CLASS.clone()),
             session_id: AtomicU64::new(0),
             wq: Box::pin(Wq::new("lisa_state")?),
         })

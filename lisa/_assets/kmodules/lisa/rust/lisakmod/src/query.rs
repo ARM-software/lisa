@@ -22,7 +22,7 @@ use crate::{
     init::State,
     runtime::{
         printk::pr_err,
-        sync::{Lock as _, LockdepClass, Mutex},
+        sync::{Lock as _, Mutex, new_static_lockdep_class},
         sysfs::{BinFile, BinROContent, BinRWContent, Folder},
         wq::new_attached_work_item,
     },
@@ -296,9 +296,10 @@ pub struct QueryService {
 impl QueryService {
     pub fn new(state: Arc<State>) -> Result<QueryService, Error> {
         let mut root = Folder::sysfs_module_root();
+        new_static_lockdep_class!(QUERIES_FOLDER_LOCKDEP_CLASS);
         let root = Arc::new(Mutex::new(
             Folder::new(&mut root, "queries")?,
-            LockdepClass::new(),
+            QUERIES_FOLDER_LOCKDEP_CLASS.clone(),
         ));
 
         let new_session = {

@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-use alloc::{boxed::Box, sync::Arc};
+use alloc::{boxed::Box, ffi::CString, sync::Arc};
 use core::{
     cell::{Cell, UnsafeCell},
-    ffi::c_void,
+    ffi::{CStr, c_void},
     marker::PhantomData,
     ops::{Deref, DerefMut},
     pin::Pin,
@@ -13,29 +13,34 @@ use lisakmod_macros::inlinec::{cfunc, opaque_type};
 
 use crate::{mem::impl_from_contained, runtime::kbox::KernelKBox};
 
-opaque_type!(struct CLockClassKey, "struct lock_class_key", "linux/lockdep.h");
+opaque_type!(pub struct CLockClassKey, "struct lock_class_key", "linux/lockdep.h");
 
 // Inner type that we can make Sync, as UnsafeCell is !Sync
 struct InnerLockdepClass {
     c_key: UnsafeCell<CLockClassKey>,
+    name: CString,
 }
 
-unsafe impl Send for InnerLockdepClass {}
-unsafe impl Sync for InnerLockdepClass {}
-
-pub struct LockdepClass {
+#[derive(Clone)]
+enum AllocatedLockdepClass {
     // SAFETY: InnerLockdepClass needs to be pinned, as CLockClassKey is part of some linked lists.
-    inner: Pin<Arc<InnerLockdepClass>>,
+    Dyn(Pin<Arc<InnerLockdepClass>>),
+    Static {
+        key: &'static CLockClassKey,
+        name: &'static CStr,
+    },
 }
 
-impl Default for LockdepClass {
-    fn default() -> Self {
-        Self::new()
-    }
+unsafe impl Send for AllocatedLockdepClass {}
+unsafe impl Sync for AllocatedLockdepClass {}
+
+#[derive(Clone)]
+pub struct LockdepClass {
+    inner: AllocatedLockdepClass,
 }
 
 impl LockdepClass {
-    pub fn new() -> LockdepClass {
+    pub fn new(name: &str) -> LockdepClass {
         #[cfunc]
         unsafe fn lockdep_register_key(key: *mut CLockClassKey) {
             r#"
@@ -52,8 +57,9 @@ impl LockdepClass {
                 .expect("Could not allocate lock_class_key"),
         );
 
+        let name = CString::new(name).expect("Cannot convert lockdep class name to C string");
         let this = LockdepClass {
-            inner: Arc::pin(InnerLockdepClass { c_key }),
+            inner: AllocatedLockdepClass::Dyn(Arc::pin(InnerLockdepClass { c_key, name })),
         };
         unsafe {
             lockdep_register_key(this.get_key());
@@ -61,8 +67,27 @@ impl LockdepClass {
         this
     }
 
+    pub const fn __internal_from_ref(
+        key: &'static CLockClassKey,
+        name: &'static CStr,
+    ) -> LockdepClass {
+        LockdepClass {
+            inner: AllocatedLockdepClass::Static { key, name },
+        }
+    }
+
     fn get_key(&self) -> *mut CLockClassKey {
-        UnsafeCell::get(&self.inner.c_key)
+        match &self.inner {
+            AllocatedLockdepClass::Dyn(inner) => UnsafeCell::get(&inner.c_key),
+            AllocatedLockdepClass::Static { key, .. } => *key as *const _ as *mut _,
+        }
+    }
+
+    fn c_name(&self) -> &CStr {
+        match &self.inner {
+            AllocatedLockdepClass::Dyn(inner) => inner.name.as_c_str(),
+            AllocatedLockdepClass::Static { name, .. } => name,
+        }
     }
 }
 
@@ -78,11 +103,40 @@ impl Drop for LockdepClass {
             lockdep_unregister_key(key);
             "#
         }
-        unsafe {
-            lockdep_unregister_key(self.get_key());
+
+        match self.inner {
+            AllocatedLockdepClass::Dyn(_) => unsafe {
+                lockdep_unregister_key(self.get_key());
+            },
+            AllocatedLockdepClass::Static { .. } => {}
         }
     }
 }
+
+macro_rules! new_static_lockdep_class {
+    ($vis:vis $name:ident) => {
+        $vis static $name: $crate::runtime::sync::LockdepClass = $crate::runtime::sync::LockdepClass::__internal_from_ref(
+            {
+                #[::lisakmod_macros::inlinec::cstatic]
+                static STATIC_LOCKDEP_CLASS_KEY: $crate::runtime::sync::CLockClassKey = (
+                    "#include <linux/mutex.h>",
+                    "struct lock_class_key STATIC_VARIABLE;"
+                );
+                unsafe {
+                    &STATIC_LOCKDEP_CLASS_KEY
+                }
+            },
+            match ::core::ffi::CStr::from_bytes_with_nul(
+                ::core::concat!(::core::stringify!($name),"\0").as_bytes()
+            ) {
+                Ok(s) => s,
+                Err(err) => unreachable!(),
+            }
+        );
+    };
+}
+#[allow(unused_imports)]
+pub(crate) use new_static_lockdep_class;
 
 pub trait LockGuard<'guard>
 where
@@ -337,24 +391,30 @@ impl<'a, T: 'a + Send> _LockMut<'a> for SpinLock<T> {}
 opaque_type!(pub struct CMutex, "struct mutex", "linux/mutex.h");
 
 enum AllocatedCMutex {
-    KBox(Pin<KernelKBox<UnsafeCell<CMutex>>>, LockdepClass),
-    Static(Pin<&'static UnsafeCell<CMutex>>),
+    KBox {
+        c_mutex: Pin<KernelKBox<UnsafeCell<CMutex>>>,
+        lockdep_class: LockdepClass,
+    },
+    Static {
+        c_mutex: Pin<&'static UnsafeCell<CMutex>>,
+    },
 }
 
 impl AllocatedCMutex {
     #[inline]
     fn as_pin_ref(&self) -> Pin<&UnsafeCell<CMutex>> {
         match self {
-            AllocatedCMutex::KBox(c_mutex, _) => c_mutex.as_ref(),
-            AllocatedCMutex::Static(c_mutex) => *c_mutex,
+            AllocatedCMutex::KBox { c_mutex, .. } => c_mutex.as_ref(),
+            AllocatedCMutex::Static { c_mutex, .. } => *c_mutex,
         }
     }
 }
 
 macro_rules! new_static_mutex {
     ($vis:vis $name:ident, $ty:ty, $data:expr) => {
-        $vis static $name: $crate::runtime::sync::Mutex<$ty> =
-            $crate::runtime::sync::Mutex::__internal_from_ref($data, {
+        $vis static $name: $crate::runtime::sync::Mutex<$ty> = $crate::runtime::sync::Mutex::__internal_from_ref(
+            $data,
+            {
                 #[::lisakmod_macros::inlinec::cstatic]
                 static STATIC_MUTEX: $crate::runtime::sync::CMutex = (
                     "#include <linux/mutex.h>",
@@ -375,7 +435,8 @@ macro_rules! new_static_mutex {
                         &*( &STATIC_MUTEX as *const _ as *const ::core::cell::UnsafeCell<_>)
                     )
                 }
-            });
+            }
+        );
     };
 }
 #[allow(unused_imports)]
@@ -391,7 +452,10 @@ impl<T> Mutex<T> {
     #[inline]
     pub fn new(x: T, lockdep_class: LockdepClass) -> Self {
         #[cfunc]
-        fn mutex_alloc(lockdep_key: *mut CLockClassKey) -> Pin<KernelKBox<UnsafeCell<CMutex>>> {
+        fn mutex_alloc(
+            lockdep_key: *mut CLockClassKey,
+            name: &CStr,
+        ) -> Pin<KernelKBox<UnsafeCell<CMutex>>> {
             r#"
             #include <linux/mutex.h>
             #include <linux/slab.h>
@@ -402,14 +466,17 @@ impl<T> Mutex<T> {
             struct mutex *mutex = kzalloc(sizeof(struct mutex), GFP_KERNEL);
             if (mutex) {
                 mutex_init(mutex);
-                lockdep_set_class(mutex, lockdep_key);
+                lockdep_set_class_and_name(mutex, lockdep_key, name);
             }
             return mutex;
             "#
         }
-        let c_mutex = mutex_alloc(lockdep_class.get_key());
+        let c_mutex = mutex_alloc(lockdep_class.get_key(), lockdep_class.c_name());
         Mutex {
-            c_mutex: AllocatedCMutex::KBox(c_mutex, lockdep_class),
+            c_mutex: AllocatedCMutex::KBox {
+                c_mutex,
+                lockdep_class,
+            },
             data: x.into(),
         }
     }
@@ -417,7 +484,7 @@ impl<T> Mutex<T> {
     #[inline]
     pub const fn __internal_from_ref(x: T, c_mutex: Pin<&'static UnsafeCell<CMutex>>) -> Self {
         Mutex {
-            c_mutex: AllocatedCMutex::Static(c_mutex),
+            c_mutex: AllocatedCMutex::Static { c_mutex },
             data: UnsafeCell::new(x),
         }
     }

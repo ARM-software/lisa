@@ -19,7 +19,7 @@ use crate::{
     mem::{FromContained, container_of, impl_from_contained, mut_container_of},
     runtime::{
         fs::{CFile, FsMode},
-        sync::{Lock as _, LockdepClass, Mutex},
+        sync::{Lock as _, Mutex, new_static_lockdep_class},
     },
 };
 
@@ -514,8 +514,9 @@ impl Default for BinRWContent {
 
 impl BinRWContent {
     pub fn new() -> BinRWContent {
+        new_static_lockdep_class!(BIN_ATTR_CONTENT_LOCKDEP_CLASS);
         BinRWContent {
-            content: Mutex::new(Vec::new(), LockdepClass::new()),
+            content: Mutex::new(Vec::new(), BIN_ATTR_CONTENT_LOCKDEP_CLASS.clone()),
         }
     }
 

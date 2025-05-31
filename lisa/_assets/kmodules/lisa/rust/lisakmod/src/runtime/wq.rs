@@ -17,11 +17,11 @@ use pin_project::{pin_project, pinned_drop};
 use crate::{
     error::{Error, error},
     mem::{FromContained, destructure, impl_from_contained},
-    runtime::sync::{Lock as _, LockdepClass, Mutex, PinnedLock},
+    runtime::sync::{Lock as _, LockdepClass, Mutex, PinnedLock, new_static_lockdep_class},
 };
 
 incomplete_opaque_type!(
-    struct CWq,
+    pub struct CWq,
     "struct workqueue_struct",
     "linux/workqueue.h"
 );
@@ -93,13 +93,15 @@ impl Wq {
             "#;
         }
 
+        new_static_lockdep_class!(WQ_OWNED_WORK_LOCKDEP_CLASS);
+
         match allo_workqueue(name) {
             None => Err(error!("Unable to allocate struct workqueue_struct")),
             Some(c_wq) => Ok(Wq {
                 c_wq,
                 work_nr: AtomicUsize::new(0),
                 name: name.into(),
-                owned_work: Mutex::new(BTreeMap::new(), LockdepClass::new()),
+                owned_work: Mutex::new(BTreeMap::new(), WQ_OWNED_WORK_LOCKDEP_CLASS.clone()),
             }),
         }
     }
@@ -297,17 +299,12 @@ impl_from_contained!(('wq, 'f) WorkItemInner<'wq, 'f>, __dwork: DelayedWork<'wq>
 
 impl<'wq, 'f> WorkItemInner<'wq, 'f> {
     #[inline]
-    fn new(wq: &'wq Wq, f: WorkF<'f>) -> Pin<Box<PinnedWorkItemInner<'wq, 'f>>> {
-        #[cfunc]
-        fn init_dwork(wq: &UnsafeCell<CWq>, dwork: Pin<&mut CDelayedWork>, worker: *const c_void) {
-            r#"
-            #include <linux/workqueue.h>
-            "#;
-
-            r#"
-            INIT_DELAYED_WORK(dwork, worker);
-            "#;
-        }
+    fn new(
+        wq: &'wq Wq,
+        f: WorkF<'f>,
+        lockdep_class: LockdepClass,
+        init_dwork: fn(wq: &UnsafeCell<CWq>, dwork: Pin<&mut CDelayedWork>, worker: *const c_void),
+    ) -> Pin<Box<PinnedWorkItemInner<'wq, 'f>>> {
         // SAFETY: CDelayedWork does not have any specific validity invariant since it's
         // essentially an opaque type. We don't want to pass it to the C API before it is moved to
         // its final memory location in a Box.
@@ -319,7 +316,7 @@ impl<'wq, 'f> WorkItemInner<'wq, 'f> {
         };
         let new = Box::pin(PinnedLock::new(Mutex::new(
             WorkItemInner { __dwork, __f: f },
-            LockdepClass::new(),
+            lockdep_class,
         )));
         wq.work_nr.fetch_add(1, Ordering::Relaxed);
 
@@ -473,12 +470,17 @@ impl<'wq, 'f> Drop for WorkItem<'wq, 'f> {
 
 impl<'wq, 'f> WorkItem<'wq, 'f> {
     #[inline]
-    pub fn __private_new<F>(wq: &'wq Wq, f: F) -> WorkItem<'wq, 'f>
+    pub fn __private_new<F>(
+        wq: &'wq Wq,
+        f: F,
+        lockdep_class: LockdepClass,
+        init_dwork: fn(wq: &UnsafeCell<CWq>, dwork: Pin<&mut CDelayedWork>, worker: *const c_void),
+    ) -> WorkItem<'wq, 'f>
     where
         F: 'f + FnMut(&mut dyn AbstractWorkItem) -> Action + Send,
     {
         WorkItem {
-            inner: WorkItemInner::new(wq, Box::new(f)),
+            inner: WorkItemInner::new(wq, Box::new(f), lockdep_class, init_dwork),
         }
     }
 
@@ -552,6 +554,40 @@ pub enum Action {
     DropWorkItem,
 }
 
+macro_rules! __new_work_item {
+    ($wq:expr, $f:expr) => {{
+        // We create this function here and pass it down rather than having a single copy of the
+        // function used for all work items because INIT_DELAYED_WORK() also statically creates a
+        // lockdep class for the item. If we use the same INIT_DELAYED_WORK() call site for all
+        // workers, they will collectively be treated as a single function from lockdep
+        // perspective, creating dependencies between locks that do not exist in practice.
+        #[::lisakmod_macros::inlinec::cfunc]
+        fn init_dwork(
+            wq: &::core::cell::UnsafeCell<$crate::runtime::wq::CWq>,
+            dwork: ::core::pin::Pin<&mut $crate::runtime::wq::CDelayedWork>,
+            worker: *const ::core::ffi::c_void,
+        ) {
+            r#"
+            #include <linux/workqueue.h>
+            "#;
+
+            r#"
+            INIT_DELAYED_WORK(dwork, worker);
+            "#;
+        }
+        $crate::runtime::sync::new_static_lockdep_class!(WORK_ITEM_INNER_LOCKDEP_CLASS);
+        $crate::runtime::wq::WorkItem::__private_new(
+            $wq,
+            $f,
+            WORK_ITEM_INNER_LOCKDEP_CLASS.clone(),
+            init_dwork,
+        )
+    }};
+}
+
+#[allow(unused_imports)]
+pub(crate) use __new_work_item;
+
 macro_rules! new_work_item {
     ($wq:expr, $f:expr) => {{
         fn coerce_hrtb<F: ::core::ops::FnMut(&mut dyn $crate::runtime::wq::AbstractWorkItem)>(
@@ -564,7 +600,7 @@ macro_rules! new_work_item {
             f_(work);
             $crate::runtime::wq::Action::Noop
         };
-        $crate::runtime::wq::WorkItem::__private_new($wq, f)
+        $crate::runtime::wq::__new_work_item!($wq, f)
     }};
 }
 
@@ -592,11 +628,13 @@ macro_rules! new_attached_work_item {
             }
         };
 
+        $crate::runtime::sync::new_static_lockdep_class!(ATTACHED_WORK_ITEM_INNER_LOCKDEP_CLASS);
         let wq: ::core::pin::Pin<&$crate::runtime::wq::Wq> = $wq;
         // SAFETY: Ensure the 'f lifetime parameter of WorkItem is 'static, so that we cannot
         // accidentally pass a closure that would become invalid before the workqueue tries to drop
         // it.
-        let work = $crate::runtime::wq::WorkItem::<'_, 'static>::__private_new(wq.get_ref(), f);
+        let work: $crate::runtime::wq::WorkItem<'_, 'static> =
+            $crate::runtime::wq::__new_work_item!(wq.get_ref(), f);
         wq.__attach(work, $init);
     }};
 }

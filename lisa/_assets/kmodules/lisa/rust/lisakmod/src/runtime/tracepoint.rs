@@ -16,7 +16,7 @@ use crate::{
     error::{Error, error},
     runtime::{
         printk::pr_debug,
-        sync::{Lock as _, LockdepClass, Mutex},
+        sync::{Lock as _, Mutex, new_static_lockdep_class},
     },
 };
 
@@ -217,8 +217,9 @@ impl Default for ProbeDropper {
 
 impl ProbeDropper {
     pub fn new() -> ProbeDropper {
+        new_static_lockdep_class!(PROBE_DROPPER_LOCKDEP_CLASS);
         ProbeDropper {
-            droppers: Mutex::new(Vec::new(), LockdepClass::new()),
+            droppers: Mutex::new(Vec::new(), PROBE_DROPPER_LOCKDEP_CLASS.clone()),
         }
     }
 }
