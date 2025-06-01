@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
+use core::marker::PhantomData;
+
 macro_rules! container_of {
     ($container:ty, $member:ident, $ptr:expr) => {{
         let ptr = $ptr;
@@ -70,3 +72,20 @@ macro_rules! destructure {
 }
 #[allow(unused_imports)]
 pub(crate) use destructure;
+
+pub struct NotSend {
+    _phantom: PhantomData<*const ()>,
+}
+impl Default for NotSend {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl NotSend {
+    pub fn new() -> NotSend {
+        NotSend {
+            _phantom: PhantomData,
+        }
+    }
+}

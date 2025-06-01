@@ -17,7 +17,7 @@ use pin_project::{pin_project, pinned_drop};
 use crate::{
     error::{Error, error},
     mem::{FromContained, destructure, impl_from_contained},
-    runtime::sync::{Lock as _, LockdepClass, Mutex, PinnedLock, new_static_lockdep_class},
+    runtime::sync::{Lock as _, LockdepClass, LockdepSubclass, Mutex, PinnedLock},
 };
 
 incomplete_opaque_type!(
@@ -27,6 +27,19 @@ incomplete_opaque_type!(
 );
 
 type Key = usize;
+
+#[derive(Clone, Copy, Default)]
+pub enum LockdepState {
+    #[default]
+    Normal,
+    Init,
+}
+
+impl LockdepSubclass for LockdepState {
+    fn to_u32(&self) -> u32 {
+        (*self) as u32
+    }
+}
 
 struct OwnedWorkItem {
     ptr: Option<*const ()>,
@@ -93,15 +106,18 @@ impl Wq {
             "#;
         }
 
-        new_static_lockdep_class!(WQ_OWNED_WORK_LOCKDEP_CLASS);
-
         match allo_workqueue(name) {
             None => Err(error!("Unable to allocate struct workqueue_struct")),
             Some(c_wq) => Ok(Wq {
                 c_wq,
                 work_nr: AtomicUsize::new(0),
                 name: name.into(),
-                owned_work: Mutex::new(BTreeMap::new(), WQ_OWNED_WORK_LOCKDEP_CLASS.clone()),
+                owned_work: Mutex::new(
+                    BTreeMap::new(),
+                    // Different workqueues may have different lifecycles and usage, so they can
+                    // each get a new LockdepClass.
+                    LockdepClass::new("WQ_OWNED_WORK_LOCKDEP_CLASS"),
+                ),
             }),
         }
     }
@@ -120,8 +136,11 @@ impl Wq {
         Self: 'wq,
         Init: FnOnce(&mut dyn AbstractWorkItem),
     {
+        // Use LockdepState::Init, so that lockdep can see the difference between locks taken
+        // during the init phase and when the work actually starts running.
+        let lockdep_state = LockdepState::Init;
         let key: *const DelayedWork =
-            work_item.with_dwork(|dwork| dwork.as_ref().get_ref() as *const _);
+            work_item.__with_dwork(lockdep_state, |dwork| dwork.as_ref().get_ref() as *const _);
         let key = key as usize;
 
         let work_item = Box::into_raw(Box::new(work_item));
@@ -154,8 +173,8 @@ impl Wq {
             // * We hold the work_item lock as well, so it cannot run and drop itself while we are
             //   running the init function.
             let work_item = unsafe { work_item.as_mut().unwrap() };
-            work_item.with_dwork(|mut dwork| {
-                let abstr: &mut dyn AbstractWorkItem = &mut dwork.as_mut();
+            work_item.__with_dwork(lockdep_state, |mut dwork| {
+                let abstr: &mut dyn AbstractWorkItem = &mut dwork;
                 init(abstr);
             });
             drop(owned_work_guard);
@@ -332,7 +351,7 @@ impl<'wq, 'f> WorkItemInner<'wq, 'f> {
             };
             let (action, wq, key) = {
                 let inner = unsafe { c_work_struct.__to_work_item() };
-                let mut inner = inner.lock();
+                let mut inner = inner.lock_nested(LockdepState::Normal);
                 let mut inner = inner.as_mut().project();
                 let dwork: &DelayedWork = &inner.__dwork;
                 let key = dwork as *const _ as usize;
@@ -351,7 +370,12 @@ impl<'wq, 'f> WorkItemInner<'wq, 'f> {
             init_dwork(
                 wq.c_wq(),
                 new.as_ref()
-                    .lock()
+                    // The WorkItemInner may be created at a point where another lock is taken.
+                    // Later on, the worker may take that lock as well, leading lockdep to complain
+                    // that both locks are taken in either orders, possibly leading to a deadlock.
+                    // In practice, this is fine those cases correspond to a different state of the
+                    // lifecycle, and no deadlock can happen.
+                    .lock_nested(LockdepState::Init)
                     .as_mut()
                     .project()
                     .__dwork
@@ -373,12 +397,13 @@ impl<'wq, 'f> WorkItemInner<'wq, 'f> {
             let inner = WorkItemInner::<'wq, 'f>::from_contained(dwork)
                 .as_ref()
                 .unwrap();
-            let inner = Mutex::<WorkItemInner<'wq, 'f>>::from_contained(inner)
+            let inner = Mutex::<WorkItemInner<'wq, 'f>, LockdepState>::from_contained(inner)
                 .as_ref()
                 .unwrap();
-            let inner = PinnedLock::<Mutex<WorkItemInner<'wq, 'f>>>::from_contained(inner)
-                .as_ref()
-                .unwrap();
+            let inner =
+                PinnedLock::<Mutex<WorkItemInner<'wq, 'f>, LockdepState>>::from_contained(inner)
+                    .as_ref()
+                    .unwrap();
             Pin::new_unchecked(inner)
         }
     }
@@ -391,7 +416,7 @@ impl<'wq, 'f> PinnedDrop for WorkItemInner<'wq, 'f> {
     }
 }
 
-type PinnedWorkItemInner<'wq, 'f> = PinnedLock<Mutex<WorkItemInner<'wq, 'f>>>;
+type PinnedWorkItemInner<'wq, 'f> = PinnedLock<Mutex<WorkItemInner<'wq, 'f>, LockdepState>>;
 
 pub struct WorkItem<'wq, 'f> {
     // SAFETY: The WorkItemInner need to _always_ be accessed after locking the lock, i.e. even if
@@ -489,12 +514,36 @@ impl<'wq, 'f> WorkItem<'wq, 'f> {
     where
         F: FnOnce(Pin<&mut DelayedWork<'wq>>) -> T,
     {
-        f(self.inner.as_ref().lock().as_mut().project().__dwork)
+        self.__with_dwork(LockdepState::Normal, f)
+    }
+
+    #[inline]
+    fn __with_dwork<T, F>(&self, lockdep_state: LockdepState, f: F) -> T
+    where
+        F: FnOnce(Pin<&mut DelayedWork<'wq>>) -> T,
+    {
+        f(self
+            .inner
+            .as_ref()
+            .lock_nested(lockdep_state)
+            .as_mut()
+            .project()
+            .__dwork)
+    }
+
+    #[inline]
+    fn __enqueue(&self, lockdep_state: LockdepState, delay_us: u64) {
+        self.__with_dwork(lockdep_state, |dwork| dwork.enqueue(delay_us))
     }
 
     #[inline]
     pub fn enqueue(&self, delay_us: u64) {
-        self.with_dwork(|dwork| dwork.enqueue(delay_us))
+        self.__enqueue(LockdepState::Normal, delay_us)
+    }
+
+    #[inline]
+    fn is_pending(&self) -> bool {
+        self.with_dwork(|dwork| dwork.is_pending())
     }
 
     fn drop_unsync(self) {

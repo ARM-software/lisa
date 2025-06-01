@@ -243,14 +243,14 @@ test! {
                 }};
             }
 
-            test_lock!(SpinLock::new(42, LockdepClass::new("test_spinlock")));
-            test_lock!(Mutex::new(42, LockdepClass::new("test_mutex")));
+            test_lock!(<SpinLock<_>>::new(42, LockdepClass::new("test_spinlock")));
+            test_lock!(<Mutex<_>>::new(42, LockdepClass::new("test_mutex")));
             test_lock!(&STATIC_MUTEX);
         }
 
         {
             use crate::runtime::sync::Rcu;
-            let rcu = Rcu::new(42, LockdepClass::new("test_rcu"));
+            let rcu = <Rcu<_>>::new(42, LockdepClass::new("test_rcu"));
             assert_eq!(*rcu.lock(), 42);
             rcu.update(43);
             assert_eq!(*rcu.lock(), 43);
@@ -295,29 +295,40 @@ test! {
     test9,
     {
         use crate::runtime::wq::{Wq, new_work_item};
-        use crate::runtime::sync::{Lock, LockdepClass, Mutex};
+
 
         let wq = Wq::new("lisa_test").expect("Could not create workqueue");
 
 
-        let barrier = Mutex::new((), LockdepClass::new("test_barrier"));
         let x = AtomicU32::new(0);
+        let barrier = AtomicU32::new(0);
 
         let work = new_work_item!(&wq, {
-            let mut guard = Some(barrier.lock());
             let x = &x;
+            let barrier = &barrier;
             move |work| {
                 let x_ = x.fetch_add(1, Ordering::SeqCst);
                 if x_ == 2 {
-                    drop(guard.take());
+                    barrier.store(1, Ordering::SeqCst);
                 } else {
                     work.enqueue(1);
                 }
             }
         });
         work.enqueue(0);
+
+        #[cfunc]
+        fn msleep(x: u64) {
+            "#include <linux/delay.h>";
+            "msleep(x);"
+        }
+
         // Low-effort barrier
-        barrier.lock();
+        while barrier.load(Ordering::SeqCst) != 1 {
+            // Sleep a bit, otherwise we keep loading the atomic and that starves the writer (on my
+            // x86 laptop at least).
+            msleep(1);
+        }
         assert!(x.load(Ordering::SeqCst) == 3);
     }
 }
