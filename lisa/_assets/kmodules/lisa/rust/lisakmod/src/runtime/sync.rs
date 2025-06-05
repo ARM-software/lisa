@@ -875,3 +875,31 @@ where
         }
     }
 }
+
+pub struct LockdepGuard {}
+impl Drop for LockdepGuard {
+    fn drop(&mut self) {
+        #[cfunc]
+        fn lockdep_on() {
+            "#include <linux/lockdep.h>";
+
+            r#"
+            lockdep_on();
+            "#
+        }
+        lockdep_on();
+    }
+}
+
+pub fn disable_lockdep() -> LockdepGuard {
+    #[cfunc]
+    fn lockdep_off() {
+        "#include <linux/lockdep.h>";
+
+        r#"
+        lockdep_off();
+        "#
+    }
+    lockdep_off();
+    LockdepGuard {}
+}
