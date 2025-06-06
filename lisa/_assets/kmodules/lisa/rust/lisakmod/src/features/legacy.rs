@@ -115,7 +115,7 @@ define_feature! {
 
         Ok((
             DependenciesSpec::new(),
-            new_lifecycle!(|services| {
+            new_lifecycle!(|_| {
                 #[cfunc]
                 fn list_kernel_features() {
                     r#"

@@ -133,7 +133,7 @@ macro_rules! new_static_lockdep_class {
                 ::core::concat!(::core::stringify!($name),"\0").as_bytes()
             ) {
                 Ok(s) => s,
-                Err(err) => unreachable!(),
+                Err(_) => unreachable!(),
             }
         );
     };
@@ -286,6 +286,7 @@ pub struct SpinLock<T, Subclass = DefaultSubclass> {
     c_lock: Pin<KernelKBox<UnsafeCell<CSpinLock>>>,
     // SAFETY: This needs to be freed after the CSpinLock that makes use of it as part of its
     // lockdep map.
+    #[allow(dead_code)]
     lockdep_class: LockdepClass,
     _phantom: PhantomData<Subclass>,
 }
@@ -451,6 +452,7 @@ opaque_type!(pub struct CMutex, "struct mutex", "linux/mutex.h");
 enum AllocatedCMutex {
     KBox {
         c_mutex: Pin<KernelKBox<UnsafeCell<CMutex>>>,
+        #[allow(dead_code)]
         lockdep_class: LockdepClass,
     },
     Static {

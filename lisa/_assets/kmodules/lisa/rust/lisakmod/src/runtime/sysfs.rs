@@ -24,7 +24,7 @@ use crate::{
 };
 
 opaque_type!(
-    struct CKObj,
+    pub struct CKObj,
     "struct kobject",
     "linux/kobject.h",
     attr_accessors {ktype: &'a CKObjType},
@@ -386,7 +386,10 @@ impl KObject<Published> {
         }
     }
 
-    unsafe fn from_c_kobj(c_kobj: *mut CKObj) -> Self {
+    /// # Safety
+    ///
+    /// The passed *mut CKObj must be a pointer valid for reads and writes
+    pub unsafe fn from_c_kobj(c_kobj: *mut CKObj) -> Self {
         let inner = KObjectInner::from_c_kobj(c_kobj);
         let inner = unsafe { inner.as_ref().expect("Unexpected NULL pointer") };
         Self::from_inner(inner)
@@ -610,7 +613,7 @@ impl BinOps for BinROContent {
         Ok(count)
     }
 
-    fn write(&self, offset: usize, in_: &[u8]) -> Result<usize, NegativeError<usize>> {
+    fn write(&self, _offset: usize, _in: &[u8]) -> Result<usize, NegativeError<usize>> {
         Err(NegativeError::EINVAL())
     }
 }
@@ -641,8 +644,8 @@ where
     ) -> Result<BinFile<Ops>, Error> {
         #[cexport]
         fn read(
-            file: &mut CFile,
-            c_kobj: &mut CKObj,
+            _file: &mut CFile,
+            _c_kobj: &mut CKObj,
             attr: *const UnsafeCell<_CBinAttribute>,
             // We need to use an FFI type that will turn into "char *" rather than "unsigned char*"
             // or "signed char *", otherwise CFI will get upset as that function will be used for
@@ -664,8 +667,8 @@ where
 
         #[cexport]
         fn write(
-            file: &mut CFile,
-            c_kobj: &mut CKObj,
+            _file: &mut CFile,
+            _c_kobj: &mut CKObj,
             attr: *const UnsafeCell<_CBinAttribute>,
             in_: *mut c_realchar,
             offset: c_longlong,
@@ -709,7 +712,7 @@ where
         let inner = Box::into_pin(Box::new(FileInner {
             // Allocate the CBinAttribute in a pinned box, and only then initialize it properly.
             c_bin_attr: CBinAttribute(UnsafeCell::new(
-                unsafe { _CBinAttribute::new_stack(|attr| Ok::<_, Infallible>(())) }.unwrap(),
+                unsafe { _CBinAttribute::new_stack(|_| Ok::<_, Infallible>(())) }.unwrap(),
             )),
             name,
             parent_kobj: Arc::clone(&parent.kobj),

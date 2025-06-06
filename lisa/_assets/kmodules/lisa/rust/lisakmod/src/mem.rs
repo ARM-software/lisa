@@ -24,6 +24,10 @@ macro_rules! mut_container_of {
 pub(crate) use mut_container_of;
 
 pub trait FromContained<Contained> {
+    /// # Safety
+    ///
+    /// The returned *const Self must be a pointer valid for reads derived from contained. The
+    /// input "contained" must be valid for reads.
     unsafe fn from_contained(contained: *const Contained) -> *const Self;
 }
 

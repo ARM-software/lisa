@@ -34,10 +34,10 @@ define_feature! {
     Config: (),
     dependencies: [],
     resources: Default::default,
-    init: |configs| {
+    init: |_| {
         Ok((
             DependenciesSpec::new(),
-            new_lifecycle!(|services| {
+            new_lifecycle!(|_| {
                 yield_!(Ok(Arc::new(WqService::new()?)));
                 Ok(())
             })

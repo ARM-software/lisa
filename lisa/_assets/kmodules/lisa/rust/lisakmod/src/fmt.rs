@@ -1,9 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-use core::{
-    cmp::{max, min},
-    mem::MaybeUninit,
-};
+use core::cmp::{max, min};
 
 use crate::runtime::{alloc::KernelAlloc, kbox::KBox};
 pub use crate::version::print_prefix;
@@ -147,7 +144,7 @@ where
         let mut new = KBox::<u8, _>::try_new_uninit_slice_in(new_size, *self.inner.allocator())
             .map_err(|_| core::fmt::Error)?;
         new[..cur_size].write_copy_of_slice(&self.inner);
-        MaybeUninit::fill(&mut new[cur_size..], 0);
+        new[cur_size..].write_filled(0);
         // SAFETY: We initialized both the first part of the buffer from the old data and the extra
         // area with 0.
         let new = unsafe { new.assume_init() };

@@ -199,8 +199,9 @@ impl<'probe, Args> Drop for RegisteredProbe<'probe, Args> {
     }
 }
 
+type Dropper = Option<Pin<Box<dyn Any + Send + Sync>>>;
 pub struct ProbeDropper {
-    droppers: Mutex<Vec<Option<Pin<Box<dyn Any + Send + Sync>>>>>,
+    droppers: Mutex<Vec<Dropper>>,
 }
 
 impl fmt::Debug for ProbeDropper {
@@ -296,6 +297,7 @@ unsafe impl<'probe, Args> Send for Probe<'probe, Args> {}
 // SAFETY: this is ok as the closure we store is also Sync
 unsafe impl<'probe, Args> Sync for Probe<'probe, Args> {}
 
+#[allow(unused_macros)]
 macro_rules! new_probe {
     ($dropper:expr, ( $($arg_name:ident: $arg_ty:ty),* ) $body:block) => {
         {

@@ -2,7 +2,6 @@
 
 use alloc::{sync::Arc, vec, vec::Vec};
 
-use itertools::Itertools as _;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -91,7 +90,7 @@ impl Feature for AllFeatures {
 
         Ok((
             spec,
-            new_lifecycle!(|services| {
+            new_lifecycle!(|_| {
                 yield_!(Ok(Arc::new(())));
                 Ok(())
             }),

@@ -32,10 +32,10 @@ define_feature! {
     Service: TracepointService,
     Config: (),
     dependencies: [],
-    init: |configs| {
+    init: |_| {
         Ok((
             DependenciesSpec::new(),
-            new_lifecycle!(|services| {
+            new_lifecycle!(|_| {
                 yield_!(Ok(Arc::new(TracepointService::new())));
                 Ok(())
             })

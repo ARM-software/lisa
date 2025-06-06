@@ -287,7 +287,7 @@ test! {
         use crate::runtime::sysfs::{BinFile, BinRWContent, Folder};
 
         let mut root = Folder::sysfs_module_root();
-        let file = BinFile::new(&mut root, "file1", 0o644, 1024*1024, BinRWContent::new());
+        let _ = BinFile::new(&mut root, "file1", 0o644, 1024*1024, BinRWContent::new());
     }
 }
 
@@ -358,7 +358,7 @@ define_feature! {
     Config: (),
     dependencies: [],
     resources: Default::default,
-    init: |configs| {
+    init: |_| {
         Ok((
             DependenciesSpec::new(),
             new_lifecycle!(|_| {

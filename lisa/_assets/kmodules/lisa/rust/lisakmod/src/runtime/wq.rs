@@ -322,7 +322,11 @@ impl<'wq, 'f> WorkItemInner<'wq, 'f> {
         wq: &'wq Wq,
         f: WorkF<'f>,
         lockdep_class: LockdepClass,
-        init_dwork: fn(wq: &UnsafeCell<CWq>, dwork: Pin<&mut CDelayedWork>, worker: *const c_void),
+        init_dwork: unsafe fn(
+            wq: &UnsafeCell<CWq>,
+            dwork: Pin<&mut CDelayedWork>,
+            worker: *const c_void,
+        ),
     ) -> Pin<Box<PinnedWorkItemInner<'wq, 'f>>> {
         // SAFETY: CDelayedWork does not have any specific validity invariant since it's
         // essentially an opaque type. We don't want to pass it to the C API before it is moved to
@@ -499,7 +503,11 @@ impl<'wq, 'f> WorkItem<'wq, 'f> {
         wq: &'wq Wq,
         f: F,
         lockdep_class: LockdepClass,
-        init_dwork: fn(wq: &UnsafeCell<CWq>, dwork: Pin<&mut CDelayedWork>, worker: *const c_void),
+        init_dwork: unsafe fn(
+            wq: &UnsafeCell<CWq>,
+            dwork: Pin<&mut CDelayedWork>,
+            worker: *const c_void,
+        ),
     ) -> WorkItem<'wq, 'f>
     where
         F: 'f + FnMut(&mut dyn AbstractWorkItem) -> Action + Send,
@@ -542,16 +550,17 @@ impl<'wq, 'f> WorkItem<'wq, 'f> {
     }
 
     #[inline]
-    fn is_pending(&self) -> bool {
+    pub fn is_pending(&self) -> bool {
         self.with_dwork(|dwork| dwork.is_pending())
     }
 
     fn drop_unsync(self) {
         // We need to make sure we drop all the fields. To make sure we didn't forget any, we
         // pattern match on the struct.
-        let WorkItem { inner } = &self;
+        let WorkItem { inner: _ } = &self;
         // Simply drop the fields, without running any logic to synchronize with the workqueue.
         let (inner,) = destructure!(self, inner);
+        drop(inner);
     }
 }
 
@@ -611,7 +620,7 @@ macro_rules! __new_work_item {
         // workers, they will collectively be treated as a single function from lockdep
         // perspective, creating dependencies between locks that do not exist in practice.
         #[::lisakmod_macros::inlinec::cfunc]
-        fn init_dwork(
+        unsafe fn init_dwork(
             wq: &::core::cell::UnsafeCell<$crate::runtime::wq::CWq>,
             dwork: ::core::pin::Pin<&mut $crate::runtime::wq::CDelayedWork>,
             worker: *const ::core::ffi::c_void,
@@ -677,7 +686,6 @@ macro_rules! new_attached_work_item {
             }
         };
 
-        $crate::runtime::sync::new_static_lockdep_class!(ATTACHED_WORK_ITEM_INNER_LOCKDEP_CLASS);
         let wq: ::core::pin::Pin<&$crate::runtime::wq::Wq> = $wq;
         // SAFETY: Ensure the 'f lifetime parameter of WorkItem is 'static, so that we cannot
         // accidentally pass a closure that would become invalid before the workqueue tries to drop

@@ -6,12 +6,10 @@
 #![feature(coerce_unsized)]
 #![feature(unsize)]
 #![feature(maybe_uninit_write_slice)]
-#![feature(type_alias_impl_trait)]
 #![feature(arbitrary_self_types_pointers)]
 #![feature(formatting_options)]
 #![feature(try_trait_v2)]
-#![feature(fn_traits)]
-#![feature(unboxed_closures)]
+#![feature(let_chains)]
 
 extern crate alloc;
 
@@ -30,8 +28,6 @@ pub mod misc;
 pub mod parsec;
 pub mod prelude;
 pub mod query;
-pub mod refstore;
-pub mod registry;
 pub mod runtime;
 pub mod typemap;
 pub mod version;

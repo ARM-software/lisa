@@ -114,6 +114,7 @@ where
 
 struct Device {
     value_file: File,
+    #[allow(dead_code)]
     rate_file: File,
     config: DeviceConfig,
 }

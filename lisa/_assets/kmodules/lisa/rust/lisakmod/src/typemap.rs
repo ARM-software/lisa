@@ -205,6 +205,7 @@ macro_rules! make_index {
 #[allow(unused_imports)]
 pub(crate) use make_index;
 
+#[allow(unused_macros)]
 macro_rules! add_index_key {
     ($index:ty, $key:ty, $value_ty:ty) => {
         impl $crate::typemap::KeyOf<$index> for $key {
@@ -212,3 +213,6 @@ macro_rules! add_index_key {
         }
     };
 }
+
+#[allow(unused_imports)]
+pub(crate) use add_index_key;

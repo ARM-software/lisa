@@ -137,8 +137,8 @@ fn make_c_func(
     )?;
 
     let c_out = [
-        _dump_to_binstore(&format!("c.code.{}", c_name), c_out)?,
-        _dump_to_binstore(&format!("c.header.{}", c_name), c_header_out)?,
+        _dump_to_binstore(&format!("c.code.{c_name}"), c_out)?,
+        _dump_to_binstore(&format!("c.header.{c_name}"), c_header_out)?,
     ];
 
     Ok(quote! {
@@ -784,7 +784,7 @@ pub fn cstatic(attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Err
         }
     };
 
-    let section = format!("c.code.{}", c_name);
+    let section = format!("c.code.{c_name}");
     let c_out = concatcp(quote! {
         "#define STATIC_VARIABLE ", #c_name, "\n",
         "\n#line ", #pre_c_code_line, " \"", file!(), "\"\n",

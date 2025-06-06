@@ -166,10 +166,6 @@ impl FeatureId {
             type_name: type_name::<Feat>(),
         }
     }
-
-    fn type_id(&self) -> TypeId {
-        self.type_id
-    }
 }
 
 #[derive(Serialize, Debug, Default)]
@@ -199,7 +195,7 @@ mod private {
         lifecycle: Mutex<Box<dyn Any + Send>>,
         feature: Arc<dyn Feature + Send + Sync>,
         children_config: DependenciesSpec,
-        // Box<Vec<<Feat as Feature>::Config>>
+        // configs are a type-erased Box<Vec<<Feat as Feature>::Config>>
         config: Box<dyn Any + Send>,
     }
 

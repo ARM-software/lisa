@@ -20,7 +20,7 @@ use lisakmod_macros::inlinec::cfunc;
 use crate::{
     error::{Error, error},
     features::{
-        DependenciesSpec, DependencySpec, Feature, GenericConfig,
+        DependenciesSpec, DependencySpec, GenericConfig,
         all::{AllFeatures, AllFeaturesConfig},
         features_lifecycle,
     },
@@ -421,6 +421,7 @@ pub fn module_main() -> LifeCycle<(), (), c_int> {
             yield_!(Ok(()));
         }
 
+        drop(query_service);
         state.stop().map_err(|err| {
             pr_err!("Error while stopping features: {err:#}");
             // This is ignored as the module_exit() returns void

@@ -9,19 +9,17 @@ use alloc::{
     vec::Vec,
 };
 
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     error::{Error, ResultExt as _, error},
     features::{
-        DependenciesSpec, DependencySpec, Feature, FeatureResources, GenericConfig, Visibility,
+        DependenciesSpec, DependencySpec, Feature, FeatureResources, GenericConfig,
         all_features, features_lifecycle,
         legacy::{LegacyConfig, LegacyFeatures},
     },
     init::State,
     runtime::{
-        printk::pr_err,
         sync::{Lock as _, Mutex, new_static_lockdep_class},
         sysfs::{BinFile, BinROContent, BinRWContent, Folder},
         wq::new_attached_work_item,
@@ -189,7 +187,9 @@ pub type SessionId = u64;
 const MODE: u16 = 0o600;
 
 pub struct QuerySession {
+    #[allow(dead_code)]
     root: Folder,
+    #[allow(dead_code)]
     execute_file: BinFile<BinROContent>,
     id: SessionId,
     finalized: bool,
@@ -256,7 +256,7 @@ impl QuerySession {
                         // for that.
                         new_attached_work_item!(
                             wq,
-                            move |work| {
+                            move |_work| {
                                 state.close_session(id);
                             },
                             |work| {
@@ -288,8 +288,11 @@ impl QuerySession {
 }
 
 pub struct QueryService {
+    #[allow(dead_code)]
     root: Arc<Mutex<Folder>>,
+    #[allow(dead_code)]
     new_session_file: BinFile<BinROContent>,
+    #[allow(dead_code)]
     state: Arc<State>,
 }
 
