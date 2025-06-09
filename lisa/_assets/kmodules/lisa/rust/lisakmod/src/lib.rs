@@ -11,6 +11,7 @@
 #![feature(try_trait_v2)]
 #![feature(let_chains)]
 #![feature(unboxed_closures)]
+#![feature(type_alias_impl_trait)]
 
 extern crate alloc;
 
