@@ -10,6 +10,7 @@
 #![feature(formatting_options)]
 #![feature(try_trait_v2)]
 #![feature(let_chains)]
+#![feature(unboxed_closures)]
 
 extern crate alloc;
 
