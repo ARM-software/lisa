@@ -315,7 +315,7 @@ where
     }
 
     #[inline]
-    pub fn buffer_env(&self) -> BufferEnv {
+    pub fn buffer_env(&self) -> BufferEnv<'_> {
         BufferEnv::new(self.scratch, self.header, self.data)
     }
 }
@@ -411,17 +411,16 @@ impl Type {
         macro_rules! make_decoder {
             ($closure:expr) => {
                 Arc::new(closure!(
-                                                    (
-                                                        for<'d> Fn(
-                                                            &'d [u8],
-                                                            &'d [u8],
-                                                            &'d Header,
-                                                            &'d ScratchAlloc,
-                                                        )
-                                                        -> Result<Value<'d>, BufferError>
-                                                    ),
-                                                    $closure
-                                                ))
+                    (
+                        for<'d> Fn(
+                            &'d [u8],
+                            &'d [u8],
+                            &'d Header,
+                            &'d ScratchAlloc,
+                        ) -> Result<Value<'d>, BufferError>
+                    ),
+                    $closure
+                ))
             };
         }
         match self {

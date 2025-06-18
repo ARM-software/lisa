@@ -816,7 +816,7 @@ fn parse_struct_fmt<'a, PE: ParseEnv>(
                                     &'d Header,
                                     &'d ScratchAlloc,
                                 )
-                                -> Result<Value<'d>, BufferError>
+                                    -> Result<Value<'d>, BufferError>
                             ),
                             |_, _, _, _| Ok(Value::Unknown)
                         )),
@@ -2694,8 +2694,7 @@ mod tests {
                     &'d [u8],
                     &'d Header,
                     &'d ScratchAlloc,
-                )
-                -> Result<Value<'d>, BufferError>
+                ) -> Result<Value<'d>, BufferError>
             ),
             |_, _, _, _| Ok(Value::Unknown)
         ));

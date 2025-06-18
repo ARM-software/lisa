@@ -1022,7 +1022,7 @@ impl Type {
         self.arith_info().is_some()
     }
 
-    pub(crate) fn arith_info(&self) -> Option<ArithInfo> {
+    pub(crate) fn arith_info(&self) -> Option<ArithInfo<'_>> {
         let typ = self.resolve_wrapper();
 
         use Type::*;
