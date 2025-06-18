@@ -13,10 +13,10 @@ path = "src/lib/lib.rs"
 traceevent = { path = "../traceevent", optional = true }
 
 thiserror = "2.0"
-arrow = { version = "54.0", default-features = false }
-arrow-schema = { version = "54.0", default-features = false }
-arrow-array = { version = "54.0" }
-parquet = { version = "54.0", default-features = false, features = ["arrow", "lz4", "zstd", "snap" ] }
+arrow = { version = "55.1", default-features = false }
+arrow-schema = { version = "55.1", default-features = false }
+arrow-array = { version = "55.1" }
+parquet = { version = "55.1", default-features = false, features = ["arrow", "lz4", "zstd", "snap" ] }
 
 crossbeam = "0.8"
 serde_json = "1.0"

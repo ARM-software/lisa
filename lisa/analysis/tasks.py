@@ -696,26 +696,38 @@ class TasksAnalysis(TraceAnalysisBase):
         prev_sw_df = sw_df.select(["Time", "__cpu", "prev_pid", "prev_state", "prev_comm"])
         next_sw_df = sw_df.select(["Time", "__cpu", "next_pid", "next_comm"])
 
-        prev_sw_df = prev_sw_df.rename({
-            "prev_pid": "pid",
-            "prev_state": "curr_state",
-            "prev_comm": "comm",
-        })
+        prev_sw_df = (
+            prev_sw_df
+            .drop('pid', 'curr_state', 'comm', strict=False)
+            .rename({
+                "prev_pid": "pid",
+                "prev_state": "curr_state",
+                "prev_comm": "comm",
+            })
+        )
 
         next_sw_df = next_sw_df.with_columns(
             curr_state=state(TaskState.TASK_ACTIVE)
         )
-        next_sw_df = next_sw_df.rename({
-            'next_pid': 'pid',
-            'next_comm': 'comm'
-        })
+        next_sw_df = (
+            next_sw_df
+            .drop('pid', 'comm', strict=False)
+            .rename({
+                'next_pid': 'pid',
+                'next_comm': 'comm'
+            })
+        )
         all_sw_df = pl.concat([prev_sw_df, next_sw_df], how='diagonal_relaxed')
 
         if add_rename:
-            rename_df = trace.df_event('task_rename').rename({
-                'oldcomm': 'comm',
-                '__pid': 'pid',
-            })
+            rename_df = (
+                trace.df_event('task_rename')
+                .drop('pid', 'comm', strict=False)
+                .rename({
+                    'oldcomm': 'comm',
+                    '__pid': 'pid',
+                })
+            )
             rename_df = rename_df.select(['Time', 'pid', 'comm'])
             rename_df = rename_df.with_columns(
                 curr_state=state(TaskState.TASK_RENAMED),
@@ -729,7 +741,11 @@ class TasksAnalysis(TraceAnalysisBase):
 
         df = pl.concat([all_sw_df, wk_df], how='diagonal_relaxed')
         df = df.sort('Time')
-        df = df.rename({'__cpu': 'cpu'})
+        df = (
+            df
+            .drop('cpu', strict=False)
+            .rename({'__cpu': 'cpu'})
+        )
 
         # Restrict the set of data we will process to a given set of tasks
         if tasks is not None:

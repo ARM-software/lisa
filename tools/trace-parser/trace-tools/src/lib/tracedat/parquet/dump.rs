@@ -234,7 +234,7 @@ pub fn dump_events<R, FTimestamp>(
     row_group_size: usize,
     compression: Compression,
     max_errors: usize,
-) -> Result<Metadata, DynMultiError>
+) -> Result<Metadata<'_>, DynMultiError>
 where
     FTimestamp: FnMut(Timestamp) -> Timestamp,
     R: BorrowingReadCore + Send,
@@ -1470,7 +1470,7 @@ impl<'scope> TableState<'scope> {
         let full_schema = Arc::new(full_schema);
         let (fixed_cols, field_cols) = Self::make_cols(name, &fields_schema, chunk_size)?;
 
-        let path = PathBuf::from(format!("{}.parquet", name));
+        let path = PathBuf::from(format!("{name}.parquet"));
         let file = File::create(&path)?;
         let (sender, receiver) = bounded(128);
 
