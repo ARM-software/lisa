@@ -3306,14 +3306,16 @@ mod tests {
             "REC".into(),
         )));
 
-        let extension_compiler = Arc::new(closure!(
+        let extension_compiler = Arc::new(closure! {
             (
                 for<'ceref, 'ce, 'a> Fn(
                     &'ceref (dyn CompileEnv<'ce> + 'ceref),
                 ) -> Result<Box<dyn Evaluator>, CompileError>
-            ) + Send + Sync,
+            )
+            + Send
+            + Sync,
             |_| panic!("non-implemented compiler")
-        ));
+        });
 
         // Decimal literal
         test(b"1", IntConstant(Type::I32, 1));
@@ -4494,23 +4496,11 @@ mod tests {
             ),
             ), ArrayKind::Dynamic(DynamicKind::Dynamic)));
 
-        test(
-            b"__typeof__(1) foo",
-            "foo",
-            Type::I32,
-        );
+        test(b"__typeof__(1) foo", "foo", Type::I32);
 
-        test(
-            b"__typeof__(1u) foo",
-            "foo",
-            Type::U32,
-        );
+        test(b"__typeof__(1u) foo", "foo", Type::U32);
 
-        test(
-            b"__typeof__(int) foo",
-            "foo",
-            Type::I32,
-        );
+        test(b"__typeof__(int) foo", "foo", Type::I32);
 
         test(
             b"__typeof__(uint8_t) foo",
@@ -4539,7 +4529,10 @@ mod tests {
         test(
             b"const __typeof__(uint8_t) * foo",
             "foo",
-            Type::Pointer(Box::new(Type::Typedef(Box::new(Type::U8), "uint8_t".into()))),
+            Type::Pointer(Box::new(Type::Typedef(
+                Box::new(Type::U8),
+                "uint8_t".into(),
+            ))),
         );
     }
 }
