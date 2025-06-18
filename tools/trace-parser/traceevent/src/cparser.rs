@@ -1926,6 +1926,24 @@ grammar! {
 
         // https://port70.net/~nsz/c/c11/n1570.html#6.7
         rule declaration_specifier() -> Type {
+            // Tokens that we simply discard as they don't impact layout or pretty
+            // representation
+            let discard_parser = || {
+                context(
+                    "discarded",
+                    many0_count(
+                        alt((
+                            keyword("extern").map(|_| ()),
+                            keyword("static").map(|_| ()),
+                            keyword("auto").map(|_| ()),
+                            keyword("register").map(|_| ()),
+                            keyword("_Thread_local").map(|_| ()),
+                            Self::type_qualifier(),
+                        ))
+                    )
+                )
+            };
+
             let iso = lexeme(move |mut input| {
                 let abi = Self::get_ctx(&input).abi();
                 let long_size = abi.long_size;
@@ -1950,24 +1968,6 @@ grammar! {
                     Long(DeclSignedness),
                     LongLong(DeclSignedness),
                 }
-
-                // Tokens that we simply discard as they don't impact layout or pretty
-                // representation
-                let discard_parser = || {
-                    context(
-                        "discarded",
-                        many0_count(
-                            alt((
-                                keyword("extern").map(|_| ()),
-                                keyword("static").map(|_| ()),
-                                keyword("auto").map(|_| ()),
-                                keyword("register").map(|_| ()),
-                                keyword("_Thread_local").map(|_| ()),
-                                Self::type_qualifier(),
-                            ))
-                        )
-                    )
-                };
 
                 // Parse the tokens using a state machine to deal with various
                 // combinations of "signed int" "int signed" "signed", "long unsigned
@@ -2180,22 +2180,43 @@ grammar! {
                 Ok((input, typ))
             });
 
-            let gnu_typeof = map_res_cut(
-                pair(
-                    Self::grammar_ctx(),
-                    preceded(
-                        alt((
-                            keyword("typeof"),
-                            keyword("__typeof__"),
-                        )),
-                        cut(parenthesized(
-                            Self::expr(),
-                        ))
+            let gnu_typeof = delimited(
+                opt(discard_parser()),
+                preceded(
+                    alt((
+                        keyword("typeof"),
+                        keyword("__typeof__"),
+                    )),
+                    context(
+                        "GNU typeof",
+                        cut(alt((
+                            // Try parsing as a type name first, including the matching
+                            // parenthesis. This means we will fail on input like
+                            // "typeof(REC->field)" as we will only recognize "typeof(REC" and then
+                            // expect a ")". This failure allows trying the 2nd alternative, which
+                            // is to parse it as an expression and get its type.
+                            context(
+                                "typeof(<type>)",
+                                parenthesized(Self::type_name()),
+                            ),
+                            context(
+                                "typeof(<expr>)",
+                                parenthesized(
+                                    map_res(
+                                        pair(
+                                            Self::grammar_ctx(),
+                                            Self::expr(),
+                                        ),
+                                        |(ctx, expr)| {
+                                            expr.typ(ctx.penv).map_err(|_| CParseError::CouldNotGuessType(expr))
+                                        }
+                                    )
+                                ),
+                            )
+                        )))
                     )
                 ),
-                |(ctx, expr)| {
-                    expr.typ(ctx.penv).map_err(|_| CParseError::CouldNotGuessType(expr))
-                }
+                opt(discard_parser()),
             );
 
             alt((gnu_typeof, iso))
@@ -2953,12 +2974,15 @@ grammar! {
 
         // https://port70.net/~nsz/c/c11/n1570.html#6.7.7p1
         rule type_name() -> Type {
-            lexeme(
-                (
-                    Self::declaration_specifier(),
-                    Self::declarator(true),
-                ).map(|(typ, abstract_declarator)|
-                    (abstract_declarator.modify_typ)(typ)
+            context(
+                "type name",
+                lexeme(
+                    (
+                        Self::declaration_specifier(),
+                        Self::declarator(true),
+                    ).map(|(typ, abstract_declarator)|
+                        (abstract_declarator.modify_typ)(typ)
+                    )
                 )
             )
         }
@@ -4469,5 +4493,53 @@ mod tests {
                 ArrayKind::Fixed(Err(Box::new(InterpError::CompileError(Box::new(CompileError::UnknownSize(Type::Struct("foo".into()))))))),
             ),
             ), ArrayKind::Dynamic(DynamicKind::Dynamic)));
+
+        test(
+            b"__typeof__(1) foo",
+            "foo",
+            Type::I32,
+        );
+
+        test(
+            b"__typeof__(1u) foo",
+            "foo",
+            Type::U32,
+        );
+
+        test(
+            b"__typeof__(int) foo",
+            "foo",
+            Type::I32,
+        );
+
+        test(
+            b"__typeof__(uint8_t) foo",
+            "foo",
+            Type::Typedef(Box::new(Type::U8), "uint8_t".into()),
+        );
+
+        test(
+            b"const uint8_t foo",
+            "foo",
+            Type::Typedef(Box::new(Type::U8), "uint8_t".into()),
+        );
+
+        test(
+            b"const __typeof__(uint8_t) foo",
+            "foo",
+            Type::Typedef(Box::new(Type::U8), "uint8_t".into()),
+        );
+
+        test(
+            b"__typeof__(uint8_t) const foo",
+            "foo",
+            Type::Typedef(Box::new(Type::U8), "uint8_t".into()),
+        );
+
+        test(
+            b"const __typeof__(uint8_t) * foo",
+            "foo",
+            Type::Pointer(Box::new(Type::Typedef(Box::new(Type::U8), "uint8_t".into()))),
+        );
     }
 }
