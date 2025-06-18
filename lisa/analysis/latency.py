@@ -56,7 +56,7 @@ class LatencyAnalysis(TraceAnalysisBase):
             (pl.col('next_state') == next_state)
         )
         df = df.select(['Time', 'delta', 'cpu', 'target_cpu'])
-        df = df.rename({'delta': name})
+        df = df.drop(name, strict=False).rename({'delta': name})
         return df
 
     @TraceAnalysisBase.df_method
@@ -290,11 +290,19 @@ class LatencyAnalysis(TraceAnalysisBase):
 
         if wakeup:
             wkp_df = ana.df_latency_wakeup(task)
-            wkp_df = wkp_df.rename({'wakeup_latency': 'latency'})
+            wkp_df = (
+                wkp_df
+                .drop('latency', strict=False)
+                .rename({'wakeup_latency': 'latency'})
+            )
 
         if preempt:
             prt_df = ana.df_latency_preemption(task)
-            prt_df = prt_df.rename({'preempt_latency': 'latency'})
+            prt_df = (
+                prt_df
+                .drop('latency', strict=False)
+                .rename({'preempt_latency': 'latency'})
+            )
 
         if wakeup and preempt:
             return pl.concat([wkp_df, prt_df], how='diagonal_relaxed')

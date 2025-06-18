@@ -1082,11 +1082,15 @@ class TraceDumpTraceParser(TraceParserBase):
                     )
 
     def _fixup_df(self, event, df, pid_comms):
-        df = df.rename({
-            'common_ts': 'Time',
-            'common_pid': '__pid',
-            'common_cpu': '__cpu',
-        })
+        df = (
+            df
+            .drop('Time', '__pid', '__cpu', strict=False)
+            .rename({
+                'common_ts': 'Time',
+                'common_pid': '__pid',
+                'common_cpu': '__cpu',
+            })
+        )
         df = df.with_columns([
             pl.col('Time').cast(pl.Duration("ns")),
             pl.col('__pid').replace_strict(pid_comms, default=None).alias('__comm')
@@ -1998,7 +2002,11 @@ class TxtTraceParserBase(TraceParserBase):
             pl.col(name).cast(dtype)
             for name, dtype in infer_schema(df).items()
         )
-        df = df.rename({'__timestamp': 'Time'})
+        df = (
+            df
+            .drop('Time', strict=False)
+            .rename({'__timestamp': 'Time'})
+        )
 
         schema = df.collect_schema()
         if event == 'sched_switch':
@@ -2032,7 +2040,11 @@ class TxtTraceParserBase(TraceParserBase):
             # In-kernel name is "cpumask", "cpus" is just an artifact of the pretty
             # printing format string of ftrace, that happens to be used by a
             # specific parser.
-            df = df.rename({'cpus': 'cpumask'})
+            df = (
+                df
+                .drop('cpumask', strict=False)
+                .rename({'cpus': 'cpumask'})
+            )
 
             if event == 'thermal_power_cpu_get_power':
                 if isinstance(schema['load'], (pl.String, pl.Binary, pl.Categorical)):
