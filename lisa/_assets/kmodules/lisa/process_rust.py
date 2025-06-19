@@ -156,7 +156,7 @@ def main():
                 elif typ == 'rust-string':
                     # Add +1 for the null-terminator
                     return f'__dynamic_array(char, {self.name}, {self.name}->len + 1)'
-                elif typ in ('u8', 's8', 'u16', 's16', 'u32', 's32', 'u64', 's64'):
+                elif typ in ('u8', 's8', 'u16', 's16', 'u32', 's32', 'u64', 's64', 'c-static-string'):
                     return f'__field({self.c_field_type}, {self.name})'
                 else:
                     raise ValueError(f'Unsupported logical type: {typ}')
@@ -176,7 +176,7 @@ def main():
                     memcpy(__get_dynamic_array({self.name}), {self.name}->data, {self.name}->len * sizeof(char));
                     ((char *)__get_dynamic_array({self.name}))[{self.name}->len] = 0;
                     ''')
-                elif typ in ('u8', 's8', 'u16', 's16', 'u32', 's32', 'u64', 's64'):
+                elif typ in ('u8', 's8', 'u16', 's16', 'u32', 's32', 'u64', 's64', 'c-static-string'):
                     return f'{self.entry} = *({self.name});'
                 else:
                     raise ValueError(f'Unsupported logical type: {typ}')
@@ -193,6 +193,8 @@ def main():
                     return (f'{self.name}=%lld', [self.entry])
                 elif typ == 'u64':
                     return (f'{self.name}=%llu', [self.entry])
+                elif typ == 'c-static-string':
+                    return (f'{self.name}=%s', [self.entry])
                 elif typ in ('rust-string', 'c-string'):
                     return (f'{self.name}=%s', [f'__get_str({self.name})'])
                 else:

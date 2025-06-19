@@ -93,3 +93,7 @@ impl NotSend {
         }
     }
 }
+
+#[repr(transparent)]
+pub struct UnsafeSync<T>(pub T);
+unsafe impl<T> Sync for UnsafeSync<T> {}
