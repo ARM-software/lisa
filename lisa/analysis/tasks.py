@@ -594,14 +594,18 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.df_method
     @requires_events('sched_switch')
-    def df_rt_tasks(self, min_prio=100):
+    def df_rt_tasks(self, min_prio=99):
         """
         Tasks with RT priority
 
         .. note:: priorities uses scheduler values, thus: the lower the value the
           higher is the task priority.
-          RT   Priorities: [  0..100]
-          FAIR Priorities: [101..120]
+          RT   Priorities: [  0..99]
+          FAIR Priorities: [100..120]
+
+        .. note:: RT and DL (deadline) tasks share the priority 0 on modern
+            kernels. Since this method only filters by priority, it will also
+            select DL tasks as a result.
 
         :param min_prio: minimum priority
         :type min_prio: int
