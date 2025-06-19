@@ -594,14 +594,18 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.df_method
     @requires_events('sched_switch')
-    def df_rt_tasks(self, min_prio=100):
+    def df_rt_tasks(self, min_prio=99):
         """
         Tasks with RT priority
 
         .. note:: priorities uses scheduler values, thus: the lower the value the
           higher is the task priority.
-          RT   Priorities: [  0..100]
-          FAIR Priorities: [101..120]
+          RT   Priorities: [  0..99]
+          FAIR Priorities: [100..120]
+
+        .. note:: RT and DL (deadline) tasks share the priority 0 on modern
+            kernels. Since this method only filters by priority, it will also
+            select DL tasks as a result.
 
         :param min_prio: minimum priority
         :type min_prio: int
@@ -612,25 +616,27 @@ class TasksAnalysis(TraceAnalysisBase):
           * A ``prio`` column (The priority of the task)
           * A ``comm`` column (The name of the task)
         """
-        df = self.trace.df_event('sched_switch')
+        trace = self.trace.get_view(df_fmt='polars-lazyframe')
+        df = trace.df_event('sched_switch')
 
-        # Filters tasks which have a priority bigger than threshold
-        df = df[df.next_prio <= min_prio]
-
-        # Filter columns of interest
-        rt_tasks = df[['next_pid', 'next_prio']]
-        rt_tasks = rt_tasks.drop_duplicates()
-
+        df = df.filter(pl.col('next_prio') <= pl.lit(min_prio))
+        df = df.select(('next_pid', 'next_prio'))
+        df = df.unique(['next_pid', 'next_prio'])
         # Order by priority
-        rt_tasks.sort_values(
-            by=['next_prio', 'next_pid'], ascending=True, inplace=True)
-        rt_tasks.rename(
-            columns={'next_pid': 'pid', 'next_prio': 'prio'}, inplace=True)
+        df = df.sort(['next_prio', 'next_pid'], descending=False)
+        df = df.rename({'next_pid': 'pid', 'next_prio': 'prio'})
 
-        rt_tasks.set_index('pid', inplace=True)
-        rt_tasks['comm'] = rt_tasks.index.map(self._get_task_pid_name)
-
-        return rt_tasks
+        df = df.with_columns(
+            comm=pl.col('pid').replace_strict(
+                {
+                    pid: comms[-1]
+                    for pid, comms in self._task_pid_map.items()
+                    if comms
+                },
+                default=None
+            )
+        )
+        return df
 
     @requires_events('sched_switch', 'sched_wakeup')
     @will_use_events_from('task_rename')
