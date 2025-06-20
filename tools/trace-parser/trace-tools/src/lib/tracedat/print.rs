@@ -195,8 +195,9 @@ pub fn print_events<R: BorrowingReadCore + Send, W: Write>(
                 match print_pretty(&mut out, &visitor) {
                     Ok(x) => Ok(x),
                     Err(err) => {
+                        write!(&mut out, "\nError while pretty printing event {name}: {err}\n")?;
+                        write!(&mut out, "Raw {name} fields:")?;
                         print_raw(&mut out, &visitor)?;
-                        write!(&mut out, "\nError while pretty printing event {name}, fell back on raw printing: {err}")?;
                         // This error affected a single event and we displayed it, so we can just
                         // swallow it and not propagate
                         Ok(())
