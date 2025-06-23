@@ -89,7 +89,17 @@ impl KObjType {
             "#
         }
 
-        let release_f: unsafe extern "C" fn(*mut CKObj) = release;
+        let release_f: unsafe extern "C" fn(*mut CKObj) = {
+            #[cfg(not(test))]
+            {
+                Some(release)
+            }
+            #[cfg(test)]
+            {
+                None
+            }
+        }
+        .unwrap();
         let init = |this| init_kobj_type(this, release_f as *const c_void);
         let c_kobj_type = unsafe { CKObjType::new_stack(init) }.unwrap();
         KObjType { c_kobj_type }

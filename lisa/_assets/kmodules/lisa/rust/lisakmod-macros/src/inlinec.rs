@@ -1472,22 +1472,25 @@ impl PtrError {
     }
 
     pub fn from_ptr<T: Sized>(ptr: *mut T) -> Result<NonNull<T>, PtrError> {
-        #[cfunc]
-        fn ptr_err_or_zero(ptr: *mut c_void) -> isize {
-            r#"
-            #include <linux/err.h>
-            "#;
+        #[cfg(not(test))]
+        {
+            #[cfunc]
+            fn ptr_err_or_zero(ptr: *mut c_void) -> isize {
+                r#"
+                #include <linux/err.h>
+                "#;
 
-            r#"
-            return PTR_ERR_OR_ZERO(ptr);
-            "#
-        }
-        if ptr.is_null() {
-            Err(PtrError::Null)
-        } else {
-            match ptr_err_or_zero(ptr as *mut c_void) {
-                0 => Ok(NonNull::new(ptr).unwrap()),
-                err => Err(PtrError::Code(ErrorCode::new(err))),
+                r#"
+                return PTR_ERR_OR_ZERO(ptr);
+                "#
+            }
+            if ptr.is_null() {
+                Err(PtrError::Null)
+            } else {
+                match ptr_err_or_zero(ptr as *mut c_void) {
+                    0 => Ok(NonNull::new(ptr).unwrap()),
+                    err => Err(PtrError::Code(ErrorCode::new(err))),
+                }
             }
         }
     }

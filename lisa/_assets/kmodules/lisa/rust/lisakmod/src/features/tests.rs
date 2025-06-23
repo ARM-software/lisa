@@ -18,10 +18,6 @@ use crate::{
     },
 };
 
-unsafe extern "C" {
-    fn myc_callback(x: u64) -> u64;
-}
-
 macro_rules! test {
     ($name:ident, $block:block) => {
         #[inline(never)]
@@ -36,8 +32,15 @@ macro_rules! test {
 test! {
     test1,
     {
-        let x = unsafe { myc_callback(42) };
-        assert_eq!(x, 43);
+        #[cfg(not(test))]
+        {
+            unsafe extern "C" {
+                fn myc_callback(x: u64) -> u64;
+            }
+
+            let x = unsafe { myc_callback(42) };
+            assert_eq!(x, 43);
+        }
     }
 }
 

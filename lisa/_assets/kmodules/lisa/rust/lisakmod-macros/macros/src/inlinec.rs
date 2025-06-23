@@ -299,9 +299,16 @@ fn _make_c_func(
 
     let rust_out = match rust_name {
         Some(rust_name) => quote! {
+            #[cfg(not(any(test, feature = "test")))]
             unsafe extern "C" {
                 #[link_name = #c_name_str]
                 fn #rust_name #f_generics(#rust_extern_args) -> <#f_ret_ty as ::lisakmod_macros::inlinec::FfiType>::FfiType #f_where;
+            }
+
+            #[cfg(any(test, feature = "test"))]
+            #[allow(unused)]
+            fn #rust_name #f_generics(#rust_extern_args) -> <#f_ret_ty as ::lisakmod_macros::inlinec::FfiType>::FfiType #f_where {
+                ::core::panic!("extern C function are not available during tests")
             }
         },
         None => quote! {},
@@ -823,5 +830,11 @@ pub fn cstatic(attrs: TokenStream, code: TokenStream) -> Result<TokenStream, Err
             #(#static_attrs)*
             #vis static #name: #ty;
         }
+
+        #[cfg(any(test, feature = "test"))]
+        const _: () = {
+            #[unsafe(export_name = #c_name)]
+            static placeholder: u8 = 0;
+        };
     })
 }
