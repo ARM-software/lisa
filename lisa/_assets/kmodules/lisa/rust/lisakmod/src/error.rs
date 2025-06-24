@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-use alloc::{format, string::String, sync::Arc, vec::Vec};
+use alloc::{borrow::Cow, format, string::String, sync::Arc, vec::Vec};
 use core::{error::Error as StdError, fmt};
 
 use anyhow;
+use schemars::{JsonSchema, Schema, SchemaGenerator};
 
 use crate::runtime::printk::pr_err;
 
@@ -121,6 +122,20 @@ impl<'de> serde::Deserialize<'de> for Error {
     {
         let s = String::deserialize(deserializer)?;
         Ok(error!("{s}"))
+    }
+}
+
+impl JsonSchema for Error {
+    fn schema_id() -> Cow<'static, str> {
+        concat!(module_path!(), "::Error").into()
+    }
+
+    fn schema_name() -> Cow<'static, str> {
+        Self::schema_id()
+    }
+
+    fn json_schema(gen_: &mut SchemaGenerator) -> Schema {
+        <String as JsonSchema>::json_schema(gen_)
     }
 }
 

@@ -9,12 +9,13 @@ use alloc::{
     vec::Vec,
 };
 
-use serde::{Deserialize, Serialize};
+use schemars::{Schema, SchemaGenerator, json_schema, schema_for};
+use serde::Serialize;
 
 use crate::{
     error::{Error, ResultExt as _, error},
     features::{
-        DependenciesSpec, DependencySpec, Feature, FeatureResources, GenericConfig,
+        DependenciesSpec, DependencySpec, Feature, FeatureResources, GenericConfig, Visibility,
         all_features, features_lifecycle,
         legacy::{LegacyConfig, LegacyFeatures},
     },
@@ -27,25 +28,56 @@ use crate::{
     version::module_version,
 };
 
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-enum PopConfigN {
-    All,
-    #[serde(untagged)]
-    N(usize),
+macro_rules! query_type {
+    ($($tt:tt)*) => {
+        #[derive(Debug, ::serde::Deserialize, ::schemars::JsonSchema)]
+        #[serde(rename_all = "kebab-case")]
+        $($tt)*
+    }
+}
+pub(crate) use query_type;
+
+query_type! {
+    enum PopConfigN {
+        All,
+        #[serde(untagged)]
+        N(usize),
+    }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-enum Query {
-    PushConfig(BTreeMap<String, GenericConfig>),
-    PopConfig { n: PopConfigN },
-    GetConfig,
-    GetVersion,
-    GetResources,
-    StartFeatures,
-    StopFeatures,
-    CloseSession,
+fn push_config_schema(gen_: &mut SchemaGenerator) -> Schema {
+    let mut schema = json_schema!({
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+    });
+    match schema.get_mut("properties") {
+        Some(serde_json::Value::Object(properties)) => {
+            let features = all_features().filter(|feat| feat.visibility() == Visibility::Public);
+            for feature in features {
+                let val = feature.__config_schema(gen_);
+                let val = serde_json::to_value(val).unwrap();
+                properties.insert(feature.name().into(), val);
+            }
+        }
+        _ => unreachable!(),
+    }
+    schema
+}
+
+query_type! {
+    enum Query {
+        #[schemars(schema_with = "push_config_schema")]
+        PushConfig(BTreeMap<String, GenericConfig>),
+        PopConfig { n: PopConfigN },
+        GetConfig,
+        GetVersion,
+        GetResources,
+        GetSchemas,
+        StartFeatures,
+        StopFeatures,
+        CloseSession,
+    }
 }
 
 impl Query {
@@ -124,41 +156,50 @@ impl Query {
                     .map(|feature| (feature.name().into(), feature.resources()))
                     .collect(),
             }),
+            Query::GetSchemas => Ok(QuerySuccess::GetSchemas {
+                query: schema_for!(Query),
+            }),
         }
     }
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "kebab-case")]
-enum QuerySuccess {
-    PopConfig {
-        remaining: usize,
-    },
-    GetConfig {
-        config: Vec<BTreeMap<String, GenericConfig>>,
-    },
-    GetVersion {
-        checksum: String,
-    },
-    GetResources {
-        features: BTreeMap<String, FeatureResources>,
-    },
-    #[serde(untagged)]
-    None,
+query_type! {
+    #[derive(Serialize)]
+    enum QuerySuccess {
+        PopConfig {
+            remaining: usize,
+        },
+        GetConfig {
+            config: Vec<BTreeMap<String, GenericConfig>>,
+        },
+        GetVersion {
+            checksum: String,
+        },
+        GetResources {
+            features: BTreeMap<String, FeatureResources>,
+        },
+        GetSchemas {
+            query: Schema,
+        },
+        #[serde(untagged)]
+        None,
+    }
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "kebab-case")]
-enum QueryResult {
-    Success(QuerySuccess),
-    Error(Error),
+query_type! {
+    #[derive(Serialize)]
+    enum QueryResult {
+        Success(QuerySuccess),
+        Error(Error),
+    }
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "kebab-case")]
-enum QueriesResult<E> {
-    Executed(Vec<QueryResult>),
-    Error(E),
+query_type! {
+    #[derive(Serialize)]
+    enum QueriesResult<E> {
+        Executed(Vec<QueryResult>),
+        Error(E),
+    }
 }
 
 impl<E> QueriesResult<E> {

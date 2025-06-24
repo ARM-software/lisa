@@ -2,8 +2,6 @@
 
 use alloc::{sync::Arc, vec, vec::Vec};
 
-use serde::{Deserialize, Serialize};
-
 use crate::{
     error::Error,
     features::{
@@ -13,14 +11,16 @@ use crate::{
         register_feature,
     },
     lifecycle::{LifeCycle, new_lifecycle},
+    query::query_type,
 };
 
 pub struct AllFeatures;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "kebab-case")]
-pub struct AllFeaturesConfig {
-    pub best_effort: bool,
+query_type! {
+    #[derive(Clone)]
+    pub struct AllFeaturesConfig {
+        pub best_effort: bool,
+    }
 }
 
 impl AllFeaturesConfig {

@@ -15,7 +15,6 @@ use core::{
 
 use itertools::Itertools as _;
 use lisakmod_macros::inlinec::{NegativeError, PtrError, cfunc, incomplete_opaque_type};
-use serde::{Deserialize, Serialize};
 
 use crate::{
     error::{Error, ResultExt as _, error},
@@ -24,20 +23,23 @@ use crate::{
         define_feature, wq::WqFeature,
     },
     lifecycle::new_lifecycle,
+    query::query_type,
     runtime::{traceevent::new_event, wq},
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "kebab-case")]
-struct ThermalZoneConfig {
-    name: String,
-    sampling_period_us: u64,
+query_type! {
+    #[derive(Clone)]
+    struct ThermalZoneConfig {
+        name: String,
+        sampling_period_us: u64,
+    }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "kebab-case")]
-struct ThermalConfig {
-    zones: Vec<ThermalZoneConfig>,
+query_type! {
+    #[derive(Clone)]
+    struct ThermalConfig {
+        zones: Vec<ThermalZoneConfig>,
+    }
 }
 
 impl ThermalConfig {

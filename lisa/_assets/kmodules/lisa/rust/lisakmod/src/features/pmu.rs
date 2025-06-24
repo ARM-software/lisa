@@ -21,12 +21,12 @@ use core::{
 
 use itertools::Itertools as _;
 use lisakmod_macros::inlinec::{NegativeError, PtrError, cconstant, cfunc, opaque_type};
-use serde::{Deserialize, Serialize};
 
 use crate::{
     error::{Error, error},
     features::{DependenciesSpec, FeatureResources, ProvidedFeatureResources, define_feature},
     lifecycle::new_lifecycle,
+    query::query_type,
     runtime::{
         cpumask::{CpuId, active_cpus, smp_processor_id},
         irqflags::local_irq_save,
@@ -51,10 +51,11 @@ opaque_type!(
     "linux/perf_event.h"
 );
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "kebab-case")]
-struct PmuConfig {
-    events: BTreeSet<PerfEventDesc>,
+query_type! {
+    #[derive(Clone)]
+    struct PmuConfig {
+        events: BTreeSet<PerfEventDesc>,
+    }
 }
 
 impl PmuConfig {
@@ -67,24 +68,27 @@ impl PmuConfig {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(rename_all = "kebab-case")]
-struct RawPerfEventId {
-    id: u64,
-    pmu_name: String,
+query_type! {
+    #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+    struct RawPerfEventId {
+        id: u64,
+        pmu_name: String,
+    }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(rename_all = "kebab-case")]
-struct GenericPerfEventId {
-    name: String,
+query_type! {
+    #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+    struct GenericPerfEventId {
+        name: String,
+    }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(rename_all = "kebab-case")]
-enum PerfEventId {
-    Raw(RawPerfEventId),
-    Generic(GenericPerfEventId),
+query_type! {
+    #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+    enum PerfEventId {
+        Raw(RawPerfEventId),
+        Generic(GenericPerfEventId),
+    }
 }
 
 // Information dumped in the ftrace event to identify what event we are using.  The
@@ -183,24 +187,28 @@ impl PerfEventId {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(rename_all = "snake_case")]
-enum PerfEventTriggerTracepoint {
-    SchedSwitch,
+query_type! {
+    #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+    enum PerfEventTriggerTracepoint {
+        #[serde(rename = "sched_switch")]
+        SchedSwitch,
+    }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(rename_all = "kebab-case")]
-enum PerfEventTrigger {
-    Tracepoint(PerfEventTriggerTracepoint),
+query_type! {
+    #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+    enum PerfEventTrigger {
+        Tracepoint(PerfEventTriggerTracepoint),
+    }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(rename_all = "kebab-case")]
-struct PerfEventDesc {
-    id: PerfEventId,
-    // FIXME: make use of that
-    triggers: Vec<PerfEventTrigger>,
+query_type! {
+    #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+    struct PerfEventDesc {
+        id: PerfEventId,
+        // FIXME: make use of that
+        triggers: Vec<PerfEventTrigger>,
+    }
 }
 
 #[repr(transparent)]

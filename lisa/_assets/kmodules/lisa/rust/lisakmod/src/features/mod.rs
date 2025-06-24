@@ -22,12 +22,14 @@ use core::{
 };
 
 use linkme::distributed_slice;
+use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     error::{Error, MultiResult, error},
     graph::{Cursor, DfsPostTraversal, Graph, TraversalDirection},
     lifecycle::{self, FinishedKind, LifeCycle, new_lifecycle},
+    query::query_type,
     runtime::{
         printk::{pr_debug, pr_info},
         sync::Lock,
@@ -168,16 +170,18 @@ impl FeatureId {
     }
 }
 
-#[derive(Serialize, Debug, Default)]
-#[serde(rename_all = "kebab-case")]
-pub struct ProvidedFeatureResources {
-    ftrace_events: BTreeSet<String>,
+query_type! {
+    #[derive(Default, Serialize)]
+    pub struct ProvidedFeatureResources {
+        ftrace_events: BTreeSet<String>,
+    }
 }
 
-#[derive(Serialize, Debug, Default)]
-#[serde(rename_all = "kebab-case")]
-pub struct FeatureResources {
-    provided: ProvidedFeatureResources,
+query_type! {
+    #[derive(Default, Serialize)]
+    pub struct FeatureResources {
+        provided: ProvidedFeatureResources,
+    }
 }
 
 pub type GenericConfig = serde_json::Value;
@@ -261,6 +265,7 @@ mod private {
         ) -> Result<(), Error>;
 
         fn __id(&self) -> FeatureId;
+        fn __config_schema(&self, gen_: &mut SchemaGenerator) -> Schema;
     }
 
     impl<Feat> BlanketFeature for Feat
@@ -268,6 +273,10 @@ mod private {
         Feat: 'static + Feature + Send + Sync,
         <Feat as Feature>::Config: Debug + for<'a> Deserialize<'a> + Send + Clone,
     {
+        fn __config_schema(&self, gen_: &mut SchemaGenerator) -> Schema {
+            gen_.subschema_for::<<Feat as Feature>::Config>()
+        }
+
         fn __push_no_config(
             &self,
             configs: &mut DependenciesSpec,
@@ -580,7 +589,7 @@ pub trait Feature: Send + Sync + private::BlanketFeature {
     type Service: Send + Sync + Debug
     where
         Self: Sized;
-    type Config: Send
+    type Config: Send + JsonSchema
     where
         Self: Sized;
 

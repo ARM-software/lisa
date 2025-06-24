@@ -15,7 +15,6 @@ use alloc::{
 
 use embedded_io::{Seek as _, Write as _};
 use itertools::Itertools as _;
-use serde::{Deserialize, Serialize};
 
 use crate::{
     error::{Error, ResultExt as _, error},
@@ -25,6 +24,7 @@ use crate::{
     },
     lifecycle::new_lifecycle,
     parsec::{self, ClosureParser, ParseResult, Parser},
+    query::query_type,
     runtime::{
         fs::{File, OpenFlags},
         traceevent::new_event,
@@ -132,16 +132,20 @@ impl Device {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct DeviceConfig {
-    id: DeviceId,
-    folder: String,
-    hardware_sampling_rate_hz: u64,
+query_type! {
+    #[derive(Clone)]
+    struct DeviceConfig {
+        id: DeviceId,
+        folder: String,
+        hardware_sampling_rate_hz: u64,
+    }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct Pixel6EmeterConfig {
-    devices: Vec<DeviceConfig>,
+query_type! {
+    #[derive(Clone)]
+    struct Pixel6EmeterConfig {
+        devices: Vec<DeviceConfig>,
+    }
 }
 
 impl Pixel6EmeterConfig {

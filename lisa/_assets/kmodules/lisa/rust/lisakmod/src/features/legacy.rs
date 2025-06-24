@@ -8,12 +8,12 @@ use core::{
 
 use itertools::Itertools as _;
 use lisakmod_macros::inlinec::{c_realchar, cfunc};
-use serde::{Deserialize, Serialize};
 
 use crate::{
     error::error,
     features::{DependenciesSpec, FeatureResources, ProvidedFeatureResources, define_feature},
     lifecycle::new_lifecycle,
+    query::query_type,
 };
 
 pub fn legacy_features() -> impl Iterator<Item = &'static str> {
@@ -55,9 +55,11 @@ pub fn legacy_features() -> impl Iterator<Item = &'static str> {
     })
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct LegacyConfig {
-    pub features: BTreeSet<String>,
+query_type! {
+    #[derive(Clone)]
+    pub struct LegacyConfig {
+        pub features: BTreeSet<String>,
+    }
 }
 
 impl Default for LegacyConfig {

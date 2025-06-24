@@ -147,7 +147,7 @@ from devlib.target import AndroidTarget, KernelVersion, TypedKernelConfig, Kerne
 from devlib.host import LocalConnection
 from devlib.exception import TargetStableError
 
-from lisa.utils import nullcontext, Loggable, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor, destroyablecontextmanager, ContextManagerExit, ignore_exceps, get_nested_key, is_link_dead, deduplicate, subprocess_detailed_excep
+from lisa.utils import nullcontext, Loggable, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor, destroyablecontextmanager, ContextManagerExit, ignore_exceps, get_nested_key, is_link_dead, deduplicate, subprocess_detailed_excep, HideExekallID
 from lisa._assets import ASSETS_PATH, HOST_PATH, ABI_BINARIES_FOLDER
 from lisa._unshare import ensure_root
 import lisa._git as git
@@ -1202,6 +1202,7 @@ class _KernelBuildEnvConf(SimpleMultiSrcConf):
             VariadicLevelKeyDesc('modules', 'modules settings',
                 LevelKeyDesc('<module-name>', 'For each module. The module shipped by LISA is "lisa"', (
                     KeyDesc('overlays', 'Overlays to apply to the sources of the given module', [typing.Dict[str, OverlayResource]]),
+                    KeyDesc('conf', 'Configuration of the module', [object]),
                 )
             ))
         ),
@@ -3509,9 +3510,12 @@ class LISADynamicKmod(FtraceDynamicKmod):
         return results
 
     def _push_start(self, config=None):
+        config = config or {}
+        features_config = config.get('features', {})
+
         self._query([
             {
-                'push-config': config or {}
+                'push-config': features_config
             },
         ])
         try:
@@ -3596,6 +3600,16 @@ class LISADynamicKmod(FtraceDynamicKmod):
                     self._query([{
                         'pop-config': {'n': 'all'}
                     }])
+
+                try:
+                    base_conf = get_nested_key(
+                        self._kernel_build_env.conf,
+                        ['modules', self.mod_name, 'conf']
+                    )
+                except KeyError:
+                    base_conf = {}
+
+                self._push_start(config=base_conf)
                 self._push_start(config=config)
 
         def pristine_load(install):
@@ -3655,6 +3669,9 @@ class LISADynamicKmod(FtraceDynamicKmod):
                 return preinstalled_unsuitable()
 
     def uninstall(self):
+        # Pop the conf from the _KernelBuildEnvConf
+        self._pop_stop()
+        # Pop the conf from the install() parameter
         self._pop_stop()
 
 
