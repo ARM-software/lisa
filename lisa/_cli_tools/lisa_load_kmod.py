@@ -35,14 +35,19 @@ from lisa.utils import ignore_exceps
 
 
 def lisa_kmod(logger, target, args, reset_config):
-    features = args.feature
-    if features is None:
-        config = {
-            'all': {
-                'best-effort': True,
-            },
-        }
+    if (features := args.feature) is None:
+        if args.no_enable_all:
+            logger.info('No feature will be enabled')
+            config = {}
+        else:
+            logger.info('All features will be enabled on a best-effort basis')
+            config = {
+                'all': {
+                    'best-effort': True,
+                },
+            }
     else:
+        logger.warning("--feature is deprecated, use target configuration passed to --conf to specify features to enable")
         config = dict.fromkeys(features)
 
     config = {
@@ -65,6 +70,10 @@ def main():
         'feature': dict(
             action='append',
             help='Enable a specific module feature. Can be repeated. By default, the module will try to enable all features and will log in dmesg the ones that failed to enable'
+        ),
+        'no-enable-all': dict(
+            action='store_true',
+            help='Do not attempt to enable all features, only enable the features that are listed in the configuration'
         ),
         'cmd': dict(
             nargs=argparse.REMAINDER,
