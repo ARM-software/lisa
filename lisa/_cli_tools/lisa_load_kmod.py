@@ -44,6 +44,10 @@ def lisa_kmod(logger, target, args, reset_config):
         }
     else:
         config = dict.fromkeys(features)
+
+    config = {
+        'features': config
+    }
     kmod = target.get_kmod(LISADynamicKmod)
 
     @contextlib.contextmanager

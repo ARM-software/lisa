@@ -7734,9 +7734,8 @@ class FtraceCollector(CollectorBase, Configurable):
                 @contextlib.contextmanager
                 def cm():
                     with kmod.run() as _kmod:
-                        features = _kmod._event_features(needed)
-                        config = dict.fromkeys(features)
-                        with _kmod._reconfigure(config=config):
+                        config = _kmod._event_features_conf(needed)
+                        with _kmod._reconfigure(configs=[config]):
                             yield
 
                 return (

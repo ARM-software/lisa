@@ -3509,31 +3509,50 @@ class LISADynamicKmod(FtraceDynamicKmod):
         results = results[:-1]
         return results
 
-    def _push_start(self, config=None):
-        config = config or {}
-        features_config = config.get('features', {})
-
-        self._query([
-            {
-                'push-features-config': features_config
-            },
-        ])
-        try:
-            self._query([
+    def _push_start(self, configs=None):
+        def depth():
+            res = self._query([
                 {
-                    'start-features': None
-                }
+                    'pop-features-config': {'n': 0},
+                },
             ])
+            return res[0]['pop-features-config']['remaining']
+
+        configs = list(configs) or []
+        init_depth = depth()
+
+        def get_features_conf(conf):
+            if conf:
+                allowed = {'features'}
+                disallowed = conf.keys() - allowed
+                if disallowed:
+                    raise KeyError(f'Forbidden keys in module configuration: {disallowed}')
+                else:
+                    return conf.get('features', {})
+            else:
+                return {}
+
+        queries = [
+            {
+                'push-features-config': get_features_conf(config or {})
+            }
+            for config in configs
+        ]
+        queries.append({
+            'start-features': None
+        })
+        try:
+            self._query(queries)
         except Exception as e:
-            self._pop_stop()
+            self._pop_stop(n=depth() - init_depth)
             raise e
 
-    def _pop_stop(self):
+    def _pop_stop(self, n=1):
         logger = self.logger
 
         res = self._query([
             {
-                'pop-features-config': {'n': 1},
+                'pop-features-config': {'n': n},
             },
         ])
         # If there are some configs left on the stack, we simply restart the
@@ -3609,8 +3628,9 @@ class LISADynamicKmod(FtraceDynamicKmod):
                 except KeyError:
                     base_conf = {}
 
-                self._push_start(config=base_conf)
-                self._push_start(config=config)
+                # WARNING: if more configs are added here, _pop_stop() must be
+                # updated accordingly to pop them from the stack.
+                self._push_start(configs=[base_conf, config])
 
         def pristine_load(install):
             install(kmod_params=kmod_params)
@@ -3669,10 +3689,9 @@ class LISADynamicKmod(FtraceDynamicKmod):
                 return preinstalled_unsuitable()
 
     def uninstall(self):
-        # Pop the conf from the _KernelBuildEnvConf
-        self._pop_stop()
-        # Pop the conf from the install() parameter
-        self._pop_stop()
+        # Pop the conf from the _KernelBuildEnvConf and the one passed via
+        # method parameters.
+        self._pop_stop(n=2)
 
 
 class _LoadedLISADynamicKmod:
@@ -3724,12 +3743,18 @@ class _LoadedLISADynamicKmod:
             }
             return sorted(features)
 
+    def _event_features_conf(self, *args, **kwargs):
+        features = self._event_features(*args, **kwargs)
+        config = {'features': dict.fromkeys(features)}
+        return config
+
     @contextlib.contextmanager
-    def _reconfigure(self, config=None):
-        self._push_start(config=config)
+    def _reconfigure(self, configs=None):
+        configs = configs or []
+        self._push_start(configs=configs)
         try:
             yield
         finally:
-            self._pop_stop()
+            self._pop_stop(n=len(configs))
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

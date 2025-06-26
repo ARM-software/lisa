@@ -242,10 +242,9 @@ class LisaKmodInstrument(Instrument):
         # Load the module while running the instrument's initialize so that the
         # events are visible in the kernel at that point.
         with kmod.run(reset_config=self._RESET_CONFIG) as kmod:
-            features = kmod._event_features(events, strict=False)
-            config = dict.fromkeys(features)
+            config = kmod._event_features_conf(events, strict=False)
             self._config = config
-            with kmod._reconfigure(config=config):
+            with kmod._reconfigure(configs=[config]):
                 yield
 
     @contextmanager
