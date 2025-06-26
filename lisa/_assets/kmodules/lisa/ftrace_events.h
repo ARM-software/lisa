@@ -27,7 +27,7 @@
 #if HAS_KERNEL_FEATURE(CFS_PELT)
 TRACE_EVENT(lisa__sched_pelt_cfs,
 
-	TP_PROTO(int cpu, char *path, const struct sched_avg *avg),
+	TP_PROTO(int cpu, const char *path, const struct sched_avg *avg),
 
 	TP_ARGS(cpu, path, avg),
 
@@ -290,7 +290,7 @@ TRACE_EVENT(lisa__sched_util_est_se_unified,
 #if HAS_KERNEL_FEATURE(CFS_UTIL_EST)
 TRACE_EVENT(lisa__sched_util_est_cfs,
 
-	TP_PROTO(int cpu, char *path, const struct sched_avg *avg),
+	TP_PROTO(int cpu, const char *path, const struct sched_avg *avg),
 
 	TP_ARGS(cpu, path, avg),
 
@@ -319,7 +319,7 @@ TRACE_EVENT(lisa__sched_util_est_cfs,
 #if HAS_KERNEL_FEATURE(CFS_UTIL_EST_UNIFIED)
 TRACE_EVENT(lisa__sched_util_est_cfs_unified,
 
-	TP_PROTO(int cpu, char *path, const struct sched_avg *avg),
+	TP_PROTO(int cpu, const char *path, const struct sched_avg *avg),
 
 	TP_ARGS(cpu, path, avg),
 
