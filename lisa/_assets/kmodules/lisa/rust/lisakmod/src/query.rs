@@ -68,9 +68,9 @@ fn push_config_schema(gen_: &mut SchemaGenerator) -> Schema {
 query_type! {
     enum Query {
         #[schemars(schema_with = "push_config_schema")]
-        PushConfig(BTreeMap<String, GenericConfig>),
-        PopConfig { n: PopConfigN },
-        GetConfig,
+        PushFeaturesConfig(BTreeMap<String, GenericConfig>),
+        PopFeaturesConfig { n: PopConfigN },
+        GetFeaturesConfig,
         GetVersion,
         GetResources,
         GetSchemas,
@@ -96,12 +96,14 @@ impl Query {
             Query::GetVersion => Ok(QuerySuccess::GetVersion {
                 checksum: module_version().into(),
             }),
-            Query::PushConfig(config) => state.push_config(config).map(|()| QuerySuccess::None),
-            Query::PopConfig { n } => match n {
+            Query::PushFeaturesConfig(config) => {
+                state.push_config(config).map(|()| QuerySuccess::None)
+            }
+            Query::PopFeaturesConfig { n } => match n {
                 PopConfigN::N(n) => state.pop_configs(n),
                 PopConfigN::All => state.pop_all_configs(),
             }
-            .map(|i| QuerySuccess::PopConfig { remaining: i }),
+            .map(|i| QuerySuccess::PopFeaturesConfig { remaining: i }),
             Query::StartFeatures => {
                 let mut stack = state.config_stack()?;
                 let to_enable: BTreeSet<_> = stack
@@ -147,9 +149,9 @@ impl Query {
                 Ok(QuerySuccess::None)
             }
             Query::StopFeatures => state.stop().map(|()| QuerySuccess::None),
-            Query::GetConfig => {
+            Query::GetFeaturesConfig => {
                 let stack = state.config_stack()?;
-                Ok(QuerySuccess::GetConfig { config: stack })
+                Ok(QuerySuccess::GetFeaturesConfig { config: stack })
             }
             Query::GetResources => Ok(QuerySuccess::GetResources {
                 features: all_features()
@@ -166,10 +168,10 @@ impl Query {
 query_type! {
     #[derive(Serialize)]
     enum QuerySuccess {
-        PopConfig {
+        PopFeaturesConfig {
             remaining: usize,
         },
-        GetConfig {
+        GetFeaturesConfig {
             config: Vec<BTreeMap<String, GenericConfig>>,
         },
         GetVersion {

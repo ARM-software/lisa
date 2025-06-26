@@ -3515,7 +3515,7 @@ class LISADynamicKmod(FtraceDynamicKmod):
 
         self._query([
             {
-                'push-config': features_config
+                'push-features-config': features_config
             },
         ])
         try:
@@ -3533,12 +3533,12 @@ class LISADynamicKmod(FtraceDynamicKmod):
 
         res = self._query([
             {
-                'pop-config': {'n': 1},
+                'pop-features-config': {'n': 1},
             },
         ])
         # If there are some configs left on the stack, we simply restart the
         # features now that we have popped our config.
-        if (remaining := res[0]['pop-config']['remaining']):
+        if (remaining := res[0]['pop-features-config']['remaining']):
             logger.debug(f'{remaining} configs in the stack, the module will not be removed')
             self._query([
                 {
@@ -3598,7 +3598,7 @@ class LISADynamicKmod(FtraceDynamicKmod):
             else:
                 if reset_config:
                     self._query([{
-                        'pop-config': {'n': 'all'}
+                        'pop-features-config': {'n': 'all'}
                     }])
 
                 try:
