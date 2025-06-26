@@ -2,14 +2,8 @@
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM lisa
 
-#define MAX_SPAN_SIZE		128
-
 #if !defined(_FTRACE_EVENTS_H) || defined(TRACE_HEADER_MULTI_READ)
 #define _FTRACE_EVENTS_H
-
-#define PATH_SIZE		64
-#define __SPAN_SIZE		(round_up(NR_CPUS, 4)/4)
-#define SPAN_SIZE		(__SPAN_SIZE > MAX_SPAN_SIZE ? MAX_SPAN_SIZE : __SPAN_SIZE)
 
 #include <linux/version.h>
 #include <linux/tracepoint.h>
@@ -45,12 +39,12 @@ TRACE_EVENT(lisa__sched_pelt_cfs,
 		__field(	unsigned long,	util			)
 		__field(	unsigned long,	load			)
 		__field(	int,		cpu			)
-		__array(	char,		path,	PATH_SIZE	)
+		__string(	path,		path			)
 	),
 
 	TP_fast_assign(
 		__entry->cpu		= cpu;
-		strscpy(__entry->path, path, PATH_SIZE);
+		__lisa_assign_str(path, path);
 		__entry->load		= avg->load_avg;
 #if HAS_KERNEL_FEATURE(SCHED_AVG_RBL)
 		__entry->RBL_LOAD_ENTRY	= avg->RBL_LOAD_MEMBER;
@@ -65,8 +59,8 @@ TRACE_EVENT(lisa__sched_pelt_cfs,
 		" " RBL_LOAD_STR "=%lu"
 #endif
 		,
-		__entry->cpu, __entry->path, __entry->load,
-		__entry->util, __entry->update_time
+		__entry->cpu, __get_str(path), __entry->load, __entry->util,
+		__entry->update_time
 #if HAS_KERNEL_FEATURE(SCHED_AVG_RBL)
 		,__entry->RBL_LOAD_ENTRY
 #endif
@@ -150,14 +144,14 @@ TRACE_EVENT(lisa__sched_pelt_se,
 		__field(	unsigned long,	util			)
 		__field(	int,		cpu			)
 		__field(	int,		pid			)
-		__array(	char,		path,	PATH_SIZE	)
-		__array(	char,		comm,	TASK_COMM_LEN	)
+		__string(	path,		path			)
+		__string(	comm,		comm			)
 	),
 
 	TP_fast_assign(
 		__entry->cpu		= cpu;
-		strscpy(__entry->path, path, PATH_SIZE);
-		strscpy(__entry->comm, comm, TASK_COMM_LEN);
+		__lisa_assign_str(path, path);
+		__lisa_assign_str(comm, comm);
 		__entry->pid		= pid;
 		__entry->load		= avg->load_avg;
 #if HAS_KERNEL_FEATURE(SCHED_AVG_RBL)
@@ -173,7 +167,7 @@ TRACE_EVENT(lisa__sched_pelt_se,
 		" " RBL_LOAD_STR "=%lu"
 #endif
 		,
-		__entry->cpu, __entry->path, __entry->comm, __entry->pid,
+		__entry->cpu, __get_str(path), __get_str(comm), __entry->pid,
 		__entry->load, __entry->util, __entry->update_time
 #if HAS_KERNEL_FEATURE(SCHED_AVG_RBL)
 		,__entry->RBL_LOAD_ENTRY
@@ -191,16 +185,16 @@ TRACE_EVENT(lisa__sched_overutilized,
 
 	TP_STRUCT__entry(
 		__field(	bool,		overutilized		)
-		__array(	char,		span,	SPAN_SIZE	)
+		__string(	span,		span			)
 	),
 
 	TP_fast_assign(
 		__entry->overutilized	= overutilized;
-		strscpy(__entry->span, span, SPAN_SIZE);
+		__lisa_assign_str(span, span);
 	),
 
 	TP_printk("overutilized=%d span=0x%s",
-		  __entry->overutilized, __entry->span)
+		  __entry->overutilized, __get_str(span))
 );
 #endif
 
@@ -241,14 +235,14 @@ TRACE_EVENT(lisa__sched_util_est_se,
 		__field( 	unsigned int,	ewma			)
 		__field(	int,		cpu			)
 		__field(	int,		pid			)
-		__array(	char,		path,	PATH_SIZE	)
-		__array(	char,		comm,	TASK_COMM_LEN	)
+		__string(	path,		path			)
+		__string(	comm,		comm			)
 	),
 
 	TP_fast_assign(
 		__entry->cpu		= cpu;
-		strscpy(__entry->path, path, PATH_SIZE);
-		strscpy(__entry->comm, comm, TASK_COMM_LEN);
+		__lisa_assign_str(path, path);
+		__lisa_assign_str(comm, comm);
 		__entry->pid		= pid;
 		__entry->enqueued	= avg->util_est.enqueued & ~UTIL_AVG_UNCHANGED;
 		__entry->ewma		= avg->util_est.ewma;
@@ -256,7 +250,7 @@ TRACE_EVENT(lisa__sched_util_est_se,
 	),
 
 	TP_printk("cpu=%d path=%s comm=%s pid=%d enqueued=%u ewma=%u util=%lu",
-		  __entry->cpu, __entry->path, __entry->comm, __entry->pid,
+		  __entry->cpu, __get_str(path), __get_str(comm), __entry->pid,
 		  __entry->enqueued, __entry->ewma, __entry->util)
 );
 #endif
@@ -274,21 +268,21 @@ TRACE_EVENT(lisa__sched_util_est_se_unified,
 		__field( 	unsigned int,	util_est		)
 		__field(	int,		cpu			)
 		__field(	int,		pid			)
-		__array(	char,		path,	PATH_SIZE	)
-		__array(	char,		comm,	TASK_COMM_LEN	)
+		__string(	path,		path			)
+		__string(	comm,		comm			)
 	),
 
 	TP_fast_assign(
 		__entry->cpu		= cpu;
-		strscpy(__entry->path, path, PATH_SIZE);
-		strscpy(__entry->comm, comm, TASK_COMM_LEN);
+		__lisa_assign_str(path, path);
+		__lisa_assign_str(comm, comm);
 		__entry->pid		= pid;
 		__entry->util_est	= avg->util_est & ~UTIL_AVG_UNCHANGED;
 		__entry->util		= avg->util_avg;
 	),
 
 	TP_printk("cpu=%d path=%s comm=%s pid=%d util_est=%u util=%lu",
-		  __entry->cpu, __entry->path, __entry->comm, __entry->pid,
+		  __entry->cpu, __get_str(path), __get_str(comm), __entry->pid,
 		  __entry->util_est, __entry->util)
 );
 #endif
@@ -305,20 +299,20 @@ TRACE_EVENT(lisa__sched_util_est_cfs,
 		__field( 	unsigned int,	enqueued		)
 		__field( 	unsigned int,	ewma			)
 		__field(	int,		cpu			)
-		__array(	char,		path,	PATH_SIZE	)
+		__string(	path,		path			)
 	),
 
 	TP_fast_assign(
 		__entry->cpu		= cpu;
-		strscpy(__entry->path, path, PATH_SIZE);
+		__lisa_assign_str(path, path);
 		__entry->enqueued	= avg->util_est.enqueued;
 		__entry->ewma		= avg->util_est.ewma;
 		__entry->util		= avg->util_avg;
 	),
 
 	TP_printk("cpu=%d path=%s enqueued=%u ewma=%u util=%lu",
-		  __entry->cpu, __entry->path, __entry->enqueued,
-		 __entry->ewma, __entry->util)
+		  __entry->cpu, __get_str(path), __entry->enqueued,
+		  __entry->ewma, __entry->util)
 );
 #endif
 
@@ -333,18 +327,19 @@ TRACE_EVENT(lisa__sched_util_est_cfs_unified,
 		__field(	unsigned long,	util			)
 		__field( 	unsigned int,	util_est		)
 		__field(	int,		cpu			)
-		__array(	char,		path,	PATH_SIZE	)
+		__string(	path,		path			)
 	),
 
 	TP_fast_assign(
 		__entry->cpu		= cpu;
-		strscpy(__entry->path, path, PATH_SIZE);
+		__lisa_assign_str(path, path);
 		__entry->util_est	= avg->util_est;
 		__entry->util		= avg->util_avg;
 	),
 
 	TP_printk("cpu=%d path=%s util_est=%u util=%lu",
-		  __entry->cpu, __entry->path, __entry->util_est, __entry->util)
+		  __entry->cpu, __get_str(path), __entry->util_est,
+		  __entry->util)
 );
 #endif
 
@@ -364,12 +359,12 @@ TRACE_EVENT_CONDITION(lisa__uclamp_util_se,
 		__field(unsigned long,	uclamp_max		)
 		__field(	 int,	cpu			)
 		__field(	pid_t,	pid			)
-		__array(	char,	comm,   TASK_COMM_LEN	)
+		__string(	comm,		p->comm		)
 	),
 
 	TP_fast_assign(
 		__entry->pid            = p->pid;
-		memcpy(__entry->comm, p->comm, TASK_COMM_LEN);
+		__lisa_assign_str(comm, p->comm);
 		__entry->cpu            = rq ? rq_cpu(rq) : -1;
 		__entry->util_avg       = p->se.avg.util_avg;
 		__entry->uclamp_avg     = uclamp_rq_util_with(rq, p->se.avg.util_avg);
@@ -385,7 +380,7 @@ TRACE_EVENT_CONDITION(lisa__uclamp_util_se,
 		  " uclamp_min=%lu uclamp_max=%lu"
 #    endif
 		  ,
-		  __entry->pid, __entry->comm, __entry->cpu,
+		  __entry->pid, __get_str(comm), __entry->cpu,
 		  __entry->util_avg, __entry->uclamp_avg
 #    if HAS_KERNEL_FEATURE(RQ_UCLAMP)
 		  ,__entry->uclamp_min, __entry->uclamp_max

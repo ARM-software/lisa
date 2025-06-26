@@ -11,6 +11,13 @@
 #include "wq.h"
 #include "tp.h"
 
+#define PATH_SIZE		64
+
+#define MAX_SPAN_SIZE		128
+#define __SPAN_SIZE		(round_up(NR_CPUS, 4)/4)
+#define SPAN_SIZE		(__SPAN_SIZE > MAX_SPAN_SIZE ? MAX_SPAN_SIZE : __SPAN_SIZE)
+
+
 #if HAS_KERNEL_FEATURE(CFS_PELT)
 static inline void _trace_cfs(struct cfs_rq *cfs_rq,
 			      void (*trace_event)(int, char*,
