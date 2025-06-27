@@ -1,13 +1,11 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-use alloc::{sync::Arc, vec, vec::Vec};
+use alloc::{sync::Arc, vec::Vec};
 
 use crate::{
     error::Error,
     features::{
-        DependenciesSpec, DependencySpec, Feature, FeatureId, FeaturesService, Visibility,
-        all_features,
-        legacy::{LegacyConfig, LegacyFeatures},
+        DependenciesSpec, Feature, FeatureId, FeaturesService, Visibility, all_features,
         register_feature,
     },
     lifecycle::{LifeCycle, new_lifecycle},
@@ -52,12 +50,16 @@ impl Feature for AllFeatures {
         Self::NAME
     }
 
+    fn id(&self) -> FeatureId {
+        FeatureId::new::<Self>()
+    }
+
     fn visibility(&self) -> Visibility {
         Visibility::Public
     }
 
     fn dependencies(&self) -> Vec<FeatureId> {
-        default_features().map(|feat| feat.__id()).collect()
+        default_features().map(|feat| feat.id()).collect()
     }
 
     fn configure(
@@ -76,17 +78,6 @@ impl Feature for AllFeatures {
         for feat in default_features() {
             feat.__push_no_config(&mut spec, mandatory)?;
         }
-
-        let legacy_config = LegacyConfig::new_all();
-        let legacy_spec = match mandatory {
-            true => DependencySpec::Mandatory {
-                configs: vec![legacy_config],
-            },
-            false => DependencySpec::Optional {
-                configs: vec![legacy_config],
-            },
-        };
-        spec.insert::<LegacyFeatures>(legacy_spec);
 
         Ok((
             spec,

@@ -146,6 +146,17 @@ int deinit_features(void) {
 	return __process_features(NULL, 0, __disable_explicitly_enabled_feature);
 }
 
+int init_feature(const char *feature) {
+	BUG_ON(MAX_FEATURES < ((__lisa_features_stop - __lisa_features_start) / sizeof(struct feature)));
+	const char *selected[] = {feature};
+	return __process_features(selected, ARRAY_SIZE(selected), __enable_feature_explicitly);
+}
+
+int deinit_feature(const char *feature) {
+	const char *selected[] = {feature};
+	return __process_features(selected, ARRAY_SIZE(selected), __disable_explicitly_enabled_feature);
+}
+
 int __placeholder_init(struct feature *feature) {
 	pr_err("Legacy feature not available: %s\n", feature->name);
 	return 1;

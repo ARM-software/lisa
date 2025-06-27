@@ -2,7 +2,6 @@
 
 pub mod all;
 pub mod events;
-pub mod legacy;
 pub mod pixel6;
 pub mod pmu;
 pub mod tests;
@@ -11,17 +10,21 @@ pub mod wq;
 
 use alloc::{
     collections::{BTreeMap, BTreeSet},
+    ffi::CString,
     string::String,
     sync::Arc,
     vec::Vec,
 };
 use core::{
     any::{Any, TypeId, type_name},
+    ffi::{CStr, c_char, c_int},
     fmt,
     fmt::Debug,
+    ptr::NonNull,
 };
 
 use linkme::distributed_slice;
+use lisakmod_macros::inlinec::{c_realchar, cfunc};
 use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
 
@@ -156,16 +159,28 @@ pub enum Visibility {
 }
 
 #[derive(PartialOrd, Ord, PartialEq, Eq, Debug)]
+enum FeatureIdInner {
+    Normal {
+        type_id: TypeId,
+        type_name: &'static str,
+    },
+    Legacy {
+        name: &'static str,
+    },
+}
+
+#[derive(PartialOrd, Ord, PartialEq, Eq, Debug)]
 pub struct FeatureId {
-    type_id: TypeId,
-    type_name: &'static str,
+    inner: FeatureIdInner,
 }
 
 impl FeatureId {
     fn new<Feat: 'static + Feature>() -> Self {
         FeatureId {
-            type_id: TypeId::of::<Feat>(),
-            type_name: type_name::<Feat>(),
+            inner: FeatureIdInner::Normal {
+                type_id: TypeId::of::<Feat>(),
+                type_name: type_name::<Feat>(),
+            },
         }
     }
 }
@@ -264,7 +279,6 @@ mod private {
             stop_parents: &mut dyn FnMut() -> Result<(), Error>,
         ) -> Result<(), Error>;
 
-        fn __id(&self) -> FeatureId;
         fn __config_schema(&self, gen_: &mut SchemaGenerator) -> Schema;
     }
 
@@ -376,10 +390,6 @@ mod private {
                 children_config,
                 config: Box::new(for_us),
             })
-        }
-
-        fn __id(&self) -> FeatureId {
-            FeatureId::new::<Self>()
         }
 
         fn __start(
@@ -596,14 +606,7 @@ pub trait Feature: Send + Sync + private::BlanketFeature {
     fn name(&self) -> &str;
     fn visibility(&self) -> Visibility;
 
-    // This associated method allows getting a FeatureId when specifying the dependencies without
-    // having a live instance of the feature.
-    fn id() -> FeatureId
-    where
-        Self: 'static + Sized,
-    {
-        FeatureId::new::<Self>()
-    }
+    fn id(&self) -> FeatureId;
 
     #[allow(clippy::type_complexity)]
     fn configure(
@@ -666,7 +669,7 @@ where
     let graph: Graph<Arc<dyn Feature>> = Graph::new(
         features
             .iter()
-            .map(|feature| (feature.__id(), feature.dependencies(), Arc::clone(feature))),
+            .map(|feature| (feature.id(), feature.dependencies(), Arc::clone(feature))),
     );
 
     let graph = graph.dfs_map(DfsPostTraversal::new(
@@ -753,12 +756,19 @@ macro_rules! define_feature {
             fn name(&self) -> &str {
                 Self::NAME
             }
+
             fn visibility(&self) -> $crate::features::Visibility {
                 Self::VISBILITY
             }
 
+            fn id(&self) -> $crate::features::FeatureId {
+                $crate::features::FeatureId::new::<Self>()
+            }
+
             fn dependencies(&self) -> Vec<$crate::features::FeatureId> {
-                [$(<$dep>::id()),*].into()
+                [$(
+                    $crate::features::FeatureId::new::<$dep>()
+                ),*].into()
             }
 
             fn resources(&self) -> $crate::features::FeatureResources {
@@ -792,5 +802,139 @@ pub(crate) use define_feature;
 pub static __FEATURES: [fn() -> Arc<dyn Feature>];
 
 pub fn all_features() -> impl Iterator<Item = Arc<dyn Feature>> {
-    __FEATURES.into_iter().map(|f| f())
+    __FEATURES.into_iter().map(|f| f()).chain(legacy_features())
+}
+
+struct LegacyFeature {
+    name: &'static str,
+}
+
+impl Feature for LegacyFeature {
+    type Service = ();
+    type Config = ();
+
+    fn name(&self) -> &str {
+        self.name
+    }
+    fn visibility(&self) -> Visibility {
+        Visibility::Public
+    }
+
+    fn id(&self) -> FeatureId {
+        FeatureId {
+            inner: FeatureIdInner::Legacy { name: self.name },
+        }
+    }
+
+    #[inline]
+    fn resources(&self) -> FeatureResources {
+        match self.name.strip_prefix("event__") {
+            Some(event) => FeatureResources {
+                provided: ProvidedFeatureResources {
+                    ftrace_events: [event].into_iter().map(Into::into).collect(),
+                },
+            },
+            None => Default::default(),
+        }
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn configure(
+        &self,
+        _configs: &mut dyn Iterator<Item = &Self::Config>,
+    ) -> Result<
+        (
+            DependenciesSpec,
+            LifeCycle<FeaturesService, Arc<Self::Service>, Error>,
+        ),
+        Error,
+    > {
+        let name = self.name;
+        let name = CString::new(name)
+            .map_err(|err| error!("Could not convert feature name to CString: {err}"))?;
+        Ok((
+            Default::default(),
+            new_lifecycle!(|_| {
+                #[cfunc]
+                fn start(feature: *const c_realchar) -> Result<(), c_int> {
+                    r#"
+                    #include "features.h"
+                    "#;
+
+                    r#"
+                    return init_feature(feature);
+                    "#
+                }
+
+                #[cfunc]
+                fn stop(feature: *const c_realchar) -> Result<(), c_int> {
+                    r#"
+                    #include "features.h"
+                    "#;
+
+                    r#"
+                    return deinit_feature(feature);
+                    "#
+                }
+
+                yield_!({
+                    // SAFETY: We must not return early here, otherwise we will never run stop(),
+                    // which will leave tracepoint probes installed after modexit, leading to a
+                    // kernel crash
+                    match start(name.as_ptr() as *const c_realchar) {
+                        Err(code) => {
+                            Err(error!("Failed to start legacy C features {name:?}: {code}"))
+                        }
+                        Ok(()) => Ok(Arc::new(())),
+                    }
+                });
+
+                stop(name.as_ptr() as *const c_realchar)
+                    .map_err(|code| error!("Failed to stop legacy C feature {name:?}: {code}"))
+            }),
+        ))
+    }
+}
+
+fn legacy_features() -> impl Iterator<Item = Arc<dyn Feature>> {
+    fn names() -> impl Iterator<Item = &'static str> {
+        #[cfunc]
+        fn nth(i: &mut usize) -> Option<NonNull<c_realchar>> {
+            r#"
+            #include "features.h"
+            "#;
+
+            r#"
+            const struct feature* base = __lisa_features_start;
+            const struct feature* stop = __lisa_features_stop;
+            size_t len = stop - base;
+
+            while (1) {
+                if (*i >= len) {
+                    return NULL;
+                } else {
+                    const struct feature* nth = base + *i;
+                    *i += 1;
+                    if (nth->__internal) {
+                        continue;
+                    } else {
+                        return nth->name;
+                    }
+                }
+            }
+            "#
+        }
+
+        let mut i: usize = 0;
+        core::iter::from_fn(move || {
+            nth(&mut i).map(|ptr| {
+                let ptr = ptr.as_ptr();
+                unsafe { CStr::from_ptr(ptr as *const c_char) }
+                    .to_str()
+                    .expect("Invalid UTF-8")
+            })
+        })
+    }
+
+    names().map(|name| Arc::new(LegacyFeature { name }) as Arc<dyn Feature>)
 }

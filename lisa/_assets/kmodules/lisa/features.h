@@ -151,6 +151,10 @@ int init_features(const char *const *selected, size_t selected_len);
  */
 int deinit_features(void);
 
+
+int init_feature(const char *feature);
+int deinit_feature(const char *feature);
+
 /**
  * feature_name() - Get feature's name
  * @feature: Pointer to feature to get the name of.

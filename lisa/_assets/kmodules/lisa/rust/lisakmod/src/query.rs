@@ -5,7 +5,6 @@ use alloc::{
     format,
     string::String,
     sync::Arc,
-    vec,
     vec::Vec,
 };
 
@@ -15,9 +14,8 @@ use serde::Serialize;
 use crate::{
     error::{Error, ResultExt as _, error},
     features::{
-        DependenciesSpec, DependencySpec, Feature, FeatureResources, GenericConfig, Visibility,
-        all_features, features_lifecycle,
-        legacy::{LegacyConfig, LegacyFeatures},
+        DependenciesSpec, Feature, FeatureResources, GenericConfig, Visibility, all_features,
+        features_lifecycle,
     },
     init::State,
     runtime::{
@@ -105,46 +103,14 @@ impl Query {
             }
             .map(|i| QuerySuccess::PopFeaturesConfig { remaining: i }),
             Query::StartFeatures => {
-                let mut stack = state.config_stack()?;
-                let to_enable: BTreeSet<_> = stack
+                let stack = state.config_stack()?;
+                let features: BTreeSet<_> = stack
                     .iter()
                     .flat_map(|config| config.keys().cloned())
                     .collect();
 
-                // Split the features between the legacy ones and the non-legacy ones, so that
-                // legacy features can be asked for the same way as non-legacy features. This
-                // allows porting the legacy features in the future without breaking compat with
-                // old configs.
-                let legacy_features: BTreeSet<_> =
-                    crate::features::legacy::legacy_features().collect();
-                let (legacy_features, mut features): (BTreeSet<_>, BTreeSet<_>) = to_enable
-                    .into_iter()
-                    .partition(|name| legacy_features.contains(&**name));
-
-                if !legacy_features.is_empty() {
-                    features.insert(LegacyFeatures::NAME.into());
-                }
-
-                // Remove the legacy features from the config, as they can't have any config option
-                // and to allow strict checking of the content against the features that do exist.
-                for config in &mut stack {
-                    for legacy_feature in &legacy_features {
-                        config.remove(legacy_feature);
-                    }
-                }
-
-                let mut legacy_config = LegacyConfig::new();
-                legacy_config.features.extend(legacy_features);
-                let mut base_config = DependenciesSpec::new();
-                base_config.insert::<LegacyFeatures>(DependencySpec::Mandatory {
-                    configs: vec![legacy_config],
-                });
-
-                let select = |feature: &dyn Feature| match feature.name() {
-                    name if features.contains(name) => name != LegacyFeatures::NAME,
-                    _ => false,
-                };
-
+                let base_config = DependenciesSpec::new();
+                let select = |feature: &dyn Feature| features.contains(feature.name());
                 state.restart(move || features_lifecycle(select, base_config, stack))?;
                 Ok(QuerySuccess::None)
             }

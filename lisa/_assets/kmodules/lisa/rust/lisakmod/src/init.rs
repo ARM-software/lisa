@@ -376,6 +376,24 @@ fn enable_all_param() -> bool {
     "#
 }
 
+#[cfunc]
+fn list_kernel_features() {
+    r#"
+    #include <linux/kernel.h>
+    #include <linux/printk.h>
+    #include "introspection.h"
+    "#;
+
+    r#"
+    pr_info("Kernel features detected. This will impact the module features that are available:\n");
+    const char *kernel_feature_names[] = {__KERNEL_FEATURE_NAMES};
+    const bool kernel_feature_values[] = {__KERNEL_FEATURE_VALUES};
+    for (size_t i=0; i < ARRAY_SIZE(kernel_feature_names); i++) {
+        pr_info("  %s: %s\n", kernel_feature_names[i], kernel_feature_values[i] ? "enabled" : "disabled");
+    }
+    "#
+}
+
 pub fn module_main() -> LifeCycle<(), (), c_int> {
     new_lifecycle!(|_| {
         let version = module_version();
@@ -389,6 +407,8 @@ pub fn module_main() -> LifeCycle<(), (), c_int> {
             pr_err!("Error while creating the query service: {err:#}");
             1
         })?;
+
+        list_kernel_features();
 
         let enable_all = enable_all_param();
 
