@@ -20,12 +20,12 @@ use lisakmod_macros::inlinec::cfunc;
 use crate::{
     error::{Error, error},
     features::{
-        DependenciesSpec, DependencySpec, GenericConfig,
+        DependenciesSpec, DependencySpec,
         all::{AllFeatures, AllFeaturesConfig},
         features_lifecycle,
     },
     lifecycle::{LifeCycle, new_lifecycle},
-    query::{QueryService, QuerySession, SessionId},
+    query::{ConfigStackItem, QueryService, QuerySession, SessionId},
     runtime::{
         printk::{pr_err, pr_info},
         sync::{Lock as _, Mutex, new_static_lockdep_class},
@@ -241,7 +241,7 @@ use crate::{
 
 pub struct State {
     lifecycle: Mutex<Option<LifeCycle<(), (), Error>>>,
-    config_stack: Mutex<Vec<BTreeMap<String, GenericConfig>>>,
+    config_stack: Mutex<Vec<ConfigStackItem>>,
     sessions: Mutex<BTreeMap<SessionId, QuerySession>>,
     session_id: AtomicU64,
     wq: Pin<Box<Wq>>,
@@ -249,7 +249,7 @@ pub struct State {
 
 fn pop_configs<S>(mut stack: S, n: usize) -> Result<usize, Error>
 where
-    S: DerefMut<Target = Vec<BTreeMap<String, GenericConfig>>>,
+    S: DerefMut<Target = Vec<ConfigStackItem>>,
 {
     let len = stack.len();
     if n > len {
@@ -277,12 +277,12 @@ impl State {
         })
     }
 
-    pub fn config_stack(&self) -> Result<Vec<BTreeMap<String, GenericConfig>>, Error> {
+    pub fn config_stack(&self) -> Result<Vec<ConfigStackItem>, Error> {
         Ok(self.config_stack.lock().clone())
     }
 
-    pub fn push_config(&self, config: BTreeMap<String, GenericConfig>) -> Result<(), Error> {
-        self.config_stack.lock().push(config);
+    pub fn push_config(&self, query: ConfigStackItem) -> Result<(), Error> {
+        self.config_stack.lock().push(query);
         Ok(())
     }
 

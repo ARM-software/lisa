@@ -64,9 +64,17 @@ fn push_config_schema(gen_: &mut SchemaGenerator) -> Schema {
 }
 
 query_type! {
-    enum Query {
+    #[derive(Clone, Serialize)]
+    pub struct ConfigStackItem {
         #[schemars(schema_with = "push_config_schema")]
-        PushFeaturesConfig(BTreeMap<String, GenericConfig>),
+        config: BTreeMap<String, GenericConfig>,
+        enable_features: BTreeSet<String>,
+    }
+}
+
+query_type! {
+    enum Query {
+        PushFeaturesConfig(ConfigStackItem),
         PopFeaturesConfig { n: PopConfigN },
         GetFeaturesConfig,
         GetVersion,
@@ -94,8 +102,8 @@ impl Query {
             Query::GetVersion => Ok(QuerySuccess::GetVersion {
                 checksum: module_version().into(),
             }),
-            Query::PushFeaturesConfig(config) => {
-                state.push_config(config).map(|()| QuerySuccess::None)
+            Query::PushFeaturesConfig(query) => {
+                state.push_config(query).map(|()| QuerySuccess::None)
             }
             Query::PopFeaturesConfig { n } => match n {
                 PopConfigN::N(n) => state.pop_configs(n),
@@ -104,20 +112,36 @@ impl Query {
             .map(|i| QuerySuccess::PopFeaturesConfig { remaining: i }),
             Query::StartFeatures => {
                 let stack = state.config_stack()?;
+
+                let allowed_features: BTreeMap<String, _> = all_features()
+                    .map(|feature| (feature.name().into(), feature))
+                    .collect();
                 let features: BTreeSet<_> = stack
                     .iter()
-                    .flat_map(|config| config.keys().cloned())
-                    .collect();
+                    .flat_map(|config| config.enable_features.clone())
+                    .map(|name| match allowed_features.get(&name) {
+                        Some(feature) => {
+                            if feature.visibility() == Visibility::Public {
+                                Ok(name)
+                            } else {
+                                Err(error!("Cannot enable private feature: {name}"))
+                            }
+                        }
+                        None => Err(error!("Cannot enable inexistent feature: {name}")),
+                    })
+                    .collect::<Result<_, _>>()?;
+
+                let configs: Vec<_> = stack.iter().map(|config| config.config.clone()).collect();
 
                 let base_config = DependenciesSpec::new();
                 let select = |feature: &dyn Feature| features.contains(feature.name());
-                state.restart(move || features_lifecycle(select, base_config, stack))?;
+                state.restart(move || features_lifecycle(select, base_config, configs))?;
                 Ok(QuerySuccess::None)
             }
             Query::StopFeatures => state.stop().map(|()| QuerySuccess::None),
             Query::GetFeaturesConfig => {
                 let stack = state.config_stack()?;
-                Ok(QuerySuccess::GetFeaturesConfig { config: stack })
+                Ok(QuerySuccess::GetFeaturesConfig(stack))
             }
             Query::GetResources => Ok(QuerySuccess::GetResources {
                 features: all_features()
@@ -137,9 +161,7 @@ query_type! {
         PopFeaturesConfig {
             remaining: usize,
         },
-        GetFeaturesConfig {
-            config: Vec<BTreeMap<String, GenericConfig>>,
-        },
+        GetFeaturesConfig(Vec<ConfigStackItem>),
         GetVersion {
             checksum: String,
         },

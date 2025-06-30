@@ -47,7 +47,6 @@ def lisa_kmod(logger, target, args, reset_config):
                 },
             }
     else:
-        logger.warning("--feature is deprecated, use target configuration passed to --conf to specify features to enable")
         config = dict.fromkeys(features)
 
     config = {
@@ -73,7 +72,7 @@ def main():
         ),
         'no-enable-all': dict(
             action='store_true',
-            help='Do not attempt to enable all features, only enable the features that are listed in the configuration'
+            help='Do not attempt to enable all features, only enable the features that are specified using --feature or in the configuration if no --feature option is passed'
         ),
         'cmd': dict(
             nargs=argparse.REMAINDER,

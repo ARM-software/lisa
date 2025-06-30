@@ -648,7 +648,7 @@ fn push_user_configs(
                 Some(feat) => match feat.visibility() {
                     Visibility::Public => feat.__push_user_config(stack, feat_config),
                     Visibility::Private => Err(error!(
-                        "Feature \"{feat_name}\" cannot be explicitly enabled as it is private"
+                        "Feature \"{feat_name}\" cannot be configured as it is private"
                     )),
                 },
             }?;

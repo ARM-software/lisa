@@ -3509,7 +3509,7 @@ class LISADynamicKmod(FtraceDynamicKmod):
         results = results[:-1]
         return results
 
-    def _push_start(self, configs=None):
+    def _push_start(self, configs=None, features=None):
         def depth():
             res = self._query([
                 {
@@ -3532,10 +3532,19 @@ class LISADynamicKmod(FtraceDynamicKmod):
             else:
                 return {}
 
-        queries = [
-            {
-                'push-features-config': get_features_conf(config or {})
+        def make_query(config):
+            features_config = get_features_conf(config or {})
+            _features = features_config.keys() if features is None else features
+            _features = sorted(set(_features))
+            return {
+                'push-features-config': {
+                    'config': features_config,
+                    'enable-features': _features
+                }
             }
+
+        queries = [
+            make_query(config)
             for config in configs
         ]
         queries.append({
@@ -3576,7 +3585,7 @@ class LISADynamicKmod(FtraceDynamicKmod):
             super().uninstall()
 
 
-    def install(self, kmod_params=None, config=None, reset_config=False):
+    def install(self, kmod_params=None, config=None, features=None, reset_config=False):
         target = self.target
         logger = self.logger
         busybox = quote(target.busybox)
@@ -3628,9 +3637,23 @@ class LISADynamicKmod(FtraceDynamicKmod):
                 except KeyError:
                     base_conf = {}
 
-                # WARNING: if more configs are added here, _pop_stop() must be
-                # updated accordingly to pop them from the stack.
-                self._push_start(configs=[base_conf, config])
+                # If no features were asked explicitly, only enable the ones
+                # listed in the particular config we received. The feature
+                # configuration from the conf file is only used to configure
+                # features in the event they are actually needed, it does not
+                # trigger a "need" on itself.
+                _features = (
+                    config.get('features', {}).keys()
+                    if features is None else
+                    features
+                )
+
+                self._push_start(
+                    # WARNING: if more configs are added here, _pop_stop() must
+                    # be updated accordingly to pop them from the stack.
+                    configs=[base_conf, config],
+                    features=_features,
+                )
 
         def pristine_load(install):
             install(kmod_params=kmod_params)
@@ -3749,9 +3772,12 @@ class _LoadedLISADynamicKmod:
         return config
 
     @contextlib.contextmanager
-    def _reconfigure(self, configs=None):
+    def _reconfigure(self, configs=None, features=None):
         configs = configs or []
-        self._push_start(configs=configs)
+        self._push_start(
+            configs=configs,
+            features=features,
+        )
         try:
             yield
         finally:
