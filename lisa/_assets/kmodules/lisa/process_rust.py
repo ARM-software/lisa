@@ -29,6 +29,7 @@ from operator import itemgetter
 import textwrap
 import itertools
 import json
+import re
 
 
 SEP = '\n  '
@@ -145,7 +146,18 @@ def main():
                 self.logical_type = logical_type
                 self.c_arg_type = c_arg_type
                 self.c_arg_header = c_arg_header
-                self.c_field_type = c_field_type
+                self._c_field_type = c_field_type
+
+            @property
+            def c_field_type(self):
+                # Avoid unnecessary wrapping with __typeof__() when it is only
+                # wrapping an identifier to increase compatibiity with parsers
+                # that do not support __typeof__(<type>) syntax
+                return re.sub(
+                    r'__typeof__\((([_0-9A-ZA-z]+))\)',
+                    r'\1',
+                    self._c_field_type
+                )
 
             @property
             def tp_struct_entry(self):
@@ -213,9 +225,18 @@ def main():
                 for field in entry['fields']
             ]
 
+            def wrap_c_type(c_typ):
+                # Avoid unnecessary wrapping with __typeof__() to increase
+                # compatibiity with parsers that do not support
+                # __typeof__(<type>) syntax
+                if c_typ.isidentifier():
+                    return c_typ
+                else:
+                    return f'__typeof__({c_typ})'
+
             nl = '\n                    '
             proto = ', '.join(
-                f'__typeof__({field.c_arg_type}) {field.name}'
+                f'{wrap_c_type(field.c_arg_type)} {field.name}'
                 for field in fields
             )
             args = ', '.join(
