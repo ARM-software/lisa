@@ -37,12 +37,6 @@ def main():
             action='append',
             help='Enable a specific module feature. Can be repeated. By default, the module will try to enable all features and will log in dmesg the ones that failed to enable'
         ),
-        'feature-param': dict(
-            action='append',
-            metavar=('FEATURE_NAME', 'PARAM_NAME', 'PARAM_VALUE'),
-            nargs=3,
-            help='Set a feature parameter value.'
-        ),
         'cmd': dict(
             nargs=argparse.REMAINDER,
             help='Load the module, run the given command then unload the module. If not command is provided, just load the module and exit.'
@@ -71,26 +65,23 @@ def main():
 
 def _main(args, target):
     logger = logging.getLogger('lisa-load-kmod')
-    features = args.feature or []
-    features_params = args.feature_param or {}
+
+    features = args.feature
     keep_loaded = not bool(args.cmd)
 
     cmd = args.cmd or []
     if cmd and cmd[0] == '--':
         cmd = cmd[1:]
 
-    features = {
-        feature: {}
-        for feature in features
-    }
-    for feature, param_name, param_value in features_params:
-        features.setdefault(feature, {})[param_name] = param_value
+    kmod_params = {}
+    if features is not None:
+        kmod_params['features'] = list(features)
 
     kmod = target.get_kmod(LISADynamicKmod)
     pretty_events = ', '.join(kmod.defined_events)
     logger.info(f'Kernel module provides the following ftrace events: {pretty_events}')
 
-    _kmod_cm = kmod.run(features=features)
+    _kmod_cm = kmod.run(kmod_params=kmod_params)
 
     if keep_loaded:
         @contextlib.contextmanager
