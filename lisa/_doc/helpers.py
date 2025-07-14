@@ -42,8 +42,10 @@ from pathlib import Path
 import builtins
 import copy
 import typing
+import json
 
 from sphinx.util.docutils import SphinxDirective
+from sphinx.util.logging import getLogger
 from docutils.parsers.rst import directives
 from docutils import nodes
 from docutils.statemachine import ViewList
@@ -56,7 +58,7 @@ from sphinx.errors import PycodeError
 import lisa
 import lisa.analysis
 from lisa.analysis.base import AnalysisHelpers, TraceAnalysisBase, measure_time
-from lisa.utils import get_subclasses, import_all_submodules, _DEPRECATED_MAP, get_obj_name, groupby, get_short_doc, order_as, is_link_dead, resolve_dotted_name, get_sphinx_role, _get_parent_namespace, _get_parent_namespaces, get_parent_namespace, memoized, _DelegatedBase, ffill, fixedpoint, deduplicate, fold
+from lisa.utils import get_subclasses, import_all_submodules, _DEPRECATED_MAP, get_obj_name, groupby, get_short_doc, order_as, is_link_dead, resolve_dotted_name, get_sphinx_role, _get_parent_namespace, _get_parent_namespaces, get_parent_namespace, memoized, _DelegatedBase, ffill, fixedpoint, deduplicate, fold, get_doc_url
 from lisa.trace import TraceEventCheckerBase
 from lisa.conf import KeyDesc, SimpleMultiSrcConf, TopLevelKeyDesc
 from lisa.version import format_version
@@ -725,10 +727,13 @@ class SphinxDocObject:
             else:
                 return False
 
-    def get_short_doc(self, *args, **kwargs):
+    def get_short_doc(self, *args, ref_context=True, **kwargs):
         proxy = types.SimpleNamespace(__doc__=self.doc)
         doc = get_short_doc(proxy, *args, **kwargs)
-        return _with_refctx(self.doc_refctx, doc)
+        if ref_context:
+            return _with_refctx(self.doc_refctx, doc)
+        else:
+            return doc
 
     @memoized
     def get_name(self, *, style=None, abbrev=False):
@@ -840,6 +845,62 @@ class SphinxDocObject:
     @property
     def __wrapped__(self):
         return self.obj
+
+    @property
+    def ai_desc(self):
+        def get_source(obj):
+            # Including the source code of a module would amount to providing
+            # the source code twice for each item, which may confuse a RAG
+            # system.
+            if inspect.ismodule(obj):
+                return None
+            else:
+                try:
+                    src = inspect.getsource(obj)
+                except Exception:
+                    return None
+                else:
+                    return dedent(src)
+
+        def get_url(obj):
+            try:
+                return get_doc_url(obj)
+            except Exception:
+                return None
+
+        data = {
+            'name': self.fullname,
+            'kind': self.autodoc_kind,
+            'url': get_url(self.obj),
+            'deprecated': self.is_deprecated,
+            # Only include the short documentation, so that all items are on an
+            # equal standing. Otherwise, chatGPT RAG system will favor items
+            # with more documentation written regardless of how good a match
+            # the ones with short documentation could be.
+            'doc': self.get_short_doc(strip_rst=True, ref_context=False),
+
+            # Do not include source code, as this confuses chatGPT more than
+            # anything. It starts hallucinating APIs and outputting junk code
+            # despite having been told explicitly not to generate any code.
+            #  'code': get_source(self.obj),
+        }
+
+        try:
+            events = self.obj.used_events
+        except AttributeError:
+            pass
+        else:
+            if isinstance(events, TraceEventCheckerBase):
+                events = sorted(events.get_all_events())
+                data['ftrace_events'] = events
+
+        data = {
+            k: v
+            for k, v in data.items()
+            if v is not None
+        }
+
+        return AiDesc(data)
 
     @classmethod
     def from_namespace(cls, namespace):
@@ -1135,6 +1196,20 @@ class SphinxDocObject:
             for membername, docobj in sorted(members.items())
             if _filter(membername, docobj) and check(membername, docobj)
         }
+
+
+class AiDesc:
+    """
+    Descriptor for a documentation item to be used by AI systems.
+    """
+    def __init__(self, data):
+        self.data = data
+
+    def __eq__(self, other):
+        return self.data == other.data
+
+    def __hash__(self):
+        return hash(self.data['name'])
 
 
 class ModuleListingDirective(RecursiveDirective):
@@ -1738,6 +1813,53 @@ def autodoc_process_analysis_events(app, what, name, obj, options, lines):
 
         events_doc = f"\n:Required trace events:\n\n{used_events.doc_str()}\n\n"
         lines.extend(events_doc.splitlines())
+
+
+def _get_ai_descs(env):
+    try:
+        return env.lisa_ai_descs
+    except AttributeError:
+        descs = set()
+        env.lisa_ai_descs = descs
+        return descs
+
+
+def _get_ai_descs_app(app):
+    return _get_ai_descs(app.env)
+
+
+def autodoc_ai_desc_process(app, what, name, obj, options, lines):
+    try:
+        docobj = SphinxDocObject.from_name(name)
+    except ValueError:
+        pass
+    else:
+        if not docobj.autodoc_is_skipped(app):
+            descs = _get_ai_descs_app(app)
+            descs.add(docobj.ai_desc)
+
+
+def autodoc_ai_desc_merge(app, env, docnames, other):
+    main_descs = _get_ai_descs(env)
+    other_descs = _get_ai_descs(other)
+    main_descs.update(other_descs)
+
+
+def autodoc_ai_desc_build_finished(app, exception):
+    descs = _get_ai_descs_app(app)
+
+    descs = [
+        desc.data
+        for desc in descs
+    ]
+    descs = sorted(descs, key=itemgetter('name'))
+
+    root = Path(app.outdir)
+    path = root / 'api_ai_descs.json'
+    with open(path, 'w') as f:
+        json.dump(descs, f)
+
+    getLogger('ai-desc').info(f'Wrote {len(descs)} descriptors to: {path}')
 
 
 def intersphinx_warn_missing_reference_handler(app, domain, node, non_ignored_refs):

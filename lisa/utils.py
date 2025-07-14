@@ -3106,14 +3106,17 @@ def get_doc_url(obj):
     Return an URL to the documentation about the given object.
     """
 
-    # If it does not have a __qualname__, we are probably more interested in
-    # its class
-    if not hasattr(obj, '__qualname__'):
-        obj = obj.__class__
+    if inspect.ismodule(obj):
+        return _get_doc_url(obj.__name__)
+    else:
+        # If it does not have a __qualname__, we are probably more interested in
+        # its class
+        if not hasattr(obj, '__qualname__'):
+            obj = obj.__class__
 
-    obj_name = f'{inspect.getmodule(obj).__name__}.{obj.__qualname__}'
+        obj_name = f'{inspect.getmodule(obj).__name__}.{obj.__qualname__}'
 
-    return _get_doc_url(obj_name)
+        return _get_doc_url(obj_name)
 
 
 # Make sure to cache (almost) all the queries with a strong reference over
