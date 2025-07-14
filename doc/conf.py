@@ -55,6 +55,8 @@ from lisa._doc.helpers import (
     autodoc_process_inherited_signature, autodoc_process_bases_handler,
     DocPlotConf, autodoc_pre_make_plots,
     intersphinx_warn_missing_reference_handler,
+    autodoc_ai_desc_process, autodoc_ai_desc_merge,
+    autodoc_ai_desc_build_finished
 )
 from lisa.analysis.base import TraceAnalysisBase
 
@@ -742,6 +744,7 @@ def setup(app):
     app.connect('autodoc-process-docstring', autodoc_process_test_method)
     app.connect('autodoc-process-docstring', autodoc_process_analysis_methods)
     app.connect('autodoc-process-docstring', autodoc_process_analysis_events)
+    app.connect('autodoc-process-docstring', autodoc_ai_desc_process)
     app.connect('autodoc-process-docstring', _autodoc_process_analysis_plots_handler)
 
     # Applied at the end to ensure we can just fully replace the docstring content whole
@@ -749,6 +752,8 @@ def setup(app):
     app.connect('autodoc-process-signature', autodoc_process_inherited_signature)
     app.connect('autodoc-process-bases', autodoc_process_bases_handler)
 
+    app.connect('env-merge-info', autodoc_ai_desc_merge)
+    app.connect('build-finished', autodoc_ai_desc_build_finished)
     app.connect('autodoc-skip-member', _autodoc_skip_member_handler)
     app.connect('lisa-exec-state', lambda app: ExecState(plots=plots))
 
