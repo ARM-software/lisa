@@ -1835,8 +1835,21 @@ def autodoc_ai_desc_process(app, what, name, obj, options, lines):
         pass
     else:
         if not docobj.autodoc_is_skipped(app):
-            descs = _get_ai_descs_app(app)
-            descs.add(docobj.ai_desc)
+            # If a method is inherited publicly, we don't want to add its
+            # descriptor for all the places where it is inherited, otherwise we
+            # will end up with multiple times the same docstring which will
+            # confuse the LLM. It is also guaranteed (?) that the method will
+            # be documented at the point where it is defined, so it will appear
+            # in the descriptors list.
+            #
+            # However, a privately-inherited method is still included, as it
+            # would otherwise not appear anywhere.
+            inherited, place, visibility = docobj.resolve_inheritance_style(app)
+            if inherited and visibility == 'public':
+                pass
+            else:
+                descs = _get_ai_descs_app(app)
+                descs.add(docobj.ai_desc)
 
 
 def autodoc_ai_desc_merge(app, env, docnames, other):
@@ -1845,21 +1858,24 @@ def autodoc_ai_desc_merge(app, env, docnames, other):
     main_descs.update(other_descs)
 
 
-def autodoc_ai_desc_build_finished(app, exception):
-    descs = _get_ai_descs_app(app)
+def make_autodoc_ai_desc_build_finished(path, filter_):
+    def autodoc_ai_desc_build_finished(app, exception):
+        descs = _get_ai_descs_app(app)
 
-    descs = [
-        desc.data
-        for desc in descs
-    ]
-    descs = sorted(descs, key=itemgetter('name'))
+        descs = [
+            desc.data
+            for desc in descs
+            if filter_(desc.data)
+        ]
+        descs = sorted(descs, key=itemgetter('name'))
 
-    root = Path(app.outdir)
-    path = root / 'api_ai_descs.json'
-    with open(path, 'w') as f:
-        json.dump(descs, f)
+        root = Path(app.outdir)
+        _path = root / path
+        with open(_path, 'w') as f:
+            json.dump(descs, f)
 
-    getLogger('ai-desc').info(f'Wrote {len(descs)} descriptors to: {path}')
+        getLogger('ai-desc').info(f'Wrote {len(descs)} descriptors to: {_path}')
+    return autodoc_ai_desc_build_finished
 
 
 def intersphinx_warn_missing_reference_handler(app, domain, node, non_ignored_refs):
