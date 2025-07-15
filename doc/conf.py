@@ -56,7 +56,7 @@ from lisa._doc.helpers import (
     DocPlotConf, autodoc_pre_make_plots,
     intersphinx_warn_missing_reference_handler,
     autodoc_ai_desc_process, autodoc_ai_desc_merge,
-    autodoc_ai_desc_build_finished
+    make_autodoc_ai_desc_build_finished
 )
 from lisa.analysis.base import TraceAnalysisBase
 
@@ -765,7 +765,12 @@ def setup(app):
     app.connect('autodoc-process-bases', autodoc_process_bases_handler)
 
     app.connect('env-merge-info', autodoc_ai_desc_merge)
-    app.connect('build-finished', autodoc_ai_desc_build_finished)
+    app.connect('build-finished', make_autodoc_ai_desc_build_finished(
+        path='api_ai_descs.json',
+        # We don't want to muddy search results with irrelevant data, so we
+        # restrict it to the lisa Python package.
+        filter_=lambda data: data['name'].startswith('lisa.')
+    ))
     app.connect('autodoc-skip-member', _autodoc_skip_member_handler)
     app.connect('lisa-exec-state', lambda app: ExecState(plots=plots))
 
