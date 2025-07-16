@@ -15,7 +15,7 @@
 
 import functools
 from weakref import WeakKeyDictionary
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager, nullcontext, ExitStack
 import threading
 
 from wa import Instrument, Parameter
@@ -121,6 +121,11 @@ class LisaKmodInstrument(Instrument):
                   """),
     ]
 
+    # When running WA, we want the agenda to describe the expected
+    # state of the system so that runs are reproducible and not
+    # impacted by external factors.
+    _RESET_CONFIG = True
+
     def __init__(self, target, kernel_src, build_env, ftrace_events, **kwargs):
         super().__init__(target, **kwargs)
         self._lisa_target = LISATarget._from_devlib_target(
@@ -130,9 +135,7 @@ class LisaKmodInstrument(Instrument):
             kmod_build_env=build_env,
         )
         self._ftrace_events = set(ftrace_events)
-        self._kmod = None
-        self._cm = None
-        self._features = set()
+        self._finalize = None
 
         # Add a new attribute to the devlib target so we can find ourselves
         # from the monkey-patched methods.
@@ -142,9 +145,7 @@ class LisaKmodInstrument(Instrument):
     def _monkey_patch(cls, instrument):
         patch = dict(
             initialize=cls._initialize_cm,
-            setup=cls._setup_cm,
-            start=cls._start_cm,
-            stop=cls._stop_cm,
+            finalize=cls._finalize_cm,
         )
 
         def make_wrapper(orig, f):
@@ -218,45 +219,51 @@ class LisaKmodInstrument(Instrument):
 
         return set(trace_cmd_events) | set(self._ftrace_events)
 
-    def _run(self):
-        features = sorted(self._features)
-        self.logger.info(f'Enabling LISA kmod features {", ".join(features)}')
-        return self._kmod.run(
-            kmod_params={
-                'features': features,
-            }
-        )
-
+    # We patch initialize() and finalize() hooks so that:
+    # 1. We have loaded the module before the instruments we patch get
+    #    initialized. This is important for trace-cmd as the events need to be
+    #    available in tracefs for trace-cmd to be successfully initialized.
+    # 2. We only unload the module after the trace has been collected in
+    #   trace.dat. Premature unloading happening between "trace-cmd stop" and
+    #   "trace-cmd extract" lead to trace.dat not containing the events
+    #   descriptors as they will have vanished from tracefs when the module is
+    #   unloaded.
     @contextmanager
     def _initialize_cm(self, context):
         # Note that this function will be ran for each monkey patched
         # instrument, unlike the other methods ran in job context.
-        events = self._all_ftrace_events(context)
-        kmod = self._lisa_target.get_kmod(LISADynamicKmod)
-        self._features = set(kmod._event_features(events))
-        self._kmod = kmod
+        if self._finalize is None:
+            events = self._all_ftrace_events(context)
+            kmod = self._lisa_target.get_kmod(LISADynamicKmod)
 
-        # Load the module while running the instrument's initialize so that the
-        # events are visible in the kernel at that point.
-        with self._run():
-            yield
+            with ExitStack() as stack:
+                self.logger.info(f'Loading LISA kmod')
 
-    @contextmanager
-    def _setup_cm(self, context):
-        self._cm = self._run()
+                # Load the module before instruments initialize so that the events are
+                # visible in the kernel at that point.
+                kmod = stack.enter_context(
+                    kmod.run(reset_config=self._RESET_CONFIG)
+                )
+                config = kmod._event_features_conf(events, strict=False)
+                stack.enter_context(
+                    kmod._reconfigure(configs=[config])
+                )
+
+                # If we reached this stage without raising an exception, we create
+                # a fresh ExitStack and move all the context to it so that the
+                # current stack will not exit those contexts.
+                self._finalize = stack.pop_all().close
         yield
 
     @contextmanager
-    def _start_cm(self, context):
-        self.logger.info(f'Loading LISA kmod')
-        self._cm.__enter__()
+    def _finalize_cm(self, context):
+        # Note that this function will be ran for each monkey patched
+        # instrument, unlike the other methods ran in job context.
         yield
-
-    @contextmanager
-    def _stop_cm(self, context):
-        self.logger.info(f'Unloading LISA kmod')
-        self._cm.__exit__(None, None, None)
-        yield
+        if (finalize := self._finalize) is not None:
+            self._finalize = None
+            self.logger.info(f'Unloading LISA kmod')
+            finalize()
 
 
 # Monkey-patch the trace-cmd instrument in order to reliably load the

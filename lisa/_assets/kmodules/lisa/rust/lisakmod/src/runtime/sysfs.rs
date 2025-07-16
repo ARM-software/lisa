@@ -1,21 +1,30 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-use alloc::{boxed::Box, string::String, sync::Arc};
+use alloc::{boxed::Box, ffi::CString, string::String, sync::Arc, vec::Vec};
 use core::{
+    any::Any,
     cell::UnsafeCell,
+    cmp::{max, min},
     convert::Infallible,
-    ffi::{c_int, c_uint, c_void},
+    ffi::{CStr, c_longlong, c_uint, c_void},
     marker::PhantomData,
     mem::MaybeUninit,
     pin::Pin,
 };
 
-use lisakmod_macros::inlinec::{ceval, cexport, cfunc, opaque_type};
+use lisakmod_macros::inlinec::{NegativeError, c_realchar, ceval, cexport, cfunc, opaque_type};
 
-use crate::mem::{container_of, mut_container_of};
+use crate::{
+    error::{Error, error},
+    mem::{FromContained, container_of, impl_from_contained, mut_container_of},
+    runtime::{
+        fs::{CFile, FsMode},
+        sync::{Lock as _, Mutex, new_static_lockdep_class},
+    },
+};
 
 opaque_type!(
-    struct CKObj,
+    pub struct CKObj,
     "struct kobject",
     "linux/kobject.h",
     attr_accessors {ktype: &'a CKObjType},
@@ -80,7 +89,17 @@ impl KObjType {
             "#
         }
 
-        let release_f: unsafe extern "C" fn(*mut CKObj) = release;
+        let release_f: unsafe extern "C" fn(*mut CKObj) = {
+            #[cfg(not(test))]
+            {
+                Some(release)
+            }
+            #[cfg(test)]
+            {
+                None
+            }
+        }
+        .unwrap();
         let init = |this| init_kobj_type(this, release_f as *const c_void);
         let c_kobj_type = unsafe { CKObjType::new_stack(init) }.unwrap();
         KObjType { c_kobj_type }
@@ -264,7 +283,7 @@ pub trait KObjectState: private::Sealed {}
 
 struct SysfsSpec {
     name: String,
-    parent: Option<KObject<Finalized>>,
+    parent: Option<KObject<Published>>,
 }
 
 #[derive(Default)]
@@ -275,13 +294,9 @@ impl private::Sealed for Init {}
 impl KObjectState for Init {}
 
 #[derive(Default)]
-pub struct Finalized {}
-impl private::Sealed for Finalized {}
-impl KObjectState for Finalized {}
-
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum Error {}
+pub struct Published {}
+impl private::Sealed for Published {}
+impl KObjectState for Published {}
 
 pub struct KObject<State: KObjectState> {
     // Use a pointer, so Rust does not make any assumption on the validity of the pointee. This
@@ -297,9 +312,9 @@ pub struct KObject<State: KObjectState> {
 // SAFETY: Nothing in KObject cares about what thread it is on, so it can be sent around without
 // issues.
 unsafe impl<State: KObjectState> Send for KObject<State> {}
-// SAFETY: In the Finalized state, all APIs are as thread-safe as KObjectInner is. In the Init
+// SAFETY: In the Published state, all APIs are as thread-safe as KObjectInner is. In the Init
 // state, we are not thread safe as there is some builder state maintained in the KObject
-unsafe impl Sync for KObject<Finalized> {}
+unsafe impl Sync for KObject<Published> {}
 
 impl KObject<Init> {
     #[inline]
@@ -319,27 +334,38 @@ impl KObject<Init> {
 
     pub fn add<'a, 'parent, 'name>(
         &'a mut self,
-        parent: Option<&'parent KObject<Finalized>>,
+        parent: Option<&'parent KObject<Published>>,
         name: &'name str,
-    ) where
+    ) -> Result<(), Error>
+    where
         'parent: 'a,
     {
-        // FIXME: should we return an error or panic ?
-        if let Some(parent) = parent {
-            assert!(
-                parent.inner().is_in_sysfs(),
-                "The parent of KObject \"{name}\" was not added to sysfs"
-            );
-        }
+        let parent = match parent {
+            Some(parent) => {
+                if parent.inner().is_in_sysfs() {
+                    Ok(Some(parent))
+                } else {
+                    Err(error!(
+                        "The parent of KObject \"{name}\" was not added to sysfs"
+                    ))
+                }
+            }
+            None => Ok(None),
+        }?;
         self.state.sysfs = Some(SysfsSpec {
             name: name.into(),
             parent: parent.cloned(),
         });
+        Ok(())
     }
 
-    pub fn finalize(self) -> Result<KObject<Finalized>, Error> {
+    pub fn publish(self) -> Result<KObject<Published>, Error> {
         #[cfunc]
-        unsafe fn kobj_add(kobj: *mut CKObj, parent: *mut CKObj, name: &[u8]) -> Result<(), c_int> {
+        unsafe fn kobj_add(
+            kobj: *mut CKObj,
+            parent: *mut CKObj,
+            name: &[u8],
+        ) -> Result<c_uint, NegativeError<c_uint>> {
             r#"
             #include <linux/kobject.h>
             #include <linux/init.h>
@@ -355,13 +381,13 @@ impl KObject<Init> {
                 Some(parent) => parent.c_kobj(),
             };
             unsafe { kobj_add(self.c_kobj(), parent, spec.name.as_bytes()) }
-                .expect("Call to kobject_add() failed");
+                .map_err(|err| error!("Call to kobject_add() failed: {err}"))?;
         }
         Ok(KObject::from_inner(self.inner()))
     }
 }
 
-impl KObject<Finalized> {
+impl KObject<Published> {
     fn from_inner(inner: &KObjectInner) -> Self {
         inner.incref();
         KObject {
@@ -369,6 +395,16 @@ impl KObject<Finalized> {
             state: Default::default(),
         }
     }
+
+    /// # Safety
+    ///
+    /// The passed *mut CKObj must be a pointer valid for reads and writes
+    pub unsafe fn from_c_kobj(c_kobj: *mut CKObj) -> Self {
+        let inner = KObjectInner::from_c_kobj(c_kobj);
+        let inner = unsafe { inner.as_ref().expect("Unexpected NULL pointer") };
+        Self::from_inner(inner)
+    }
+
     #[inline]
     pub fn sysfs_module_root() -> Self {
         let c_kobj = ceval!("linux/kobject.h", "&THIS_MODULE->mkobj.kobj", *mut CKObj);
@@ -389,6 +425,10 @@ impl<State: KObjectState> KObject<State> {
     fn c_kobj(&self) -> *mut CKObj {
         self.inner().c_kobj.get()
     }
+
+    pub fn refcount(&self) -> u64 {
+        self.inner().refcount()
+    }
 }
 
 impl<State: KObjectState> Drop for KObject<State> {
@@ -403,9 +443,9 @@ impl<State: KObjectState> Drop for KObject<State> {
     }
 }
 
-// Only implement clone for the Finalized state so that we do not accidentally call kobject_add()
+// Only implement clone for the Published state so that we do not accidentally call kobject_add()
 // twice on the same underlying "struct kobject".
-impl Clone for KObject<Finalized> {
+impl Clone for KObject<Published> {
     fn clone(&self) -> Self {
         // SAFETY: self.inner is always valid as long as a KObject points to it.
         let inner = unsafe { self.inner.as_ref().unwrap() };
@@ -413,14 +453,350 @@ impl Clone for KObject<Finalized> {
     }
 }
 
-// FIXME: clean that up
-// fn foo() {
-// use crate::runtime::sysfs::{KObjType, KObject};
+pub struct Folder {
+    kobj: Arc<KObject<Published>>,
+}
 
-// let root = KObject::module_root();
-// let kobj_type = Arc::new(KObjType::new());
-// let kobject = KObject::new(kobj_type.clone());
-// let kobject2 = KObject::new(kobj_type.clone());
-// kobject.add(Some(&root), "foo");
-// kobject2.add(Some(&kobject), "bar");
-// }
+impl Folder {
+    pub fn new(parent: &mut Folder, name: &str) -> Result<Folder, Error> {
+        let kobj_type = Arc::new(KObjType::new());
+        let mut kobj = KObject::new(kobj_type.clone());
+        kobj.add(Some(&parent.kobj), name)?;
+        let kobj = Arc::new(kobj.publish()?);
+        Ok(Folder { kobj })
+    }
+
+    pub fn sysfs_module_root() -> Folder {
+        Folder {
+            kobj: Arc::new(KObject::<Published>::sysfs_module_root()),
+        }
+    }
+}
+
+opaque_type!(
+    struct _CBinAttribute,
+    "struct bin_attribute",
+    "linux/sysfs.h",
+);
+
+#[repr(transparent)]
+struct CBinAttribute(UnsafeCell<_CBinAttribute>);
+unsafe impl Send for CBinAttribute {}
+unsafe impl Sync for CBinAttribute {}
+
+// SAFETY: FileInner must be pinned as CBinAttribute will contain a pointer to it in its
+// "private" member.
+pub struct FileInner {
+    c_bin_attr: CBinAttribute,
+    // SAFETY: name needs to be dropped _after_ c_bin_attr, as c_bin_attr contains a reference to
+    // it. It therefore needs to be specified afterwards in the struct definition order.
+    name: CString,
+    parent_kobj: Arc<KObject<Published>>,
+
+    // Use a trait object so that we can implement FileInner::from_attr(). This way, we can get an
+    // arbitrary pointer and all the necessary type information is dynamically represented in the
+    // data.
+    ops: Box<dyn BinOps>,
+}
+
+impl_from_contained!(()FileInner, c_bin_attr: CBinAttribute);
+
+impl FileInner {
+    unsafe fn from_attr<'a>(attr: *const UnsafeCell<_CBinAttribute>) -> Pin<&'a FileInner> {
+        let attr = attr as *const CBinAttribute;
+        let inner: *const FileInner = unsafe { FromContained::from_contained(attr) };
+        let inner: &FileInner = unsafe { inner.as_ref().unwrap() };
+        unsafe { Pin::new_unchecked(inner) }
+    }
+}
+
+pub trait BinOps: Any + Send + Sync {
+    fn read(&self, offset: usize, out: &mut [u8]) -> Result<usize, NegativeError<usize>>;
+    fn write(&self, offset: usize, in_: &[u8]) -> Result<usize, NegativeError<usize>>;
+}
+
+pub struct BinRWContent {
+    content: Mutex<Vec<u8>>,
+}
+
+impl Default for BinRWContent {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl BinRWContent {
+    pub fn new() -> BinRWContent {
+        new_static_lockdep_class!(BIN_ATTR_CONTENT_LOCKDEP_CLASS);
+        BinRWContent {
+            content: Mutex::new(Vec::new(), BIN_ATTR_CONTENT_LOCKDEP_CLASS.clone()),
+        }
+    }
+
+    pub fn with_content<F, T>(&self, f: F) -> T
+    where
+        F: FnOnce(&[u8]) -> T,
+    {
+        f(&self.content.lock())
+    }
+}
+
+impl BinOps for BinRWContent {
+    fn read(&self, offset: usize, out: &mut [u8]) -> Result<usize, NegativeError<usize>> {
+        match self.content.lock().get(offset..) {
+            None => Ok(0),
+            Some(in_) => {
+                let written = min(in_.len(), out.len());
+                out[..written].copy_from_slice(&in_[..written]);
+                Ok(written)
+            }
+        }
+    }
+
+    fn write(&self, offset: usize, in_: &[u8]) -> Result<usize, NegativeError<usize>> {
+        let mut content = self.content.lock();
+        // Since we don't know have an opening mode, we don't know if the user wants to
+        // write the data from scratch or simply edit the current content at the given
+        // offset. As a result, we clear any existing data when writing at offset 0, but
+        // writing at other offsets simply appends/updates.
+        //
+        // Unfortunately, "echo -n "" > foo" will not result in emptying the file, as
+        // userspace tools typically do not issue write() syscalls with count == 0.
+        // Instead, they just open it with O_WRONLY|O_CREAT|O_TRUNC, expecting the file to
+        // be truncated. Unfortunately, sysfs just ignores O_TRUNC so nothing particular
+        // happens and the file is not emptied.
+        let content_size = if offset == 0 {
+            content.clear();
+            in_.len()
+        } else {
+            max(content.len(), offset.saturating_add(in_.len()))
+        };
+        content.resize(content_size, 0);
+
+        // Release memory if we are done with it, to avoid carrying a huge allocation forever just
+        // because of a single large write() happened in the lifetime of the file.
+        if content.capacity() > content.len().saturating_mul(4) {
+            content.shrink_to_fit()
+        }
+
+        match content.get_mut(offset..) {
+            None => Err(NegativeError::EFBIG()),
+            Some(out) => {
+                let written = min(in_.len(), out.len());
+                out[..written].copy_from_slice(&in_[..written]);
+                Ok(written)
+            }
+        }
+    }
+}
+
+pub struct BinROContent {
+    inner: BinRWContent,
+    read: Box<dyn Fn() -> Vec<u8> + Send + Sync>,
+    eof_read: Box<dyn Fn() + Send + Sync>,
+}
+
+impl BinROContent {
+    pub fn new<ReadF, EofReadF>(read: ReadF, eof_read: EofReadF) -> BinROContent
+    where
+        ReadF: 'static + Fn() -> Vec<u8> + Send + Sync,
+        EofReadF: 'static + Fn() + Send + Sync,
+    {
+        BinROContent {
+            inner: BinRWContent::new(),
+            read: Box::new(read),
+            eof_read: Box::new(eof_read),
+        }
+    }
+}
+
+impl BinOps for BinROContent {
+    fn read(&self, offset: usize, out: &mut [u8]) -> Result<usize, NegativeError<usize>> {
+        let inner = &self.inner;
+        if offset == 0 {
+            *inner.content.lock() = (self.read)();
+        }
+        let count = inner.read(offset, out)?;
+        if count == 0 {
+            (self.eof_read)();
+        }
+        Ok(count)
+    }
+
+    fn write(&self, _offset: usize, _in: &[u8]) -> Result<usize, NegativeError<usize>> {
+        Err(NegativeError::EINVAL())
+    }
+}
+
+pub struct BinFile<Ops> {
+    // SAFETY: We need to pin FileInner as CBinAttribute contains a pointer to it.
+    inner: Pin<Box<FileInner>>,
+    _phantom: PhantomData<Ops>,
+}
+unsafe impl<Ops: Send> Send for BinFile<Ops> {}
+
+impl<Ops> BinFile<Ops>
+where
+    Ops: 'static + BinOps,
+{
+    #[inline]
+    pub fn name(&self) -> &str {
+        // It was originally a String, so it can be converted to &str for sure.
+        self.inner.name.to_str().unwrap()
+    }
+
+    pub fn new(
+        parent: &mut Folder,
+        name: &str,
+        mode: FsMode,
+        max_size: usize,
+        ops: Ops,
+    ) -> Result<BinFile<Ops>, Error> {
+        #[cexport]
+        fn read(
+            _file: &mut CFile,
+            _c_kobj: &mut CKObj,
+            attr: *const UnsafeCell<_CBinAttribute>,
+            // We need to use an FFI type that will turn into "char *" rather than "unsigned char*"
+            // or "signed char *", otherwise CFI will get upset as that function will be used for
+            // indirect calls by the sysfs infrastructure.
+            out: *mut c_realchar,
+            offset: c_longlong,
+            count: usize,
+        ) -> Result<usize, NegativeError<usize>> {
+            let inner = unsafe { FileInner::from_attr(attr) };
+            let out = unsafe { core::slice::from_raw_parts_mut(out as *mut u8, count) };
+            if offset < 0 {
+                let offset: isize = offset.try_into().unwrap();
+                Err(NegativeError::new(offset))
+            } else {
+                let offset: usize = offset.try_into().unwrap();
+                inner.ops.read(offset, out)
+            }
+        }
+
+        #[cexport]
+        fn write(
+            _file: &mut CFile,
+            _c_kobj: &mut CKObj,
+            attr: *const UnsafeCell<_CBinAttribute>,
+            in_: *mut c_realchar,
+            offset: c_longlong,
+            count: usize,
+        ) -> Result<usize, NegativeError<usize>> {
+            let inner = unsafe { FileInner::from_attr(attr) };
+            let in_ = unsafe { core::slice::from_raw_parts_mut(in_ as *mut u8, count) };
+            if offset < 0 {
+                let offset: isize = offset.try_into().unwrap();
+                Err(NegativeError::new(offset))
+            } else {
+                let offset: usize = offset.try_into().unwrap();
+                inner.ops.write(offset, in_)
+            }
+        }
+
+        #[cfunc]
+        unsafe fn init_bin_attribute(
+            attr: *mut _CBinAttribute,
+            name: &CStr,
+            mode: FsMode,
+            read: *mut c_void,
+            write: *mut c_void,
+        ) {
+            r#"
+            #include <linux/sysfs.h>
+            "#;
+
+            r#"
+            sysfs_bin_attr_init(attr);
+            attr->attr.name = name;
+            attr->attr.mode = mode;
+            attr->read = read;
+            attr->write = write;
+            "#
+        }
+
+        let name = CString::new(name)
+            .map_err(|err| error!("Could not convert file name to CString: {err}"))?;
+
+        let inner = Box::into_pin(Box::new(FileInner {
+            // Allocate the CBinAttribute in a pinned box, and only then initialize it properly.
+            c_bin_attr: CBinAttribute(UnsafeCell::new(
+                unsafe { _CBinAttribute::new_stack(|_| Ok::<_, Infallible>(())) }.unwrap(),
+            )),
+            name,
+            parent_kobj: Arc::clone(&parent.kobj),
+            ops: Box::new(ops),
+        }));
+        unsafe {
+            init_bin_attribute(
+                inner.c_bin_attr.0.get(),
+                inner.name.as_c_str(),
+                mode,
+                read as *mut c_void,
+                write as *mut c_void,
+            );
+        }
+
+        #[cfunc]
+        unsafe fn create(
+            kobj: *mut CKObj,
+            attr: *mut _CBinAttribute,
+            inner: *mut c_void,
+            size: usize,
+        ) -> Result<c_uint, NegativeError<c_uint>> {
+            r#"
+            #include <linux/sysfs.h>
+            "#;
+
+            r#"
+            attr->size = size;
+            attr->private = inner;
+            return sysfs_create_bin_file(kobj, attr);
+            "#
+        }
+        let ptr: *const FileInner = &*inner;
+        unsafe {
+            create(
+                inner.parent_kobj.c_kobj(),
+                inner.c_bin_attr.0.get(),
+                ptr as *mut c_void,
+                max_size,
+            )
+            .map_err(|err| error!("sysfs_create_bin_file() failed: {err}"))?;
+        }
+
+        Ok(BinFile {
+            inner,
+            _phantom: PhantomData,
+        })
+    }
+
+    pub fn ops(&self) -> &Ops {
+        let ops = &*self.inner.ops;
+        let ops = ops as &dyn Any;
+        ops.downcast_ref().unwrap()
+    }
+}
+
+impl<Ops> Drop for BinFile<Ops> {
+    fn drop(&mut self) {
+        #[cfunc]
+        unsafe fn remove(kobj: *mut CKObj, attr: *mut _CBinAttribute) {
+            r#"
+            #include <linux/sysfs.h>
+            "#;
+
+            r#"
+            return sysfs_remove_bin_file(kobj, attr);
+            "#
+        }
+
+        unsafe {
+            remove(
+                self.inner.parent_kobj.c_kobj(),
+                self.inner.c_bin_attr.0.get(),
+            )
+        }
+    }
+}

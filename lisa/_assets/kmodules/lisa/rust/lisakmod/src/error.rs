@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-use alloc::{sync::Arc, vec::Vec};
+use alloc::{borrow::Cow, format, string::String, sync::Arc, vec::Vec};
 use core::{error::Error as StdError, fmt};
 
 use anyhow;
+use schemars::{JsonSchema, Schema, SchemaGenerator};
 
 use crate::runtime::printk::pr_err;
 
@@ -92,6 +93,49 @@ impl embedded_io::Error for Error {
     #[inline]
     fn kind(&self) -> embedded_io::ErrorKind {
         embedded_io::ErrorKind::Other
+    }
+}
+
+impl serde::de::Error for Error {
+    #[inline]
+    fn custom<T>(msg: T) -> Self
+    where
+        T: fmt::Display,
+    {
+        error!("{msg}")
+    }
+}
+
+impl serde::Serialize for Error {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&format!("{self:#}"))
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Error {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Ok(error!("{s}"))
+    }
+}
+
+impl JsonSchema for Error {
+    fn schema_id() -> Cow<'static, str> {
+        concat!(module_path!(), "::Error").into()
+    }
+
+    fn schema_name() -> Cow<'static, str> {
+        Self::schema_id()
+    }
+
+    fn json_schema(gen_: &mut SchemaGenerator) -> Schema {
+        <String as JsonSchema>::json_schema(gen_)
     }
 }
 
@@ -215,22 +259,22 @@ impl<E: fmt::Display> fmt::Display for MultiError<E> {
         options.alternate(true);
         let mut out = alloc::string::String::new();
 
-        let idt = "\n  ";
-
         // Create a new formatter so we can add indentation to the formatted content.
         for err in &self.inner {
-            f.write_str(idt)?;
+            if self.inner.len() > 1 {
+                f.write_str("\n  ")?;
+            }
 
             let item_f = &mut fmt::Formatter::new(&mut out, options);
             err.fmt(item_f)?;
 
             let mut is_first = true;
-            for chunk in out.split('\n') {
+            for line in out.split('\n') {
                 if !is_first {
-                    f.write_str(idt)?;
+                    f.write_str("\n  ")?;
                 }
                 is_first = false;
-                f.write_str(chunk)?;
+                f.write_str(line)?;
             }
 
             out.clear();

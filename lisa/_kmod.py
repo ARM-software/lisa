@@ -139,6 +139,7 @@ from enum import IntEnum
 import traceback
 import uuid
 import textwrap
+import json
 
 from elftools.elf.elffile import ELFFile
 
@@ -146,7 +147,7 @@ from devlib.target import AndroidTarget, KernelVersion, TypedKernelConfig, Kerne
 from devlib.host import LocalConnection
 from devlib.exception import TargetStableError
 
-from lisa.utils import nullcontext, Loggable, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor, destroyablecontextmanager, ContextManagerExit, ignore_exceps, get_nested_key, is_link_dead, deduplicate, subprocess_detailed_excep
+from lisa.utils import nullcontext, Loggable, checksum, DirCache, chain_cm, memoized, LISA_HOST_ABI, subprocess_log, SerializeViaConstructor, destroyablecontextmanager, ContextManagerExit, ignore_exceps, get_nested_key, is_link_dead, deduplicate, subprocess_detailed_excep, HideExekallID
 from lisa._assets import ASSETS_PATH, HOST_PATH, ABI_BINARIES_FOLDER
 from lisa._unshare import ensure_root
 import lisa._git as git
@@ -188,8 +189,15 @@ class KmodVersionError(Exception):
     """
     pass
 
+class KmodQueryError(Exception):
+    """
+    Raised when a query to the kernel module failed.
+    """
+    pass
 
-_ALPINE_DEFAULT_VERSION = '3.21.3'
+
+
+_ALPINE_DEFAULT_VERSION = '3.22.0'
 _ALPINE_ROOTFS_URL = 'https://dl-cdn.alpinelinux.org/alpine/v{minor}/releases/{arch}/alpine-minirootfs-{version}-{arch}.tar.gz'
 _ALPINE_PACKAGE_INFO_URL = 'https://pkgs.alpinelinux.org/package/v{version}/{repo}/{arch}/{package}'
 
@@ -1194,6 +1202,7 @@ class _KernelBuildEnvConf(SimpleMultiSrcConf):
             VariadicLevelKeyDesc('modules', 'modules settings',
                 LevelKeyDesc('<module-name>', 'For each module. The module shipped by LISA is "lisa"', (
                     KeyDesc('overlays', 'Overlays to apply to the sources of the given module', [typing.Dict[str, OverlayResource]]),
+                    KeyDesc('conf', 'Configuration of the module', [object]),
                 )
             ))
         ),
@@ -2596,7 +2605,7 @@ class KmodSrc(Loggable):
         }
         self._mod_name = name
 
-        self.logger.debug(f'Created {self.__class__.__qualname__} with name {self._mod_name} and sources: {", ".join(self.src.keys())}')
+        self.logger.debug(f'Created {self.__class__.__qualname__} with name {self.mod_name} and sources: {", ".join(self.src.keys())}')
 
     @property
     def code_files(self):
@@ -2666,10 +2675,14 @@ class KmodSrc(Loggable):
                 return self.src['Makefile']
             except KeyError:
                 name = self.mod_name
+                def object_path(filename):
+                    path = Path(filename)
+                    path = path.parent / f'{path.stem}.o'
+                    return str(path)
                 return '\n'.join((
                     f'obj-m := {name}.o',
                     f'{name}-y := ' + ' '.join(
-                        f'{Path(filename).stem}.o'
+                        object_path(filename)
                         for filename in sorted(self.c_files.keys())
                     )
                 )).encode('utf-8')
@@ -2736,6 +2749,12 @@ class KmodSrc(Loggable):
 
         def find_mod_file(path):
             filenames = glob.glob(str(path.resolve() / '*.ko'))
+            if len(filenames) > 1:
+                filenames = [
+                    filename
+                    for filename in filenames
+                    if Path(filename).stem == self.mod_name
+                ]
 
             if not filenames:
                 raise FileNotFoundError(f'Could not find .ko file in {path}')
@@ -3010,6 +3029,15 @@ class DynamicKmod(Loggable):
     def mod_name(self):
         return self.src.mod_name
 
+    @property
+    def is_loaded(self):
+        modules = self.target.read_value('/proc/modules')
+        loaded = {
+            line.split()[0]
+            for line in modules.splitlines()
+        }
+        return self.mod_name in loaded
+
     @classmethod
     def from_target(cls, target, **kwargs):
         """
@@ -3221,11 +3249,6 @@ class DynamicKmod(Loggable):
             )
         )
 
-        try:
-            self.uninstall()
-        except Exception:
-            pass
-
         with kmod_cm as ko_path, tempfile.NamedTemporaryFile() as dmesg_out:
             dmesg_coll = ignore_exceps(
                 Exception,
@@ -3239,13 +3262,11 @@ class DynamicKmod(Loggable):
 
             except Exception as e:
                 log_dmesg(dmesg_coll, logger.error)
-
-                if isinstance(e, subprocess.CalledProcessError) and e.returncode == errno.EPROTO:
-                    raise KmodVersionError('In-tree module version does not match what LISA expects. If the module was pre-installed on the target, please contact the 3rd party that shared this setup to you as they took responsibility for maintaining it. This setup is available but unsupported (see online documenation)')
-                else:
-                    raise
+                raise
             else:
                 log_dmesg(dmesg_coll, logger.debug)
+
+        return self
 
     def uninstall(self):
         """
@@ -3266,11 +3287,6 @@ class DynamicKmod(Loggable):
 
         :Variable keyword arguments: Forwarded to :meth:`install`.
         """
-        try:
-            self.uninstall()
-        except Exception:
-            pass
-
         x = self.install(**kwargs)
         try:
             yield x
@@ -3306,7 +3322,7 @@ class FtraceDynamicKmod(DynamicKmod):
 
     @property
     @memoized
-    def defined_events(self):
+    def _defined_events(self):
         """
         Ftrace events defined in that module.
         """
@@ -3363,7 +3379,7 @@ class FtraceDynamicKmod(DynamicKmod):
 
 class _LISADynamicKmodSrc(KmodSrc):
     _RUST_SPEC = dict(
-        version='1.86.0',
+        version='1.88.0',
         components=[
             # rust-src for -Zbuild-std
             'rust-src',
@@ -3455,16 +3471,121 @@ class LISADynamicKmod(FtraceDynamicKmod):
             **kwargs,
         )
 
-    def _event_features(self, events):
-        all_events = self.defined_events
-        return set(
-            f'event__{event}'
-            for pattern in events
-            for event in fnmatch.filter(all_events, pattern)
-        )
+    def _query(self, queries):
+        target = self.target
+        logger = self.logger
+        busybox = quote(target.busybox)
+        name = self.mod_name
 
-    def install(self, kmod_params=None):
+        # WARNING: if more queries are added here, their result must be removed
+        # from what is returned to the user.
+        queries = [
+            *queries,
+            {'close-session': None}
+        ]
+        content = json.dumps(queries)
+        logger.debug(f'Queries: {content}')
+        content = quote(content)
+        root = f'/sys/module/{name}/queries'
+        cmd = f'session="$({busybox} cat {root}/new_session)" && {busybox} printf "%s" {content} > {root}/$session/query && cat {root}/$session/execute'
+        result = target.execute(cmd, as_root=True)
+        logger.debug(f'Queries result: {result}')
+        result = json.loads(result)
 
+        def unpack(result, ok):
+            try:
+                err = result['error']
+            except KeyError:
+                return result[ok]
+            else:
+                raise KmodQueryError(err)
+
+        results = unpack(result, ok='executed')
+        results = [
+            unpack(res, ok='success')
+            for res in results
+        ]
+        # Remove the "close-session" query
+        results = results[:-1]
+        return results
+
+    def _push_start(self, configs=None, features=None):
+        def depth():
+            res = self._query([
+                {
+                    'pop-features-config': {'n': 0},
+                },
+            ])
+            return res[0]['pop-features-config']['remaining']
+
+        configs = list(configs) or []
+        init_depth = depth()
+
+        def get_features_conf(conf):
+            if conf:
+                allowed = {'features'}
+                disallowed = conf.keys() - allowed
+                if disallowed:
+                    raise KeyError(f'Forbidden keys in module configuration: {disallowed}')
+                else:
+                    return conf.get('features', {})
+            else:
+                return {}
+
+        def make_query(config):
+            features_config = get_features_conf(config or {})
+            _features = features_config.keys() if features is None else features
+            _features = sorted(set(_features))
+            return {
+                'push-features-config': {
+                    'config': features_config,
+                    'enable-features': _features
+                }
+            }
+
+        queries = [
+            make_query(config)
+            for config in configs
+        ]
+        queries.append({
+            'start-features': None
+        })
+        try:
+            self._query(queries)
+        except Exception as e:
+            self._pop_stop(n=depth() - init_depth)
+            raise e
+
+    def _pop_stop(self, n=1):
+        logger = self.logger
+
+        res = self._query([
+            {
+                'pop-features-config': {'n': n},
+            },
+        ])
+        # If there are some configs left on the stack, we simply restart the
+        # features now that we have popped our config.
+        if (remaining := res[0]['pop-features-config']['remaining']):
+            logger.debug(f'{remaining} configs in the stack, the module will not be removed')
+            self._query([
+                {
+                    'start-features': None,
+                },
+            ])
+        # If no config left on the stack, we are the last users of the module
+        # so we just shut it down and rmmod it.
+        else:
+            logger.debug(f'Config stack empty, removing the module')
+            self._query([
+                {
+                    'stop-features': None,
+                },
+            ])
+            super().uninstall()
+
+
+    def install(self, kmod_params=None, config=None, features=None, reset_config=False):
         target = self.target
         logger = self.logger
         busybox = quote(target.busybox)
@@ -3489,16 +3610,80 @@ class LISADynamicKmod(FtraceDynamicKmod):
 
 
         kmod_params = kmod_params or {}
-        kmod_params['version'] = self.src.checksum
+        kmod_params['___param_enable_all_features'] = 0
 
         base_path, kmod_filename = guess_kmod_path()
         logger.debug(f'Looking for pre-installed {kmod_filename} module in {base_path}')
 
         super_ = super()
+
+        def configure(config):
+            config = config or {}
+            version = self._query([{'get-version': None}])
+            checksum = version[0]['get-version']['checksum']
+            if checksum != self.src.checksum:
+                raise KmodVersionError('In-tree module version does not match what LISA expects. If the module was pre-installed on the target, please contact the 3rd party that shared this setup to you as they took responsibility for maintaining it. This setup is available but unsupported (see online documenation)')
+            else:
+                if reset_config:
+                    self._query([{
+                        'pop-features-config': {'n': 'all'}
+                    }])
+
+                try:
+                    base_conf = get_nested_key(
+                        self._kernel_build_env.conf,
+                        ['modules', self.mod_name, 'conf']
+                    )
+                except KeyError:
+                    base_conf = {}
+
+                # If no features were asked explicitly, only enable the ones
+                # listed in the particular config we received. The feature
+                # configuration from the conf file is only used to configure
+                # features in the event they are actually needed, it does not
+                # trigger a "need" on itself.
+                _features = (
+                    config.get('features', {}).keys()
+                    if features is None else
+                    features
+                )
+
+                self._push_start(
+                    # WARNING: if more configs are added here, _pop_stop() must
+                    # be updated accordingly to pop them from the stack.
+                    configs=[base_conf, config],
+                    features=_features,
+                )
+
+        def pristine_load(install):
+            install(kmod_params=kmod_params)
+            configure(config)
+
+        def load(install):
+            if self.is_loaded:
+                try:
+                    configure(config)
+                except KmodVersionError as e:
+                    # Only rmmod/insmod the module if we asked to reset the
+                    # config, otherwise we would be wiping existing config that
+                    # the user may want to preserve.
+                    if reset_config:
+                        logger.info(f'The currently loaded {self.mod_name} module is not matching the expected version, re-loading')
+                        super_.uninstall()
+                        pristine_load(install)
+                    else:
+                        raise e
+                else:
+                    logger.debug(f'The currently loaded {self.mod_name} module is matching the expected version so it was simply reconfigured')
+            else:
+                pristine_load(install)
+
+            return _LoadedLISADynamicKmod(self)
+
         def preinstalled_unsuitable(excep=None):
             if excep is not None:
                 logger.debug(f'Pre-installed {kmod_filename} is unsuitable, recompiling: {excep.__class__.__qualname__}: {excep}')
-            return super_.install(kmod_params=kmod_params)
+            return load(super_.install)
 
         try:
             kmod_path = target.execute(
@@ -3517,16 +3702,85 @@ class LISADynamicKmod(FtraceDynamicKmod):
                     # We found an installed module that could maybe be suitable, so
                     # we try to load it.
                     try:
-                        return self._install(nullcontext(kmod_path), kmod_params=kmod_params)
+                        return load(lambda *kwargs: self._install(nullcontext(kmod_path), **kwargs))
                     except (subprocess.CalledProcessError, KmodVersionError) as e:
                         # Turns out to not be suitable, so we build our own
                         return preinstalled_unsuitable(e)
-                    else:
-                        logger.warning(f'Loaded "{self.mod_name}" module from pre-installed location: {kmod_path}. This implies that the module was compiled by a 3rd party, which is available but unsupported. If you experience issues related to module version mismatch in the future, please contact them for updating the module. This may break at any time, without notice, and regardless of the general backward compatibility policy of LISA.')
-                        return None
             # If base_path exists, busybox find will simply an empty stdout
             # rather than return with a non-zero exit status.
             else:
                 return preinstalled_unsuitable()
+
+    def uninstall(self):
+        # Pop the conf from the _KernelBuildEnvConf and the one passed via
+        # method parameters.
+        self._pop_stop(n=2)
+
+
+class _LoadedLISADynamicKmod:
+    def __init__(self, kmod):
+        self._kmod = kmod
+
+    def __getattr__(self, attr):
+        return getattr(self._kmod, attr)
+
+    def _event_features(self, events, strict=True):
+        events = set(events)
+        (res,) = self._query(['get-resources'])
+        resources = res['get-resources']['features']
+
+        available_events = {
+            event
+            for feature in resources.values()
+            for event in feature['provided']['ftrace-events']
+        }
+
+        missing_events = set()
+        def expand(pattern):
+            expanded = fnmatch.filter(
+                available_events,
+                pattern,
+            )
+            if not expanded:
+                missing_events.add(pattern)
+            return expanded
+
+        events = {
+            event
+            for pattern in events
+            for event in expand(pattern)
+        }
+
+        if strict and missing_events:
+            from lisa.trace import MissingTraceEventError
+            raise MissingTraceEventError(
+                missing_events=missing_events,
+                available_events=available_events,
+                msg='The LISA kernel module cannot provide the following required events: {missing_events}{available}',
+            )
+        else:
+            features = {
+                name
+                for name, feature in resources.items()
+                if events & set(feature['provided']['ftrace-events'])
+            }
+            return sorted(features)
+
+    def _event_features_conf(self, *args, **kwargs):
+        features = self._event_features(*args, **kwargs)
+        config = {'features': dict.fromkeys(features)}
+        return config
+
+    @contextlib.contextmanager
+    def _reconfigure(self, configs=None, features=None):
+        configs = configs or []
+        self._push_start(
+            configs=configs,
+            features=features,
+        )
+        try:
+            yield
+        finally:
+            self._pop_stop(n=len(configs))
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

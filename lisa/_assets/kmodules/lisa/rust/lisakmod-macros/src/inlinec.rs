@@ -665,6 +665,12 @@ macro_rules! impl_primitive {
     };
 }
 
+#[allow(non_camel_case_types)]
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct c_realchar(u8);
+impl_primitive!(c_realchar, "char", None);
+
 impl_primitive!(u8, "uint8_t", Some("linux/types.h"));
 impl_primitive!(u16, "uint16_t", Some("linux/types.h"));
 impl_primitive!(u32, "uint32_t", Some("linux/types.h"));
@@ -1126,6 +1132,40 @@ where
     err: ErrorCode<<T as Unsigned>::Signed>,
 }
 
+macro_rules! errno_codes {
+    ($($rust_name:ident: $c_name:literal),* $(,)?) => {
+        impl<T> NegativeError<T>
+        where
+            T: Unsigned,
+            <T as Unsigned>::Signed: From<i8>,
+        {
+            $(
+                #[allow(non_snake_case)]
+                pub fn $rust_name() -> Self {
+                    let code: i8 = cconstant!("#include <linux/errno.h>", $c_name).unwrap();
+                    Self::new((-code).into())
+                }
+            )*
+        }
+    }
+}
+
+errno_codes!(
+    EINVAL: "EINVAL",
+    EFBIG: "EFBIG",
+);
+
+impl<T> NegativeError<T>
+where
+    T: Unsigned,
+{
+    pub const fn new(val: <T as Unsigned>::Signed) -> NegativeError<T> {
+        NegativeError {
+            err: ErrorCode::new(val),
+        }
+    }
+}
+
 impl<T> Clone for NegativeError<T>
 where
     T: Unsigned,
@@ -1222,7 +1262,7 @@ pub struct ErrorCode<T> {
 
 impl<T> ErrorCode<T> {
     #[inline]
-    pub fn new(code: T) -> ErrorCode<T> {
+    pub const fn new(code: T) -> ErrorCode<T> {
         ErrorCode { code }
     }
 }
@@ -1432,22 +1472,25 @@ impl PtrError {
     }
 
     pub fn from_ptr<T: Sized>(ptr: *mut T) -> Result<NonNull<T>, PtrError> {
-        #[cfunc]
-        fn ptr_err_or_zero(ptr: *mut c_void) -> isize {
-            r#"
-            #include <linux/err.h>
-            "#;
+        #[cfg(not(test))]
+        {
+            #[cfunc]
+            fn ptr_err_or_zero(ptr: *mut c_void) -> isize {
+                r#"
+                #include <linux/err.h>
+                "#;
 
-            r#"
-            return PTR_ERR_OR_ZERO(ptr);
-            "#
-        }
-        if ptr.is_null() {
-            Err(PtrError::Null)
-        } else {
-            match ptr_err_or_zero(ptr as *mut c_void) {
-                0 => Ok(NonNull::new(ptr).unwrap()),
-                err => Err(PtrError::Code(ErrorCode::new(err))),
+                r#"
+                return PTR_ERR_OR_ZERO(ptr);
+                "#
+            }
+            if ptr.is_null() {
+                Err(PtrError::Null)
+            } else {
+                match ptr_err_or_zero(ptr as *mut c_void) {
+                    0 => Ok(NonNull::new(ptr).unwrap()),
+                    err => Err(PtrError::Code(ErrorCode::new(err))),
+                }
             }
         }
     }

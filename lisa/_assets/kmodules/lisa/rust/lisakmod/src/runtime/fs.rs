@@ -15,6 +15,8 @@ use crate::{
     runtime::printk::pr_err,
 };
 
+pub type FsMode = u16;
+
 pub enum OpenFlags {
     ReadOnly,
     WriteOnly,
@@ -30,7 +32,7 @@ impl From<OpenFlags> for c_int {
 }
 
 opaque_type!(
-    struct CFile,
+    pub struct CFile,
     "struct file",
     "linux/fs.h",
 );
@@ -42,12 +44,12 @@ pub struct File {
 }
 
 impl File {
-    pub fn open(path: &str, flags: OpenFlags, mode: u32) -> Result<File, Error> {
+    pub fn open(path: &str, flags: OpenFlags, mode: FsMode) -> Result<File, Error> {
         // kernel_file_open() would be more appropriate for in-kernel use, as filp_open() opens in
         // the context of the current userspace thread. It's somewhat ok since we only open files
         // during module init, and this runs as root anyway.
         #[cfunc]
-        fn filp_open(path: &CStr, flags: c_int, mode: u32) -> Result<NonNull<CFile>, PtrError> {
+        fn filp_open(path: &CStr, flags: c_int, mode: FsMode) -> Result<NonNull<CFile>, PtrError> {
             r#"
             #include <linux/fs.h>
             #include "introspection.h"
