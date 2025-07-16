@@ -41,7 +41,7 @@ class that implements the following methods.
        transfer does not complete within this period, an exception will be
        raised.
 
-.. method:: execute(self, command, timeout=None, check_exit_code=False, as_root=False, strip_colors=True, will_succeed=False)
+.. method:: execute(self, command, timeout=None, check_exit_code=True, as_root=False, strip_colors=True, will_succeed=False)
 
    Execute the specified command on the connected device and return its output.
 
