@@ -19,6 +19,7 @@
 # pylint: disable-all
 
 import sys
+import platform
 from subprocess import call, Popen, PIPE
 
 from devlib.utils.misc import escape_double_quotes
@@ -72,6 +73,15 @@ class ShowCommand(Command):
             raise NotFoundError('Could not find plugin or alias "{}"'.format(name))
 
         if which('pandoc'):
+            if platform.system() == "Darwin":
+                # The version of `man` shipped with macOS does not support `-l`. You need to use GNU man from:
+                # https://formulae.brew.sh/formula/man-db
+                if which("gman") is None:
+                    print(rst_output)
+                man = "gman"
+            else:
+                man = "man"
+
             p = Popen(['pandoc', '-f', 'rst', '-t', 'man'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
             output, _ = p.communicate(rst_output.encode(sys.stdin.encoding))
             output = output.decode(sys.stdout.encoding)
@@ -84,7 +94,7 @@ class ShowCommand(Command):
             title = '.TH {}{} 7'.format(kind, plugin_name)
             output = '\n'.join([title, body])
 
-            call('echo "{}" | man -l -'.format(escape_double_quotes(output)), shell=True)
+            call('echo "{}" | {} -l -'.format(escape_double_quotes(output), man), shell=True)
         else:
             print(rst_output)  # pylint: disable=superfluous-parens
 
