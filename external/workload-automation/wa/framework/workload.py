@@ -584,6 +584,7 @@ class ReventGUI(object):
 
     def __init__(self, workload, target, setup_timeout, run_timeout,
                  extract_results_timeout, teardown_timeout):
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.workload = workload
         self.target = target
         self.setup_timeout = setup_timeout
@@ -596,7 +597,6 @@ class ReventGUI(object):
         self.on_target_run_revent = self.target.get_workpath('{}.run.revent'.format(self.target.model))
         self.on_target_extract_results_revent = self.target.get_workpath('{}.extract_results.revent'.format(self.target.model))
         self.on_target_teardown_revent = self.target.get_workpath('{}.teardown.revent'.format(self.target.model))
-        self.logger = logging.getLogger('revent')
         self.revent_setup_file = None
         self.revent_run_file = None
         self.revent_extract_results_file = None
@@ -629,8 +629,9 @@ class ReventGUI(object):
                                         timeout=self.setup_timeout)
 
     def run(self):
-        msg = 'Replaying {}'
-        self.logger.debug(msg.format(os.path.basename(self.on_target_run_revent)))
+        self.logger.debug('Replaying "%s" with %d seconds timeout',
+                          os.path.basename(self.on_target_run_revent),
+                          self.run_timeout)
         self.revent_recorder.replay(self.on_target_run_revent,
                                     timeout=self.run_timeout)
         self.logger.debug('Replay completed.')

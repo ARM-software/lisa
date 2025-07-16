@@ -14,6 +14,7 @@
 #
 
 
+import logging
 import os
 import struct
 import signal
@@ -117,22 +118,22 @@ class ReventRecording(object):
     Represents a parsed revent recording. This contains input events and device
     descriptions recorded by revent. Two parsing modes are supported. By
     default, the recording will be parsed in the "streaming" mode. In this
-    mode, initial headers and device descritions are parsed on creation and an
+    mode, initial headers and device descriptions are parsed on creation and an
     open file handle to the recording is saved. Events will be read from the
     file as they are being iterated over. In this mode, the entire recording is
     never loaded into memory at once. The underlying file may be "released" by
-    calling ``close`` on the recroding, after which further iteration over the
+    calling ``close`` on the recording, after which further iteration over the
     events will not be possible (but would still be possible to access the file
     description and header information).
 
     The alternative is to load the entire recording on creation (in which case
-    the file handle will be closed once the recroding is loaded). This can be
+    the file handle will be closed once the recording is loaded). This can be
     enabled by specifying ``streaming=False``. This will make it faster to
     subsequently iterate over the events, and also will not "hold" the file
     open.
 
     .. note:: When starting a new iteration over the events in streaming mode,
-              the postion in the open file will be automatically reset to the
+              the position in the open file will be automatically reset to the
               beginning of the event stream. This means it's possible to iterate
               over the events multiple times without having to re-open the
               recording, however it is not possible to do so in parallel. If
@@ -274,10 +275,11 @@ def get_revent_binary(abi):
 
 class ReventRecorder(object):
 
-    # Share location of target excutable across all instances
+    # Share location of target executable across all instances
     target_executable = None
 
     def __init__(self, target):
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.target = target
         if not ReventRecorder.target_executable:
             ReventRecorder.target_executable = self._get_target_path(self.target)
@@ -295,7 +297,8 @@ class ReventRecorder(object):
             self.target.uninstall('revent')
 
     def start_record(self, revent_file):
-        command = '{} record -s {}'.format(ReventRecorder.target_executable, revent_file)
+        command = f'{ReventRecorder.target_executable} record -s {revent_file}'
+        self.logger.debug('Executing record command "%s"...', command)
         self.target.kick_off(command, self.target.is_rooted)
 
     def stop_record(self):
@@ -303,7 +306,8 @@ class ReventRecorder(object):
 
     def replay(self, revent_file, timeout=None):
         self.target.killall('revent')
-        command = "{} replay {}".format(ReventRecorder.target_executable, revent_file)
+        command = f'{ReventRecorder.target_executable} replay {revent_file}'
+        self.logger.debug('Executing replay command "%s" with %d seconds timeout...', command, timeout)
         self.target.execute(command, timeout=timeout)
 
     @memoized

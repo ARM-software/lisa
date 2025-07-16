@@ -359,7 +359,7 @@ class AdbConnection(ConnectionBase):
                 popen.communicate()
 
     # pylint: disable=unused-argument
-    def execute(self, command, timeout=None, check_exit_code=False,
+    def execute(self, command, timeout=None, check_exit_code=True,
                 as_root=False, strip_colors=True, will_succeed=False):
         if as_root and self.connected_as_root:
             as_root = False
@@ -483,8 +483,7 @@ class AdbConnection(ConnectionBase):
             return
         try:
             # Try the new style of invoking `su`
-            self.execute('ls', timeout=self.timeout, as_root=True,
-                         check_exit_code=True)
+            self.execute('ls', timeout=self.timeout, as_root=True)
         # If failure assume either old style or unrooted. Here we will assume
         # old style and root status will be verified later.
         except (TargetStableError, TargetTransientError, TimeoutError):
