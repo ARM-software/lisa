@@ -1,8 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-use alloc::{boxed::Box, ffi::CString, vec::Vec};
+use alloc::{boxed::Box, ffi::CString};
 use core::{
-    any::Any,
     cell::UnsafeCell,
     ffi::{CStr, c_int, c_void},
     fmt,
@@ -12,13 +11,7 @@ use core::{
 
 use lisakmod_macros::inlinec::{cfunc, opaque_type};
 
-use crate::{
-    error::{Error, error},
-    runtime::{
-        printk::pr_debug,
-        sync::{Lock as _, LockdepClass, Mutex},
-    },
-};
+use crate::error::{Error, error};
 
 opaque_type!(
     struct CTracepoint,
@@ -146,7 +139,7 @@ impl<'tp, Args> Tracepoint<'tp, Args> {
         // SAFETY: If the Probe is alive, then its closure is alive too. Probe will be kept alive
         // until the last RegisteredProbe is dropped, at which point we known that
         // tracepoint_probe_unregister() has been called.
-        unsafe { register(self.c_tp.get(), probe.probe, probe.closure) }
+        unsafe { register(self.c_tp.get(), probe.probe, probe.data_ptr()) }
             .map_err(|code| error!("Tracepoint probe registration failed: {code}"))?;
         Ok(RegisteredProbe { probe, tp: self })
     }
@@ -186,45 +179,6 @@ impl<'probe, Args> Drop for RegisteredProbe<'probe, Args> {
             "#
         }
 
-        let probe = self.probe;
-        // SAFETY: Since we only create RegisteredProbe values when the registration succeeded, we
-        // ensure that this will be the only matching call to tracepoint_probe_unregister()
-        unsafe { unregister(self.tp.c_tp.get(), probe.probe, probe.closure as *mut _) }
-            .expect("Failed to unregister tracepoint probe");
-
-        pr_debug!(
-            "Called tracepoint_probe_unregister() for a probe attached to {:?}",
-            self.tp
-        );
-    }
-}
-
-pub struct ProbeDropper {
-    droppers: Mutex<Vec<Option<Pin<Box<dyn Any + Send + Sync>>>>>,
-}
-
-impl fmt::Debug for ProbeDropper {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        f.debug_struct("ProbeDropper").finish()
-    }
-}
-
-impl Default for ProbeDropper {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl ProbeDropper {
-    pub fn new() -> ProbeDropper {
-        ProbeDropper {
-            droppers: Mutex::new(Vec::new(), LockdepClass::new()),
-        }
-    }
-}
-
-impl Drop for ProbeDropper {
-    fn drop(&mut self) {
         #[cfunc]
         fn tracepoint_synchronize_unregister() {
             r#"
@@ -236,29 +190,26 @@ impl Drop for ProbeDropper {
             "#
         }
 
+        let probe = self.probe;
+        // SAFETY: Since we only create RegisteredProbe values when the registration succeeded, we
+        // ensure that this will be the only matching call to tracepoint_probe_unregister()
+        unsafe { unregister(self.tp.c_tp.get(), probe.probe, probe.data_ptr()) }
+            .expect("Failed to unregister tracepoint probe");
+
         tracepoint_synchronize_unregister();
-
-        pr_debug!("Called tracepoint_synchronize_unregister(), de-allocating closures now");
-
-        // SAFETY: If we are dropped, that means we are not borrowed anymore, and since:
-        // * RegisteredProbe borrows Probe us while the probe can fire, and
-        // * Probe borrows ProbeDropper while it is alive.
-        // then it means the only consumer of the closure left are the tracepoint themselves, which
-        // we ensured do not use it anymore since:
-        // * <RegisteredProbe as Drop::drop() called tracepoint_probe_unregister()
-        // * We just called tracepoint_synchronize_unregister()
-        //
-        // It is therefore now safe to drop the closure.
-        for drop_ in &mut *self.droppers.lock() {
-            drop(drop_.take());
-        }
     }
 }
 
+// SAFETY: The closure must be Send + Sync so that the probe is safe to call from anywhere.
+pub type DynClosure<'probe, Args> = dyn Fn<Args, Output = ()> + Send + Sync + 'probe;
+pub type Closure<'probe, Args> = Pin<Box<DynClosure<'probe, Args>>>;
+
 pub struct Probe<'probe, Args> {
-    closure: *const c_void,
     probe: *const c_void,
-    _phantom: PhantomData<(&'probe (), Args)>,
+    // We need a 2nd layer of Box here so we have a thin pointer to share. The actual *const dyn
+    // Fn() pointer for the closure is a fat pointer since trait objects are unsized, and as such
+    // cannot fit in a *const c_void
+    closure: Box<Closure<'probe, Args>>,
 }
 
 impl<'probe, Args> Probe<'probe, Args> {
@@ -266,51 +217,44 @@ impl<'probe, Args> Probe<'probe, Args> {
     ///
     /// The `probe` must be compatible with the [`Closure`] type in use.
     #[inline]
-    pub unsafe fn __private_new<Closure>(
-        closure: Pin<Box<Closure>>,
+    pub unsafe fn __private_new(
+        closure: Closure<'probe, Args>,
         probe: *const c_void,
-        // SAFETY: we borrow ProbeDropper for &'probe, which ensures the ProbeDropper will not be
-        // dropped before Probe<'probe, _>
-        dropper: &'probe ProbeDropper,
-    ) -> Probe<'probe, Args>
-    where
-        Closure: 'static + Send + Sync,
-    {
-        let ptr: &Closure = &closure;
-        let ptr: *const Closure = ptr;
+    ) -> Probe<'probe, Args> {
+        let closure = Box::new(closure);
+        Probe { closure, probe }
+    }
 
-        dropper.droppers.lock().push(Some(closure));
-        // SAFETY: the probe and closure pointer we store here are guaranteed to be valid for the
-        // lifetime of the Probe object, as we borrow the ProbeDropper for that duration.
-        Probe {
-            closure: ptr as *const c_void,
-            probe,
-            _phantom: PhantomData,
-        }
+    fn data_ptr(&self) -> *const c_void {
+        // SAFETY: This must be kept in sync with the probe function defined in new_probe!()
+        let ref_: &Closure<'probe, Args> = self.closure.as_ref();
+        ref_ as *const Closure<'probe, Args> as *const c_void
     }
 }
 
-// SAFETY: this is ok as the closure we store is also Send
+// SAFETY: this is ok as the DynClosure we store is also Send
 unsafe impl<'probe, Args> Send for Probe<'probe, Args> {}
-// SAFETY: this is ok as the closure we store is also Sync
+// SAFETY: this is ok as the DynClosure we store is also Sync
 unsafe impl<'probe, Args> Sync for Probe<'probe, Args> {}
 
+#[allow(unused_macros)]
 macro_rules! new_probe {
-    ($dropper:expr, ( $($arg_name:ident: $arg_ty:ty),* ) $body:block) => {
+    (( $($arg_name:ident: $arg_ty:ty),* ) $body:block) => {
         {
-            // SAFETY: We need to ensure Send and Sync for the closure, as Probe relies on that to
-            // soundly implement Send and Sync
-            type Closure = impl Fn($($arg_ty),*) + ::core::marker::Send + ::core::marker::Sync + 'static;
 
-            let closure: ::core::pin::Pin<::alloc::boxed::Box<Closure>> = ::alloc::boxed::Box::pin(
+            type Args = ($($arg_ty,)*);
+            let closure: $crate::runtime::tracepoint::Closure<Args> = ::alloc::boxed::Box::pin(
                 move |$($arg_name: $arg_ty),*| {
                     $body
                 }
             );
 
+            // Use *mut c_void as we get clang CFI violations otherwise
             #[::lisakmod_macros::inlinec::cexport]
-            fn probe(closure: *const c_void, $($arg_name: $arg_ty),*) {
-                let closure = closure as *const Closure;
+            fn probe(closure: *mut ::core::ffi::c_void, $($arg_name: $arg_ty),*) {
+                // SAFETY: this is the same type as what Probe::data_ptr() provides.
+                let closure = closure as *const $crate::runtime::tracepoint::Closure<'static, Args>;
+
                 // SAFETY: Since we call tracepoint_probe_unregister() in <RegisteredProbe as
                 // Drop>::drop(), and RegisteredProbe keeps the Probe and its closure alive, then
                 // the probe should never run after the closure is dropped.
@@ -320,10 +264,9 @@ macro_rules! new_probe {
 
             #[allow(unused_unsafe)]
             unsafe {
-                $crate::runtime::tracepoint::Probe::<( $($arg_ty),* )>::__private_new(
+                $crate::runtime::tracepoint::Probe::<( $($arg_ty,)* )>::__private_new(
                     closure,
-                    probe as *const c_void,
-                    $dropper,
+                    probe as *const ::core::ffi::c_void,
                 )
             }
         }

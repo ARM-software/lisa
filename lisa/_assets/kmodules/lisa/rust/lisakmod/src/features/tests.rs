@@ -1,23 +1,22 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
 use alloc::{collections::BTreeMap, sync::Arc, vec, vec::Vec};
-use core::ffi::CStr;
+use core::{
+    ffi::CStr,
+    sync::atomic::{AtomicU32, Ordering},
+};
 
 use lisakmod_macros::inlinec::{cconstant, ceval, cfunc};
 
 use crate::{
     error::Error,
-    features::{FeaturesConfig, define_feature},
+    features::{DependenciesSpec, define_feature},
     lifecycle::new_lifecycle,
     runtime::{
         kbox::KernelKBox,
         printk::{pr_debug, pr_info},
     },
 };
-
-unsafe extern "C" {
-    fn myc_callback(x: u64) -> u64;
-}
 
 macro_rules! test {
     ($name:ident, $block:block) => {
@@ -33,8 +32,15 @@ macro_rules! test {
 test! {
     test1,
     {
-        let x = unsafe { myc_callback(42) };
-        assert_eq!(x, 43);
+        #[cfg(not(test))]
+        {
+            unsafe extern "C" {
+                fn myc_callback(x: u64) -> u64;
+            }
+
+            let x = unsafe { myc_callback(42) };
+            assert_eq!(x, 43);
+        }
     }
 }
 
@@ -209,7 +215,7 @@ test! {
     {
         use core::ops::{Deref, DerefMut};
 
-        use crate::runtime::sync::{Lock, LockdepClass, Mutex, SpinLock};
+        use crate::runtime::sync::{Lock, LockdepClass,  Mutex, SpinLock};
         {
             new_static_mutex!(STATIC_MUTEX, u32, 42);
             macro_rules! test_lock {
@@ -240,14 +246,14 @@ test! {
                 }};
             }
 
-            test_lock!(SpinLock::new(42, LockdepClass::new()));
-            test_lock!(Mutex::new(42, LockdepClass::new()));
+            test_lock!(<SpinLock<_>>::new(42, LockdepClass::new("test_spinlock")));
+            test_lock!(<Mutex<_>>::new(42, LockdepClass::new("test_mutex")));
             test_lock!(&STATIC_MUTEX);
         }
 
         {
             use crate::runtime::sync::Rcu;
-            let rcu = Rcu::new(42, LockdepClass::new());
+            let rcu = <Rcu<_>>::new(42, LockdepClass::new("test_rcu"));
             assert_eq!(*rcu.lock(), 42);
             rcu.update(43);
             assert_eq!(*rcu.lock(), 43);
@@ -266,13 +272,67 @@ test! {
         let mut kobject = KObject::new(kobj_type.clone());
         let mut kobject2 = KObject::new(kobj_type.clone());
 
-        kobject.add(Some(&root), "foo");
-        let kobject = kobject.finalize().expect("Could not finalize kobject");
+        kobject.add(Some(&root), "foo")
+            .expect("Could not add kobject to sysfs");
+        let kobject = kobject.publish().expect("Could not publish kobject");
 
-        kobject2.add(Some(&kobject), "bar");
-        let kobject2 = kobject2.finalize().expect("Could not finalize kobject");
+        kobject2.add(Some(&kobject), "bar")
+            .expect("Could not add kobject to sysfs");
+        let kobject2 = kobject2.publish().expect("Could not publish kobject");
 
         drop(kobject2);
+    }
+}
+
+test! {
+    test8,
+    {
+        use crate::runtime::sysfs::{BinFile, BinRWContent, Folder};
+
+        let mut root = Folder::sysfs_module_root();
+        let _ = BinFile::new(&mut root, "file1", 0o644, 1024*1024, BinRWContent::new());
+    }
+}
+
+test! {
+    test9,
+    {
+        use crate::runtime::wq::{Wq, new_work_item};
+
+
+        let wq = Wq::new("lisa_test").expect("Could not create workqueue");
+
+
+        let x = AtomicU32::new(0);
+        let barrier = AtomicU32::new(0);
+
+        let work = new_work_item!(&wq, {
+            let x = &x;
+            let barrier = &barrier;
+            move |work| {
+                let x_ = x.fetch_add(1, Ordering::SeqCst);
+                if x_ == 2 {
+                    barrier.store(1, Ordering::SeqCst);
+                } else {
+                    work.enqueue(1);
+                }
+            }
+        });
+        work.enqueue(0);
+
+        #[cfunc]
+        fn msleep(x: u64) {
+            "#include <linux/delay.h>";
+            "msleep(x);"
+        }
+
+        // Low-effort barrier
+        while barrier.load(Ordering::SeqCst) != 1 {
+            // Sleep a bit, otherwise we keep loading the atomic and that starves the writer (on my
+            // x86 laptop at least).
+            msleep(1);
+        }
+        assert!(x.load(Ordering::SeqCst) == 3);
     }
 }
 
@@ -286,6 +346,8 @@ pub fn init_tests() -> Result<(), Error> {
     test5();
     test6();
     test7();
+    test8();
+    test9();
 
     pr_info!("Rust tests finished");
     Ok(())
@@ -298,9 +360,10 @@ define_feature! {
     Service: (),
     Config: (),
     dependencies: [],
-    init: |configs| {
+    resources: Default::default,
+    init: |_| {
         Ok((
-            FeaturesConfig::new(),
+            DependenciesSpec::new(),
             new_lifecycle!(|_| {
                 init_tests()?;
                 yield_!(Ok(Arc::new(())));

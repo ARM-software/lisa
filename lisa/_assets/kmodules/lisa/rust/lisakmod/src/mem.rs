@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
+use core::marker::PhantomData;
+
 macro_rules! container_of {
     ($container:ty, $member:ident, $ptr:expr) => {{
         let ptr = $ptr;
@@ -22,6 +24,10 @@ macro_rules! mut_container_of {
 pub(crate) use mut_container_of;
 
 pub trait FromContained<Contained> {
+    /// # Safety
+    ///
+    /// The returned *const Self must be a pointer valid for reads derived from contained. The
+    /// input "contained" must be valid for reads.
     unsafe fn from_contained(contained: *const Contained) -> *const Self;
 }
 
@@ -70,3 +76,24 @@ macro_rules! destructure {
 }
 #[allow(unused_imports)]
 pub(crate) use destructure;
+
+pub struct NotSend {
+    _phantom: PhantomData<*const ()>,
+}
+impl Default for NotSend {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl NotSend {
+    pub fn new() -> NotSend {
+        NotSend {
+            _phantom: PhantomData,
+        }
+    }
+}
+
+#[repr(transparent)]
+pub struct UnsafeSync<T>(pub T);
+unsafe impl<T> Sync for UnsafeSync<T> {}

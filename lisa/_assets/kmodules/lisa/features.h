@@ -141,7 +141,7 @@ int __placeholder_deinit(struct feature *feature);
  * struct features * is built automatically by DEFINE_FEATURE() and does not
  * need to be passed.
  */
-int init_features(char **selected, size_t selected_len);
+int init_features(const char *const *selected, size_t selected_len);
 
 /**
  * deinit_features() - De-initialize features
@@ -150,6 +150,10 @@ int init_features(char **selected, size_t selected_len);
  * Return: non-zero in case of errors.
  */
 int deinit_features(void);
+
+
+int init_feature(const char *feature);
+int deinit_feature(const char *feature);
 
 /**
  * feature_name() - Get feature's name

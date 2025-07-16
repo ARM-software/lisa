@@ -14,12 +14,17 @@ use alloc::{
 };
 
 use embedded_io::{Seek as _, Write as _};
+use itertools::Itertools as _;
 
 use crate::{
     error::{Error, ResultExt as _, error},
-    features::{FeaturesConfig, FeaturesService, define_feature, wq::WqFeature},
+    features::{
+        DependenciesSpec, FeatureResources, FeaturesService, ProvidedFeatureResources,
+        define_feature, wq::WqFeature,
+    },
     lifecycle::new_lifecycle,
     parsec::{self, ClosureParser, ParseResult, Parser},
+    query::query_type,
     runtime::{
         fs::{File, OpenFlags},
         traceevent::new_event,
@@ -109,6 +114,7 @@ where
 
 struct Device {
     value_file: File,
+    #[allow(dead_code)]
     rate_file: File,
     config: DeviceConfig,
 }
@@ -126,53 +132,75 @@ impl Device {
     }
 }
 
-struct DeviceConfig {
-    id: DeviceId,
-    folder: String,
-    hardware_sampling_rate_hz: u64,
+query_type! {
+    #[derive(Clone)]
+    struct DeviceConfig {
+        id: DeviceId,
+        folder: String,
+        hardware_sampling_rate_hz: u64,
+    }
 }
 
-struct Pixel6EmeterConfig {
-    devices: Vec<DeviceConfig>,
+query_type! {
+    #[derive(Clone)]
+    struct Pixel6EmeterConfig {
+        devices: Vec<DeviceConfig>,
+    }
 }
 
-// /* There is no point in setting this value to less than 8 times what is written
-//  * in usec to POWER_METER_RATE_FILE
-//  */
-// const POWER_METER_SAMPLING_RATE_MS: u64 = 50;
+impl Pixel6EmeterConfig {
+    fn merge<'a, I>(iter: I) -> Pixel6EmeterConfig
+    where
+        I: Iterator<Item = &'a Self>,
+    {
+        let devices: Vec<_> = iter.flat_map(|config| &config.devices).cloned().collect();
+
+        // If no device was specified, use default devices for backward compatibility
+        let devices = if devices.is_empty() {
+            // 250 Hz works for pixel 6, 7, 8 and 9 so we just use that.
+            let hardware_sampling_rate_hz = 250;
+            vec![
+                DeviceConfig {
+                    id: 0,
+                    folder: "/sys/bus/iio/devices/iio:device0/".into(),
+                    hardware_sampling_rate_hz,
+                },
+                DeviceConfig {
+                    id: 1,
+                    folder: "/sys/bus/iio/devices/iio:device1/".into(),
+                    hardware_sampling_rate_hz,
+                },
+            ]
+        } else {
+            devices
+        };
+        Pixel6EmeterConfig { devices }
+    }
+}
 
 define_feature! {
     struct Pixel6Emeter,
-    name: "event__lisa__pixel6_emeter",
+    name: "pixel6_emeter",
     visibility: Public,
     Service: (),
-    Config: (),
+    Config: Pixel6EmeterConfig,
     dependencies: [WqFeature],
+    resources: || {
+        FeatureResources {
+            provided: ProvidedFeatureResources {
+                ftrace_events: ["lisa__pixel6_emeter".into()].into()
+            }
+        }
+    },
     init: |configs| {
+        let config = Pixel6EmeterConfig::merge(configs);
         Ok((
-            FeaturesConfig::new(),
+            DependenciesSpec::new(),
             new_lifecycle!(|services| {
                 let services: FeaturesService = services;
                 let wq = services.get::<WqFeature>()
                     .expect("Could not get service for WqFeature")
                     .wq();
-
-                // 250 Hz works for pixel 6, 7, 8 and 9 so we just use that.
-                let hardware_sampling_rate_hz = 250;
-                let config = Pixel6EmeterConfig {
-                    devices: vec![
-                        DeviceConfig {
-                           id: 0,
-                           folder: "/sys/bus/iio/devices/iio:device0/".into(),
-                           hardware_sampling_rate_hz,
-                        },
-                        DeviceConfig {
-                           id: 1,
-                           folder: "/sys/bus/iio/devices/iio:device1/".into(),
-                           hardware_sampling_rate_hz,
-                        },
-                    ]
-                };
 
                 let mut devices = config.devices.into_iter().map(|device_config| {
                     let value_file = File::open(
@@ -194,7 +222,7 @@ define_feature! {
                     // confused by the partial write.
                     rate_file.write(content.as_bytes())
                         .map_err(|err| error!("Could not write \"{sampling_rate}\" to sampling_rate file: {err}"))?;
-                    rate_file.flush();
+                    rate_file.flush()?;
 
                     let device = Device {
                         value_file,
@@ -204,7 +232,8 @@ define_feature! {
                     Ok(device)
                 }).collect::<Result<Vec<_>, Error>>()?;
 
-                let emit = new_event! {
+                #[allow(non_snake_case)]
+                let trace_lisa__pixel6_emeter = new_event! {
                     lisa__pixel6_emeter,
                     fields: {
                         ts: u64,
@@ -215,29 +244,44 @@ define_feature! {
                     }
                 }?;
 
-                let hardware_sampling_period_us = 1_000_000 / hardware_sampling_rate_hz;
-                // There is no point in setting this value to less than 8 times what is written in
-                // usec to the sampling_rate file, as the hardware will only expose a new value
-                // every 8 hardware periods.
-                let software_sampling_rate_us = hardware_sampling_period_us * 8;
 
-                let work_item = wq::new_work_item!(wq, move |work| {
-                    let process_device = |device: &mut Device| -> Result<(), Error> {
-                        let device_id = device.config.id;
-                        device.parse_samples(&mut |sample: Sample| {
-                            emit(sample.ts, device_id, sample.chan, &sample.chan_name, sample.value);
-                            Ok(())
-                        })?;
+                let process_device = move |device: &mut Device| -> Result<(), Error> {
+                    let device_id = device.config.id;
+                    device.parse_samples(&mut |sample: Sample| {
+                        trace_lisa__pixel6_emeter(sample.ts, device_id, sample.chan, &sample.chan_name, sample.value);
                         Ok(())
-                    };
-                    for device in &mut devices {
-                        process_device(device)
-                            .with_context(|| format!("Could not read samples from device {}", device.config.id))
-                            .print_err();
-                    }
-                    work.enqueue(software_sampling_rate_us);
-                });
-                work_item.enqueue(software_sampling_rate_us);
+                    })?;
+                    Ok(())
+                };
+                let key = |device: &Device| device.config.hardware_sampling_rate_hz;
+                devices.sort_by_key(key);
+
+                let mut works: Vec<_> = devices
+                    .into_iter()
+                    .chunk_by(key)
+                    .into_iter()
+                    .map(|(hardware_sampling_rate_hz, devices)| {
+                        let hardware_sampling_period_us = 1_000_000 / hardware_sampling_rate_hz;
+                        // There is no point in setting this value to less than 8 times what is written in
+                        // usec to the sampling_rate file, as the hardware will only expose a new value
+                        // every 8 hardware periods.
+                        let software_sampling_rate_us = hardware_sampling_period_us * 8;
+
+                        let mut devices: Vec<_> = devices.collect();
+                        let process_device = &process_device;
+                        Ok(wq::new_work_item!(wq, move |work| {
+                            for device in &mut devices {
+                                process_device(device)
+                                    .with_context(|| format!("Could not read sample from device {}", device.config.id))
+                                    .print_err();
+                            }
+                            work.enqueue(software_sampling_rate_us);
+                        }))
+                    }).collect::<Result<_, Error>>()?;
+
+                for work in &mut works {
+                    work.enqueue(0);
+                }
                 yield_!(Ok(Arc::new(())));
                 Ok(())
             }),

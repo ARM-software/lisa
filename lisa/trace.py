@@ -7508,18 +7508,24 @@ class FtraceCollector(CollectorBase, Configurable):
         tracing_path = devlib.FtraceCollector.find_tracing_path(target)
         target_available_events, avoided = self._target_available_events(target, tracing_path)
 
+        # We always exclude the events expected to come
+        # from the module as we need to load the module and query it to
+        # know if they are actually available. If the module is already
+        # loaded, ftrace will report the event as being available but there
+        # is nothing guaranteeing that the module can actually emit it
+        # (e.g. that it has all its probe succesfully setup)
+        target_available_events = {
+            event
+           for event in target_available_events
+           if not event.startswith('lisa__')
+       }
+
         kmod = target.get_kmod(LISADynamicKmod)
         # Get the events possibly defined in the module. Note that it's a
         # superset of the events actually defined as this is based on pretty
         # crude filtering of the source files, rather than analyzing the events
         # actually defined in the .ko after it has been compiled.
         kmod_available_events = set(kmod.possible_events)
-
-        # Events provided by the module are namespaced and therefore should
-        # never overlap with the target, so we never want to provide it via the
-        # module if it already exists on the target.
-        kmod_available_events -= target_available_events
-
         available_events = target_available_events | kmod_available_events
 
         if events is None:
@@ -7585,9 +7591,24 @@ class FtraceCollector(CollectorBase, Configurable):
         if 'funcgraph_entry' in events or 'funcgraph_exit' in events:
             tracer = 'function_graph' if tracer is None else tracer
 
-        # If some events are not already available on that kernel, look them up
-        # in custom modules
-        needed_from_kmod = kmod_available_events & events
+        needed_from_kmod = (
+            # If we ask for anything that the module provides, we need to
+            # load the module in order to check whether the event is indeed
+            # provided (i.e. it will be emitted at runtime). If we don't do
+            # that and if the module is already loaded, ftrace will show an
+            # event as "existing" but the kernel module may not necessarily
+            # be able to emit it if e.g. it failed to register a probe
+            # somewhere. We can only clarify that by talking to the loaded
+            # module.
+            {
+                event
+                for event in events
+                if event.startswith('lisa__')
+            } |
+            # If some events are not already available on that kernel, look
+            # them up in custom modules
+            (kmod_available_events & events)
+        )
 
         kmod_defined_events = set()
         kmod_cm = None
@@ -7701,27 +7722,26 @@ class FtraceCollector(CollectorBase, Configurable):
     def _get_kmod(cls, target, target_available_events, needed_events):
         logger = cls.get_logger()
         kmod = target.get_kmod(LISADynamicKmod)
-        defined_events = set(kmod.defined_events)
-        possible_events = set(kmod.possible_events)
-
-        logger.debug(f'Kernel module possible events: {possible_events}')
+        defined_events = set(kmod._defined_events)
         logger.debug(f'Kernel module defined events: {defined_events}')
 
         needed = needed_events & defined_events
         if needed:
             overlapping = defined_events & target_available_events
             if overlapping:
-                raise ValueError(f'Events defined in {mod.src.mod_name} ({", ".join(needed)}) are needed but some events overlap with the ones already provided by the kernel: {", ".join(overlapping)}')
+                raise ValueError(f'Events defined in {kmod.src.mod_name} ({", ".join(needed)}) are needed but some events overlap with the ones already provided by the kernel: {", ".join(overlapping)}')
             else:
+                @contextlib.contextmanager
+                def cm():
+                    with kmod.run() as _kmod:
+                        config = _kmod._event_features_conf(needed)
+                        with _kmod._reconfigure(configs=[config]):
+                            yield
+
                 return (
                     defined_events,
                     needed,
-                    functools.partial(
-                        kmod.run,
-                        kmod_params={
-                            'features': sorted(kmod._event_features(needed))
-                        }
-                    )
+                    cm,
                 )
         else:
             return (defined_events, set(), None)

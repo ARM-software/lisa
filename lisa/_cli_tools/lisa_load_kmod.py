@@ -26,10 +26,43 @@ import textwrap
 import logging
 import tempfile
 import shlex
+import itertools
+import pathlib
 
 from lisa.target import Target
-from lisa._kmod import LISADynamicKmod
+from lisa._kmod import LISADynamicKmod, KmodSrc
 from lisa.utils import ignore_exceps
+
+
+def lisa_kmod(logger, target, args, reset_config):
+    if (features := args.feature) is None:
+        if args.no_enable_all:
+            logger.info('No feature will be enabled')
+            config = {}
+        else:
+            logger.info('All features will be enabled on a best-effort basis')
+            config = {
+                'all': {
+                    'best-effort': True,
+                },
+            }
+    else:
+        config = dict.fromkeys(features)
+
+    config = {
+        'features': config
+    }
+    kmod = target.get_kmod(LISADynamicKmod)
+
+    @contextlib.contextmanager
+    def cm():
+        with kmod.run(config=config, reset_config=reset_config) as _kmod:
+            pretty_events = ', '.join(_kmod._defined_events)
+            logger.info(f'Kernel module provides the following ftrace events: {pretty_events}')
+            yield _kmod
+
+    return cm()
+
 
 def main():
     params = {
@@ -37,11 +70,14 @@ def main():
             action='append',
             help='Enable a specific module feature. Can be repeated. By default, the module will try to enable all features and will log in dmesg the ones that failed to enable'
         ),
+        'no-enable-all': dict(
+            action='store_true',
+            help='Do not attempt to enable all features, only enable the features that are specified using --feature or in the configuration if no --feature option is passed'
+        ),
         'cmd': dict(
             nargs=argparse.REMAINDER,
             help='Load the module, run the given command then unload the module. If not command is provided, just load the module and exit.'
         )
-
     }
 
     args, target = Target.from_custom_cli(
@@ -66,39 +102,23 @@ def main():
 def _main(args, target):
     logger = logging.getLogger('lisa-load-kmod')
 
-    features = args.feature
     keep_loaded = not bool(args.cmd)
 
     cmd = args.cmd or []
     if cmd and cmd[0] == '--':
         cmd = cmd[1:]
 
-    kmod_params = {}
-    if features is not None:
-        kmod_params['features'] = list(features)
-
-    kmod = target.get_kmod(LISADynamicKmod)
-    pretty_events = ', '.join(kmod.defined_events)
-    logger.info(f'Kernel module provides the following ftrace events: {pretty_events}')
-
-    _kmod_cm = kmod.run(kmod_params=kmod_params)
-
-    if keep_loaded:
-        @contextlib.contextmanager
-        def cm():
-            logger.info('Loading kernel module ...')
-            yield _kmod_cm.__enter__()
-            logger.info(f'Loaded kernel module as "{kmod.mod_name}"')
-    else:
-        @contextlib.contextmanager
-        def cm():
-            with _kmod_cm:
-                logger.info('Loading kernel module ...')
-                try:
-                    yield
-                finally:
-                    logger.info('Unloading kernel module')
-    kmod_cm = cm()
+    kmod_cm = lisa_kmod(
+        logger=logger,
+        target=target,
+        args=args,
+        # If we keep the module loaded after exiting, we treat that as
+        # resetting the state of the module so we reset the config.
+        #
+        # Otherwise, we will simply push our bit of config, and then pop it
+        # upon exiting.
+        reset_config=keep_loaded,
+    )
 
     def run_cmd():
         if cmd:
@@ -108,10 +128,28 @@ def _main(args, target):
         else:
             return 0
 
-    with kmod_cm:
+    if keep_loaded:
+        @contextlib.contextmanager
+        def cm():
+            logger.info('Loading kernel module ...')
+            kmod = kmod_cm.__enter__()
+            yield
+            logger.info(f'Loaded kernel module as "{kmod.mod_name}"')
+    else:
+        @contextlib.contextmanager
+        def cm():
+            with kmod_cm:
+                logger.info('Loading kernel module ...')
+                try:
+                    yield
+                finally:
+                    logger.info('Unloading kernel module')
+
+    with cm():
         ret = run_cmd()
 
     return ret
+
 
 
 if __name__ == '__main__':

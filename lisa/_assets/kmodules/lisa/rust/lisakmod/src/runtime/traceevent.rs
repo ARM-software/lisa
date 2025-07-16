@@ -16,6 +16,75 @@ where
     const NAME: &'static str;
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct TracepointString {
+    pub s: &'static CStr,
+}
+impl TracepointString {
+    pub fn __private_new(s: &'static CStr) -> TracepointString {
+        TracepointString { s }
+    }
+}
+
+#[allow(unused_macros)]
+macro_rules! new_tracepoint_string {
+    ($s:expr) => {{
+        const S: &'static str = $s;
+        const SLICE: &'static [u8] = S.as_bytes();
+
+        const BUF_LEN: usize = SLICE.len();
+        // +1 for the NULL terminator
+        static BUF: [u8; (BUF_LEN + 1)] = {
+            let mut arr = [0u8; BUF_LEN + 1];
+            let mut idx = 0;
+            while idx < BUF_LEN {
+                arr[idx] = SLICE[idx];
+                idx += 1;
+            }
+            assert!(arr[S.len()] == 0);
+            arr
+        };
+
+        // TODO: the tracepoint_string() C macro seems to be appropriate, but unfortunately does
+        // not work in a module (despite the doc mentioning it should), so instead we abuse the
+        // __trace_printk_fmt section directly.
+
+        // Note that as of Linux v6.15 the ftrace infrastructure will copy the string the first
+        // time the module is loaded and then modify the BUF_ADDR pointer itself to point at where
+        // the string has been copied to. When the module is unloaded, the copy stays alive and
+        // will be re-used the next time the module is loaded, by modifying BUF_ADDR again. It is
+        // therefore critical to always load the string address from BUF_ADDR itself, and not let
+        // the compiler optimize-away that load.
+        //
+        // Use a "static mut" so that the __trace_printk_fmt section is configured for read/write
+        // by the linker, otherwise the kernel will try to modify it and crash as a result.
+        #[unsafe(link_section = "__trace_printk_fmt")]
+        static mut BUF_ADDR: $crate::mem::UnsafeSync<*const u8> =
+            $crate::mem::UnsafeSync(BUF.as_ptr());
+
+        let s2 = $crate::runtime::traceevent::TracepointString::__private_new(unsafe {
+            ::core::ffi::CStr::from_ptr(::core::ptr::read_volatile(&raw mut BUF_ADDR).0 as *const _)
+        });
+        s2
+    }};
+}
+
+#[allow(unused_imports)]
+pub(crate) use new_tracepoint_string;
+
+impl FfiType for TracepointString {
+    const C_TYPE: &'static str = <&'static CStr as FfiType>::C_TYPE;
+    const C_HEADER: Option<&'static str> = <&'static CStr as FfiType>::C_HEADER;
+    type FfiType = <&'static CStr as FfiType>::FfiType;
+}
+
+impl IntoFfi for TracepointString {
+    #[inline]
+    fn into_ffi(self) -> Self::FfiType {
+        self.s.into_ffi()
+    }
+}
+
 macro_rules! impl_field {
     ($ty:ty, $c_name:literal) => {
         impl FieldTy for $ty {
@@ -36,6 +105,7 @@ impl_field!(u64, "u64");
 impl_field!(i64, "s64");
 impl_field!(&CStr, "c-string");
 impl_field!(&str, "rust-string");
+impl_field!(TracepointString, "c-static-string");
 
 macro_rules! new_event {
     ($name:ident, fields: {$($field_name:ident: $field_ty:ty),* $(,)?}) => {{

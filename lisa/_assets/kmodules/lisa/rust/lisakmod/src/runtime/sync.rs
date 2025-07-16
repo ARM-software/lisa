@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 
-use alloc::{boxed::Box, sync::Arc};
+use alloc::{boxed::Box, ffi::CString, sync::Arc};
 use core::{
     cell::{Cell, UnsafeCell},
-    ffi::c_void,
+    ffi::{CStr, c_uint, c_void},
     marker::PhantomData,
     ops::{Deref, DerefMut},
     pin::Pin,
@@ -11,31 +11,39 @@ use core::{
 
 use lisakmod_macros::inlinec::{cfunc, opaque_type};
 
-use crate::{mem::impl_from_contained, runtime::kbox::KernelKBox};
+use crate::{
+    mem::{NotSend, impl_from_contained},
+    runtime::kbox::KernelKBox,
+};
 
-opaque_type!(struct CLockClassKey, "struct lock_class_key", "linux/lockdep.h");
+opaque_type!(pub struct CLockClassKey, "struct lock_class_key", "linux/lockdep.h");
 
 // Inner type that we can make Sync, as UnsafeCell is !Sync
 struct InnerLockdepClass {
     c_key: UnsafeCell<CLockClassKey>,
+    name: CString,
 }
 
-unsafe impl Send for InnerLockdepClass {}
-unsafe impl Sync for InnerLockdepClass {}
-
-pub struct LockdepClass {
+#[derive(Clone)]
+enum AllocatedLockdepClass {
     // SAFETY: InnerLockdepClass needs to be pinned, as CLockClassKey is part of some linked lists.
-    inner: Pin<Arc<InnerLockdepClass>>,
+    Dyn(Pin<Arc<InnerLockdepClass>>),
+    Static {
+        key: &'static CLockClassKey,
+        name: &'static CStr,
+    },
 }
 
-impl Default for LockdepClass {
-    fn default() -> Self {
-        Self::new()
-    }
+unsafe impl Send for AllocatedLockdepClass {}
+unsafe impl Sync for AllocatedLockdepClass {}
+
+#[derive(Clone)]
+pub struct LockdepClass {
+    inner: AllocatedLockdepClass,
 }
 
 impl LockdepClass {
-    pub fn new() -> LockdepClass {
+    pub fn new(name: &str) -> LockdepClass {
         #[cfunc]
         unsafe fn lockdep_register_key(key: *mut CLockClassKey) {
             r#"
@@ -52,8 +60,9 @@ impl LockdepClass {
                 .expect("Could not allocate lock_class_key"),
         );
 
+        let name = CString::new(name).expect("Cannot convert lockdep class name to C string");
         let this = LockdepClass {
-            inner: Arc::pin(InnerLockdepClass { c_key }),
+            inner: AllocatedLockdepClass::Dyn(Arc::pin(InnerLockdepClass { c_key, name })),
         };
         unsafe {
             lockdep_register_key(this.get_key());
@@ -61,8 +70,27 @@ impl LockdepClass {
         this
     }
 
+    pub const fn __internal_from_ref(
+        key: &'static CLockClassKey,
+        name: &'static CStr,
+    ) -> LockdepClass {
+        LockdepClass {
+            inner: AllocatedLockdepClass::Static { key, name },
+        }
+    }
+
     fn get_key(&self) -> *mut CLockClassKey {
-        UnsafeCell::get(&self.inner.c_key)
+        match &self.inner {
+            AllocatedLockdepClass::Dyn(inner) => UnsafeCell::get(&inner.c_key),
+            AllocatedLockdepClass::Static { key, .. } => *key as *const _ as *mut _,
+        }
+    }
+
+    fn c_name(&self) -> &CStr {
+        match &self.inner {
+            AllocatedLockdepClass::Dyn(inner) => inner.name.as_c_str(),
+            AllocatedLockdepClass::Static { name, .. } => name,
+        }
     }
 }
 
@@ -78,28 +106,83 @@ impl Drop for LockdepClass {
             lockdep_unregister_key(key);
             "#
         }
-        unsafe {
-            lockdep_unregister_key(self.get_key());
+
+        match self.inner {
+            AllocatedLockdepClass::Dyn(_) => unsafe {
+                lockdep_unregister_key(self.get_key());
+            },
+            AllocatedLockdepClass::Static { .. } => {}
         }
     }
 }
+
+macro_rules! new_static_lockdep_class {
+    ($vis:vis $name:ident) => {
+        $vis static $name: $crate::runtime::sync::LockdepClass = $crate::runtime::sync::LockdepClass::__internal_from_ref(
+            {
+                #[::lisakmod_macros::inlinec::cstatic]
+                static STATIC_LOCKDEP_CLASS_KEY: $crate::runtime::sync::CLockClassKey = (
+                    "#include <linux/mutex.h>",
+                    "struct lock_class_key STATIC_VARIABLE;"
+                );
+                unsafe {
+                    &STATIC_LOCKDEP_CLASS_KEY
+                }
+            },
+            match ::core::ffi::CStr::from_bytes_with_nul(
+                ::core::concat!(::core::stringify!($name),"\0").as_bytes()
+            ) {
+                Ok(s) => s,
+                Err(_) => unreachable!(),
+            }
+        );
+    };
+}
+#[allow(unused_imports)]
+pub(crate) use new_static_lockdep_class;
+
+pub trait LockdepSubclass: Default {
+    fn to_u32(&self) -> u32;
+}
+
+impl LockdepSubclass for u32 {
+    #[inline]
+    fn to_u32(&self) -> u32 {
+        *self
+    }
+}
+
+impl LockdepSubclass for () {
+    #[inline]
+    fn to_u32(&self) -> u32 {
+        0
+    }
+}
+
+type DefaultSubclass = ();
 
 pub trait LockGuard<'guard>
 where
     Self: Deref<Target = Self::T>,
 {
     type T;
+    type Subclass;
 }
 
 pub trait Lock
 where
     Self: Sync,
 {
+    type Subclass: LockdepSubclass;
     type T;
-    type Guard<'a>: LockGuard<'a, T = Self::T>
+    type Guard<'a>: LockGuard<'a, Subclass = Self::Subclass, T = Self::T>
     where
         Self: 'a;
-    fn lock(&self) -> Self::Guard<'_>;
+    #[inline]
+    fn lock(&self) -> Self::Guard<'_> {
+        self.lock_nested(<Self::Subclass as Default>::default())
+    }
+    fn lock_nested(&self, subclass: Self::Subclass) -> Self::Guard<'_>;
 
     #[inline]
     fn with_lock<U, F: FnOnce(&Self::T) -> U>(&self, f: F) -> U {
@@ -158,14 +241,14 @@ where
 /// it is possible to just copy it, and such reference can then be used to gain access to a ``&mut
 /// T``.
 pub unsafe trait PinnableLock: Lock {}
-unsafe impl<T: Send> PinnableLock for Mutex<T> {}
-unsafe impl<T: Send> PinnableLock for SpinLock<T> {}
+unsafe impl<T: Send, Subclass: LockdepSubclass> PinnableLock for Mutex<T, Subclass> {}
+unsafe impl<T: Send, Subclass: LockdepSubclass> PinnableLock for SpinLock<T, Subclass> {}
 
 pub struct PinnedLock<L> {
     inner: L,
 }
 
-impl_from_contained!((L) PinnedLock<L>, inner: L);
+impl_from_contained!((L,) PinnedLock<L>, inner: L);
 
 impl<L> PinnedLock<L>
 where
@@ -178,25 +261,37 @@ where
 
     #[inline]
     pub fn lock<'a>(self: Pin<&'a Self>) -> PinnedGuard<'a, L> {
+        self.lock_nested(<<L as Lock>::Subclass as Default>::default())
+    }
+
+    #[inline]
+    pub fn lock_nested<'a>(
+        self: Pin<&'a Self>,
+        subclass: <L as Lock>::Subclass,
+    ) -> PinnedGuard<'a, L> {
         // SAFETY: As per PinnableLock guarantees, there is nothing else that can leak an &mut T,
         // so we can safely create a PinnedGuard that will allow getting an Pin<&mut T>
         PinnedGuard {
-            guard: self.get_ref().inner.lock(),
+            guard: self.get_ref().inner.lock_nested(subclass),
         }
     }
 }
 
 opaque_type!(struct CSpinLock, "spinlock_t", "linux/spinlock.h");
 
-pub struct SpinLock<T> {
+pub struct SpinLock<T, Subclass = DefaultSubclass> {
     data: UnsafeCell<T>,
     // The Rust For Linux binding pins the spinlock binding, so do the same here to avoid any
     // problems.
     c_lock: Pin<KernelKBox<UnsafeCell<CSpinLock>>>,
+    // SAFETY: This needs to be freed after the CSpinLock that makes use of it as part of its
+    // lockdep map.
+    #[allow(dead_code)]
     lockdep_class: LockdepClass,
+    _phantom: PhantomData<Subclass>,
 }
 
-impl<T> SpinLock<T> {
+impl<T, Subclass> SpinLock<T, Subclass> {
     #[inline]
     pub fn new(x: T, lockdep_class: LockdepClass) -> Self {
         #[cfunc]
@@ -223,6 +318,7 @@ impl<T> SpinLock<T> {
             c_lock,
             lockdep_class,
             data: x.into(),
+            _phantom: PhantomData,
         }
     }
 
@@ -240,7 +336,7 @@ impl<T> SpinLock<T> {
     }
 }
 
-impl<T> Drop for SpinLock<T> {
+impl<T, Subclass> Drop for SpinLock<T, Subclass> {
     #[inline]
     fn drop(&mut self) {
         if self.is_locked() {
@@ -249,12 +345,14 @@ impl<T> Drop for SpinLock<T> {
     }
 }
 
-pub struct SpinLockGuard<'a, T> {
-    lock: &'a SpinLock<T>,
+pub struct SpinLockGuard<'a, T, Subclass> {
+    lock: &'a SpinLock<T, Subclass>,
     flags: u64,
+    // The kernel API forces us to unlock a lock in the same task that locked it.
+    _notsend: NotSend,
 }
 
-impl<T> SpinLockGuard<'_, T> {
+impl<T, Subclass> SpinLockGuard<'_, T, Subclass> {
     #[inline]
     #[allow(clippy::mut_from_ref)]
     fn get_mut(&self) -> &mut T {
@@ -270,7 +368,7 @@ impl<T> SpinLockGuard<'_, T> {
     }
 }
 
-impl<T> Deref for SpinLockGuard<'_, T> {
+impl<T, Subclass> Deref for SpinLockGuard<'_, T, Subclass> {
     type Target = T;
     #[inline]
     fn deref(&self) -> &T {
@@ -278,14 +376,14 @@ impl<T> Deref for SpinLockGuard<'_, T> {
     }
 }
 
-impl<T> DerefMut for SpinLockGuard<'_, T> {
+impl<T, Subclass> DerefMut for SpinLockGuard<'_, T, Subclass> {
     #[inline]
     fn deref_mut(&mut self) -> &mut T {
         self.get_mut()
     }
 }
 
-impl<T> Drop for SpinLockGuard<'_, T> {
+impl<T, Subclass> Drop for SpinLockGuard<'_, T, Subclass> {
     #[inline]
     fn drop(&mut self) {
         #[cfunc]
@@ -300,61 +398,83 @@ impl<T> Drop for SpinLockGuard<'_, T> {
     }
 }
 
-impl<'guard, T> LockGuard<'guard> for SpinLockGuard<'guard, T> {
+impl<'guard, T, Subclass> LockGuard<'guard> for SpinLockGuard<'guard, T, Subclass> {
     type T = T;
+    type Subclass = Subclass;
 }
 
-unsafe impl<T: Send> Sync for SpinLock<T> {}
-unsafe impl<T: Send> Send for SpinLock<T> {}
+unsafe impl<T: Send, Subclass> Sync for SpinLock<T, Subclass> {}
+unsafe impl<T: Send, Subclass> Send for SpinLock<T, Subclass> {}
 
-impl<T: Send> Lock for SpinLock<T> {
+impl<T, Subclass> Lock for SpinLock<T, Subclass>
+where
+    T: Send,
+    Subclass: LockdepSubclass,
+{
+    type Subclass = Subclass;
     type T = T;
     type Guard<'a>
-        = SpinLockGuard<'a, Self::T>
+        = SpinLockGuard<'a, Self::T, Self::Subclass>
     where
         Self: 'a;
 
     #[inline]
-    fn lock(&self) -> Self::Guard<'_> {
+    fn lock_nested(&self, subclass: Self::Subclass) -> Self::Guard<'_> {
         #[cfunc]
-        fn spinlock_lock(lock: &UnsafeCell<CSpinLock>) -> u64 {
+        fn spinlock_lock(lock: &UnsafeCell<CSpinLock>, subclass: c_uint) -> u64 {
             "#include <linux/spinlock.h>";
 
             r#"
             unsigned long flags;
-            spin_lock_irqsave(lock, flags);
+            spin_lock_irqsave_nested(lock, flags, subclass);
             return (uint64_t)flags;
             "#
         }
-        let flags = spinlock_lock(&self.c_lock);
+        let flags = spinlock_lock(&self.c_lock, subclass.to_u32());
 
-        SpinLockGuard { lock: self, flags }
+        SpinLockGuard {
+            lock: self,
+            flags,
+            _notsend: NotSend::new(),
+        }
     }
 }
 
-impl<'a, T: 'a + Send> _LockMut<'a> for SpinLock<T> {}
+impl<'a, T, Subclass> _LockMut<'a> for SpinLock<T, Subclass>
+where
+    T: 'a + Send,
+    Subclass: 'a + LockdepSubclass,
+{
+}
 
 opaque_type!(pub struct CMutex, "struct mutex", "linux/mutex.h");
 
 enum AllocatedCMutex {
-    KBox(Pin<KernelKBox<UnsafeCell<CMutex>>>, LockdepClass),
-    Static(Pin<&'static UnsafeCell<CMutex>>),
+    KBox {
+        c_mutex: Pin<KernelKBox<UnsafeCell<CMutex>>>,
+        #[allow(dead_code)]
+        lockdep_class: LockdepClass,
+    },
+    Static {
+        c_mutex: Pin<&'static UnsafeCell<CMutex>>,
+    },
 }
 
 impl AllocatedCMutex {
     #[inline]
     fn as_pin_ref(&self) -> Pin<&UnsafeCell<CMutex>> {
         match self {
-            AllocatedCMutex::KBox(c_mutex, _) => c_mutex.as_ref(),
-            AllocatedCMutex::Static(c_mutex) => *c_mutex,
+            AllocatedCMutex::KBox { c_mutex, .. } => c_mutex.as_ref(),
+            AllocatedCMutex::Static { c_mutex, .. } => *c_mutex,
         }
     }
 }
 
 macro_rules! new_static_mutex {
     ($vis:vis $name:ident, $ty:ty, $data:expr) => {
-        $vis static $name: $crate::runtime::sync::Mutex<$ty> =
-            $crate::runtime::sync::Mutex::__internal_from_ref($data, {
+        $vis static $name: $crate::runtime::sync::Mutex<$ty> = $crate::runtime::sync::Mutex::__internal_from_ref(
+            $data,
+            {
                 #[::lisakmod_macros::inlinec::cstatic]
                 static STATIC_MUTEX: $crate::runtime::sync::CMutex = (
                     "#include <linux/mutex.h>",
@@ -375,23 +495,28 @@ macro_rules! new_static_mutex {
                         &*( &STATIC_MUTEX as *const _ as *const ::core::cell::UnsafeCell<_>)
                     )
                 }
-            });
+            }
+        );
     };
 }
 #[allow(unused_imports)]
 pub(crate) use new_static_mutex;
 
-pub struct Mutex<T> {
+pub struct Mutex<T, Subclass = DefaultSubclass> {
     data: UnsafeCell<T>,
     // struct mutex contains a list_head, so it must be pinned.
     c_mutex: AllocatedCMutex,
+    _phantom: PhantomData<Subclass>,
 }
 
-impl<T> Mutex<T> {
+impl<T, Subclass> Mutex<T, Subclass> {
     #[inline]
     pub fn new(x: T, lockdep_class: LockdepClass) -> Self {
         #[cfunc]
-        fn mutex_alloc(lockdep_key: *mut CLockClassKey) -> Pin<KernelKBox<UnsafeCell<CMutex>>> {
+        fn mutex_alloc(
+            lockdep_key: *mut CLockClassKey,
+            name: &CStr,
+        ) -> Pin<KernelKBox<UnsafeCell<CMutex>>> {
             r#"
             #include <linux/mutex.h>
             #include <linux/slab.h>
@@ -402,23 +527,74 @@ impl<T> Mutex<T> {
             struct mutex *mutex = kzalloc(sizeof(struct mutex), GFP_KERNEL);
             if (mutex) {
                 mutex_init(mutex);
-                lockdep_set_class(mutex, lockdep_key);
+                lockdep_set_class_and_name(mutex, lockdep_key, name);
             }
             return mutex;
             "#
         }
-        let c_mutex = mutex_alloc(lockdep_class.get_key());
+        let c_mutex = mutex_alloc(lockdep_class.get_key(), lockdep_class.c_name());
         Mutex {
-            c_mutex: AllocatedCMutex::KBox(c_mutex, lockdep_class),
+            c_mutex: AllocatedCMutex::KBox {
+                c_mutex,
+                lockdep_class,
+            },
             data: x.into(),
+            _phantom: PhantomData,
         }
     }
+
+    // FIXME: this can only be done before the lock is locked for the first time, so disable this
+    // code for now as there is no immediate need.
+    // pub fn set_lockdep_class(&mut self, lockdep_class: LockdepClass) {
+    // assert!(
+    // !self.is_locked(),
+    // "Changing lockdep class while lock is taken will lead to a lock imbalance warning"
+    // );
+    // #[cfunc]
+    // fn set_lockdep_class(
+    // mutex: Pin<&UnsafeCell<CMutex>>,
+    // lockdep_key: *mut CLockClassKey,
+    // name: &CStr,
+    // ) {
+    // r#"
+    // #include <linux/mutex.h>
+    // #include <linux/slab.h>
+    // #include <linux/lockdep.h>
+    // "#;
+
+    // r#"
+    // lockdep_set_class_and_name(mutex, lockdep_key, name);
+    // "#
+    // }
+    // set_lockdep_class(
+    // self.c_mutex.as_pin_ref(),
+    // lockdep_class.get_key(),
+    // lockdep_class.c_name(),
+    // );
+    // }
+
+    // pub fn disable_lockdep(&mut self) {
+    // #[cfunc]
+    // fn lockdep_set_novalidate_class(mutex: Pin<&UnsafeCell<CMutex>>) {
+    // r#"
+    // #include <linux/mutex.h>
+    // #include <linux/slab.h>
+    // #include <linux/lockdep.h>
+    // "#;
+
+    // r#"
+    // lockdep_set_novalidate_class(mutex);
+    // "#
+    // }
+    // lockdep_set_novalidate_class(self.c_mutex.as_pin_ref());
+    // }
 
     #[inline]
     pub const fn __internal_from_ref(x: T, c_mutex: Pin<&'static UnsafeCell<CMutex>>) -> Self {
         Mutex {
-            c_mutex: AllocatedCMutex::Static(c_mutex),
+            c_mutex: AllocatedCMutex::Static { c_mutex },
             data: UnsafeCell::new(x),
+            _phantom: PhantomData,
         }
     }
 
@@ -436,9 +612,9 @@ impl<T> Mutex<T> {
     }
 }
 
-impl_from_contained!((T) Mutex<T>, data: T);
+impl_from_contained!((T, Subclass) Mutex<T, Subclass>, data: T);
 
-impl<T> Drop for Mutex<T> {
+impl<T, Subclass> Drop for Mutex<T, Subclass> {
     #[inline]
     fn drop(&mut self) {
         if self.is_locked() {
@@ -447,11 +623,13 @@ impl<T> Drop for Mutex<T> {
     }
 }
 
-pub struct MutexGuard<'a, T> {
-    mutex: &'a Mutex<T>,
+pub struct MutexGuard<'a, T, Subclass> {
+    mutex: &'a Mutex<T, Subclass>,
+    // The kernel API forces us to unlock a lock in the same task that locked it.
+    _notsend: NotSend,
 }
 
-impl<T> MutexGuard<'_, T> {
+impl<T, Subclass> MutexGuard<'_, T, Subclass> {
     #[inline]
     #[allow(clippy::mut_from_ref)]
     fn get_mut(&self) -> &mut T {
@@ -467,7 +645,7 @@ impl<T> MutexGuard<'_, T> {
     }
 }
 
-impl<T> Deref for MutexGuard<'_, T> {
+impl<T, Subclass> Deref for MutexGuard<'_, T, Subclass> {
     type Target = T;
     #[inline]
     fn deref(&self) -> &T {
@@ -475,14 +653,14 @@ impl<T> Deref for MutexGuard<'_, T> {
     }
 }
 
-impl<T> DerefMut for MutexGuard<'_, T> {
+impl<T, Subclass> DerefMut for MutexGuard<'_, T, Subclass> {
     #[inline]
     fn deref_mut(&mut self) -> &mut T {
         self.get_mut()
     }
 }
 
-impl<T> Drop for MutexGuard<'_, T> {
+impl<T, Subclass> Drop for MutexGuard<'_, T, Subclass> {
     #[inline]
     fn drop(&mut self) {
         #[cfunc]
@@ -497,39 +675,52 @@ impl<T> Drop for MutexGuard<'_, T> {
     }
 }
 
-impl<'guard, T> LockGuard<'guard> for MutexGuard<'guard, T> {
+impl<'guard, T, Subclass> LockGuard<'guard> for MutexGuard<'guard, T, Subclass> {
     type T = T;
+    type Subclass = Subclass;
 }
 
-unsafe impl<T: Send> Send for Mutex<T> {}
-unsafe impl<T: Send> Sync for Mutex<T> {}
+unsafe impl<T: Send, Subclass> Send for Mutex<T, Subclass> {}
+unsafe impl<T: Send, Subclass> Sync for Mutex<T, Subclass> {}
 
-impl<T: Send> Lock for Mutex<T> {
+impl<T: Send, Subclass> Lock for Mutex<T, Subclass>
+where
+    Subclass: LockdepSubclass,
+{
+    type Subclass = Subclass;
     type T = T;
     type Guard<'a>
-        = MutexGuard<'a, Self::T>
+        = MutexGuard<'a, Self::T, Self::Subclass>
     where
         Self: 'a;
 
     #[inline]
-    fn lock(&self) -> Self::Guard<'_> {
+    fn lock_nested(&self, subclass: Self::Subclass) -> Self::Guard<'_> {
         #[cfunc]
-        fn mutex_lock(mutex: &UnsafeCell<CMutex>) {
+        fn mutex_lock_nested(mutex: &UnsafeCell<CMutex>, subclass: c_uint) {
             "#include <linux/mutex.h>";
 
             r#"
-            return mutex_lock(mutex);
+            return mutex_lock_nested(mutex, subclass);
             "#
         }
-        mutex_lock(&self.c_mutex.as_pin_ref());
+        mutex_lock_nested(&self.c_mutex.as_pin_ref(), subclass.to_u32());
 
-        MutexGuard { mutex: self }
+        MutexGuard {
+            mutex: self,
+            _notsend: NotSend::new(),
+        }
     }
 }
 
-impl<'a, T: 'a + Send> _LockMut<'a> for Mutex<T> {}
+impl<'a, T, Subclass> _LockMut<'a> for Mutex<T, Subclass>
+where
+    T: 'a + Send,
+    Subclass: 'a + LockdepSubclass,
+{
+}
 
-pub struct Rcu<T> {
+pub struct Rcu<T, Subclass = DefaultSubclass> {
     // This pointer is actually a Box in disguise obtained with Box::into_raw(). We keep it as a
     // raw pointer so that we can use C's rcu_assign_pointer() on it.
     //
@@ -539,10 +730,13 @@ pub struct Rcu<T> {
     data: Cell<*const T>,
 
     // Mutex used to protect the writers.
-    writer_mutex: Mutex<()>,
+    writer_mutex: Mutex<(), Subclass>,
 }
 
-impl<T> Rcu<T> {
+impl<T, Subclass> Rcu<T, Subclass>
+where
+    Subclass: LockdepSubclass,
+{
     pub fn new(data: T, lockdep_class: LockdepClass) -> Self {
         Rcu {
             data: Cell::new(Box::into_raw(Box::new(data))),
@@ -604,16 +798,19 @@ impl<T> Rcu<T> {
     }
 }
 
-pub struct RcuGuard<'a, T> {
+pub struct RcuGuard<'a, T, Subclass> {
     data: *const T,
-    _phantom: PhantomData<&'a T>,
+    _phantom: PhantomData<(&'a T, Subclass)>,
+    // The kernel API forces us to unlock a lock in the same task that locked it.
+    _notsend: NotSend,
 }
 
-impl<'guard, T> LockGuard<'guard> for RcuGuard<'guard, T> {
+impl<'guard, T, Subclass> LockGuard<'guard> for RcuGuard<'guard, T, Subclass> {
     type T = T;
+    type Subclass = Subclass;
 }
 
-impl<T> Deref for RcuGuard<'_, T> {
+impl<T, Subclass> Deref for RcuGuard<'_, T, Subclass> {
     type Target = T;
 
     #[inline]
@@ -624,7 +821,7 @@ impl<T> Deref for RcuGuard<'_, T> {
     }
 }
 
-impl<T> Drop for RcuGuard<'_, T> {
+impl<T, Subclass> Drop for RcuGuard<'_, T, Subclass> {
     fn drop(&mut self) {
         #[cfunc]
         fn rcu_unlock() {
@@ -638,18 +835,23 @@ impl<T> Drop for RcuGuard<'_, T> {
     }
 }
 
-unsafe impl<T: Send> Sync for Rcu<T> {}
-unsafe impl<T: Send> Send for Rcu<T> {}
+unsafe impl<T: Send, Subclass> Sync for Rcu<T, Subclass> {}
+unsafe impl<T: Send, Subclass> Send for Rcu<T, Subclass> {}
 
-impl<T: Send> Lock for Rcu<T> {
+impl<T, Subclass> Lock for Rcu<T, Subclass>
+where
+    T: Send,
+    Subclass: LockdepSubclass,
+{
+    type Subclass = Subclass;
     type T = T;
     type Guard<'a>
-        = RcuGuard<'a, Self::T>
+        = RcuGuard<'a, Self::T, Self::Subclass>
     where
         Self: 'a;
 
     #[inline]
-    fn lock(&self) -> Self::Guard<'_> {
+    fn lock_nested(&self, _subclass: Subclass) -> Self::Guard<'_> {
         #[cfunc]
         fn rcu_lock(ptr: *const c_void) -> *const c_void {
             "#include <linux/rcupdate.h>";
@@ -671,6 +873,35 @@ impl<T: Send> Lock for Rcu<T> {
         RcuGuard {
             data,
             _phantom: PhantomData,
+            _notsend: NotSend::new(),
         }
     }
+}
+
+pub struct LockdepGuard {}
+impl Drop for LockdepGuard {
+    fn drop(&mut self) {
+        #[cfunc]
+        fn lockdep_on() {
+            "#include <linux/lockdep.h>";
+
+            r#"
+            lockdep_on();
+            "#
+        }
+        lockdep_on();
+    }
+}
+
+pub fn disable_lockdep() -> LockdepGuard {
+    #[cfunc]
+    fn lockdep_off() {
+        "#include <linux/lockdep.h>";
+
+        r#"
+        lockdep_off();
+        "#
+    }
+    lockdep_off();
+    LockdepGuard {}
 }

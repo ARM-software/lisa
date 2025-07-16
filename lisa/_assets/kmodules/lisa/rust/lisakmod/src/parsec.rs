@@ -357,19 +357,19 @@ where
             }
         });
         let out = iter.collect();
-        if let Some(min) = min {
-            if len < min {
-                return ParseResult::Failure {
-                    err: E::from_msg("Not enough items consumed"),
-                };
-            }
+        if let Some(min) = min
+            && len < min
+        {
+            return ParseResult::Failure {
+                err: E::from_msg("Not enough items consumed"),
+            };
         }
-        if let Some(max) = max {
-            if len > max {
-                return ParseResult::Failure {
-                    err: E::from_msg("Too many items consumed"),
-                };
-            }
+        if let Some(max) = max
+            && len > max
+        {
+            return ParseResult::Failure {
+                err: E::from_msg("Too many items consumed"),
+            };
         }
         ParseResult::Success {
             remainder: saved,
