@@ -11,17 +11,24 @@
 #include "wq.h"
 #include "tp.h"
 
+#define PATH_SIZE		64
+
+#define MAX_SPAN_SIZE		128
+#define __SPAN_SIZE		(round_up(NR_CPUS, 4)/4)
+#define SPAN_SIZE		(__SPAN_SIZE > MAX_SPAN_SIZE ? MAX_SPAN_SIZE : __SPAN_SIZE)
+
+
 #if HAS_KERNEL_FEATURE(CFS_PELT)
 static inline void _trace_cfs(struct cfs_rq *cfs_rq,
-			      void (*trace_event)(int, char*,
+			      void (*trace_event)(int, const char*,
 						  const struct sched_avg*))
 {
 	if (cfs_rq) {
 		const struct sched_avg *avg = cfs_rq_avg(cfs_rq);
-		char path[PATH_SIZE];
+		char tmp[PATH_SIZE];
 		int cpu = cfs_rq_cpu(cfs_rq);
 
-		cfs_rq_path(cfs_rq, path, PATH_SIZE);
+		const char *path = cfs_rq_path(cfs_rq, tmp, PATH_SIZE);
 		trace_event(cpu, path, avg);
 	}
 }
@@ -35,13 +42,13 @@ static inline void _trace_se(struct sched_entity *se,
 {
 	const struct cfs_rq *gcfs_rq = get_group_cfs_rq(se);
 	const struct cfs_rq *cfs_rq = get_se_cfs_rq(se);
-	char path[PATH_SIZE];
+	char tmp[PATH_SIZE];
 
-	cfs_rq_path(gcfs_rq, path, PATH_SIZE);
+	const char *path = gcfs_rq ? cfs_rq_path(gcfs_rq, tmp, PATH_SIZE) : "";
 	int cpu = cfs_rq ? cfs_rq_cpu(cfs_rq) : -1;
 
 	struct task_struct *p = gcfs_rq ? NULL : container_of(se, struct task_struct, se);
-	char *comm = p ? p->comm : "(null)";
+	char *comm = p ? p->comm : "";
 	pid_t pid = p ? p->pid : -1;
 
 	trace_event(cpu, path, comm, pid, &se->avg);
@@ -139,7 +146,8 @@ static void sched_overutilized_probe(void *feature, struct root_domain *rd, bool
 	if (trace_lisa__sched_overutilized_enabled()) {
 		char span[SPAN_SIZE];
 
-		cpumap_print_to_pagebuf(false, span, rd_span(rd));
+		ssize_t count = cpumap_print_to_pagebuf(false, span, rd_span(rd));
+		BUG_ON(count >= ARRAY_SIZE(span));
 
 		trace_lisa__sched_overutilized(overutilized, span);
 	}

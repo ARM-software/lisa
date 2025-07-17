@@ -66,15 +66,16 @@ static inline bool task_group_is_autogroup(const struct task_group *tg)
 #endif
 
 #if HAS_TYPE(struct, task_group)
-static int autogroup_path(const struct task_group *tg, char *buf, int buflen)
+static const char *autogroup_path(const struct task_group *tg, char *buf, int buflen)
 {
 #    if HAS_KERNEL_FEATURE(SCHED_AUTOGROUP) && HAS_MEMBER(struct, autogroup, id)
 	if (!task_group_is_autogroup(tg))
-		return 0;
+		return "";
 
-	return snprintf(buf, buflen, "%s-%ld", "/autogroup", tg->autogroup->id);
+	snprintf(buf, buflen, "%s-%ld", "/autogroup", tg->autogroup->id);
+	return buf;
 #    else
-	return 0;
+	return "";
 #    endif
 }
 #endif
@@ -103,19 +104,17 @@ static inline unsigned long uclamp_rq_util_with(const struct rq *rq, unsigned lo
 
 
 #if HAS_TYPE(struct, cfs_rq)
-static inline void cfs_rq_tg_path(const struct cfs_rq *cfs_rq, char *path, int len)
+static inline const char *cfs_rq_tg_path(const struct cfs_rq *cfs_rq, char *path, int len)
 {
-	if (!path)
-		return;
-
 #    if defined(CONFIG_FAIR_GROUP_SCHED) && HAS_MEMBER(struct, cfs_rq, tg) && HAS_MEMBER(struct, task_group, css) && HAS_MEMBER(struct, cgroup_subsys_state, cgroup)
-	if (cfs_rq && task_group_is_autogroup(cfs_rq->tg))
-		autogroup_path(cfs_rq->tg, path, len);
-	else if (cfs_rq && cfs_rq->tg->css.cgroup)
+	if (cfs_rq && task_group_is_autogroup(cfs_rq->tg)) {
+		return autogroup_path(cfs_rq->tg, path, len);
+	} else if (cfs_rq && cfs_rq->tg->css.cgroup) {
 		cgroup_path((struct cgroup *)cfs_rq->tg->css.cgroup, path, len);
-	else
+		return path;
+	}
 #    endif
-		strscpy(path, "(null)", len);
+	return "";
 }
 #endif
 
@@ -150,17 +149,9 @@ static inline const struct sched_avg *cfs_rq_avg(const struct cfs_rq *cfs_rq)
 #    endif
 }
 
-static inline char *cfs_rq_path(const struct cfs_rq *cfs_rq, char *str, int len)
+static inline const char *cfs_rq_path(const struct cfs_rq *cfs_rq, char *str, int len)
 {
-	if (!cfs_rq) {
-		if (str)
-			strscpy(str, "(null)", len);
-		else
-			return NULL;
-	}
-
-	cfs_rq_tg_path(cfs_rq, str, len);
-	return str;
+	return cfs_rq_tg_path(cfs_rq, str, len);
 }
 
 static inline int cfs_rq_cpu(const struct cfs_rq *cfs_rq)
