@@ -106,7 +106,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         # Legacy sched_load_avg_* events don't have a `path` field.
         if not event.startswith('sched_load_avg_'):
             if event in self._SCHED_PELT_SE_NAMES:
-                df = df[df.path == "(null)"]
+                df = df[(df.path == "(null)") | (df.path == "")]
 
             if event in self._SCHED_PELT_CFS_NAMES:
                 df = df[df.path == "/"]
