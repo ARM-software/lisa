@@ -337,7 +337,7 @@ impl<'a> Bitmap<'a> {
     #[inline]
     pub(crate) fn from_bytes<'abi>(data: &'a [u8], abi: &'abi Abi) -> Self {
         let chunk_size: usize = abi.long_size.into();
-        assert!(data.len() % chunk_size == 0);
+        assert!(data.len().is_multiple_of(chunk_size));
         Bitmap {
             data,
             chunk_size: abi.long_size,
