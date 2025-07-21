@@ -164,43 +164,7 @@ def prepare(home, enable_plots, outdir):
     )
     os.environ.update(json.loads(out))
 
-
-
-    default_version = getvar('READTHEDOCS_VERSION') if RTD else VERSION_TOKEN
-    doc_version = getvar('LISA_DOC_VERSION', default_version)
-
-    try:
-        unversioned_url = getvar('LISA_DOC_BASE_URL')
-    # Local build
-    except KeyError:
-        base_url = f'file:///{outdir}'
-        versions = [
-            {
-                'name': doc_version,
-                'version': doc_version,
-                'url': base_url,
-            }
-        ]
-    else:
-        unversioned_url = str(unversioned_url).rstrip('/')
-
-        try:
-            versions = getvar('LISA_DOC_ALL_VERSIONS')
-        except KeyError:
-            versions = [doc_version]
-        else:
-            versions = json.loads(versions)
-
-        versions = [
-            {
-                'name': version,
-                'version': version,
-                'url': f'{unversioned_url}/{version}',
-            }
-            for version in versions
-        ]
-        base_url = f'{unversioned_url}/{doc_version}'
-
+    base_url, versions, doc_version = get_base_url(outdir=outdir)
     versions_filename = 'versions.json'
     versions_path = outdir / versions_filename
     with open(versions_path, 'w') as f:
@@ -439,6 +403,51 @@ pygments_style = 'sphinx'
 # a list of builtin themes.
 html_theme = 'pydata_sphinx_theme'
 
+def get_base_url(outdir=None):
+    default_version = getvar('READTHEDOCS_VERSION') if RTD else VERSION_TOKEN
+    doc_version = getvar('LISA_DOC_VERSION', default_version)
+
+    try:
+        unversioned_url = getvar('LISA_DOC_BASE_URL')
+    # Local build
+    except KeyError:
+        if outdir is None:
+            raise ValueError('Neither LISA_DOC_BASE_URL nor outdir were specified')
+        else:
+            base_url = f'file:///{outdir}'
+            versions = [
+                {
+                    'name': doc_version,
+                    'version': doc_version,
+                    'url': base_url,
+                }
+            ]
+    else:
+        unversioned_url = str(unversioned_url).rstrip('/')
+
+        try:
+            versions = getvar('LISA_DOC_ALL_VERSIONS')
+        except KeyError:
+            versions = [doc_version]
+        else:
+            versions = json.loads(versions)
+
+        versions = [
+            {
+                'name': version,
+                'version': version,
+                'url': f'{unversioned_url}/{version}',
+            }
+            for version in versions
+        ]
+        base_url = f'{unversioned_url}/{doc_version}'
+
+    return (base_url, versions, doc_version)
+
+try:
+    html_baseurl = get_base_url(outdir=None)[0]
+except ValueError:
+    pass
 
 # Allow interactive bokeh plots in the documentation
 try:
