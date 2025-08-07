@@ -278,6 +278,11 @@ def _logical_plan_update_paths(plan, update_path):
                     if isinstance(paths, str):
                         path = paths
                         return str(update_path(path))
+                    elif isinstance(paths, Mapping):
+                        return {
+                            key: dispatch_update(path)
+                            for key, path in paths.items()
+                        }
                     elif isinstance(paths, Iterable):
                         return [
                             dispatch_update(path)
