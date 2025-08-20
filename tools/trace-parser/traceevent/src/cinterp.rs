@@ -337,7 +337,7 @@ impl<'a> Bitmap<'a> {
     #[inline]
     pub(crate) fn from_bytes<'abi>(data: &'a [u8], abi: &'abi Abi) -> Self {
         let chunk_size: usize = abi.long_size.into();
-        assert!(data.len() % chunk_size == 0);
+        assert!(data.len().is_multiple_of(chunk_size));
         Bitmap {
             data,
             chunk_size: abi.long_size,
@@ -1237,7 +1237,7 @@ impl Expr {
         let recurse = |expr: &Expr| expr.typ(penv);
 
         match self {
-            Evaluated(typ, _) => Ok(typ.clone()),
+            Evaluated(expr, _) => recurse(expr),
             Uninit => Ok(Type::Unknown),
             Variable(typ, _id) => Ok(typ.clone()),
 
@@ -1424,18 +1424,10 @@ impl Expr {
         CE: CompileEnv<'ce>,
     {
         let compiled = self.clone().compile(cenv);
-        self._do_simplify(cenv, compiled)
+        self._simplify(cenv, compiled)
     }
 
-    fn _simplify<'ce, CE>(self, cenv: &'ce CE) -> Expr
-    where
-        CE: ?Sized + CompileEnv<'ce>,
-    {
-        let compiled = self.clone()._compile(cenv);
-        self._do_simplify(cenv, compiled)
-    }
-
-    fn _do_simplify<'ce, CE>(
+    fn _simplify<'ce, CE>(
         self,
         cenv: &'ce CE,
         compiled: Result<Box<dyn Evaluator>, CompileError>,
@@ -1444,12 +1436,9 @@ impl Expr {
         CE: ?Sized + CompileEnv<'ce>,
     {
         match compiled {
-            Ok(eval) => match self.typ(cenv) {
-                Ok(typ) => match eval.eval(cenv.as_dyn()) {
-                    Ok(value) => match value.into_static() {
-                        Ok(value) => Expr::Evaluated(typ, value),
-                        Err(_) => self,
-                    },
+            Ok(eval) => match eval.eval(cenv.as_dyn()) {
+                Ok(value) => match value.into_static() {
+                    Ok(value) => Expr::Evaluated(Box::new(self), value),
                     Err(_) => self,
                 },
                 Err(_) => self,
@@ -1482,7 +1471,11 @@ impl Expr {
         let abi = cenv.abi();
         let cannot_handle = |expr| Err(CompileError::ExprNotHandled(expr));
         let recurse = |expr: Expr| expr._compile(cenv);
-        let simplify = |expr: Expr| expr._simplify(cenv);
+        let recurse_simplify = |expr: Expr| {
+            let compiled = recurse(expr.clone());
+            expr._simplify(cenv, compiled)
+        };
+        let recurse_typ = |expr: &Expr| expr.typ(cenv);
         let uintptr_t = abi.ulong_typ();
 
         fn to_signed(x: u64) -> Result<i64, EvalError> {
@@ -1504,8 +1497,8 @@ impl Expr {
                 let eval_lhs = recurse(lhs.clone())?;
                 let eval_rhs = recurse(rhs.clone())?;
 
-                let lhstyp = lhs.typ(cenv)?;
-                let rhstyp = rhs.typ(cenv)?;
+                let lhstyp = recurse_typ(&lhs)?;
+                let rhstyp = recurse_typ(&rhs)?;
 
                 let lhsisarith = lhstyp.is_arith();
                 let rhsisarith = rhstyp.is_arith();
@@ -1569,8 +1562,8 @@ impl Expr {
                 let eval_lhs = recurse(lhs.clone())?;
                 let eval_rhs = recurse(rhs.clone())?;
 
-                let lhs = lhs.typ(cenv)?.to_arith(abi)?;
-                let rhs = rhs.typ(cenv)?.to_arith(abi)?;
+                let lhs = recurse_typ(&lhs)?.to_arith(abi)?;
+                let rhs = recurse_typ(&rhs)?.to_arith(abi)?;
 
                 let (_typ, conv_lhs, conv_rhs) = convert_arith_ops(abi, lhs, rhs)?;
 
@@ -1638,13 +1631,13 @@ impl Expr {
         }
 
         let eval = match self {
-            Evaluated(_typ, value) => Ok(new_dyn_evaluator(move |_| Ok(value.clone()))),
+            Evaluated(_, value) => Ok(new_dyn_evaluator(move |_| Ok(value.clone()))),
             Variable(_typ, id) => Ok(new_dyn_evaluator(move |env| match id.deref() {
                 "REC" => Ok(Value::Variable(id.clone())),
                 _ => env.variable_value(&id),
             })),
             MemberAccess(expr, member) => {
-                let expr = simplify(*expr);
+                let expr = recurse_simplify(*expr);
                 match &expr {
                     Variable(_, id) | Evaluated(_, Value::Variable(id)) if id == "REC" => {
                         cenv.field_getter(&member)
@@ -1681,13 +1674,15 @@ impl Expr {
                 Ok(new_dyn_evaluator(move |_| size.clone()))
             }
             SizeofExpr(expr) => {
-                let typ = expr.typ(cenv)?;
+                let typ = recurse_typ(&expr)?;
                 recurse(SizeofType(typ))
             }
             Cast(typ, expr) => {
                 let expr = *expr;
                 let typ = typ.decay_to_ptr();
-                let expr_typ = expr.typ(cenv)?.decay_to_ptr();
+                // FIXME: we already recurse once with recurse_typ(), then we recurse again later
+                // in the function. This brings O(N2) complexity.
+                let expr_typ = recurse_typ(&expr)?.decay_to_ptr();
 
                 let expr_typ: &Type = expr_typ.resolve_wrapper();
                 let typ: &Type = typ.resolve_wrapper();
@@ -1842,8 +1837,8 @@ impl Expr {
                 let eval_lhs = recurse(lhs.clone())?;
                 let eval_rhs = recurse(rhs.clone())?;
 
-                let lhs_typ = lhs.typ(cenv)?;
-                let rhs_typ = rhs.typ(cenv)?;
+                let lhs_typ = recurse_typ(&lhs)?;
+                let rhs_typ = recurse_typ(&rhs)?;
 
                 let lhs_info = lhs_typ.arith_info();
                 let rhs_info = rhs_typ.arith_info();
@@ -1875,7 +1870,9 @@ impl Expr {
                     // If we access element 0 at compile time, that is simply
                     // dereferencing the value as a pointer.
                     Ok(Value::U64Scalar(0) | Value::I64Scalar(0)) => {
-                        let expr_typ = expr.typ(cenv)?;
+                        // FIXME: we recurse once here with recurse_typ() then recurse later in the
+                        // function. This brings O(N2) complexity.
+                        let expr_typ = recurse_typ(&expr)?;
                         let expr_typ = expr_typ.resolve_wrapper();
 
                         match expr_typ {

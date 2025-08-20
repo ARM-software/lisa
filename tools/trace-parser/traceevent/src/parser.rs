@@ -491,7 +491,7 @@ pub(crate) mod tests {
         T: DisplayErrViaDisplay + Display,
     {
         fn display_err(&self) -> StdString {
-            format!("{}", self)
+            format!("{self}")
         }
     }
 
