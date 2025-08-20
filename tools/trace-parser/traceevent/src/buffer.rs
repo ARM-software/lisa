@@ -975,7 +975,7 @@ where
                     // it (without running their Drop implementation).
                     //
                     // Reduce the overhead of reseting the scratch allocator.
-                    if (i % 16) == 0 {
+                    if i.is_multiple_of(16) {
                         visitor_scratch.reset();
                     }
                     x
@@ -1167,7 +1167,7 @@ where
 {
     let parse_u32 = |input| header.kernel_abi().parse_u32(input);
     let parse_u64 = |input| header.kernel_abi().parse_u64(input);
-    assert!(page_size % 2 == 0);
+    assert!(page_size.is_multiple_of(2));
     let data_size_mask = (1u64 << 27) - 1;
     let missing_events_mask = 1u64 << 31;
     let missing_events_stored_mask = 1u64 << 30;

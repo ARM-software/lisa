@@ -272,7 +272,7 @@ pub enum Expr {
 
     /// Pre-evaluated value grafted in the AST. This allows for example an extension macro to
     /// provide a typed value directly.
-    Evaluated(Type, Value<'static>),
+    Evaluated(Box<Expr>, Value<'static>),
 }
 
 impl Expr {
