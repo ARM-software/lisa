@@ -502,7 +502,7 @@ pub struct FileInner {
 impl_from_contained!(()FileInner, c_bin_attr: CBinAttribute);
 
 impl FileInner {
-    unsafe fn from_attr<'a>(attr: *const UnsafeCell<_CBinAttribute>) -> Pin<&'a FileInner> {
+    unsafe fn from_attr<'a>(attr: *const _CBinAttribute) -> Pin<&'a FileInner> {
         let attr = attr as *const CBinAttribute;
         let inner: *const FileInner = unsafe { FromContained::from_contained(attr) };
         let inner: &FileInner = unsafe { inner.as_ref().unwrap() };
@@ -664,6 +664,7 @@ where
             offset: c_longlong,
             count: usize,
         ) -> Result<usize, NegativeError<usize>> {
+            let attr = UnsafeCell::raw_get(attr);
             let inner = unsafe { FileInner::from_attr(attr) };
             let out = unsafe { core::slice::from_raw_parts_mut(out as *mut u8, count) };
             if offset < 0 {
@@ -684,6 +685,7 @@ where
             offset: c_longlong,
             count: usize,
         ) -> Result<usize, NegativeError<usize>> {
+            let attr = UnsafeCell::raw_get(attr);
             let inner = unsafe { FileInner::from_attr(attr) };
             let in_ = unsafe { core::slice::from_raw_parts_mut(in_ as *mut u8, count) };
             if offset < 0 {
