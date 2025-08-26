@@ -502,7 +502,7 @@ pub struct FileInner {
 impl_from_contained!(()FileInner, c_bin_attr: CBinAttribute);
 
 impl FileInner {
-    unsafe fn from_attr<'a>(attr: *const UnsafeCell<_CBinAttribute>) -> Pin<&'a FileInner> {
+    unsafe fn from_attr<'a>(attr: *const _CBinAttribute) -> Pin<&'a FileInner> {
         let attr = attr as *const CBinAttribute;
         let inner: *const FileInner = unsafe { FromContained::from_contained(attr) };
         let inner: &FileInner = unsafe { inner.as_ref().unwrap() };
@@ -652,11 +652,11 @@ where
         max_size: usize,
         ops: Ops,
     ) -> Result<BinFile<Ops>, Error> {
-        #[cexport]
+        #[cexport(export_name = "lisa_sysfs_rust_bin_read")]
         fn read(
             _file: &mut CFile,
             _c_kobj: &mut CKObj,
-            attr: *const UnsafeCell<_CBinAttribute>,
+            attr: *const _CBinAttribute,
             // We need to use an FFI type that will turn into "char *" rather than "unsigned char*"
             // or "signed char *", otherwise CFI will get upset as that function will be used for
             // indirect calls by the sysfs infrastructure.
@@ -675,11 +675,11 @@ where
             }
         }
 
-        #[cexport]
+        #[cexport(export_name = "lisa_sysfs_rust_bin_write")]
         fn write(
             _file: &mut CFile,
             _c_kobj: &mut CKObj,
-            attr: *const UnsafeCell<_CBinAttribute>,
+            attr: *const _CBinAttribute,
             in_: *mut c_realchar,
             offset: c_longlong,
             count: usize,
@@ -700,19 +700,37 @@ where
             attr: *mut _CBinAttribute,
             name: &CStr,
             mode: FsMode,
-            read: *mut c_void,
-            write: *mut c_void,
         ) {
             r#"
             #include <linux/sysfs.h>
+            #include <linux/types.h>
+            #include <linux/version.h>
+
+            // We create these shims so that we can easily swap pick between multiple definitions
+            // of sysfs_cb_attr_type based on the kernel version so that we don't have CFI
+            // violations. This way, all the version-specific handling stays in C code, Rust only
+            // ever sees the most restrictive const flavor of the API.
+            #if LINUX_VERSION_CODE >= KERNEL_VERSION(6,16,0)
+                typedef const struct bin_attribute *sysfs_cb_attr_type;
+            #else
+                typedef struct bin_attribute *sysfs_cb_attr_type;
+            #endif
+
+            static ssize_t lisa_sysfs_c_bin_read(struct file *file, struct kobject *kobj, sysfs_cb_attr_type attr, char *out, loff_t offset, size_t count) {
+                return lisa_sysfs_rust_bin_read(file, kobj, attr, out, offset, count);
+            }
+
+            static ssize_t lisa_sysfs_c_bin_write(struct file *file, struct kobject *kobj, sysfs_cb_attr_type attr, char *out, loff_t offset, size_t count) {
+                return lisa_sysfs_rust_bin_write(file, kobj, attr, out, offset, count);
+            }
             "#;
 
             r#"
             sysfs_bin_attr_init(attr);
             attr->attr.name = name;
             attr->attr.mode = mode;
-            attr->read = read;
-            attr->write = write;
+            attr->read = lisa_sysfs_c_bin_read;
+            attr->write = lisa_sysfs_c_bin_write;
             "#
         }
 
@@ -733,8 +751,6 @@ where
                 inner.c_bin_attr.0.get(),
                 inner.name.as_c_str(),
                 mode,
-                read as *mut c_void,
-                write as *mut c_void,
             );
         }
 
