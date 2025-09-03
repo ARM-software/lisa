@@ -20,3 +20,4 @@ module_init(modinit);
 module_exit(modexit);
 
 MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("LISA (Linux Integrated System Analysis) companion module");
