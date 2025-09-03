@@ -252,7 +252,7 @@ where
     type StateMap<'scope, 'scopeenv> = BTreeMap<EventId, EventCtx<SharedState<'scope, 'scopeenv>>>;
 
     macro_rules! chunk_append {
-        ($scrutinee:expr, $($arms:expr),*) => {
+        ($($arms:expr),*) => {
             loop {
                 $(
                     $arms;
