@@ -1409,7 +1409,11 @@ where
                     // u8 [] are considered as byte buffer
                     Type::Array(inner, _) | Type::Pointer(inner)
                         if matches!(
-                        &**inner, Type::Typedef(_, name) if name == "u8") =>
+                            &**inner,
+                            Type::Typedef(_, name) if (
+                                name == "u8" || name == "uint8_t"
+                            )
+                        ) =>
                     {
                         Ok(DataType::Binary)
                     }
