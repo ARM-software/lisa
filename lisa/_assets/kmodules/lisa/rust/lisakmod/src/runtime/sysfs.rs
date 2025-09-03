@@ -696,11 +696,7 @@ where
         }
 
         #[cfunc]
-        unsafe fn init_bin_attribute(
-            attr: *mut _CBinAttribute,
-            name: &CStr,
-            mode: FsMode,
-        ) {
+        unsafe fn init_bin_attribute(attr: *mut _CBinAttribute, name: &CStr, mode: FsMode) {
             r#"
             #include <linux/sysfs.h>
             #include <linux/types.h>
@@ -747,11 +743,7 @@ where
             ops: Box::new(ops),
         }));
         unsafe {
-            init_bin_attribute(
-                inner.c_bin_attr.0.get(),
-                inner.name.as_c_str(),
-                mode,
-            );
+            init_bin_attribute(inner.c_bin_attr.0.get(), inner.name.as_c_str(), mode);
         }
 
         #[cfunc]

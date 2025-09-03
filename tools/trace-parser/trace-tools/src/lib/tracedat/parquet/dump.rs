@@ -252,7 +252,7 @@ where
     type StateMap<'scope, 'scopeenv> = BTreeMap<EventId, EventCtx<SharedState<'scope, 'scopeenv>>>;
 
     macro_rules! chunk_append {
-        ($scrutinee:expr, $($arms:expr),*) => {
+        ($($arms:expr),*) => {
             loop {
                 $(
                     $arms;
@@ -268,11 +268,11 @@ where
             let scrutinee = $scrutinee;
 
             macro_rules! default_error {
-                () => {
+                () => {{
                     break Err(MainError::DataMismatchingSchema(
                         scrutinee.1.into_static().map(Box::new).ok(),
-                    ))
-                };
+                    ));
+                }};
             }
 
             macro_rules! basic {
@@ -425,11 +425,13 @@ where
                                                         integer!(FieldArray::U32, Value::U64Scalar, cast!(u64, u32)),
                                                         integer!(FieldArray::U64, Value::U64Scalar, identity),
 
+                                                        // String
                                                         basic!((FieldArray::Str(xs), x) => {
                                                             xs.append_option(x.deref_ptr(&visitor.buffer_env())?.to_str());
                                                             xs
                                                         }),
 
+                                                        // Bool
                                                         basic!((FieldArray::Bool(xs), Value::I64Scalar(x)) => {
                                                             xs.append_option(Some(x != 0));
                                                             xs
@@ -472,7 +474,6 @@ where
                                                             xs.append_value(bytemuck::cast_slice(&x));
                                                             xs
                                                         }),
-
 
                                                         // Lists
                                                         basic!((FieldArray::ListBool(xs), Value::U8Array(x)) => {
@@ -1383,7 +1384,11 @@ where
         let long_size = header.kernel_abi().long_size;
 
         let field_cols = fields.into_iter().map(|(name, typ)| {
-            fn guess_typ(typ: &Type, char_typ: &Type, long_size: &LongSize) -> Result<DataType, MainError> {
+            fn guess_typ(
+                typ: &Type,
+                char_typ: &Type,
+                long_size: &LongSize,
+            ) -> Result<DataType, MainError> {
                 let recurse = |typ| guess_typ(typ, char_typ, long_size);
                 match typ {
                     Type::Bool => Ok(DataType::Boolean),
@@ -1397,33 +1402,61 @@ where
                     Type::I64 => Ok(DataType::Int64),
 
                     // char [] are considered as strings
-                    Type::Array(inner, _) | Type::Pointer(inner) if &**inner == char_typ => Ok(DataType::Utf8),
+                    Type::Array(inner, _) | Type::Pointer(inner) if &**inner == char_typ => {
+                        Ok(DataType::Utf8)
+                    }
 
                     // u8 [] are considered as byte buffer
-                    Type::Array(inner, _) | Type::Pointer(inner) if matches!(&**inner, Type::Typedef(_, name) if name == "u8") => Ok(DataType::Binary),
+                    Type::Array(inner, _) | Type::Pointer(inner)
+                        if matches!(
+                            &**inner,
+                            Type::Typedef(_, name) if (
+                                name == "u8" || name == "uint8_t"
+                            )
+                        ) =>
+                    {
+                        Ok(DataType::Binary)
+                    }
 
-                    Type::Array(inner, _) | Type::Pointer(inner) if matches!(
-                        inner.resolve_wrapper(),
-                        Type::Bool | Type::U8 | Type::I8 | Type::U16 | Type::I16 | Type::U32 | Type::I32 | Type::U64 | Type::I64
-                    ) => Ok(DataType::new_list(recurse(inner)?, true)),
+                    Type::Array(inner, _) | Type::Pointer(inner)
+                        if matches!(
+                            inner.resolve_wrapper(),
+                            Type::Bool
+                                | Type::U8
+                                | Type::I8
+                                | Type::U16
+                                | Type::I16
+                                | Type::U32
+                                | Type::I32
+                                | Type::U64
+                                | Type::I64
+                        ) =>
+                    {
+                        Ok(DataType::new_list(recurse(inner)?, true))
+                    }
 
                     Type::Pointer(..) => match long_size {
                         LongSize::Bits32 => Ok(DataType::UInt32),
                         LongSize::Bits64 => Ok(DataType::UInt64),
                     },
 
-                    Type::Typedef(_, id) if id.deref() == "cpumask_t" => Ok(DataType::new_list(DataType::Boolean, true)),
+                    Type::Typedef(_, id) if id.deref() == "cpumask_t" => {
+                        Ok(DataType::new_list(DataType::Boolean, true))
+                    }
 
                     // TODO: try to do symbolic resolution of enums somehow, maybe with BTF
                     // Do we want that always ? What about conversion from other formats where the
                     // enum is not available ? Maybe that should be left to a Python function,
                     // hooked with the BTF parser, and BTF available in platform info.
-                    Type::Typedef(typ, _) | Type::Enum(typ, _) | Type::DynamicScalar(typ, _) => recurse(typ),
+                    Type::Typedef(typ, _) | Type::Enum(typ, _) | Type::DynamicScalar(typ, _) => {
+                        recurse(typ)
+                    }
 
                     typ => Err(MainError::TypeNotHandled(Box::new(typ.clone()))),
                 }
             }
-            let typ = guess_typ(&typ, &char_typ, &long_size).map_err(|err| err.with_field(Some(event_name), &name))?;
+            let typ = guess_typ(&typ, &char_typ, &long_size)
+                .map_err(|err| err.with_field(Some(event_name), &name))?;
             Ok(Field::new(name, typ, true))
         });
         let field_cols: Result<Vec<_>, MainError> = field_cols.collect();
