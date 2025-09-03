@@ -6,7 +6,7 @@ use core::{
     cell::UnsafeCell,
     convert::Infallible,
     error::Error as StdError,
-    ffi::{CStr, c_char, c_int, c_uchar, c_void},
+    ffi::{CStr, c_char, c_int, c_void},
     fmt,
     mem::MaybeUninit,
     ops::Deref,
@@ -668,6 +668,8 @@ macro_rules! impl_primitive {
 #[allow(non_camel_case_types)]
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+// The kernel is compiled with -funsigned-char, so regardless of the platform, we always have a u8
+// here.
 pub struct c_realchar(u8);
 impl_primitive!(c_realchar, "char", None);
 
@@ -810,13 +812,10 @@ where
 // We cannot rely on the blanket implementation for &T and Option<&T> as this would require
 // implementing the traits for ConstPtr<CStr> and MutPtr<CStr>, which is impossible given that we
 // cannot build a NULL pointer for *const CStr, since it is a fat pointer.
-//
-// The kernel is compiled with -funsigned-char, so regardless of the platform, we always have a u8
-// here.
 impl FfiType for Option<&CStr> {
-    const C_TYPE: &'static str = <&'static c_uchar as FfiType>::C_TYPE;
-    const C_HEADER: Option<&'static str> = <&'static c_uchar as FfiType>::C_HEADER;
-    type FfiType = <&'static c_uchar as FfiType>::FfiType;
+    const C_TYPE: &'static str = <&'static c_realchar as FfiType>::C_TYPE;
+    const C_HEADER: Option<&'static str> = <&'static c_realchar as FfiType>::C_HEADER;
+    type FfiType = <&'static c_realchar as FfiType>::FfiType;
 }
 
 impl IntoFfi for Option<&CStr> {
@@ -824,7 +823,7 @@ impl IntoFfi for Option<&CStr> {
     fn into_ffi(self) -> Self::FfiType {
         match self {
             None => null(),
-            Some(s) => s.as_ptr() as *const c_uchar,
+            Some(s) => s.as_ptr() as *const c_realchar,
         }
     }
 }
