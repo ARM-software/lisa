@@ -150,44 +150,47 @@ pub fn print_events<R: BorrowingReadCore + Send, W: Write>(
                 f
             }
 
-            let mut print_raw = ensure_hrtb(|out: &mut W, visitor: &EventVisitor<_, _>| -> Result<(), MainError> {
-                for (fmt, val) in &mut visitor.fields()? {
-                    let val = val?;
-                    // let val = Value::U64Scalar(0xffff800009db03f8);
-                    let derefed = val.deref_ptr(&env);
-                    let val = match derefed {
-                        Ok(val) => val,
-                        Err(_) => {
-                            drop(derefed);
-                            val
+            let mut print_raw = ensure_hrtb(
+                |out: &mut W, visitor: &EventVisitor<_, _>| -> Result<(), MainError> {
+                    for (fmt, val) in &mut visitor.fields()? {
+                        let val = val?;
+                        // let val = Value::U64Scalar(0xffff800009db03f8);
+                        let derefed = val.deref_ptr(&env);
+                        let val = match derefed {
+                            Ok(val) => val,
+                            Err(_) => {
+                                drop(derefed);
+                                val
+                            }
+                        };
+                        let field_name = &fmt.declaration.identifier;
+                        match val.to_str() {
+                            Some(s) => write!(out, " {field_name}={s}")?,
+                            None => write!(out, " {field_name}={val}")?,
                         }
-                    };
-                    let field_name = &fmt.declaration.identifier;
-                    match val.to_str() {
-                        Some(s) => write!(out, " {field_name}={s}")?,
-                        None => write!(out, " {field_name}={val}")?,
                     }
-                }
-                Ok(())
-            });
+                    Ok(())
+                },
+            );
 
-            let mut print_pretty = ensure_hrtb(|out: &mut W, _visitor: &EventVisitor<_, _>| -> Result<(), MainError>{
-                let print_fmt = &desc.event_fmt()?.print_fmt()?;
-                let print_args = desc.event_fmt()?.print_args()?;
+            let mut print_pretty = ensure_hrtb(
+                |out: &mut W, _visitor: &EventVisitor<_, _>| -> Result<(), MainError> {
+                    let print_fmt = &desc.event_fmt()?.print_fmt()?;
+                    let print_args = desc.event_fmt()?.print_args()?;
 
-                let print_args = print_args.into_iter().map(|spec| -> Result<_, PrintError> {
-                    match spec {
-                        Err(err) => Err(err.clone().into()),
-                        // Transmit the error to interpolate_values() so it can display it
-                        // at the right spot. It will then fail with the error after having
-                        // printed to the output.
-                        Ok(eval) => eval.eval(&env).map_err(Into::into),
-                    }
-                });
-                let mut out = StringWriter::new(out);
-                Ok(print_fmt
-                    .interpolate_values(header, &env, &mut out, print_args)?)
-            });
+                    let print_args = print_args.into_iter().map(|spec| -> Result<_, PrintError> {
+                        match spec {
+                            Err(err) => Err(err.clone().into()),
+                            // Transmit the error to interpolate_values() so it can display it
+                            // at the right spot. It will then fail with the error after having
+                            // printed to the output.
+                            Ok(eval) => eval.eval(&env).map_err(Into::into),
+                        }
+                    });
+                    let mut out = StringWriter::new(out);
+                    Ok(print_fmt.interpolate_values(header, &env, &mut out, print_args)?)
+                },
+            );
 
             if raw {
                 print_raw(&mut out, &visitor)
@@ -195,7 +198,10 @@ pub fn print_events<R: BorrowingReadCore + Send, W: Write>(
                 match print_pretty(&mut out, &visitor) {
                     Ok(x) => Ok(x),
                     Err(err) => {
-                        write!(&mut out, "\nError while pretty printing event {name}: {err}\n")?;
+                        write!(
+                            &mut out,
+                            "\nError while pretty printing event {name}: {err}\n"
+                        )?;
                         write!(&mut out, "Raw {name} fields:")?;
                         print_raw(&mut out, &visitor)?;
                         // This error affected a single event and we displayed it, so we can just
