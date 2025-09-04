@@ -51,6 +51,51 @@ opaque_type!(
     "linux/perf_event.h"
 );
 
+#[derive(Debug)]
+enum PerfEventState {
+    Dead,
+    Exit,
+    Error,
+    Off,
+    Inactive,
+    Active,
+    #[allow(dead_code)]
+    Unknown(c_int),
+}
+
+impl From<c_int> for PerfEventState {
+    fn from(state: c_int) -> PerfEventState {
+        macro_rules! convert {
+            ($x:expr, $fallback_pat:pat => $fallback:expr, $($macro:literal => $val:expr),*, $(,)?) => {{
+                (move |x| {
+                    $(
+                        if Some(&x) == Option::as_ref(&cconstant!("#include <linux/perf_event.h>", $macro)) {
+                            return $val;
+                        }
+                    )*
+
+                    let $fallback_pat = x;
+                    $fallback
+                })($x)
+            }}
+        }
+
+        // Convert to an unsigned type, as some PERF_EVENT_STATE_* values are negative, which is
+        // not supported by cconstant!()
+        convert! {
+            state as u32,
+            val => PerfEventState::Unknown(val as c_int),
+            "(u32)PERF_EVENT_STATE_DEAD" => PerfEventState::Dead,
+            "(u32)PERF_EVENT_STATE_EXIT" => PerfEventState::Exit,
+            "(u32)PERF_EVENT_STATE_ERROR" => PerfEventState::Error,
+            "(u32)PERF_EVENT_STATE_OFF" => PerfEventState::Off,
+            "(u32)PERF_EVENT_STATE_INACTIVE" => PerfEventState::Inactive,
+            "(u32)PERF_EVENT_STATE_ACTIVE" => PerfEventState::Active,
+
+        }
+    }
+}
+
 query_type! {
     #[derive(Clone)]
     struct PmuConfig {
@@ -354,14 +399,17 @@ impl PerfEvent {
             "#
         }
 
-        #[cfunc]
-        fn check_active(event: &UnsafeCell<_CPerfEvent>) -> bool {
-            r#"
-            #include <linux/perf_event.h>
-            "#;
-            r#"
-            return event->state == PERF_EVENT_STATE_ACTIVE;
-            "#
+        fn event_state(event: &UnsafeCell<_CPerfEvent>) -> PerfEventState {
+            #[cfunc]
+            fn event_state(event: &UnsafeCell<_CPerfEvent>) -> c_int {
+                r#"
+                #include <linux/perf_event.h>
+                "#;
+                r#"
+                return event->state;
+                "#
+            }
+            event_state(event).into()
         }
 
         // If there are multiple threads involved, the &Self we are working with here must have
@@ -374,10 +422,16 @@ impl PerfEvent {
         // return an error.
         let guard = PerfEventEnableGuard { event: self };
 
-        if check_active(c_event) {
-            Ok(guard)
-        } else {
-            Err(error!("Perf event {id:?} is not active", id = self.desc.id))
+        match event_state(c_event) {
+            PerfEventState::Active => Ok(guard),
+            PerfEventState::Error => Err(error!(
+                "Perf event {id:?} state is PERF_EVENT_STATE_ERROR. Do you have enough counters available on this platform ?",
+                id = self.desc.id
+            )),
+            state => Err(error!(
+                "Perf event {id:?} is not active: {state:?}",
+                id = self.desc.id
+            )),
         }
     }
 
