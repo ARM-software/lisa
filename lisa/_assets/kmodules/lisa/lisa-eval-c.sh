@@ -25,7 +25,7 @@ trap cleanup EXIT
 # be 1 weirdly enough. That +1 is then substracted in the awk post-processing
 cat > $src << EOM
 $c_headers
-static char __attribute__((used)) LISA_C_CONST_VALUE[($c_expr) + 1];
+static char __attribute__((used)) LISA_C_CONST_VALUE[($c_expr) + 1ull];
 EOM
 
 CC=${CC:=cc}

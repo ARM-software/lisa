@@ -136,7 +136,7 @@ impl Query {
                 let base_config = DependenciesSpec::new();
                 let select = |feature: &dyn Feature| features.contains(feature.name());
                 state.restart(move || features_lifecycle(select, base_config, configs))?;
-                Ok(QuerySuccess::None)
+                Ok(QuerySuccess::StartFeatures { config: stack })
             }
             Query::StopFeatures => state.stop().map(|()| QuerySuccess::None),
             Query::GetFeaturesConfig => {
@@ -158,6 +158,9 @@ impl Query {
 query_type! {
     #[derive(Serialize)]
     enum QuerySuccess {
+        StartFeatures {
+            config: Vec<ConfigStackItem>,
+        },
         PopFeaturesConfig {
             remaining: usize,
         },
