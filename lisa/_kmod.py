@@ -3510,6 +3510,7 @@ class LISADynamicKmod(FtraceDynamicKmod):
         return results
 
     def _push_start(self, configs=None, features=None):
+        logger = self.logger
         def depth():
             res = self._query([
                 {
@@ -3551,10 +3552,13 @@ class LISADynamicKmod(FtraceDynamicKmod):
             'start-features': None
         })
         try:
-            self._query(queries)
+            *_, res = self._query(queries)
         except Exception as e:
             self._pop_stop(n=depth() - init_depth)
             raise e
+        else:
+            config = res['start-features']['config']
+            logger.debug(f'Effective configuration: {config}')
 
     def _pop_stop(self, n=1):
         logger = self.logger
