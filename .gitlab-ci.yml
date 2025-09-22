@@ -226,7 +226,13 @@ pages:
 
       function audit() {
           lisa_python -m pip install --upgrade pip-audit
-          pip-audit || exit 1
+          # Vulnerability GHSA-xqrq-4mgf-ff32
+          # (https://github.com/advisories/GHSA-xqrq-4mgf-ff32) is not
+          # concerning as we do not manipulate files from unknown origin that
+          # are not also the origin of code (e.g. PyPI packages).
+          pip-audit \
+            --ignore-vuln GHSA-xqrq-4mgf-ff32 \
+            || exit 1
       }
 
       function upgrade_packages() {
