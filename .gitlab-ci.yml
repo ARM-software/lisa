@@ -120,8 +120,8 @@ Autobranch:
       git remote -v
       git branch --list --remotes
 
-      git config --global user.name 'project_444_bot_07c92c61a7e6a3ceb601937355c7b6b5'
-      git config --global user.email 'project_444_bot_07c92c61a7e6a3ceb601937355c7b6b5@noreply.gitlab.arm.com'
+      git config --global user.name 'project_10402_bot_63a504c3fe43f0e42f1c4ebe6263c37b'
+      git config --global user.email 'project_10402_bot_63a504c3fe43f0e42f1c4ebe6263c37b@noreply.gitlab.arm.com'
 
   script: 
     - |
@@ -226,7 +226,13 @@ pages:
 
       function audit() {
           lisa_python -m pip install --upgrade pip-audit
-          pip-audit || exit 1
+          # Vulnerability GHSA-xqrq-4mgf-ff32
+          # (https://github.com/advisories/GHSA-xqrq-4mgf-ff32) is not
+          # concerning as we do not manipulate files from unknown origin that
+          # are not also the origin of code (e.g. PyPI packages).
+          pip-audit \
+            --ignore-vuln GHSA-xqrq-4mgf-ff32 \
+            || exit 1
       }
 
       function upgrade_packages() {
