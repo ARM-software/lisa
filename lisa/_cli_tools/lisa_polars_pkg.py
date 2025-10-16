@@ -37,35 +37,33 @@ def check_polars():
             'PYTHONWARNINGS': 'always',
         }
     )
-    out = completed.stdout
-
-    # Get the version without importing the package. This avoids coredumps.
-    version = importlib.metadata.version('polars')
-
-    out = out.decode().lower().replace('\n', ' ')
+    out = completed.stdout.decode().lower().replace('\n', ' ')
     old_cpu = 'cpu' in out and 'feature' in out
-    return (old_cpu, version)
+    return old_cpu
 
 
 def main():
+    def var_is_lts(var):
+        return 'lts' in os.environ[var]
+
+    # Respect user's choice
     try:
-        importlib.metadata.version('polars-lts-cpu')
-    except importlib.metadata.PackageNotFoundError:
-        old_cpu, version = check_polars()
-    # If we have polars-lts-cpu installed, we assume it is for good reasons
-    # because we have an old cpu.
-    else:
-        old_cpu = True
-        version = importlib.metadata.version('polars-lts-cpu')
+        old_cpu = var_is_lts('POLARS_FORCE_PKG')
+    except KeyError:
+        try:
+            old_cpu = var_is_lts('POLARS_PREFER_PKG')
+        except KeyError:
+            old_cpu = check_polars()
 
     if old_cpu:
-        pkg = 'polars-lts-cpu'
+        pkg = 'polars[rtcompat]'
     else:
         pkg = 'polars'
 
     # Taking the version into account is important, as dependency resolution
     # might have avoided some versions according to the constraints used in
     # setup.py
+    version = importlib.metadata.version('polars')
     print(f'{pkg}=={version}')
 
 
