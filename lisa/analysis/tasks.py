@@ -37,7 +37,7 @@ import polars as pl
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized, kwargs_forwarded_to, deprecate, order_as
 from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates, SignalDesc, _df_to, NO_INDEX
-from lisa.trace import requires_events, will_use_events_from, may_use_events, CPU, MissingTraceEventError
+from lisa.trace import requires_events, will_use_events_from, may_use_events, CPU, MissingTraceEventError, OrTraceEventChecker
 from lisa.notebook import _hv_neutral, plot_signal
 from lisa._typeclass import FromString
 
