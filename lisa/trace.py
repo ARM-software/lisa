@@ -5272,19 +5272,6 @@ class _Trace(Loggable, _InternalTraceBase):
             swap_dir = None
             max_swap_size = None
 
-        if parser is None:
-            if not trace_path:
-                raise ValueError('A trace path must be provided')
-
-            _, extension = os.path.splitext(trace_path)
-            if extension == '.html':
-                parser = SysTraceParser.from_html
-            elif extension == '.txt':
-                parser = HRTxtTraceParser.from_txt_file
-            else:
-                parser = TraceDumpTraceParser.from_dat
-        self._parser = parser
-
         # The platform information used to run the experiments
         if plat_info is None:
             # Delay import to avoid circular dependency
