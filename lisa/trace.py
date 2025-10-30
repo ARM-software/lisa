@@ -880,6 +880,10 @@ class PerfettoTraceParser(TraceParserBase):
         dir_cache = DirCache(
             category='perfetto_trace_processor',
             populate=populate,
+            # FIXME: is that really what we want ? The URL does not have any
+            # version number in it, so we will never invalidate the cache as it
+            # is.
+            fmt_version='1',
         )
 
         cache_path = dir_cache.get_entry([url])
@@ -5401,6 +5405,8 @@ class _Trace(Loggable, _InternalTraceBase):
                     parser = SysTraceParser.from_html
                 elif extension == '.txt':
                     parser = HRTxtTraceParser.from_txt_file
+                elif extension == '.perfetto-trace':
+                    parser = PerfettoTraceParser
                 else:
                     parser = TraceDumpTraceParser.from_dat
         self._parser = parser
@@ -5436,21 +5442,6 @@ class _Trace(Loggable, _InternalTraceBase):
         else:
             swap_dir = None
             max_swap_size = None
-
-        if parser is None:
-            if not trace_path:
-                raise ValueError('A trace path must be provided')
-
-            _, extension = os.path.splitext(trace_path)
-            if extension == '.html':
-                parser = SysTraceParser.from_html
-            elif extension == '.txt':
-                parser = HRTxtTraceParser.from_txt_file
-            elif extension == '.perfetto-trace':
-                parser = PerfettoTraceParser
-            else:
-                parser = TraceDumpTraceParser.from_dat
-        self._parser = parser
 
         # The platform information used to run the experiments
         if plat_info is None:
