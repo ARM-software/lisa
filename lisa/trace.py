@@ -893,10 +893,6 @@ class PerfettoTraceParser(TraceParserBase):
         return self._tp.query(query)
 
     def _df_event(self, event):
-        # FIXME: remove or edit that
-        #  self._query('CREATE PERFETTO INDEX raw_event_index ON raw(arg_set_id)')
-        #  self._query('CREATE PERFETTO INDEX key ON raw(key)')
-
         # List the fields of the event so we know their types and can query them
         query = f"SELECT arg_set_id FROM ftrace_event WHERE name = '{event}' LIMIT 1"
         arg_set_id, = map(attrgetter('arg_set_id'), self._query(query))
@@ -915,10 +911,8 @@ class PerfettoTraceParser(TraceParserBase):
             }[typ]
 
         def make_arg_fragments(key, typ):
-            table = f'__lisa_{key}'
             return {
-                'select': f"{table}.{pick_col(typ)} as {key}",
-                'join': f"JOIN args AS {table} ON {table}.arg_set_id = ftrace_event.arg_set_id AND {table}.key = '{key}'"
+                'select': f"MAX(CASE WHEN args.key = '{key}' THEN args.{pick_col(typ)} END) as {key}",
             }
 
         def translate_type(typ):
@@ -951,20 +945,16 @@ class PerfettoTraceParser(TraceParserBase):
         common_fragments = [
             {
                 'select': 'ftrace_event.ts AS Time',
-                'join': '',
             },
             {
                 'select': 'ftrace_event.cpu AS __cpu',
-                'join': '',
             },
             {
                 'select': 'ftrace_event.utid AS __pid',
-                'join': '',
             },
-
             {
                 'select': 'thread.name AS __comm',
-                'join': 'JOIN thread ON thread.utid = ftrace_event.utid',
+                'join': 'LEFT JOIN thread ON thread.utid = ftrace_event.utid',
             },
         ]
 
@@ -981,11 +971,12 @@ class PerfettoTraceParser(TraceParserBase):
         )
 
         joins = ' '.join(
-            frag['join']
+            join
             for frag in fragments
+            if (join := frag.get('join'))
         )
 
-        query = f"SELECT {selects} FROM ftrace_event {joins} WHERE ftrace_event.name = '{event}'"
+        query = f"SELECT {selects} FROM ftrace_event {joins} LEFT JOIN args ON args.arg_set_id = ftrace_event.arg_set_id WHERE ftrace_event.name = '{event}' GROUP BY ftrace_event.id"
 
         df = self._query(query).as_pandas_dataframe()
         df = pl.from_pandas(df, schema_overrides=schema)
@@ -994,6 +985,8 @@ class PerfettoTraceParser(TraceParserBase):
             df.collect_schema().names(),
             ['Time', '__cpu', '__pid', '__comm']
         ))
+
+        df = df.sort('Time')
 
         # Collect the data to expose to the caller that everything sits in
         # memory
