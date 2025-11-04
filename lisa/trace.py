@@ -3429,7 +3429,11 @@ class _WindowTraceView(_WindowTraceViewBase):
                 if end is not None:
                     end = Timestamp(end, rounding='up')
 
-                return (start, end)
+                window = (start, end)
+                if window == (None, None):
+                    return None
+                else:
+                    return window
             else:
                 return None
 
@@ -3474,6 +3478,10 @@ class _WindowTraceView(_WindowTraceViewBase):
         return False
 
     def _fixup_window(self, window):
+        # Fast path that does not require time-range metadata lookup
+        if self._window is None and window is None:
+            return window
+
         _start = self.start
         _end = self.end
         # Add missing window and fill-in None values
