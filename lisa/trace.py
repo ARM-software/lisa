@@ -1071,7 +1071,7 @@ class PerfettoTraceParser(TraceParserBase):
             '__pid': pl.UInt64,
             '__comm': pl.Categorical,
             **{
-                field.key: translate_type(field.value_type)
+                field.flat_key: translate_type(field.value_type)
                 for field in arg_fields
             }
         }
@@ -1122,6 +1122,15 @@ class PerfettoTraceParser(TraceParserBase):
             if (col := frag.get('column')) and (flat_key := frag.get('flat_key'))
         }
 
+        inverse_renames = {
+            new: old
+            for old, new in renames.items()
+        }
+        pre_rename_schema = {
+            inverse_renames.get(col, col): dtype
+            for col, dtype in schema.items()
+        }
+
         joins = ' '.join(set(
             join
             for frag in fragments
@@ -1150,7 +1159,7 @@ class PerfettoTraceParser(TraceParserBase):
             """
 
             df = self._query(query, lambda res: res.as_pandas_dataframe())
-            df = pl.from_pandas(df, schema_overrides=schema)
+            df = pl.from_pandas(df, schema_overrides=pre_rename_schema)
             df = df.lazy()
 
             df = df.rename(
@@ -1164,7 +1173,6 @@ class PerfettoTraceParser(TraceParserBase):
                 sorted(df.collect_schema().names()),
                 schema.keys()
             ))
-            df = df.with_columns((cs.string() | cs.binary()).cast(pl.Categorical))
 
             # We already used ORDER BY ftrace_event.ts
             df = df.set_sorted('Time')
