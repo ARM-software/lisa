@@ -1143,11 +1143,11 @@ class PerfettoTraceParser(TraceParserBase):
             for col, dtype in schema.items()
         }
 
-        joins = '\n'.join(set(
+        joins = '\n'.join(sorted(set(
             join
             for frag in fragments
             if (join := frag.get('join'))
-        ))
+        )))
 
         def get_chunk(from_, columns, n):
             projections = ',\n    '.join(
