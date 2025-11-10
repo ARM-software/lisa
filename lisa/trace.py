@@ -78,6 +78,9 @@ from lisa._kmod import LISADynamicKmod
 from lisa._assets import get_bin
 
 
+_DEFAULT_PARQUET_COMPRESSION = 'lz4'
+
+
 def _deprecated_warn(msg, **kwargs):
     warnings.warn(msg, DeprecationWarning, **kwargs)
 
@@ -808,7 +811,7 @@ class MockTraceParser(TraceParserBase):
             super().get_metadata(key=key)
 
 
-class _PerfettoTraceProcessorWrapper:
+class _PerfettoTraceProcessorWrapper(Loggable):
     """
     Wrap a Perfetto :class:`perfetto.TraceProcessor` instance so that it can be
     queried from any thread.
@@ -843,6 +846,8 @@ class _PerfettoTraceProcessorWrapper:
         self._executor = None
 
     def query(self, query, process):
+        logger = self.logger
+
         # Lazily create the TraceProcessor instance, from the thread it will
         # spend its whole life in. This is critical as it does not handle being
         # moved around threads due to SQLite3 not liking that one bit.
@@ -856,15 +861,22 @@ class _PerfettoTraceProcessorWrapper:
                     ingest_ftrace_in_raw=True,
                     bin_path=self._bin_path,
                 )
-                tp = TraceProcessor(
-                    trace=self._trace_path,
-                    config=config,
-                )
+                with measure_time() as m:
+                    tp = TraceProcessor(
+                        trace=self._trace_path,
+                        config=config,
+                    )
+                logger.debug(f'Loaded Perfetto trace in trace_processor in {m.delta:.2f}s')
                 self._tp = tp
             return self._tp
 
         def work(query, process):
-            return process(get_tp().query(query))
+            tp = get_tp()
+            logger.debug(f'Running Perfetto query: {query}')
+            with measure_time() as m:
+                res = process(tp.query(query))
+            logger.debug(f'Perfetto query ran in {m.delta:.2f}s')
+            return res
 
         executor = self._executor
         if executor is None:
@@ -1131,14 +1143,14 @@ class PerfettoTraceParser(TraceParserBase):
             for col, dtype in schema.items()
         }
 
-        joins = ' '.join(set(
+        joins = '\n'.join(set(
             join
             for frag in fragments
             if (join := frag.get('join'))
         ))
 
         def get_chunk(from_, columns, n):
-            projections = ', '.join(
+            projections = ',\n    '.join(
                 frag['select']
                 for frag in fragments
                 if (
@@ -1150,13 +1162,13 @@ class PerfettoTraceParser(TraceParserBase):
             )
 
             query = f"""
-            SELECT {projections}
-            FROM ftrace_event
-            {joins}
-            WHERE ftrace_event.id >= {from_} AND ftrace_event.name = {quote(event)}
-            ORDER BY ftrace_event.id, ftrace_event.ts
-            LIMIT {n}
-            """
+SELECT\n    {projections}
+FROM ftrace_event
+{joins}
+WHERE ftrace_event.id >= {from_} AND ftrace_event.name = {quote(event)}
+ORDER BY ftrace_event.id, ftrace_event.ts
+LIMIT {n}
+"""
 
             df = self._query(query, lambda res: res.as_pandas_dataframe())
             df = pl.from_pandas(df, schema_overrides=pre_rename_schema)
@@ -1238,13 +1250,19 @@ class PerfettoTraceParser(TraceParserBase):
             ['Time', '__cpu', '__pid', '__comm']
         ))
 
-        path = self._temp_dir / 'dataframe.parquet'
+        # Make sure the file is unique as we may be asked to create more than
+        # one in the temp dir.
+        parquet_id = uuid.uuid4().hex
+        path = self._temp_dir / f'{parquet_id}.parquet'
 
         # We immediately dump to a parquet file so that the Perfetto
         # TraceProcessor instance does not live for longer than necessary.
         # Since it loads the entire trace in memory, having a TraceProcessor
         # attached to a dataframe would be disastrous.
-        df.sink_parquet(path)
+        df.sink_parquet(
+            path,
+            compression=_DEFAULT_PARQUET_COMPRESSION,
+        )
 
         return _ParsedDataFrame.from_df(
             df=pl.scan_parquet(path),
@@ -1494,7 +1512,7 @@ class TraceDumpTraceParser(TraceParserBase):
                 '--trace', path,
                 '--trace-format', trace_format,
                 '--max-errors', str(cls._MAX_ERRORS),
-                '--compression', 'lz4',
+                '--compression', _DEFAULT_PARQUET_COMPRESSION,
                 '--unique-timestamps',
                 *events,
             ),
@@ -3397,7 +3415,9 @@ class _InternalTraceBase(abc.ABC):
             can be advantageous as a single instance of the parser will be
             spawned, so if the parser supports it, multiple events will be
             parsed in one trace traversal.
-        :type events: list(str) or lisa.trace.TraceEventCheckerBase or None
+            If the string ``"all"`` is used, it will attempt to preload all the
+            events available in the trace.
+        :type events: list(str) or lisa.trace.TraceEventCheckerBase or str or None
 
         :param strict_events: If ``True``, will raise an exception if the
             ``events`` specified cannot be loaded from the trace. This allows
@@ -4113,9 +4133,18 @@ class _PreloadEventsTraceView(_TraceViewBase):
         super().__init__(trace)
         trace = self.base_trace
 
-        if isinstance(events, str):
+        if events == 'all':
+            events = _ALL_EVENTS
+            if strict_events:
+                # We cannot guarantee that trace.available_events is complete,
+                # so we cannot guarantee that all parseable events are
+                # preloaded.
+                raise ValueError('strict_events=True and events="all" combination is not supported')
+
+        elif isinstance(events, str):
             raise ValueError('Events passed to Trace(events=...) must be a list of strings, not a string.')
-        elif events is _ALL_EVENTS:
+
+        if events is _ALL_EVENTS:
             pass
         else:
             events = set(events or [])
@@ -5031,7 +5060,7 @@ class _TraceCache(Loggable):
             return swap_entry.written
 
     @staticmethod
-    def _data_to_parquet(data, path, compression='lz4', **kwargs):
+    def _data_to_parquet(data, path, compression=_DEFAULT_PARQUET_COMPRESSION, **kwargs):
         kwargs['compression'] = compression
         if isinstance(data, pd.DataFrame):
             data = _pandas_cleanup_df(data)
