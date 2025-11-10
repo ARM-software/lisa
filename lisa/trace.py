@@ -73,6 +73,9 @@ from lisa._kmod import LISADynamicKmod
 from lisa._assets import get_bin
 
 
+_DEFAULT_PARQUET_COMPRESSION = 'lz4'
+
+
 def _deprecated_warn(msg, **kwargs):
     warnings.warn(msg, DeprecationWarning, **kwargs)
 
@@ -1018,7 +1021,7 @@ class TraceDumpTraceParser(TraceParserBase):
                 '--trace', path,
                 '--trace-format', trace_format,
                 '--max-errors', str(cls._MAX_ERRORS),
-                '--compression', 'lz4',
+                '--compression', _DEFAULT_PARQUET_COMPRESSION,
                 '--unique-timestamps',
                 *events,
             ),
@@ -4580,7 +4583,7 @@ class _TraceCache(Loggable):
             return swap_entry.written
 
     @staticmethod
-    def _data_to_parquet(data, path, compression='lz4', **kwargs):
+    def _data_to_parquet(data, path, compression=_DEFAULT_PARQUET_COMPRESSION, **kwargs):
         kwargs['compression'] = compression
         if isinstance(data, pd.DataFrame):
             data = _pandas_cleanup_df(data)
