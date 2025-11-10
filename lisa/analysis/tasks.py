@@ -660,9 +660,6 @@ class TasksAnalysis(TraceAnalysisBase):
             except AttributeError:
                 return isinstance(task, str)
 
-        def state(value):
-            return pl.lit(value, pl.Int64)
-
         # Add the rename events if we are interested in the comm of tasks
         add_rename = any(map(filters_comm, tasks or []))
 
@@ -693,6 +690,12 @@ class TasksAnalysis(TraceAnalysisBase):
             pass
         else:
             wk_df = pl.concat([wk_df, wkn_df], how='diagonal_relaxed')
+
+        def state(value):
+            return pl.lit(
+                value,
+                dtype=sw_df.collect_schema()['prev_state'],
+            )
 
         wk_df = wk_df.select(["Time", "pid", "comm", "target_cpu", "__cpu"])
         wk_df = wk_df.with_columns(
@@ -743,7 +746,14 @@ class TasksAnalysis(TraceAnalysisBase):
         # Integer values are prefered here, otherwise the whole column
         # is converted to float64
         # FIXME: should we just use null here ?
-        all_sw_df = all_sw_df.with_columns(target_cpu=pl.lit(-1, pl.Int32))
+        all_sw_df = all_sw_df.with_columns(
+            target_cpu=pl.lit(
+                -1,
+                # Ensure we use the exact same dtype so that there is no
+                # mismatch when concatenating
+                dtype=wk_df.collect_schema()['target_cpu']
+            )
+        )
 
         df = pl.concat([all_sw_df, wk_df], how='diagonal_relaxed')
         df = df.sort('Time')
