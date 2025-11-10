@@ -2921,7 +2921,9 @@ class _InternalTraceBase(abc.ABC):
             can be advantageous as a single instance of the parser will be
             spawned, so if the parser supports it, multiple events will be
             parsed in one trace traversal.
-        :type events: list(str) or lisa.trace.TraceEventCheckerBase or None
+            If the string ``"all"`` is used, it will attempt to preload all the
+            events available in the trace.
+        :type events: list(str) or lisa.trace.TraceEventCheckerBase or str or None
 
         :param strict_events: If ``True``, will raise an exception if the
             ``events`` specified cannot be loaded from the trace. This allows
@@ -3629,9 +3631,18 @@ class _PreloadEventsTraceView(_TraceViewBase):
         super().__init__(trace)
         trace = self.base_trace
 
-        if isinstance(events, str):
+        if events == 'all':
+            events = _ALL_EVENTS
+            if strict_events:
+                # We cannot guarantee that trace.available_events is complete,
+                # so we cannot guarantee that all parseable events are
+                # preloaded.
+                raise ValueError('strict_events=True and events="all" combination is not supported')
+
+        elif isinstance(events, str):
             raise ValueError('Events passed to Trace(events=...) must be a list of strings, not a string.')
-        elif events is _ALL_EVENTS:
+
+        if events is _ALL_EVENTS:
             pass
         else:
             events = set(events or [])
