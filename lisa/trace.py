@@ -1077,10 +1077,8 @@ class PerfettoTraceParser(TraceParserBase):
             # harder to manipulate the dataframes compared to data coming from
             # ftrace.
             '__cpu': pl.UInt64,
-            # FIXME: what type to use ? Perfetto seems to use int64 in some
-            # places, but our events will use UInt64 and that leads to concat()
-            # problems
-            '__pid': pl.UInt64,
+            '__pid': pl.Int64,
+
             '__comm': pl.Categorical,
             **{
                 field.flat_key: translate_type(field.value_type)
