@@ -657,8 +657,8 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
         """
         try:
             events = self.get_metadata('available-events')
-            return self.parse_events(events)
-        except Exception:
+            return self.parse_events(events, best_effort=True)
+        except Exception as e:
             raise NotImplementedError(f'{self.__class__.__qualname__} parser does not support parsing all events')
 
 
@@ -2929,7 +2929,9 @@ class _InternalTraceBase(abc.ABC):
             can be advantageous as a single instance of the parser will be
             spawned, so if the parser supports it, multiple events will be
             parsed in one trace traversal.
-        :type events: list(str) or lisa.trace.TraceEventCheckerBase or None
+            If the string ``"all"`` is used, it will attempt to preload all the
+            events available in the trace.
+        :type events: list(str) or lisa.trace.TraceEventCheckerBase or str or None
 
         :param strict_events: If ``True``, will raise an exception if the
             ``events`` specified cannot be loaded from the trace. This allows
@@ -3642,9 +3644,18 @@ class _PreloadEventsTraceView(_TraceViewBase):
         super().__init__(trace)
         trace = self.base_trace
 
-        if isinstance(events, str):
+        if events == 'all':
+            events = _ALL_EVENTS
+            if strict_events:
+                # We cannot guarantee that trace.available_events is complete,
+                # so we cannot guarantee that all parseable events are
+                # preloaded.
+                raise ValueError('strict_events=True and events="all" combination is not supported')
+
+        elif isinstance(events, str):
             raise ValueError('Events passed to Trace(events=...) must be a list of strings, not a string.')
-        elif events is _ALL_EVENTS:
+
+        if events is _ALL_EVENTS:
             pass
         else:
             events = set(events or [])
@@ -5446,8 +5457,12 @@ class _Trace(Loggable, _InternalTraceBase):
                     with self._get_parser(events=events, needed_metadata=needed_metadata) as parser:
                         try:
                             return _finalize(parser=parser, df_map=parser.parse_all_events())
-                        except NotImplementedError:
-                            events = parser.get_metadata('available-events')
+                        except NotImplementedError as e:
+                            try:
+                                events = parser.get_metadata('available-events')
+                            except MissingMetadataError:
+                                self.logger.debug('Could not parse all events: {e}')
+                                return _finalize(parser=parser, df_map={})
 
                 with self._get_parser(events=events, needed_metadata=needed_metadata) as parser:
 
