@@ -718,7 +718,9 @@ class AnalysisHelpers(Loggable, abc.ABC):
                         set_by_method.setdefault(name, set()).update(_opts)
 
                 def set_options(fig, opts, typs=None, not_typs=None):
-                    typs = _hv_has_options(frozenset(opts.keys()), backend=backend)
+                    if typs is None:
+                        typs = _hv_has_options(frozenset(opts.keys()), backend=backend)
+
                     not_typs = set(not_typs or [])
                     typs = {
                         typ
