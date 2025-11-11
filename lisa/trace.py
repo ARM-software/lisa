@@ -366,7 +366,7 @@ def _convert_df_from_parser(df, parser, cache):
             return hardlink_path
 
         def fixup(df):
-            if isinstance(df, pl.LazyFrame) and parser._STEAL_FILES:
+            if isinstance(df.df, pl.LazyFrame) and df.meta['steal_files']:
                 # We can only steal files if we have a swap to put it into
                 try:
                     cache.swap_dir
@@ -374,11 +374,11 @@ def _convert_df_from_parser(df, parser, cache):
                     # If we cannot move the backing data to the swap folder, we
                     # are forced to just load the data eagerly as backing
                     # storage (e.g.  tmp folder) will probably disappear
-                    df = df.collect()
+                    df = df.df.collect().lazy()
                 else:
                     hardlinks = set()
                     df = _lazyframe_rewrite(
-                        df=df,
+                        df=df.df,
                         update_plan=functools.partial(
                             _logical_plan_update_paths,
                             update_path=functools.partial(
@@ -396,13 +396,15 @@ def _convert_df_from_parser(df, parser, cache):
                     # end up with 2 layers of "map_batches(identity)" on
                     # LazyFrames reloaded from the cache.
                     df = _LazyFrameOnDelete.attach_file_cleanup(df, hardlinks)
+            else:
+                df = df.df
 
             return to_polars(df)
         return fixup(df)
 
     df = _ParsedDataFrame.from_df(df)
     return df.with_df(
-        move_to_cache(df.df, cache=cache)
+        move_to_cache(df, cache=cache)
     )
 
 
@@ -472,6 +474,7 @@ class _ParsedDataFrame:
         self.meta = {
             'mem_cacheable': True,
             'swap_cacheable': True,
+            'steal_files': False,
             **meta,
         }
 
@@ -518,12 +521,6 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
         backward compatibility guarantees. It is considered somewhat internal
         and will be modified if necessary, with backward compatibility being
         offered on a best-effort basis.
-    """
-
-    _STEAL_FILES = False
-    """
-    If ``True``, files backing a :class:`polars.LazyFrame` will  be stolen by
-    :class:`~lisa.trace.Trace` to add them to the cache.
     """
 
     METADATA_KEYS = [
@@ -843,7 +840,6 @@ class TraceDumpTraceParser(TraceParserBase):
     trace.dat parser shipped by LISA
     """
 
-    _STEAL_FILES = True
     _MAX_ERRORS = 256
 
     @kwargs_forwarded_to(TraceParserBase.__init__)
@@ -1084,6 +1080,7 @@ class TraceDumpTraceParser(TraceParserBase):
                         df=df,
                         swap_cacheable=True,
                         mem_cacheable=True,
+                        steal_files=True,
                         nr_rows=desc['nr-rows'],
                     )
 
