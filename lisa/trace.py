@@ -1164,7 +1164,7 @@ SELECT\n    {projections}
 FROM ftrace_event
 {joins}
 WHERE ftrace_event.id >= {from_} AND ftrace_event.name = {quote(event)}
-ORDER BY ftrace_event.id, ftrace_event.ts
+ORDER BY ftrace_event.id
 LIMIT {n}
 """
 
@@ -1184,13 +1184,20 @@ LIMIT {n}
                 schema.keys()
             ))
 
-            # We already used ORDER BY ftrace_event.ts
-            df = df.set_sorted('Time')
-            # We already used ORDER BY ftrace_event.id
+            # We used SQL ORDER BY ftrace_event.id. This is cheap as "id" is
+            # the primary key of that table and Perfetto's vtable is likely
+            # already sorted on that key.
             df = df.set_sorted('__lisa_perfetto_event_id')
 
             last_id = df.select(pl.col('__lisa_perfetto_event_id').max()).collect().item()
             df = df.drop('__lisa_perfetto_event_id')
+
+            # Sort each small chunk on its own to be streaming-friendly. We
+            # don't want to use ORDER BY (ftrace_event.id, ftrace_event.ts) as
+            # this seems to trigger the creation of an ephemeral index,
+            # consuming a fairly large amount of memory.
+            df = df.sort('Time')
+
             return (last_id, df)
 
         IDEAL_CHUNK_SIZE = 128 * 1024 * 1024
@@ -1242,6 +1249,10 @@ LIMIT {n}
             validate_schema=True,
             is_pure=True,
         )
+
+        # Each chunk is sorted on Time, so the concatenation is also sorted on
+        # Time
+        df = df.set_sorted('Time')
 
         df = df.select(order_as(
             sorted(df.collect_schema().names()),
