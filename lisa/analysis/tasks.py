@@ -1076,60 +1076,79 @@ class TasksAnalysis(TraceAnalysisBase):
             the task, updated at each pair of activation and sleep.
         """
 
-        df = self.df_task_states(task)
-
-        def f(state):
-            if state == TaskState.TASK_ACTIVE:
-                return active_value
-            # TASK_RUNNING happens when a task is preempted (so it's not
-            # TASK_ACTIVE anymore but still runnable)
-            elif state == TaskState.TASK_RUNNING:
-                # Return NaN regardless of preempted_value, since some below
-                # code relies on that
-                return np.nan
-            else:
-                return sleep_value
+        trace = self.trace.get_view(df_fmt='polars-lazyframe')
+        ana = trace.ana.tasks
+        df = ana.df_task_states(task)
 
         if cpu is not None:
-            df = df[df['cpu'] == cpu]
-
-        df = df.copy()
+            df = df.filter(pl.col('cpu') == cpu)
 
         # TASK_WAKING can just be removed. The delta will then be computed
         # without it, which means the time spent in WAKING state will be
         # accounted into the previous state.
-        df = df[df['curr_state'] != TaskState.TASK_WAKING]
+        df = df.filter(pl.col('curr_state') != TaskState.TASK_WAKING)
 
-        df['active'] = df['curr_state'].map(f)
-        df = df[['active', 'cpu']]
+        df = df.with_columns(
+            active=pl.col('curr_state').replace_strict(
+                {
+                    TaskState.TASK_ACTIVE: active_value,
+                    # TASK_RUNNING happens when a task is preempted (so it's not
+                    # TASK_ACTIVE anymore but still runnable).
+                    # Use null regardless of preempted_value, since some below code
+                    # relies on that
+                    TaskState.TASK_RUNNING: None,
+                },
+                default=sleep_value
+            )
+        )
+        df = df.select(('Time', 'active', 'cpu'))
 
         # Only keep first occurence of each adjacent duplicates, since we get
         # events when the signal changes
-        df = df_deduplicate(df, consecutives=True, keep='first')
+        on = pl.struct(('active', 'cpu'))
+        df = df.filter((on != on.shift()).fill_null(True))
 
         # Once we removed the duplicates, we can compute the time spent while sleeping or activating
-        df_add_delta(df, col='duration', inplace=True)
+        df = df_add_delta(df, col='duration')
 
         if not np.isnan(preempted_value):
-            df['active'] = df['active'].fillna(preempted_value)
+            df = df.with_columns(
+                active=pl.col('active').fill_null(preempted_value)
+            )
 
-        # Merge consecutive activations' duration. They could have been
-        # split in two by a bit of preemption, and we don't want that to
-        # affect the duty cycle.
-        df_combine_duplicates(df, cols=['active'], func=lambda df: df['duration'].sum(), output_col='duration', inplace=True)
+        # Merge consecutive activations' duration. They could have been split
+        # in two by a bit of preemption, and we don't want that to affect the
+        # duty cycle.
+        active = pl.col('active')
+        df = df.group_by_dynamic(
+            # Assign an id to each consecutive run of "active", which is used
+            # as a "group id". We then create a window that only contains a
+            # given group ID.
+            index_column=active.rle_id().cast(pl.Int32).alias('__active_rle_id'),
+            every='1i',
+        ).agg(
+            # In each group, we take the first row for all columns except the
+            # duration that is summed
+            pl.all().exclude('duration').first(),
+            pl.col('duration').sum(),
+        ).drop('__active_rle_id')
 
         # Make a dataframe where the rows corresponding to preempted time are
         # removed, unless preempted_value is set to non-NA
-        preempt_free_df = df.dropna().copy()
+        preempt_free_df = df.drop_nulls()
 
-        sleep = preempt_free_df[preempt_free_df['active'] == sleep_value]['duration']
-        active = preempt_free_df[preempt_free_df['active'] == active_value]['duration']
-        # Pair an activation time with it's following sleep time
-        sleep = sleep.reindex(active.index, method='bfill')
-        duty_cycle = active / (active + sleep)
 
-        df['duty_cycle'] = duty_cycle.ffill()
-
+        # Pair an activation time with it's following sleep time. Since we
+        # combined all active runs, we are guaranteed an active row is
+        # immediately succeeded by a non-active row.
+        duration = pl.col('duration')
+        df = df.with_columns(
+            duty_cycle=pl.when(
+                active == active_value
+            ).then(
+                duration / (duration + duration.shift(-1))
+            ).forward_fill()
+        )
         return df
 
 ###############################################################################
