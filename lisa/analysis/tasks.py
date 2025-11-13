@@ -1660,9 +1660,18 @@ class TasksAnalysis(TraceAnalysisBase):
         tasks = sorted(task_dfs.keys())
 
         if show_legend:
+            task_dfs = dict(zip(
+                task_dfs.keys(),
+                pl.collect_all(
+                    itertools.starmap(
+                        get_task_data,
+                        task_dfs.items()
+                    )
+                )
+            ))
             fig = hv.Overlay(
                 [
-                    plot_rect(get_task_data(task, df)).relabel(
+                    plot_rect(df).relabel(
                         f'Activations of {task.pid} (' +
                         ', '.join(
                             task_id.comm
