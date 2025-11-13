@@ -80,9 +80,9 @@ class BTFDump(TestCase):
             for filename in files
         )
         with ProcessPoolExecutor() as executor:
-            executor.map(
+            list(executor.map(
                 _test_btf,
                 paths
-            )
+            ))
 
 
