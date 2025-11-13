@@ -633,7 +633,8 @@ class TasksAnalysis(TraceAnalysisBase):
                     for pid, comms in self._task_pid_map.items()
                     if comms
                 },
-                default=None
+                default=None,
+                return_dtype=pl.Categorical,
             )
         )
         return df
@@ -913,7 +914,11 @@ class TasksAnalysis(TraceAnalysisBase):
             }
 
             def fixup(df, col):
-                str_col = (pl.col(col) & 0xff).replace_strict(mapping, default=None)
+                str_col = (pl.col(col) & 0xff).replace_strict(
+                    mapping,
+                    default=None,
+                    return_dtype=pl.Categorical,
+                )
                 str_col = (
                     pl.when(str_col.is_null() & (pl.col(col) > 0))
                     .then(
