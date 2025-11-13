@@ -1133,7 +1133,7 @@ class TasksAnalysis(TraceAnalysisBase):
             pl.when(
                 pl.col('duration').count() > 0,
             ).then(
-                pl.col('duration').sum().dt.total_nanoseconds() / 1e9,
+                pl.col('duration').sum(),
             )
         ).drop('__active_rle_id')
 
@@ -1529,6 +1529,9 @@ class TasksAnalysis(TraceAnalysisBase):
                 else:
                     raise ValueError(msg)
             else:
+                df = df.with_columns(
+                    pl.col('duration').dt.total_nanoseconds() / 1e9
+                )
                 return ensure_last_rectangle(df)
 
         def get_task_data(task, df):
