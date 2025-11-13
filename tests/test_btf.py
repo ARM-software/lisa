@@ -45,6 +45,10 @@ def _test_btf(btf_path):
         header.flush()
         header = header.getvalue()
 
+        header = f'''
+#define __no_randomize_layout
+{header}
+'''
     header = header.encode('utf-8')
 
     cmd = (
