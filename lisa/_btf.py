@@ -292,6 +292,7 @@ class BTFInt(_CSizedBuiltin, BTFType):
         self.bit_offset = bit_offset
         self.size = size
         self.bits = bits
+        assert bits <= (size * 8)
 
     @property
     def is_bitfield(self):
