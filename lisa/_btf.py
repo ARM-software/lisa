@@ -485,7 +485,7 @@ class _BTFStructUnion(_CDecl, BTFType):
             for member in self.members:
                 member._dump_c_introspection(ctx)
 
-    def _do_dump_c_decls(self, ctx, anonymous=False, memoize=True, parents=None):
+    def _do_dump_c_decls(self, ctx, anonymous=False, memoize=True, parents=None, decl_tags=None):
         members = self._all_members
         size = self.size
         kind = self._KIND
@@ -494,7 +494,13 @@ class _BTFStructUnion(_CDecl, BTFType):
         _parents = parents or []
         children_parents = (*_parents, self)
 
-        def format_member(member):
+        def format_member(i, member):
+            if decl_tags:
+                decl_tag = decl_tags.get(i)
+                decl_tag = f' {decl_tag.attribute_specifier}' if decl_tag else ''
+            else:
+                decl_tag = ''
+
             name = member.name
             typ = member.typ
             if name:
@@ -504,14 +510,15 @@ class _BTFStructUnion(_CDecl, BTFType):
                 bitfield = f': {member.bits}' if is_bitfield else ''
                 aligned = is_bitfield or not (member.bit_offset % (member.alignment * 8))
                 packed = '' if aligned else ' __attribute__((packed))'
-                return f'{typename} {name}{bitfield}{packed}'
+                return f'{typename} {name}{bitfield}{packed}{decl_tag}'
             # ISO C allows anonymous structs/union inside a struct/union.
             elif isinstance(typ.unspecified, _BTFStructUnion):
                 # Bypass the caching since we absolutely do not want to get
                 # back an internal typedef, which would break the layout of the
                 # parent struct. Anonymous union/struct are only useful if
                 # their declaration are expanded in the parent.
-                return typ._dump_c_decls(ctx, anonymous=True, memoize=False, parents=children_parents)
+                decl = typ._dump_c_decls(ctx, anonymous=True, memoize=False, parents=children_parents)
+                return f'{decl}{decl_tag}'
             else:
                 raise ValueError(f'Unsupported anonymous member in {self}')
 
@@ -529,7 +536,7 @@ class _BTFStructUnion(_CDecl, BTFType):
         attrs = attrs or ''
         attrs = f'__no_randomize_layout {attrs}'
 
-        members_str = '; '.join(map(format_member, members))
+        members_str = '; '.join(itertools.starmap(format_member, enumerate(members)))
         members_str = f'{members_str};' if members_str else ''
 
         if anonymous:
@@ -854,16 +861,18 @@ class BTFTypedef(_TransparentType, _CDecl, BTFType):
         with ctx.with_parent(self) as ctx:
             self.typ._dump_c_introspection(ctx)
 
-    def _do_dump_c_decls(self, ctx):
+    def _do_dump_c_decls(self, ctx, decl_tags=None):
         name = self.name
         typ = self.typ
         typename = typ._dump_c_decls(ctx)
+        decl_tag = decl_tags[-1].attribute_specifier if decl_tags else None
+        decl_tag = f' {decl_tag}' if decl_tag else ''
 
         # Some types are special for the compiler and it hates it being
         # re-typedefed, such as __builtin_va_list
         if not name.startswith('__builtin_'):
             ctx.write(
-                f'typedef {typename} {name};\n'
+                f'typedef {typename} {name}{decl_tag};\n'
             )
         return name
 
@@ -985,15 +994,23 @@ class BTFFuncProto(_FixupTyp, _CDecl, BTFType):
         self.typ = typ
         self._params = params
 
-    def _do_dump_c_decls(self, ctx):
+    def _do_dump_c_decls(self, ctx, decl_tags=None):
+        decl_tags = decl_tags or {}
         ret_typ = self.typ
         params = self.params
         name = ctx.make_name()
 
         ret_typename = ret_typ._dump_c_decls(ctx)
+
+        def format_param(i, param):
+            decl_tag = decl_tags.get(i)
+            decl_tag = f' {decl_tag.attribute_specifier}' if decl_tag else ''
+            param = param.typ._dump_c_decls(ctx)
+            return f'{param}{decl_tag}'
+
         params = ', '.join(
-            str(param.typ._dump_c_decls(ctx))
-            for param in params
+            format_param(i, param)
+            for i, param in enumerate(params)
         )
 
         ctx.write(
@@ -1077,7 +1094,7 @@ class BTFFunc(_FixupTyp,  BTFType):
     def _dump_c_introspection(self, ctx):
         self.typ._dump_c_introspection(ctx)
 
-    def _do_dump_c_decls(self, ctx):
+    def _do_dump_c_decls(self, ctx, **kwargs):
         pass
 
 
@@ -1198,9 +1215,16 @@ class BTFDeclTag(_TransparentType, _CDecl, BTFType):
         self.typ = typ
         self.component_idx = component_idx
 
-    def _do_dump_c_decls(self, ctx, **kwargs):
-        # TODO: actually add __attribute__((the btf_decl_tag()))
-        return self.typ._do_dump_c_decls(ctx, **kwargs)
+    @property
+    def attribute_specifier(self):
+        return f'__attribute__(({self.attribute}))'
+
+    def _do_dump_c_decls(self, ctx, decl_tags=None, **kwargs):
+        typ = self.typ
+        decl_tags = decl_tags or {}
+        decl_tags[self.component_idx] = self
+        assert isinstance(typ, (BTFDeclTag, _BTFStructUnion, BTFFunc, BTFVar, BTFTypedef))
+        return typ._do_dump_c_decls(ctx, decl_tags=decl_tags, **kwargs)
 
 
 class BTFTypeTag(_CDeclSpecifier):
