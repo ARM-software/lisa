@@ -31,6 +31,7 @@ import re
 import contextlib
 from operator import attrgetter
 import inspect
+import json
 
 
 def _next_multiple(x, n):
@@ -1158,22 +1159,37 @@ class BTFAttribute:
 
         if value is None:
             value = ''
-        elif isinstance(value, str):
-            value = f'("{value}")'
-        else:
-            value = f'({value})'
+        return f'{self.name}({value})'
 
-        return f'{self.name}{value}'
+    @classmethod
+    def from_tag(cls, tag, is_normal_attribute, special_name):
+        if is_normal_attribute:
+            if (m := re.match(r'(?P<name>.*?)\((?P<value>.*)\)', tag)):
+                return cls(
+                    name=m.group('name'),
+                    value=m.group('value')
+                )
+            else:
+                return cls(
+                    name=tag,
+                    value=None,
+                )
+        else:
+            return cls(
+                name=special_name,
+                value=json.dumps(str(tag)),
+            )
 
 
 class BTFDeclTag(_TransparentType, _CDecl, BTFType):
     __slots__ = ('attribute', 'typ', 'component_idx')
 
-    def __init__(self, typ, tag, component_idx):
+    def __init__(self, typ, tag, component_idx, is_normal_attribute):
         super().__init__()
-        self.attribute = BTFAttribute(
-            name='btf_decl_tag',
-            value=tag,
+        self.attribute = BTFAttribute.from_tag(
+            tag=tag,
+            is_normal_attribute=is_normal_attribute,
+            special_name='btf_decl_tag',
         )
         self.typ = typ
         self.component_idx = component_idx
@@ -1184,13 +1200,14 @@ class BTFDeclTag(_TransparentType, _CDecl, BTFType):
 
 
 class BTFTypeTag(_CDeclSpecifier):
-    __slots__ = ('attribute', 'typ')
+    __slots__ = ('attribute', 'typ', 'is_normal_attribute')
 
-    def __init__(self, typ, tag):
+    def __init__(self, typ, tag, is_normal_attribute):
         super().__init__(typ=typ)
-        self.attribute = BTFAttribute(
-            name='btf_type_tag',
-            value=tag,
+        self.attribute = BTFAttribute.from_tag(
+            tag=tag,
+            is_normal_attribute=is_normal_attribute,
+            special_name='btf_type_tag',
         )
 
     @property
@@ -1575,17 +1592,18 @@ def _parse_btf(buf):
                 tag=name,
                 typ=_TypeRef(size_or_type),
                 component_idx=component_idx,
+                is_normal_attribute=kind_flag == 1,
             )
 
         #define BTF_KIND_TYPE_TAG       18      /* Type Tag     */
         elif kind == 18:
             assert name
-            assert kind_flag == 0
             assert vlen == 0
 
             typ = BTFTypeTag(
                 tag=name,
                 typ=_TypeRef(size_or_type),
+                is_normal_attribute=kind_flag == 1,
             )
 
         else:
