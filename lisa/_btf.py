@@ -1076,6 +1076,9 @@ class BTFFunc(_FixupTyp,  BTFType):
     def _dump_c_introspection(self, ctx):
         self.typ._dump_c_introspection(ctx)
 
+    def _do_dump_c_decls(self, ctx):
+        pass
+
 
 class BTFFuncLinkage(enum.Enum):
     STATIC = 0
