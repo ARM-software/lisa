@@ -633,7 +633,8 @@ class TasksAnalysis(TraceAnalysisBase):
                     for pid, comms in self._task_pid_map.items()
                     if comms
                 },
-                default=None
+                default=None,
+                return_dtype=pl.Categorical,
             )
         )
         return df
@@ -913,7 +914,11 @@ class TasksAnalysis(TraceAnalysisBase):
             }
 
             def fixup(df, col):
-                str_col = (pl.col(col) & 0xff).replace_strict(mapping, default=None)
+                str_col = (pl.col(col) & 0xff).replace_strict(
+                    mapping,
+                    default=None,
+                    return_dtype=pl.Categorical,
+                )
                 str_col = (
                     pl.when(str_col.is_null() & (pl.col(col) > 0))
                     .then(
@@ -1130,25 +1135,36 @@ class TasksAnalysis(TraceAnalysisBase):
             # In each group, we take the first row for all columns except the
             # duration that is summed
             pl.all().exclude('duration').first(),
-            pl.col('duration').sum(),
+            pl.when(
+                pl.col('duration').count() > 0,
+            ).then(
+                pl.col('duration').sum(),
+            )
         ).drop('__active_rle_id')
 
         # Make a dataframe where the rows corresponding to preempted time are
         # removed, unless preempted_value is set to non-NA
-        preempt_free_df = df.drop_nulls()
-
+        df = df.drop_nulls('active')
 
         # Pair an activation time with it's following sleep time. Since we
         # combined all active runs, we are guaranteed an active row is
         # immediately succeeded by a non-active row.
-        duration = pl.col('duration')
+        df = df.join_asof(
+            df.filter(
+                active == sleep_value
+            ).select('Time', sleep_duration='duration'),
+            on='Time',
+            strategy='forward',
+        )
+
         df = df.with_columns(
             duty_cycle=pl.when(
-                active == active_value
+                active == active_value,
             ).then(
-                duration / (duration + duration.shift(-1))
-            ).forward_fill()
+                pl.col('duration') / (pl.col('duration') + pl.col('sleep_duration'))
+            )
         )
+        df = df.drop('sleep_duration')
         return df
 
 ###############################################################################
@@ -1518,6 +1534,9 @@ class TasksAnalysis(TraceAnalysisBase):
                 else:
                     raise ValueError(msg)
             else:
+                df = df.with_columns(
+                    pl.col('duration').dt.total_nanoseconds() / 1e9
+                )
                 return ensure_last_rectangle(df)
 
         def get_task_data(task, df):
@@ -1640,9 +1659,18 @@ class TasksAnalysis(TraceAnalysisBase):
         tasks = sorted(task_dfs.keys())
 
         if show_legend:
+            task_dfs = dict(zip(
+                task_dfs.keys(),
+                pl.collect_all(
+                    itertools.starmap(
+                        get_task_data,
+                        task_dfs.items()
+                    )
+                )
+            ))
             fig = hv.Overlay(
                 [
-                    plot_rect(get_task_data(task, df)).relabel(
+                    plot_rect(df).relabel(
                         f'Activations of {task.pid} (' +
                         ', '.join(
                             task_id.comm

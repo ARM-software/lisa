@@ -1594,7 +1594,13 @@ class TraceDumpTraceParser(TraceParserBase):
         )
         df = df.with_columns([
             pl.col('Time').cast(pl.Duration("ns")),
-            pl.col('__pid').replace_strict(pid_comms, default=None).alias('__comm')
+            pl.col('__pid').replace_strict(
+                pid_comms,
+                default=None,
+                # It seems to be faster to cast immediately rather than to rely
+                # on some later separate cast.
+                return_dtype=pl.Categorical,
+            ).alias('__comm')
         ])
         df = df.drop(('common_type', 'common_flags', 'common_preempt_count'), strict=False)
 

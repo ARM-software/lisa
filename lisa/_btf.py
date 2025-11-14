@@ -31,6 +31,7 @@ import re
 import contextlib
 from operator import attrgetter
 import inspect
+import json
 
 
 def _next_multiple(x, n):
@@ -291,6 +292,7 @@ class BTFInt(_CSizedBuiltin, BTFType):
         self.bit_offset = bit_offset
         self.size = size
         self.bits = bits
+        assert bits <= (size * 8)
 
     @property
     def is_bitfield(self):
@@ -483,7 +485,7 @@ class _BTFStructUnion(_CDecl, BTFType):
             for member in self.members:
                 member._dump_c_introspection(ctx)
 
-    def _do_dump_c_decls(self, ctx, anonymous=False, memoize=True, parents=None):
+    def _do_dump_c_decls(self, ctx, anonymous=False, memoize=True, parents=None, decl_tags=None):
         members = self._all_members
         size = self.size
         kind = self._KIND
@@ -492,7 +494,13 @@ class _BTFStructUnion(_CDecl, BTFType):
         _parents = parents or []
         children_parents = (*_parents, self)
 
-        def format_member(member):
+        def format_member(i, member):
+            if decl_tags:
+                decl_tag = decl_tags.get(i)
+                decl_tag = f' {decl_tag.attribute_specifier}' if decl_tag else ''
+            else:
+                decl_tag = ''
+
             name = member.name
             typ = member.typ
             if name:
@@ -502,14 +510,15 @@ class _BTFStructUnion(_CDecl, BTFType):
                 bitfield = f': {member.bits}' if is_bitfield else ''
                 aligned = is_bitfield or not (member.bit_offset % (member.alignment * 8))
                 packed = '' if aligned else ' __attribute__((packed))'
-                return f'{typename} {name}{bitfield}{packed}'
+                return f'{typename} {name}{bitfield}{packed}{decl_tag}'
             # ISO C allows anonymous structs/union inside a struct/union.
             elif isinstance(typ.unspecified, _BTFStructUnion):
                 # Bypass the caching since we absolutely do not want to get
                 # back an internal typedef, which would break the layout of the
                 # parent struct. Anonymous union/struct are only useful if
                 # their declaration are expanded in the parent.
-                return typ._dump_c_decls(ctx, anonymous=True, memoize=False, parents=children_parents)
+                decl = typ._dump_c_decls(ctx, anonymous=True, memoize=False, parents=children_parents)
+                return f'{decl}{decl_tag}'
             else:
                 raise ValueError(f'Unsupported anonymous member in {self}')
 
@@ -527,7 +536,7 @@ class _BTFStructUnion(_CDecl, BTFType):
         attrs = attrs or ''
         attrs = f'__no_randomize_layout {attrs}'
 
-        members_str = '; '.join(map(format_member, members))
+        members_str = '; '.join(itertools.starmap(format_member, enumerate(members)))
         members_str = f'{members_str};' if members_str else ''
 
         if anonymous:
@@ -852,16 +861,18 @@ class BTFTypedef(_TransparentType, _CDecl, BTFType):
         with ctx.with_parent(self) as ctx:
             self.typ._dump_c_introspection(ctx)
 
-    def _do_dump_c_decls(self, ctx):
+    def _do_dump_c_decls(self, ctx, decl_tags=None):
         name = self.name
         typ = self.typ
         typename = typ._dump_c_decls(ctx)
+        decl_tag = decl_tags[-1].attribute_specifier if decl_tags else None
+        decl_tag = f' {decl_tag}' if decl_tag else ''
 
         # Some types are special for the compiler and it hates it being
         # re-typedefed, such as __builtin_va_list
         if not name.startswith('__builtin_'):
             ctx.write(
-                f'typedef {typename} {name};\n'
+                f'typedef {typename} {name}{decl_tag};\n'
             )
         return name
 
@@ -983,15 +994,23 @@ class BTFFuncProto(_FixupTyp, _CDecl, BTFType):
         self.typ = typ
         self._params = params
 
-    def _do_dump_c_decls(self, ctx):
+    def _do_dump_c_decls(self, ctx, decl_tags=None):
+        decl_tags = decl_tags or {}
         ret_typ = self.typ
         params = self.params
         name = ctx.make_name()
 
         ret_typename = ret_typ._dump_c_decls(ctx)
+
+        def format_param(i, param):
+            decl_tag = decl_tags.get(i)
+            decl_tag = f' {decl_tag.attribute_specifier}' if decl_tag else ''
+            param = param.typ._dump_c_decls(ctx)
+            return f'{param}{decl_tag}'
+
         params = ', '.join(
-            str(param.typ._dump_c_decls(ctx))
-            for param in params
+            format_param(i, param)
+            for i, param in enumerate(params)
         )
 
         ctx.write(
@@ -1074,6 +1093,9 @@ class BTFFunc(_FixupTyp,  BTFType):
 
     def _dump_c_introspection(self, ctx):
         self.typ._dump_c_introspection(ctx)
+
+    def _do_dump_c_decls(self, ctx, **kwargs):
+        pass
 
 
 class BTFFuncLinkage(enum.Enum):
@@ -1158,39 +1180,62 @@ class BTFAttribute:
 
         if value is None:
             value = ''
-        elif isinstance(value, str):
-            value = f'("{value}")'
-        else:
-            value = f'({value})'
+        return f'{self.name}({value})'
 
-        return f'{self.name}{value}'
+    @classmethod
+    def from_tag(cls, tag, is_normal_attribute, special_name):
+        if is_normal_attribute:
+            if (m := re.match(r'(?P<name>.*?)\((?P<value>.*)\)', tag)):
+                return cls(
+                    name=m.group('name'),
+                    value=m.group('value')
+                )
+            else:
+                return cls(
+                    name=tag,
+                    value=None,
+                )
+        else:
+            return cls(
+                name=special_name,
+                value=json.dumps(str(tag)),
+            )
 
 
 class BTFDeclTag(_TransparentType, _CDecl, BTFType):
     __slots__ = ('attribute', 'typ', 'component_idx')
 
-    def __init__(self, typ, tag, component_idx):
+    def __init__(self, typ, tag, component_idx, is_normal_attribute):
         super().__init__()
-        self.attribute = BTFAttribute(
-            name='btf_decl_tag',
-            value=tag,
+        self.attribute = BTFAttribute.from_tag(
+            tag=tag,
+            is_normal_attribute=is_normal_attribute,
+            special_name='btf_decl_tag',
         )
         self.typ = typ
         self.component_idx = component_idx
 
-    def _do_dump_c_decls(self, ctx, **kwargs):
-        # TODO: actually add __attribute__((the btf_decl_tag()))
-        return self.typ._do_dump_c_decls(ctx, **kwargs)
+    @property
+    def attribute_specifier(self):
+        return f'__attribute__(({self.attribute}))'
+
+    def _do_dump_c_decls(self, ctx, decl_tags=None, **kwargs):
+        typ = self.typ
+        decl_tags = decl_tags or {}
+        decl_tags[self.component_idx] = self
+        assert isinstance(typ, (BTFDeclTag, _BTFStructUnion, BTFFunc, BTFVar, BTFTypedef))
+        return typ._do_dump_c_decls(ctx, decl_tags=decl_tags, **kwargs)
 
 
 class BTFTypeTag(_CDeclSpecifier):
-    __slots__ = ('attribute', 'typ')
+    __slots__ = ('attribute', 'typ', 'is_normal_attribute')
 
-    def __init__(self, typ, tag):
+    def __init__(self, typ, tag, is_normal_attribute):
         super().__init__(typ=typ)
-        self.attribute = BTFAttribute(
-            name='btf_type_tag',
-            value=tag,
+        self.attribute = BTFAttribute.from_tag(
+            tag=tag,
+            is_normal_attribute=is_normal_attribute,
+            special_name='btf_type_tag',
         )
 
     @property
@@ -1488,7 +1533,6 @@ def _parse_btf(buf):
         #define BTF_KIND_FUNC           12      /* Function     */
         elif kind == 12:
             assert kind_flag == 0
-            assert vlen == 0
 
             typ = BTFFunc(
                 name=name,
@@ -1575,17 +1619,18 @@ def _parse_btf(buf):
                 tag=name,
                 typ=_TypeRef(size_or_type),
                 component_idx=component_idx,
+                is_normal_attribute=kind_flag == 1,
             )
 
         #define BTF_KIND_TYPE_TAG       18      /* Type Tag     */
         elif kind == 18:
             assert name
-            assert kind_flag == 0
             assert vlen == 0
 
             typ = BTFTypeTag(
                 tag=name,
                 typ=_TypeRef(size_or_type),
+                is_normal_attribute=kind_flag == 1,
             )
 
         else:
