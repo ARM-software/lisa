@@ -1505,7 +1505,6 @@ def _parse_btf(buf):
         #define BTF_KIND_FUNC           12      /* Function     */
         elif kind == 12:
             assert kind_flag == 0
-            assert vlen == 0
 
             typ = BTFFunc(
                 name=name,
