@@ -38,7 +38,7 @@ from colorcet import glasbey_hv
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized, kwargs_forwarded_to, deprecate, order_as, is_running_ipython
-from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates, SignalDesc, _df_to, NO_INDEX
+from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates, SignalDesc, _df_to, NO_INDEX, _polars_fast_collect_all
 from lisa.trace import requires_events, will_use_events_from, may_use_events, CPU, MissingTraceEventError, OrTraceEventChecker
 from lisa.notebook import _hv_neutral, plot_signal
 from lisa._typeclass import FromString
@@ -1608,6 +1608,8 @@ class TasksAnalysis(TraceAnalysisBase):
             return data_df
 
         def plot_rect(data):
+            data = data.lazy()
+
             if show_legend or use_rasterize:
                 opts = {}
             else:
@@ -1747,7 +1749,7 @@ class TasksAnalysis(TraceAnalysisBase):
         if show_legend:
             task_dfs = dict(zip(
                 task_dfs.keys(),
-                pl.collect_all(
+                _polars_fast_collect_all(
                     itertools.starmap(
                         get_task_data,
                         task_dfs.items()
