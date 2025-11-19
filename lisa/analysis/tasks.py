@@ -27,15 +27,17 @@ from operator import itemgetter
 import re
 import functools
 from typing import NamedTuple, Optional
+import operator
 
 import numpy as np
 import pandas as pd
 import holoviews as hv
 import bokeh.models
 import polars as pl
+from colorcet import glasbey_hv
 
 from lisa.analysis.base import TraceAnalysisBase
-from lisa.utils import memoized, kwargs_forwarded_to, deprecate, order_as
+from lisa.utils import memoized, kwargs_forwarded_to, deprecate, order_as, is_running_ipython
 from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates, SignalDesc, _df_to, NO_INDEX
 from lisa.trace import requires_events, will_use_events_from, may_use_events, CPU, MissingTraceEventError, OrTraceEventChecker
 from lisa.notebook import _hv_neutral, plot_signal
@@ -1453,7 +1455,9 @@ class TasksAnalysis(TraceAnalysisBase):
     @df_task_activation.used_events
     def _plot_tasks_activation(self, tasks, show_legend=None, cpu: CPU=None, alpha:
             float=None, overlay: bool=None, duration: bool=False, duty_cycle:
-            bool=False, which_cpu: bool=False, height_duty_cycle: bool=False, best_effort=False):
+            bool=False, which_cpu: bool=False, height_duty_cycle: bool=False,
+            best_effort: bool =False,
+        ):
         logger = self.logger
         trace = self.trace.get_view(df_fmt='polars-lazyframe')
         ana = trace.ana
@@ -1581,25 +1585,34 @@ class TasksAnalysis(TraceAnalysisBase):
             )
 
             data_df = data_df.join_asof(
-                df.select(('Time', 'cpu', 'duration', 'duty_cycle')),
+                df.select((
+                    'Time',
+                    'cpu',
+                    'active',
+                    'duration',
+                    'duty_cycle',
+                )),
                 on='Time',
             )
 
             data_df = data_df.with_columns(
-                # Use a string for PID so that holoviews interprets it as
-                # categorical variable, rather than continuous. This is
-                # important for correct color mapping
-                pid=pl.lit(str(task.pid)),
+                pid=pl.lit(
+                    task.pid
+                    if use_rasterize else
+                    # Use a string so it is recognized as a categorical column
+                    str(task.pid)
+                ),
                 start=pl.col('Time'),
                 cpu=pl.col('CPU'),
             )
             return data_df
 
         def plot_rect(data):
-            if show_legend:
+            if show_legend or use_rasterize:
                 opts = {}
             else:
-                # If there is no legend, we are gonna plot all the rectangles at once so we use colormapping to distinguish the tasks
+                # If there is no legend, we are gonna plot all the rectangles
+                # at once so we use colormapping to distinguish the tasks
                 opts = dict(
                     color='pid',
                     # Colormap from colorcet with a large number of color, so it is
@@ -1607,7 +1620,20 @@ class TasksAnalysis(TraceAnalysisBase):
                     cmap='glasbey_hv',
                 )
 
-            return hv.Rectangles(
+            if use_rasterize:
+                channels = ('red', 'green', 'blue')
+                data = data.with_columns(
+                    pl.col('pid').replace_strict(
+                        color_key,
+                        return_dtype=pl.Array(
+                            pl.UInt8, 3
+                        )
+                    ).arr.to_struct(
+                        fields=channels
+                    ).struct.unnest()
+                )
+
+            fig = hv.Rectangles(
                 _df_to(data, fmt='pandas', index=NO_INDEX),
                 kdims=[
                     # Ensure we have Time as kdim, otherwise some generic code
@@ -1627,8 +1653,44 @@ class TasksAnalysis(TraceAnalysisBase):
             ).options(
                 backend='bokeh',
                 line_width=0,
+                line_color=None,
                 tools=[self._BOKEH_TASK_HOVERTOOL],
             )
+
+            if use_rasterize:
+
+                interactive = is_running_ipython()
+                # Merge on each RGB channels. This way we can pre-assign the color
+                # of each rectangle in the data set and we just end up with blended
+                # color when zooming out.
+                from holoviews.operation.datashader import datashade, stack
+                import datashader as ds
+
+                fig = functools.reduce(
+                    operator.mul,
+                    (
+                        datashade(
+                            fig,
+                            # Select the rectangle with the longest duration, so
+                            # that shorter ones are displayed "as part of it"
+                            aggregator=ds.where(ds.max('duration'), chan),
+                            # We use a single color name, so the aggregated value
+                            # for each pixel is used as alpha for that color.
+                            cmap=chan,
+                            # Ensure the value that shade() picks is the value
+                            # we asked for. We do not want any re-normalization
+                            # or offset of any kind.
+                            cnorm='linear',
+                            clims=(0, 255),
+                            min_alpha=0,
+                            precompute=True,
+                            dynamic=interactive,
+                        )
+                        for chan in channels
+                    )
+                )
+                fig = stack(fig, compositor='add', link_inputs=True)
+            return fig
 
         if alpha is None:
             if duty_cycle or duration:
@@ -1636,12 +1698,24 @@ class TasksAnalysis(TraceAnalysisBase):
             else:
                 alpha = 1
 
-        # For performance reasons, plot all the tasks as one hv.Rectangles
-        # invocation when we get too many tasks
-        if show_legend is None:
-            show_legend = len(tasks) < 5
 
         cpus_count = trace.cpus_count
+
+        if show_legend:
+            use_rasterize = False
+        else:
+            event_per_sec = 1000
+            approx_rectangles = (trace.end - trace.start) * event_per_sec * cpus_count
+            use_rasterize = approx_rectangles > 5_000
+
+        # TODO: undo that when this gets fixed:
+        # https://github.com/holoviz/holoviews/issues/6736
+        use_rasterize=False
+
+        # For performance reasons, plot all the tasks as one hv.Rectangles
+        # invocation when we get too many tasks
+        if show_legend is None and not use_rasterize:
+            show_legend = len(tasks) < 5
 
         task_dfs = {
             task: check_df(
@@ -1657,6 +1731,18 @@ class TasksAnalysis(TraceAnalysisBase):
             if df is not None
         }
         tasks = sorted(task_dfs.keys())
+
+        # Assign a color to each PID
+        color_key = {
+            pid: tuple(int(c * 255) for c in color)
+            for pid, color in zip(
+                sorted({
+                    task.pid
+                    for task in tasks
+                }),
+                itertools.cycle(list(glasbey_hv))
+            )
+        }
 
         if show_legend:
             task_dfs = dict(zip(
