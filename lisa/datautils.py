@@ -258,6 +258,25 @@ def _polars_index_col(df, index=None):
         return columns[0]
 
 
+# TODO: re-evaluate the need for these flags if Common Subplan Elimination
+# (CSE) stops preventing other optimizations:
+# https://github.com/pola-rs/polars/issues/22108#issuecomment-2778105148
+_POLARS_OPTIMS = pl.QueryOptFlags(
+    comm_subplan_elim=False,
+)
+
+
+def _polars_fast_collect(df):
+    return df.collect(optimizations=_POLARS_OPTIMS)
+
+
+def _polars_fast_collect_all(items):
+    return pl.collect_all(
+        items,
+        optimizations=_POLARS_OPTIMS,
+    )
+
+
 def _df_to_polars(df, index):
     in_memory = _polars_df_in_memory(df)
 
@@ -317,7 +336,7 @@ def _df_to_pandas(df, index):
         df = df.with_columns(
             cs.duration().dt.total_nanoseconds() * 1e-9
         )
-        df = df.collect()
+        df = _polars_fast_collect(df)
 
         # Make sure we get nullable dtypes:
         # https://arrow.apache.org/docs/python/pandas.html
@@ -1450,7 +1469,9 @@ def _polars_window_signals(df, window, signals, compress_init):
             )
 
             if compress_init:
-                first_row = post_df.select(index).head(1).collect()
+                first_row = _polars_fast_collect(
+                    post_df.select(index).head(1)
+                )
                 try:
                     first_time = first_row.item()
                 except ValueError:

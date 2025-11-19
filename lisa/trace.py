@@ -66,7 +66,7 @@ import devlib
 
 from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, set_nested_key, unzip_into, order_as, DirCache, DelegateToAttr, _EXTRA_ASSERTS
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
-from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df
+from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df, _polars_fast_collect, _polars_fast_collect_all
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString
 from lisa._kmod import LISADynamicKmod
@@ -377,7 +377,7 @@ def _convert_df_from_parser(df, parser, cache):
                     # If we cannot move the backing data to the swap folder, we
                     # are forced to just load the data eagerly as backing
                     # storage (e.g.  tmp folder) will probably disappear
-                    df = df.df.collect().lazy()
+                    df = _polars_fast_collect(df.df).lazy()
                 else:
                     hardlinks = set()
                     df = _lazyframe_rewrite(
@@ -788,9 +788,11 @@ class MockTraceParser(TraceParserBase):
                     Time=pl.col('Time').cast(pl.Duration('ns')).cast(pl.Int64)
                 )
 
-                start, end = df.select(
-                    (pl.min('Time').alias('min'), pl.max('Time').alias('max'))
-                ).collect().row(0)
+                df = df.select((
+                    pl.min('Time').alias('min'),
+                    pl.max('Time').alias('max')
+                ))
+                start, end = _polars_fast_collect(df).row(0)
 
                 start = Timestamp(start, unit='ns', rounding='down')
                 end = Timestamp(end, unit='ns', rounding='up')
@@ -4625,7 +4627,8 @@ class _TraceCache(Loggable):
                 # fall back on collecting.
                 except Exception:
                     path.unlink(missing_ok=True)
-                    data.collect().write_parquet(path, **kwargs)
+                    data = _polars_fast_collect(data)
+                    data.write_parquet(path, **kwargs)
         else:
             data.to_parquet(path, **kwargs)
 
@@ -5791,12 +5794,15 @@ class _Trace(Loggable, _InternalTraceBase):
                     checked_events = self.available_events
 
                 max_cpu = max(
-                    int(df.select(pl.max('__cpu')).collect().item())
-                    for df, meta in (
-                        self._internal_df_event(event)
-                        for event in checked_events
+                    int(df.item())
+                    for df in _polars_fast_collect_all(
+                        df.select(pl.max('__cpu'))
+                        for df, meta in (
+                            self._internal_df_event(event)
+                            for event in checked_events
+                        )
+                        if '__cpu' in df.collect_schema().names()
                     )
-                    if '__cpu' in df.collect_schema().names()
                 )
                 count = max_cpu + 1
                 self.logger.debug(f"Estimated CPU count from trace: {count}")
