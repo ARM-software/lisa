@@ -5998,7 +5998,7 @@ class _Trace(Loggable, _InternalTraceBase):
             raise e
         else:
             assert isinstance(df, _ParsedDataFrame)
-            df = df.df
+            df = _df_to(df.df, fmt='polars-lazyframe')
             # TODO: If and when this is solved, attach the name of the event to
             # the LazyFrames:
             # https://github.com/pola-rs/polars/issues/5117
@@ -6210,6 +6210,7 @@ class _Trace(Loggable, _InternalTraceBase):
                                     cache=self._cache,
                                 )
                                 _df = _df.df
+                                assert isinstance(_df, pl.LazyFrame)
 
                                 _df = _df.join(
                                     extra_df,
