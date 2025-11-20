@@ -66,7 +66,7 @@ import devlib
 
 from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, set_nested_key, unzip_into, order_as, DirCache, DelegateToAttr, _EXTRA_ASSERTS
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
-from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df, _polars_fast_collect, _polars_fast_collect_all
+from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df, _polars_fast_collect, _polars_fast_collect_all, _df_in_memory
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString
 from lisa._kmod import LISADynamicKmod
@@ -4969,6 +4969,29 @@ class _TraceCache(Loggable):
                 except Exception:
                     pass
 
+    def _fetch_from_swap(self, cache_desc, insert):
+        try:
+            path = self._cache_desc_swap_path(cache_desc)
+        # If there is no swap, bail out
+        except (ValueError, KeyError):
+            raise KeyError('Could not find swap entry for cache_desc')
+        else:
+            try:
+                data = self._load_data(cache_desc.fmt, path)
+            except Exception as e:
+                # Rotten swap entry, we clear it. This may happen e.g. when
+                # reloading a LazyFrame that depended on another cache
+                # entry that has been scrubbed
+                self._clear_cache_desc_swap(cache_desc)
+                raise KeyError('Could not load swap entry content of cache_desc')
+            else:
+                if insert:
+                    # We have no idea of the cost of something coming from
+                    # the cache
+                    return self.insert(cache_desc, data, write_swap=False, compute_cost=None)
+                else:
+                    return data
+
     def fetch(self, cache_desc, insert=True):
         """
         Fetch an entry from the cache or the swap.
@@ -4984,28 +5007,7 @@ class _TraceCache(Loggable):
             with self._lock:
                 return self._cache[cache_desc]
         except KeyError as e:
-            # pylint: disable=raise-missing-from
-            try:
-                path = self._cache_desc_swap_path(cache_desc)
-            # If there is no swap, bail out
-            except (ValueError, KeyError):
-                raise KeyError('Could not find swap entry for cache_desc')
-            else:
-                try:
-                    data = self._load_data(cache_desc.fmt, path)
-                except Exception as e:
-                    # Rotten swap entry, we clear it. This may happen e.g. when
-                    # reloading a LazyFrame that depended on another cache
-                    # entry that has been scrubbed
-                    self._clear_cache_desc_swap(cache_desc)
-                    raise KeyError('Could not load swap entry content of cache_desc')
-
-                if insert:
-                    # We have no idea of the cost of something coming from
-                    # the cache
-                    self.insert(cache_desc, data, write_swap=False, compute_cost=None)
-
-                return data
+            return self._fetch_from_swap(cache_desc, insert=insert)
 
     def insert(self, cache_desc, data, compute_cost=None, write_swap=True, ignore_cost=False, write_meta=True, swappable=None):
         """
@@ -5058,6 +5060,36 @@ class _TraceCache(Loggable):
             )
 
         self._scrub_mem()
+
+        if write_swap:
+            try:
+                in_mem = _df_in_memory(data)
+            except ValueError:
+                return data
+            else:
+                if in_mem:
+                    return data
+                elif cache_desc.fmt == 'parquet':
+                    # If the data was not in memory (e.g. polars LazyFrame), we
+                    # reload it from the swap. Most computations reduce the
+                    # amount of data compared to the source, so it is
+                    # advantageous to load the already reduced data from the
+                    # file rather than keep the LazyFrame untouched, which
+                    # would require re-computing it.
+                    try:
+                        return self._fetch_from_swap(
+                            cache_desc,
+                            # We want to replace the cache slot by the new
+                            # swap-backed piece of data we got, so that future
+                            # calls to fetch() can also benefit from it.
+                            insert=True
+                        )
+                    except KeyError:
+                        return data
+                else:
+                    return data
+        else:
+            return data
 
     def insert_disk_only(self, spec, compute_cost=None):
         cache_desc = _CacheDataDesc(spec=spec, fmt='disk-only')
@@ -5461,11 +5493,11 @@ class _Trace(Loggable, _InternalTraceBase):
 
         def finalize(preloaded_df_map, preloaded_meta, parser, df_map):
             parsed_df_map = convert(parser, df_map)
-            self._insert_events({
+            parsed_df_map.update(self._insert_events({
                 event: df
                 for event, df in parsed_df_map.items()
                 if event not in preloaded_df_map
-            })
+            }))
             df_map = {
                 **preloaded_df_map,
                 **parsed_df_map,
@@ -6013,7 +6045,7 @@ class _Trace(Loggable, _InternalTraceBase):
                         raise MissingTraceEventError([event])
 
         df_from_trace = self._load_raw_df(events_to_load)
-        self._insert_events(df_from_trace)
+        df_from_trace = self._insert_events(df_from_trace)
 
         df_map = {**from_cache, **df_from_trace}
         try:
@@ -6028,11 +6060,11 @@ class _Trace(Loggable, _InternalTraceBase):
         return df_map
 
     def _insert_events(self, df_map):
-        for event, df in df_map.items():
+        def insert_event(event, df):
             assert isinstance(df, _ParsedDataFrame)
             if df.meta['mem_cacheable']:
                 cache_desc = self._make_raw_cache_desc(event)
-                self._cache.insert(
+                df = self._cache.insert(
                     cache_desc,
                     df.df,
                     write_swap=True,
@@ -6041,6 +6073,13 @@ class _Trace(Loggable, _InternalTraceBase):
                     # since parsing cost is known to be high
                     ignore_cost=True,
                 )
+                df = _ParsedDataFrame.from_df(df)
+            return df
+
+        return {
+            event: insert_event(event, df)
+            for event, df in df_map.items()
+        }
 
     def _parse_raw_events(self, events):
         if not events:
