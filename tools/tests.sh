@@ -28,6 +28,11 @@ source init_env || exit 1
 set -e
 
 echo "Starting self tests ..."
+
+# This should be set by pytest as well, but we also want it enabled when
+# building the doc as well to increase coverage (building example plots etc).
+export LISA_EXTRA_ASSERTS=1
+
 # Use timeout to send SIGINT if the test hangs, so we get a proper backtrace
 # before github action kills the whole thing without any useful log
 timeout -s INT 1h python3 -m pytest -vv

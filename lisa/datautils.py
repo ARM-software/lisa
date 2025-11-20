@@ -227,17 +227,32 @@ def _polars_duration_window(window):
 _MEM_LAZYFRAMES_LOCK = threading.Lock()
 _MEM_LAZYFRAMES = weakref.WeakValueDictionary()
 def _polars_declare_in_memory(df):
-        with _MEM_LAZYFRAMES_LOCK:
-            _MEM_LAZYFRAMES[id(df)] = df
+    with _MEM_LAZYFRAMES_LOCK:
+        _MEM_LAZYFRAMES[id(df)] = df
+
 
 def _polars_df_in_memory(df):
-    try:
-        with _MEM_LAZYFRAMES_LOCK:
-            _df = _MEM_LAZYFRAMES[id(df)]
-    except KeyError:
-        return False
+    if isinstance(df, pl.DataFrame):
+        return True
+    elif isinstance(df, pl.LazyFrame):
+        try:
+            with _MEM_LAZYFRAMES_LOCK:
+                _df = _MEM_LAZYFRAMES[id(df)]
+        except KeyError:
+            return False
+        else:
+            return _df is df
     else:
-        return _df is df
+        raise ValueError(f'Unsupported dataframe type: {df.__class__}')
+
+
+def _df_in_memory(df):
+    if isinstance(df, pd.DataFrame):
+        return True
+    elif isinstance(df, (pl.DataFrame, pl.LazyFrame)):
+        return _polars_df_in_memory(df)
+    else:
+        raise ValueError(f'Unsupported dataframe type: {df.__class__}')
 
 
 class _NoIndex:
@@ -278,7 +293,7 @@ def _polars_fast_collect_all(items):
 
 
 def _df_to_polars(df, index):
-    in_memory = _polars_df_in_memory(df)
+    in_memory = _df_in_memory(df)
 
     if isinstance(df, pl.LazyFrame):
         index = _polars_index_col(df, index)
@@ -307,7 +322,6 @@ def _df_to_polars(df, index):
     # data is backed by a "DataFrameScan" instead of a "Scan" of a file:
     # https://github.com/pola-rs/polars/issues/9771
     elif isinstance(df, pl.DataFrame):
-        in_memory = True
         df = df.lazy()
         df = _df_to_polars(df, index=index)
     elif isinstance(df, pd.DataFrame):

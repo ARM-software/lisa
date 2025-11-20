@@ -69,9 +69,9 @@ from polars.io.plugins import register_io_source
 
 import devlib
 
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, set_nested_key, unzip_into, order_as, DirCache, DelegateToAttr
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, set_nested_key, unzip_into, order_as, DirCache, DelegateToAttr, _EXTRA_ASSERTS
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
-from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df, _polars_fast_collect, _polars_fast_collect_all
+from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df, _polars_fast_collect, _polars_fast_collect_all, _df_in_memory
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString
 from lisa._kmod import LISADynamicKmod
@@ -160,17 +160,43 @@ class _LazyFrameOnDelete(_Deallocator):
         )
 
     @classmethod
-    def attach_file_cleanup(cls, df, paths):
+    def attach_file_cleanup(cls, df, paths, nr_rows=None):
         paths = sorted(set(paths))
         if paths:
-            df = cls._attach(
-                df,
-                functools.partial(
-                    _file_cleanup,
-                    paths,
+            if nr_rows is None:
+                def get_nr_rows(path):
+                    try:
+                        return pyarrow.parquet.read_metadata(path).num_rows
+                    except Exception:
+                        return 0
+
+                nr_rows = sum(
+                    get_nr_rows(path)
+                    for _path in map(Path, paths)
+                    for path in (
+                        _path.rglob('*')
+                        if _path.is_dir() else
+                        (_path,)
+                    )
                 )
-            )
-        return df
+
+            # _LazyFrameOnDelete has a noticeable overhead when the row group size
+            # is small, which is unavoidable when the parquet file itself is very
+            # small.
+            if nr_rows < 10_000:
+                df = df.collect()
+                _file_cleanup(paths)
+                return _df_to(df, fmt='polars-lazyframe')
+            else:
+                return cls._attach(
+                    df,
+                    functools.partial(
+                        _file_cleanup,
+                        paths,
+                    )
+                )
+        else:
+            return df
 
     def __call__(self, x):
         return x
@@ -381,10 +407,10 @@ def _convert_df_from_parser(df, parser, cache):
                     # If we cannot move the backing data to the swap folder, we
                     # are forced to just load the data eagerly as backing
                     # storage (e.g.  tmp folder) will probably disappear
-                    df = df.df.collect().lazy()
+                    _df = _polars_fast_collect(df.df).lazy()
                 else:
                     hardlinks = set()
-                    df = _lazyframe_rewrite(
+                    _df = _lazyframe_rewrite(
                         df=df.df,
                         update_plan=functools.partial(
                             _logical_plan_update_paths,
@@ -402,11 +428,15 @@ def _convert_df_from_parser(df, parser, cache):
                     # not a huge problem though, but it does mean that we will
                     # end up with 2 layers of "map_batches(identity)" on
                     # LazyFrames reloaded from the cache.
-                    df = _LazyFrameOnDelete.attach_file_cleanup(df, hardlinks)
+                    _df = _LazyFrameOnDelete.attach_file_cleanup(
+                        _df,
+                        hardlinks,
+                        nr_rows=df.meta.get('nr_rows')
+                    )
             else:
-                df = df.df
+                _df = df.df
 
-            return to_polars(df)
+            return to_polars(_df)
         return fixup(df)
 
     df = _ParsedDataFrame.from_df(df)
@@ -792,9 +822,11 @@ class MockTraceParser(TraceParserBase):
                     Time=pl.col('Time').cast(pl.Duration('ns')).cast(pl.Int64)
                 )
 
-                start, end = df.select(
-                    (pl.min('Time').alias('min'), pl.max('Time').alias('max'))
-                ).collect().row(0)
+                df = df.select((
+                    pl.min('Time').alias('min'),
+                    pl.max('Time').alias('max')
+                ))
+                start, end = _polars_fast_collect(df).row(0)
 
                 start = Timestamp(start, unit='ns', rounding='down')
                 end = Timestamp(end, unit='ns', rounding='up')
@@ -4550,10 +4582,16 @@ class _CacheDataDescNF:
     @classmethod
     def _coerce(cls, val):
         "Coerce data to a normal form that must be hashable"
-        if isinstance(val, Integral):
+        if isinstance(val, _CacheDataDescEncodable):
+            type_name = f'{val.__class__.__module__}.{val.__class__.__qualname__}'
+            val = ('json_encoded', type_name, cls._coerce(val.json_encode()))
+        elif isinstance(val, Integral):
             val = int(val)
         elif isinstance(val, Real):
-            val = float(val)
+            # Use a lossless representation of the float.
+            val = ('float', float(val).hex())
+        elif isinstance(val, bytes):
+            val = ('bytes', str(bytes))
         elif isinstance(val, (type(None), str, Number)):
             pass
         elif isinstance(val, Mapping):
@@ -4589,10 +4627,19 @@ class _CacheDataDescNF:
         return self._hash
 
     def to_json_map(self):
-        return dict(
+        dct = dict(
             fmt=self._fmt,
             data=self._nf,
         )
+        if _EXTRA_ASSERTS:
+            assert self == self.from_json_map(
+                json.loads(
+                    json.dumps(
+                        dct
+                    )
+                )
+            )
+        return dct
 
     @classmethod
     def _coerce_json(cls, x):
@@ -4680,23 +4727,10 @@ class _CacheDataSwapEntry:
         Return a mapping suitable for JSON serialization.
         """
         desc = self.cache_desc_nf.to_json_map()
-
-        class Encoder(json.JSONEncoder):
-            def default(self, o):
-                if isinstance(o, _CacheDataDescEncodable):
-                    cls = o.__class__
-                    return {
-                        'module': cls.__module__,
-                        'cls': cls.__qualname__,
-                        'value': o.json_encode(),
-                    }
-                else:
-                   return super().default(o)
-
         try:
             # Use json.dumps() here to fail early if the descriptor cannot be
             # dumped to JSON
-            desc = Encoder().encode(desc)
+            desc = json.dumps(desc)
         except TypeError as e:
             raise _CannotWriteSwapEntry(e)
 
@@ -5165,23 +5199,14 @@ class _TraceCache(Loggable):
             _make_hardlink(path, hardlink_path)
             try:
                 df = pl.scan_parquet(hardlink_path)
-            except BaseException:
-                try:
-                    shutil.rmtree(hardlink_base)
-                except Exception:
-                    pass
-                raise
-            else:
                 # Ensure we actually trigger a file read, in case we are trying
                 # to interpret as parquet something that is not parquet
                 df.clear().collect()
 
-                df = _LazyFrameOnDelete.attach_file_cleanup(df, [hardlink_base])
-
                 parquet_meta = pyarrow.parquet.read_metadata(hardlink_path)
-                parquet_meta = parquet_meta.metadata
+
                 try:
-                    pandas_meta = parquet_meta[b'pandas']
+                    pandas_meta = parquet_meta.metadata[b'pandas']
                 except KeyError:
                     pass
                 else:
@@ -5192,7 +5217,19 @@ class _TraceCache(Loggable):
                     index_cols = pandas_meta['index_columns']
                     df = df.select(order_as(df.collect_schema().names(), index_cols))
 
+                df = _LazyFrameOnDelete.attach_file_cleanup(
+                    df,
+                    [hardlink_base],
+                    nr_rows=parquet_meta.num_rows,
+                )
+
                 return df
+            except BaseException:
+                try:
+                    shutil.rmtree(hardlink_base)
+                except Exception:
+                    pass
+                raise
 
         if fmt == 'disk-only':
             data = None
@@ -5408,6 +5445,29 @@ class _TraceCache(Loggable):
                 except Exception:
                     pass
 
+    def _fetch_from_swap(self, cache_desc, insert):
+        try:
+            path = self._cache_desc_swap_path(cache_desc)
+        # If there is no swap, bail out
+        except (ValueError, KeyError):
+            raise KeyError('Could not find swap entry for cache_desc')
+        else:
+            try:
+                data = self._load_data(cache_desc.fmt, path)
+            except Exception as e:
+                # Rotten swap entry, we clear it. This may happen e.g. when
+                # reloading a LazyFrame that depended on another cache
+                # entry that has been scrubbed
+                self._clear_cache_desc_swap(cache_desc)
+                raise KeyError('Could not load swap entry content of cache_desc')
+            else:
+                if insert:
+                    # We have no idea of the cost of something coming from
+                    # the cache
+                    return self.insert(cache_desc, data, write_swap=False, compute_cost=None)
+                else:
+                    return data
+
     def fetch(self, cache_desc, insert=True):
         """
         Fetch an entry from the cache or the swap.
@@ -5423,28 +5483,7 @@ class _TraceCache(Loggable):
             with self._lock:
                 return self._cache[cache_desc]
         except KeyError as e:
-            # pylint: disable=raise-missing-from
-            try:
-                path = self._cache_desc_swap_path(cache_desc)
-            # If there is no swap, bail out
-            except (ValueError, KeyError):
-                raise KeyError('Could not find swap entry for cache_desc')
-            else:
-                try:
-                    data = self._load_data(cache_desc.fmt, path)
-                except Exception as e:
-                    # Rotten swap entry, we clear it. This may happen e.g. when
-                    # reloading a LazyFrame that depended on another cache
-                    # entry that has been scrubbed
-                    self._clear_cache_desc_swap(cache_desc)
-                    raise KeyError('Could not load swap entry content of cache_desc')
-
-                if insert:
-                    # We have no idea of the cost of something coming from
-                    # the cache
-                    self.insert(cache_desc, data, write_swap=False, compute_cost=None)
-
-                return data
+            return self._fetch_from_swap(cache_desc, insert=insert)
 
     def insert(self, cache_desc, data, compute_cost=None, write_swap=True, ignore_cost=False, write_meta=True, swappable=None):
         """
@@ -5497,6 +5536,36 @@ class _TraceCache(Loggable):
             )
 
         self._scrub_mem()
+
+        if write_swap:
+            try:
+                in_mem = _df_in_memory(data)
+            except ValueError:
+                return data
+            else:
+                if in_mem:
+                    return data
+                elif cache_desc.fmt == 'parquet':
+                    # If the data was not in memory (e.g. polars LazyFrame), we
+                    # reload it from the swap. Most computations reduce the
+                    # amount of data compared to the source, so it is
+                    # advantageous to load the already reduced data from the
+                    # file rather than keep the LazyFrame untouched, which
+                    # would require re-computing it.
+                    try:
+                        return self._fetch_from_swap(
+                            cache_desc,
+                            # We want to replace the cache slot by the new
+                            # swap-backed piece of data we got, so that future
+                            # calls to fetch() can also benefit from it.
+                            insert=True
+                        )
+                    except KeyError:
+                        return data
+                else:
+                    return data
+        else:
+            return data
 
     def insert_disk_only(self, spec, compute_cost=None):
         cache_desc = _CacheDataDesc(spec=spec, fmt='disk-only')
@@ -5902,11 +5971,11 @@ class _Trace(Loggable, _InternalTraceBase):
 
         def finalize(preloaded_df_map, preloaded_meta, parser, df_map):
             parsed_df_map = convert(parser, df_map)
-            self._insert_events({
+            parsed_df_map.update(self._insert_events({
                 event: df
                 for event, df in parsed_df_map.items()
                 if event not in preloaded_df_map
-            })
+            }))
             df_map = {
                 **preloaded_df_map,
                 **parsed_df_map,
@@ -6403,7 +6472,7 @@ class _Trace(Loggable, _InternalTraceBase):
             raise e
         else:
             assert isinstance(df, _ParsedDataFrame)
-            df = df.df
+            df = _df_to(df.df, fmt='polars-lazyframe')
             # TODO: If and when this is solved, attach the name of the event to
             # the LazyFrames:
             # https://github.com/pola-rs/polars/issues/5117
@@ -6450,7 +6519,7 @@ class _Trace(Loggable, _InternalTraceBase):
                         raise MissingTraceEventError([event])
 
         df_from_trace = self._load_raw_df(events_to_load)
-        self._insert_events(df_from_trace)
+        df_from_trace = self._insert_events(df_from_trace)
 
         df_map = {**from_cache, **df_from_trace}
         try:
@@ -6465,11 +6534,11 @@ class _Trace(Loggable, _InternalTraceBase):
         return df_map
 
     def _insert_events(self, df_map):
-        for event, df in df_map.items():
+        def insert_event(event, df):
             assert isinstance(df, _ParsedDataFrame)
             if df.meta['mem_cacheable']:
                 cache_desc = self._make_raw_cache_desc(event)
-                self._cache.insert(
+                df = self._cache.insert(
                     cache_desc,
                     df.df,
                     write_swap=True,
@@ -6478,6 +6547,13 @@ class _Trace(Loggable, _InternalTraceBase):
                     # since parsing cost is known to be high
                     ignore_cost=True,
                 )
+                df = _ParsedDataFrame.from_df(df)
+            return df
+
+        return {
+            event: insert_event(event, df)
+            for event, df in df_map.items()
+        }
 
     def _parse_raw_events(self, events):
         if not events:
@@ -6608,6 +6684,7 @@ class _Trace(Loggable, _InternalTraceBase):
                                     cache=self._cache,
                                 )
                                 _df = _df.df
+                                assert isinstance(_df, pl.LazyFrame)
 
                                 _df = _df.join(
                                     extra_df,
