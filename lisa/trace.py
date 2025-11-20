@@ -4099,10 +4099,16 @@ class _CacheDataDescNF:
     @classmethod
     def _coerce(cls, val):
         "Coerce data to a normal form that must be hashable"
-        if isinstance(val, Integral):
+        if isinstance(val, _CacheDataDescEncodable):
+            type_name = f'{val.__class__.__module__}.{val.__class__.__qualname__}'
+            val = ('json_encoded', type_name, cls._coerce(val.json_encode()))
+        elif isinstance(val, Integral):
             val = int(val)
         elif isinstance(val, Real):
-            val = float(val)
+            # Use a lossless representation of the float.
+            val = ('float', float(val).hex())
+        elif isinstance(val, bytes):
+            val = ('bytes', str(bytes))
         elif isinstance(val, (type(None), str, Number)):
             pass
         elif isinstance(val, Mapping):
@@ -4238,23 +4244,10 @@ class _CacheDataSwapEntry:
         Return a mapping suitable for JSON serialization.
         """
         desc = self.cache_desc_nf.to_json_map()
-
-        class Encoder(json.JSONEncoder):
-            def default(self, o):
-                if isinstance(o, _CacheDataDescEncodable):
-                    cls = o.__class__
-                    return {
-                        'module': cls.__module__,
-                        'cls': cls.__qualname__,
-                        'value': o.json_encode(),
-                    }
-                else:
-                   return super().default(o)
-
         try:
             # Use json.dumps() here to fail early if the descriptor cannot be
             # dumped to JSON
-            desc = Encoder().encode(desc)
+            desc = json.dumps(desc)
         except TypeError as e:
             raise _CannotWriteSwapEntry(e)
 
