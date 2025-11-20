@@ -155,17 +155,43 @@ class _LazyFrameOnDelete(_Deallocator):
         )
 
     @classmethod
-    def attach_file_cleanup(cls, df, paths):
+    def attach_file_cleanup(cls, df, paths, nr_rows=None):
         paths = sorted(set(paths))
         if paths:
-            df = cls._attach(
-                df,
-                functools.partial(
-                    _file_cleanup,
-                    paths,
+            if nr_rows is None:
+                def get_nr_rows(path):
+                    try:
+                        return pyarrow.parquet.read_metadata(path).num_rows
+                    except Exception:
+                        return 0
+
+                nr_rows = sum(
+                    get_nr_rows(path)
+                    for _path in map(Path, paths)
+                    for path in (
+                        _path.rglob('*')
+                        if _path.is_dir() else
+                        (_path,)
+                    )
                 )
-            )
-        return df
+
+            # _LazyFrameOnDelete has a noticeable overhead when the row group size
+            # is small, which is unavoidable when the parquet file itself is very
+            # small.
+            if nr_rows < 10_000:
+                df = df.collect()
+                _file_cleanup(paths)
+                return _df_to(df, fmt='polars-lazyframe')
+            else:
+                return cls._attach(
+                    df,
+                    functools.partial(
+                        _file_cleanup,
+                        paths,
+                    )
+                )
+        else:
+            return df
 
     def __call__(self, x):
         return x
@@ -377,10 +403,10 @@ def _convert_df_from_parser(df, parser, cache):
                     # If we cannot move the backing data to the swap folder, we
                     # are forced to just load the data eagerly as backing
                     # storage (e.g.  tmp folder) will probably disappear
-                    df = _polars_fast_collect(df.df).lazy()
+                    _df = _polars_fast_collect(df.df).lazy()
                 else:
                     hardlinks = set()
-                    df = _lazyframe_rewrite(
+                    _df = _lazyframe_rewrite(
                         df=df.df,
                         update_plan=functools.partial(
                             _logical_plan_update_paths,
@@ -398,11 +424,15 @@ def _convert_df_from_parser(df, parser, cache):
                     # not a huge problem though, but it does mean that we will
                     # end up with 2 layers of "map_batches(identity)" on
                     # LazyFrames reloaded from the cache.
-                    df = _LazyFrameOnDelete.attach_file_cleanup(df, hardlinks)
+                    _df = _LazyFrameOnDelete.attach_file_cleanup(
+                        _df,
+                        hardlinks,
+                        nr_rows=df.meta.get('nr_rows')
+                    )
             else:
-                df = df.df
+                _df = df.df
 
-            return to_polars(df)
+            return to_polars(_df)
         return fixup(df)
 
     df = _ParsedDataFrame.from_df(df)
@@ -4693,23 +4723,14 @@ class _TraceCache(Loggable):
             _make_hardlink(path, hardlink_path)
             try:
                 df = pl.scan_parquet(hardlink_path)
-            except BaseException:
-                try:
-                    shutil.rmtree(hardlink_base)
-                except Exception:
-                    pass
-                raise
-            else:
                 # Ensure we actually trigger a file read, in case we are trying
                 # to interpret as parquet something that is not parquet
                 df.clear().collect()
 
-                df = _LazyFrameOnDelete.attach_file_cleanup(df, [hardlink_base])
-
                 parquet_meta = pyarrow.parquet.read_metadata(hardlink_path)
-                parquet_meta = parquet_meta.metadata
+
                 try:
-                    pandas_meta = parquet_meta[b'pandas']
+                    pandas_meta = parquet_meta.metadata[b'pandas']
                 except KeyError:
                     pass
                 else:
@@ -4720,7 +4741,19 @@ class _TraceCache(Loggable):
                     index_cols = pandas_meta['index_columns']
                     df = df.select(order_as(df.collect_schema().names(), index_cols))
 
+                df = _LazyFrameOnDelete.attach_file_cleanup(
+                    df,
+                    [hardlink_base],
+                    nr_rows=parquet_meta.num_rows,
+                )
+
                 return df
+            except BaseException:
+                try:
+                    shutil.rmtree(hardlink_base)
+                except Exception:
+                    pass
+                raise
 
         if fmt == 'disk-only':
             data = None
