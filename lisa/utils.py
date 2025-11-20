@@ -84,6 +84,10 @@ import lisa
 from lisa.version import parse_version, format_version, VERSION_TOKEN
 from lisa._unshare import _empty_main
 
+_EXTRA_ASSERTS = bool(os.getenv('LISA_EXTRA_ASSERTS', False))
+"""
+If set to ``1``, extra asserts that are normally too costly will be enabled.
+"""
 
 # Do not infer the value using __file__, since it will break later on when
 # lisa package is installed in the site-package locations using pip, which

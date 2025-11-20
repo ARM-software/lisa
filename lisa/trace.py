@@ -64,7 +64,7 @@ import polars.selectors as cs
 
 import devlib
 
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, set_nested_key, unzip_into, order_as, DirCache, DelegateToAttr
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, set_nested_key, unzip_into, order_as, DirCache, DelegateToAttr, _EXTRA_ASSERTS
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df
 from lisa.version import VERSION_TOKEN
@@ -4076,10 +4076,19 @@ class _CacheDataDescNF:
         return self._hash
 
     def to_json_map(self):
-        return dict(
+        dct = dict(
             fmt=self._fmt,
             data=self._nf,
         )
+        if _EXTRA_ASSERTS:
+            assert self == self.from_json_map(
+                json.loads(
+                    json.dumps(
+                        dct
+                    )
+                )
+            )
+        return dct
 
     @classmethod
     def _coerce_json(cls, x):
