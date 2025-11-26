@@ -4567,6 +4567,9 @@ def DelegateToAttr(attr, attr_classes=None):
         implementation. This means that there could be a runtime
         :exc:`AttributeError` when accessing some of these attributes, but it
         is deemed to be more acceptable than simply not documenting those.
+        Listed classes that have :class:`abc.ABCMeta` as metaclass will be
+        registered as base classes using the :meth:`abc.ABCMeta.register`
+        infrastructure.
     :type attr_classes: list(type) or None
 
     The documentation will list all the attributes and methods that the class
@@ -4635,6 +4638,10 @@ def DelegateToAttr(attr, attr_classes=None):
         def __dir__(self):
             delegated = getattr(self, delegated_to)
             return sorted(set(super().__dir__()) | set(dir(delegated)))
+
+    for cls in delegated_to_classes:
+        if isinstance(cls, abc.ABCMeta):
+            cls.register(_DelegatedToAttr)
 
     return _DelegatedToAttr
 

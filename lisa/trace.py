@@ -6561,9 +6561,8 @@ class Trace(
 class _TraceProxy(
     DelegateToAttr(
         '_TraceProxy__base_trace',
-        [Trace],
+        [TraceBase],
     ),
-    TraceBase,
 ):
     class _TraceNotSet:
         def __getattribute__(self, attr):
@@ -6586,6 +6585,7 @@ class _TraceProxy(
         )
 
     def _set_trace(self, trace):
+        assert isinstance(trace, TraceBase)
         self.__base_trace = trace
 
     def __enter__(self):
@@ -6598,39 +6598,8 @@ class _TraceProxy(
         finally:
             self.__deallocator.run()
 
-    @property
-    def ana(self):
-        return self.__base_trace.ana
-
-    @property
-    @deprecate(replaced_by=ana, deprecated_in='3.0', removed_in='4.0')
-    def analysis(self):
-        return self.__base_trace.analysis
-
-    def df_event(self, *args, **kwargs):
-        return self.__base_trace.df_event(*args, **kwargs)
-
-    def _internal_df_event(self, *args, **kwargs):
-        return self.__base_trace._internal_df_event(*args, **kwargs)
-
-    def _preload_events(self, *args, **kwargs):
-        return self.__base_trace._preload_events(*args, **kwargs)
-
-    @property
-    def basetime(self):
-        return self.__base_trace.basetime
-
-    @property
-    def endtime(self):
-        return self.__base_trace.endtime
-
-    @property
-    def start(self):
-        return self.__base_trace.start
-
-    @property
-    def end(self):
-        return self.__base_trace.end
+    def __getitem__(self, *args, **kwargs):
+        return self.__base_trace.__getitem__(*args, **kwargs)
 
 
 class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
