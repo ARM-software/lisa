@@ -6341,14 +6341,6 @@ class Trace(
         view = self._view_from_user_kwargs(*args, **kwargs)
         self._init(view, df_fmt=df_fmt)
 
-    def _with_view(self, view, df_fmt):
-        new = super().__new__(self.__class__)
-        new._init(
-            view=view,
-            df_fmt=df_fmt or self._df_fmt
-        )
-        return new
-
     @classmethod
     def _view_from_user_kwargs(cls,
         *args,
@@ -6437,10 +6429,12 @@ class Trace(
         view = self.__view.get_view(**kwargs)
         # Always preserve the same user-visible type so that view types are
         # 100% an implementation detail that does not leak.
-        return self._with_view(
-            view,
-            df_fmt=df_fmt
+        new = Trace.__new__(self.__class__)
+        new._init(
+            view=view,
+            df_fmt=df_fmt or self._df_fmt
         )
+        return new
 
     @property
     def trace_state(self):
