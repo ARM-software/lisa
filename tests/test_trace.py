@@ -499,6 +499,16 @@ class TraceTestCase(StorageTestCase):
         trace_id = trace.get_metadata('trace-id')
         assert trace_id == 'trace.dat-8785260356321690258'
 
+    def test_df_fmt(self):
+        import polars as pl
+        trace = self.get_trace('doc')
+
+        df = trace.df_event('sched_switch', df_fmt='polars-lazyframe')
+        assert isinstance(df, pl.LazyFrame)
+
+        df = trace.get_view(df_fmt='polars-lazyframe').df_event('sched_switch')
+        assert isinstance(df, pl.LazyFrame)
+
 
 class TestTrace(TraceTestCase):
     """Smoke tests for LISA's Trace class"""
