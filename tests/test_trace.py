@@ -548,7 +548,9 @@ class TestTraceView(TraceTestCase):
 class TestNestedTraceView(TestTraceView):
     def _wrap_trace(self, trace):
         trace = super()._wrap_trace(trace)
-        return trace[trace.start:trace.end]
+        view = trace[trace.start:trace.end]
+        assert view is not trace
+        return view
 
 
 class TestTraceNoClusterData(TestTrace):
