@@ -228,6 +228,7 @@ def _logical_plan_resolve_paths(cache, plan, kind):
 
                     assert not path.is_absolute()
                     path = 'PATH_IN_LISA_CACHE' / path
+                    hardlinks.add(path)
                     return path
             else:
                 return path
