@@ -21,10 +21,13 @@ from unittest import TestCase
 import copy
 import math
 from pathlib import Path
+import functools
+import tempfile
 
 import pytest
 import numpy as np
 import pandas as pd
+import polars as pl
 
 from devlib.target import KernelVersion
 
@@ -508,6 +511,31 @@ class TraceTestCase(StorageTestCase):
 
         df = trace.get_view(df_fmt='polars-lazyframe').df_event('sched_switch')
         assert isinstance(df, pl.LazyFrame)
+
+    def test_lazyframe_scan_path_rewrite(self):
+        trace = self.trace
+        trace = trace.get_view(df_fmt='polars-lazyframe')
+        df = trace.df_event('sched_switch')
+
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / 'df.parquet'
+            df.sink_parquet(path)
+            df = pl.scan_parquet(path)
+
+            paths = []
+            def update_path(path):
+                paths.append(path)
+                return path
+
+            from lisa.trace import _lazyframe_rewrite, _logical_plan_update_paths
+            df = _lazyframe_rewrite(
+                df=df,
+                update_plan=functools.partial(
+                    _logical_plan_update_paths,
+                    update_path=update_path,
+                )
+            )
+            assert paths == [str(path)]
 
 
 class TestTrace(TraceTestCase):
