@@ -57,6 +57,7 @@ import stat
 import urllib.request
 import urllib.parse
 import sqlite3
+import logging
 
 import numpy as np
 import pandas as pd
@@ -901,7 +902,11 @@ class _PerfettoTraceProcessorWrapper(Loggable):
 
         def work(query, process):
             tp = get_tp()
-            logger.debug(f'Running Perfetto query: {query}')
+            if logger.isEnabledFor(logging.DEBUG):
+                explain = tp.query(f'EXPLAIN QUERY PLAN {query}')
+                explain = explain.as_pandas_dataframe().to_markdown()
+                logger.debug(f'Running Perfetto query: {query}\n\nQuery plan:\n{explain}')
+
             with measure_time() as m:
                 res = process(tp.query(query))
             logger.debug(f'Perfetto query ran in {m.delta:.2f}s')
@@ -955,16 +960,24 @@ class PerfettoTraceParser(TraceParserBase):
     def __enter__(self):
         self._tp.__enter__()
         def must_compute(key):
+            cheap = {
+                'time-range'
+            }
             return (
-                # A trace load would be needed, so we may as well get the
-                # metadata out of it while we have it as loading the trace is
-                # expensive.
-                self._requested_events
-                # Most metadata require a trace load as well.
-                or self._requested_metadata - {'trace-id'}
                 # If the metadata was explicitly requested, we don't really
                 # have a choice.
-                or key in self._requested_metadata
+                key in self._requested_metadata
+                or (
+                    key in cheap
+                    and (
+                        # A trace load would be needed, so we may as well get the
+                        # metadata out of it while we have it as loading the trace is
+                        # expensive.
+                        self._requested_events
+                        # Most metadata require a trace load as well.
+                        or self._requested_metadata - {'trace-id'}
+                    )
+                )
             )
 
         meta = {}
@@ -1039,22 +1052,31 @@ class PerfettoTraceParser(TraceParserBase):
         cache_path = dir_cache.get_entry([url])
         return cache_path / 'trace_processor'
 
-    def _df_event(self, event):
+    def parse_event(self, event):
 
-        def quote(value):
+        def sql_quote(value):
             dummy_sql_cursor = sqlite3.connect(":memory:").cursor()
             (escaped,) = dummy_sql_cursor.execute("SELECT quote(?)", (value,)).fetchone()
             return escaped
 
         # List the fields of the event so we know their types and can query them
-        query = f"SELECT arg_set_id FROM ftrace_event WHERE name = {quote(event)} LIMIT 1"
+        query = f"SELECT arg_set_id FROM ftrace_event WHERE name = {sql_quote(event)} LIMIT 1"
 
         # This fails if there is no occurence of the requested event. This MUST
         # fail so that we can safely rely on this function not succeeding when
         # the event does not exist.
-        arg_set_id, = map(attrgetter('arg_set_id'), self._query(query))
+        res = [
+            row.arg_set_id
+            for row in self._query(query)
+        ]
+        try:
+            arg_set_id, = res
+        except ValueError:
+            raise MissingTraceEventError(
+                [event],
+            )
 
-        query = f"SELECT key, flat_key, value_type FROM args WHERE arg_set_id = {quote(arg_set_id)}"
+        query = f"SELECT key, flat_key, value_type FROM args WHERE arg_set_id = {sql_quote(arg_set_id)}"
         arg_fields = self._query(query)
 
         def pick_col(typ):
@@ -1078,7 +1100,7 @@ class PerfettoTraceParser(TraceParserBase):
                 'column': col,
                 'flat_key': field.flat_key,
                 'select': f"{table}.{pick_col(field.value_type)} AS {col}",
-                'join': f"JOIN args AS {table} ON {table}.arg_set_id = ftrace_event.arg_set_id AND {table}.key = {quote(field.key)}"
+                'join': f"JOIN args AS {table} ON {table}.arg_set_id = ftrace_event.arg_set_id AND {table}.key = {sql_quote(field.key)}"
             }
 
         def translate_type(typ):
@@ -1185,14 +1207,14 @@ class PerfettoTraceParser(TraceParserBase):
                     or flat_key in ('Time', '__lisa_perfetto_event_id')
                 )
             )
-
+            to_ = max(from_ + n - 1, 0)
             query = f"""
 SELECT\n    {projections}
 FROM ftrace_event
 {joins}
-WHERE ftrace_event.id >= {from_} AND ftrace_event.name = {quote(event)}
-ORDER BY ftrace_event.id
-LIMIT {n}
+WHERE
+    ftrace_event.id BETWEEN {from_} AND {to_} AND
+    ftrace_event.name = {sql_quote(event)}
 """
 
             df = self._query(query, lambda res: res.as_pandas_dataframe())
@@ -1211,20 +1233,15 @@ LIMIT {n}
                 schema.keys()
             ))
 
-            # We used SQL ORDER BY ftrace_event.id. This is cheap as "id" is
-            # the primary key of that table and Perfetto's vtable is likely
-            # already sorted on that key.
-            df = df.set_sorted('__lisa_perfetto_event_id')
-
             last_id = df.select(pl.col('__lisa_perfetto_event_id').max()).collect().item()
-            df = df.drop('__lisa_perfetto_event_id')
 
             # Sort each small chunk on its own to be streaming-friendly. We
-            # don't want to use ORDER BY (ftrace_event.id, ftrace_event.ts) as
-            # this seems to trigger the creation of an ephemeral index,
-            # consuming a fairly large amount of memory.
-            df = df.sort('Time')
-
+            # don't want to use ORDER BY in the query as this triggers the
+            # creation of an ephemeral index (USE TEMP B-TREE FOR ORDER BY in
+            # EXPLAIN QUERY PLAN). That consumes large amounts of memory and
+            # massively slows down the query.
+            df = df.sort('__lisa_perfetto_event_id', 'Time')
+            df = df.drop('__lisa_perfetto_event_id')
             return (last_id, df)
 
         IDEAL_CHUNK_SIZE = 128 * 1024 * 1024
@@ -1306,23 +1323,6 @@ LIMIT {n}
             mem_cacheable=True,
             steal_files=True,
         )
-
-    def parse_event(self, event):
-        try:
-            return self._df_event(event)
-        except Exception as e:
-            # Only check the available events after the fact as there is a cost
-            # related to that.
-            available_events = self._available_events
-            # If the event is supposed to be available, we let the exception
-            # bubble up as something worth reporting happened.
-            if event in available_events:
-                raise e
-            else:
-                raise MissingTraceEventError(
-                    [event],
-                    available_events=available_events,
-                ) from e
 
     def get_metadata(self, key):
         try:
