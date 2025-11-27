@@ -676,12 +676,6 @@ class TasksAnalysis(TraceAnalysisBase):
                 SignalDesc('task_rename', ['__pid']),
             ],
             compress_signals_init=True,
-            events=[
-                'sched_switch',
-                'sched_wakeup',
-                'sched_wakeup_new',
-                *(['task_rename'] if add_rename else [])
-            ]
         )
 
         wk_df = trace.df_event('sched_wakeup')
