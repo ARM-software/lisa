@@ -5364,6 +5364,7 @@ class _Trace(Loggable, _InternalTraceBase):
         super().__init__()
         self._lock = threading.RLock()
         self._parseable_events = {}
+        self._delayed_events = set()
 
         stack = contextlib.ExitStack()
         self._cm_stack = stack
@@ -6491,7 +6492,10 @@ class Trace(
 
     def __init__(self, *args, df_fmt=None, **kwargs):
         view = self._view_from_user_kwargs(*args, **kwargs)
-        self._init(view, df_fmt=df_fmt)
+        self._init(
+            view,
+            df_fmt=df_fmt,
+        )
 
     @classmethod
     def _view_from_user_kwargs(cls,
@@ -6584,7 +6588,7 @@ class Trace(
         new = Trace.__new__(self.__class__)
         new._init(
             view=view,
-            df_fmt=df_fmt or self._df_fmt
+            df_fmt=df_fmt or self._df_fmt,
         )
         return new
 
@@ -6598,16 +6602,61 @@ class Trace(
     def df_event(self, event, *, df_fmt=None, **kwargs):
         df_fmt = df_fmt or self._df_fmt
 
-        df, meta = self.__view._internal_df_event(
-            event,
-            # Provide the information to the stack so that we can apply the
-            # legacy signals in _WindowTraceView for pandas format
-            df_fmt=df_fmt,
-            **kwargs
+        def get_non_delayed(trace):
+            df, meta = self.__view._internal_df_event(
+                event,
+                # Provide the information to the stack so that we can apply the
+                # legacy signals in _WindowTraceView for pandas format
+                df_fmt=df_fmt,
+                **kwargs
+            )
+
+            df = _df_to(df, index='Time', fmt=df_fmt)
+            return df
+
+        delayed = (
+            df_fmt == 'polars-lazyframe' and
+            # Delayed events rely on the cache to make preloaded dataframes
+            # available when needed.
+            self._cache.enabled and
+            self.available_events.contains(
+                event,
+                # We don't want to trigger parsing the event here. If the test is
+                # inconclusive, we just will fall back on the non-delayed path.
+                try_load=False,
+            )
         )
 
-        df = _df_to(df, index='Time', fmt=df_fmt)
-        return df
+        if delayed:
+            expanded = self._expand_events(TraceEventChecker(event))
+            with self._lock:
+                self._delayed_events.add(expanded)
+
+            def _get_df(*args):
+                with self._lock:
+                    _events = self._delayed_events
+                    events = AndTraceEventChecker(list(_events)).get_all_events()
+                    _events.clear()
+
+                self.logger.debug(f'Delayed events loading triggered by "{event}": {events}')
+
+                # Preload using the low-leve function that uses non-namespaced
+                # event names.
+                self._preload_raw_events(events)
+                return get_non_delayed(self)
+
+            def get_df(*args):
+                try:
+                    return _get_df(*args)
+                except Exception as e:
+                    # TODO: we can remove that exception wrapping once this
+                    # issue gets fixed:
+                    # https://github.com/pola-rs/polars/issues/25561
+                    raise ValueError(str(e))
+
+            return pl.LazyFrame().pipe_with_schema(get_df)
+        else:
+            return get_non_delayed(self)
 
     @classmethod
     @contextlib.contextmanager
