@@ -566,6 +566,7 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
         'symbols-address',
         'cpus-count',
         'available-events',
+        'available-events-superset',
         'trace-id',
     ]
     """
@@ -622,6 +623,10 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
               trace. The list must be exhaustive, not limited to the events
               that were requested. If an exhaustive list cannot be gathered,
               this metadata should not be implemented.
+
+            * ``available-events-superset``: Superset of ``available-events``.
+              This is sometimes cheaper to compute than ``available-events`` and
+              is good-enough for lots of uses.
 
             * ``trace-id``: Unique identifier for that trace file used to
                 validate the cache. If not available, a checksum will be used.
@@ -693,11 +698,27 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
             ``available-events`` metadata may raise an exception. This might
             also lead to multilple scans of the trace in some implementations.
         """
-        try:
-            events = self.get_metadata('available-events')
-            return self.parse_events(events)
-        except Exception:
-            raise NotImplementedError(f'{self.__class__.__qualname__} parser does not support parsing all events')
+        def raise_(e):
+            raise NotImplementedError(f'{self.__class__.__qualname__} parser does not support parsing all events') from e
+
+        excep = None
+        # Try the accurate list first, and if not available the superset. If
+        # get_metadata() succeeds, it's because it was requested anyway so
+        # there shouldn't be a cost associated with asking for the more
+        # expensive and accurate option first.
+        for key in ('available-events', 'available-events-superset'):
+            try:
+                events = self.get_metadata(key)
+            except MissingMetadataError as e:
+                excep = e
+                continue
+            else:
+                try:
+                    return self.parse_events(events, best_effort=True)
+                except Exception as e:
+                    raise_(e)
+
+        raise_(excep)
 
 
     def parse_events(self, events, best_effort=False, **kwargs):
@@ -921,6 +942,14 @@ class _PerfettoTraceProcessorWrapper(Loggable):
                         config=config,
                     )
                 logger.debug(f'Loaded Perfetto trace in trace_processor in {m.delta:.2f}s')
+
+                # Purge existing TraceProcessor instances that overlap with the
+                # one we just made to free memory.
+                self._tp = {
+                    _key: _tp
+                    for _key, _tp in self._tp.items()
+                    if not compat_key(key, _key)
+                }
                 self._tp[key] = tp
 
             return tp
@@ -984,15 +1013,17 @@ class PerfettoTraceParser(TraceParserBase):
 
     def __enter__(self):
         self._tp.__enter__()
+
+        not_supported = {
+            'trace-id',
+        }
+        needs_ftrace_events = {
+            'available-events',
+        }
+        cheap = set(self.METADATA_KEYS) - not_supported - needs_ftrace_events
+        requested_metadata = self._requested_metadata - not_supported
+
         def must_compute(key):
-            not_supported = {
-                'trace-id',
-            }
-            cheap = {
-                'time-range',
-                'available-events',
-            }
-            requested_metadata = self._requested_metadata - not_supported
             return bool(
                 # If the metadata was explicitly requested, we don't really
                 # have a choice.
@@ -1010,10 +1041,18 @@ class PerfettoTraceParser(TraceParserBase):
                 )
             )
 
+        ingest_ftrace_in_raw = bool(
+            self._requested_events or
+            (
+                set(filter(must_compute, requested_metadata)) &
+                needs_ftrace_events
+            )
+        )
+
         def metadata_query(query):
             return self._query(
                 query,
-                ingest_ftrace_in_raw=bool(self._requested_events),
+                ingest_ftrace_in_raw=ingest_ftrace_in_raw,
             )
 
         meta = {}
@@ -1031,12 +1070,13 @@ class PerfettoTraceParser(TraceParserBase):
         #    assert trace_id
         #    meta['trace-id'] = f'perfetto-{trace_id}'
 
-        if must_compute('available-events'):
-
-            # We could use "SELECT DISTINCT name FROM ftrace_event" but that
-            # requires loading ftrace_event raw data in Perfetto's
-            # trace_processor which is quite costly. In comparison, this is
-            # extremely cheap.
+        # This reads the TraceConfig protobuf packet, which includes all the
+        # events that Perfetto was configured to collect when tracing. Some of
+        # those events may have never fired, in which case we will have no
+        # occurence. Unfortunately, we cannot build an empty dataframe for
+        # those as we do not have any schema information without at least one
+        # occurence.
+        if must_compute('available-events-superset'):
             row, = metadata_query(
                 """
                 SELECT str_value
@@ -1045,10 +1085,22 @@ class PerfettoTraceParser(TraceParserBase):
                 """,
             )
             config = row.str_value
-            meta['available-events'] = set(
+            meta['available-events-superset'] = set(
                 m.group('event')
                 for row in config.splitlines()
                 if (m := re.match(r'\s*ftrace_events: "(?:(?P<subsys>.*?)/)?(?P<event>.*?)"', row)) is not None
+            )
+
+        # This is much more expensive than looking a the trace_config_pbtxt
+        # Perfetto metadata as it requires:
+        # 1. Ingesting all the ftrace events in trace_processor, which is quite
+        #    costly.
+        # 2. A full scan of the ingested events, which is costly as well.
+        if must_compute('available-events'):
+            config = row.str_value
+            meta['available-events'] = set(
+                row.name
+                for row in metadata_query("SELECT DISTINCT name FROM ftrace_event")
             )
 
         if must_compute('time-range'):
@@ -6072,8 +6124,12 @@ class _Trace(Loggable, _InternalTraceBase):
                     with self._get_parser(events=events, needed_metadata=needed_metadata) as parser:
                         try:
                             return _finalize(parser=parser, df_map=parser.parse_all_events())
-                        except NotImplementedError:
-                            events = parser.get_metadata('available-events')
+                        except NotImplementedError as e:
+                            try:
+                                events = parser.get_metadata('available-events')
+                            except MissingMetadataError:
+                                self.logger.debug('Could not parse all events: {e}')
+                                return _finalize(parser=parser, df_map={})
 
                 with self._get_parser(events=events, needed_metadata=needed_metadata) as parser:
 
