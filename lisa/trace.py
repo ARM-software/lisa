@@ -561,6 +561,7 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
         'symbols-address',
         'cpus-count',
         'available-events',
+        'available-events-superset',
         'trace-id',
     ]
     """
@@ -617,6 +618,10 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
               trace. The list must be exhaustive, not limited to the events
               that were requested. If an exhaustive list cannot be gathered,
               this metadata should not be implemented.
+
+            * ``available-events-superset``: Superset of ``available-events``.
+              This is sometimes cheaper to compute than ``available-events`` and
+              is good-enough for lots of uses.
 
             * ``trace-id``: Unique identifier for that trace file used to
                 validate the cache. If not available, a checksum will be used.
@@ -688,11 +693,27 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
             ``available-events`` metadata may raise an exception. This might
             also lead to multilple scans of the trace in some implementations.
         """
-        try:
-            events = self.get_metadata('available-events')
-            return self.parse_events(events, best_effort=True)
-        except Exception as e:
-            raise NotImplementedError(f'{self.__class__.__qualname__} parser does not support parsing all events')
+        def raise_(e):
+            raise NotImplementedError(f'{self.__class__.__qualname__} parser does not support parsing all events') from e
+
+        excep = None
+        # Try the accurate list first, and if not available the superset. If
+        # get_metadata() succeeds, it's because it was requested anyway so
+        # there shouldn't be a cost associated with asking for the more
+        # expensive and accurate option first.
+        for key in ('available-events', 'available-events-superset'):
+            try:
+                events = self.get_metadata(key)
+            except MissingMetadataError as e:
+                excep = e
+                continue
+            else:
+                try:
+                    return self.parse_events(events, best_effort=True)
+                except Exception as e:
+                    raise_(e)
+
+        raise_(excep)
 
 
     def parse_events(self, events, best_effort=False, **kwargs):
@@ -5738,7 +5759,7 @@ class _Trace(Loggable, _InternalTraceBase):
     @staticmethod
     def _meta_to_json(meta):
         def process(key, value):
-            if key == 'available-events':
+            if key in ('available-events', 'available-events-superset'):
                 # Ensure we have a list so that it can be dumped to JSON
                 value = sorted(set(value))
 
@@ -5787,7 +5808,7 @@ class _Trace(Loggable, _InternalTraceBase):
             """
             Process a value prepared with :meth:`_meta_to_json`
             """
-            if key == 'available-events':
+            if key in ('available-events', 'available-events-superset'):
                 value = set(value)
             elif key == 'time-range':
                 start, end = value
