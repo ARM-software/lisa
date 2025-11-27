@@ -6027,7 +6027,22 @@ class _Trace(Loggable, _InternalTraceBase):
         )
         return _CacheDataDesc(spec=spec, fmt=_TraceCache.DATAFRAME_SWAP_FORMAT)
 
-    def _internal_df_event(self, event, write_swap=None, raw=None, **kwargs):
+    def _internal_df_event(
+            self,
+            event,
+            *,
+            df_fmt=None,
+
+            # Deprecated
+            write_swap=None,
+            raw=None,
+
+            # Coming from _WindowTraceView propagating down some parameters to
+            # other instances of itself.
+            _inner_window=None,
+            signals=None,
+            compress_signals_init=None
+        ):
         if write_swap is not None:
             _deprecated_warn('write_swap parameter has no effect anymore')
 
