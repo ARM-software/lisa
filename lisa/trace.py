@@ -7031,14 +7031,6 @@ class Trace(
         view = self._view_from_user_kwargs(*args, **kwargs)
         self._init(view, df_fmt=df_fmt)
 
-    def _with_view(self, view, df_fmt):
-        new = super().__new__(self.__class__)
-        new._init(
-            view=view,
-            df_fmt=df_fmt or self._df_fmt
-        )
-        return new
-
     @classmethod
     def _view_from_user_kwargs(cls,
         *args,
@@ -7127,10 +7119,12 @@ class Trace(
         view = self.__view.get_view(**kwargs)
         # Always preserve the same user-visible type so that view types are
         # 100% an implementation detail that does not leak.
-        return self._with_view(
-            view,
-            df_fmt=df_fmt
+        new = Trace.__new__(self.__class__)
+        new._init(
+            view=view,
+            df_fmt=df_fmt or self._df_fmt
         )
+        return new
 
     @property
     def trace_state(self):
@@ -7251,9 +7245,8 @@ class Trace(
 class _TraceProxy(
     DelegateToAttr(
         '_TraceProxy__base_trace',
-        [Trace],
+        [TraceBase],
     ),
-    TraceBase,
 ):
     class _TraceNotSet:
         def __getattribute__(self, attr):
@@ -7276,6 +7269,7 @@ class _TraceProxy(
         )
 
     def _set_trace(self, trace):
+        assert isinstance(trace, TraceBase)
         self.__base_trace = trace
 
     def __enter__(self):
@@ -7287,40 +7281,6 @@ class _TraceProxy(
             return self.__base_trace.__exit__(*args)
         finally:
             self.__deallocator.run()
-
-    @property
-    def ana(self):
-        return self.__base_trace.ana
-
-    @property
-    @deprecate(replaced_by=ana, deprecated_in='3.0', removed_in='4.0')
-    def analysis(self):
-        return self.__base_trace.analysis
-
-    def df_event(self, *args, **kwargs):
-        return self.__base_trace.df_event(*args, **kwargs)
-
-    def _internal_df_event(self, *args, **kwargs):
-        return self.__base_trace._internal_df_event(*args, **kwargs)
-
-    def _preload_events(self, *args, **kwargs):
-        return self.__base_trace._preload_events(*args, **kwargs)
-
-    @property
-    def basetime(self):
-        return self.__base_trace.basetime
-
-    @property
-    def endtime(self):
-        return self.__base_trace.endtime
-
-    @property
-    def start(self):
-        return self.__base_trace.start
-
-    @property
-    def end(self):
-        return self.__base_trace.end
 
 
 class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
