@@ -852,9 +852,11 @@ class _PerfettoTraceProcessorWrapper(Loggable):
     _DONE = object()
     def __init__(self, trace_path, bin_path):
         self._executor = None
-        self._tp = None
         self._bin_path = bin_path
         self._trace_path = trace_path
+        self._tp = {}
+
+        self._cleanup()
 
     def __enter__(self):
         executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='perfetto_trace_processor')
@@ -862,33 +864,55 @@ class _PerfettoTraceProcessorWrapper(Loggable):
         self._executor = executor
         return self
 
+    def _cleanup(self):
+        tp = self._tp
+        self._tp = {}
+        del tp
+
     def __exit__(self, *args, **kwargs):
         executor = self._executor
-
         # Make sure we destroy the TraceProcessor in the same thread it was
         # created, as it uses SQLite3 which is fussy about that.
-        def cleanup():
-            tp = self._tp
-            self._tp = None
-            del tp
-        executor.submit(cleanup).result()
+        executor.submit(self._cleanup).result()
         executor.__exit__(*args, **kwargs)
         self._executor = None
 
-    def query(self, query, process):
+    def query(self, query, process, ingest_ftrace_in_raw):
         logger = self.logger
+
+        def make_key(ingest_ftrace_in_raw):
+            return (ingest_ftrace_in_raw,)
+
+        def compat_key(wanted, available):
+            wanted_ftrace, = wanted
+            available_ftrace, = available
+            return (
+                (wanted_ftrace and available_ftrace) or
+                (not wanted_ftrace)
+            )
 
         # Lazily create the TraceProcessor instance, from the thread it will
         # spend its whole life in. This is critical as it does not handle being
         # moved around threads due to SQLite3 not liking that one bit.
         def get_tp():
-            if self._tp is None:
+            key = make_key(ingest_ftrace_in_raw)
+
+            # Reuse existing trace processor instances if they are compatible
+            # with the query we got.
+            ok = [
+                tp
+                for available, tp in self._tp.items()
+                if compat_key(key, available)
+            ]
+            try:
+                tp, *_ = ok
+            except ValueError as e:
                 from perfetto.trace_processor import TraceProcessor, TraceProcessorConfig
 
                 config = TraceProcessorConfig(
                     # Without that, perfetto will disallow querying for most events in
                     # the ftrace_event table
-                    ingest_ftrace_in_raw=True,
+                    ingest_ftrace_in_raw=ingest_ftrace_in_raw,
                     bin_path=self._bin_path,
                 )
                 with measure_time() as m:
@@ -897,8 +921,9 @@ class _PerfettoTraceProcessorWrapper(Loggable):
                         config=config,
                     )
                 logger.debug(f'Loaded Perfetto trace in trace_processor in {m.delta:.2f}s')
-                self._tp = tp
-            return self._tp
+                self._tp[key] = tp
+
+            return tp
 
         def work(query, process):
             tp = get_tp()
@@ -960,24 +985,35 @@ class PerfettoTraceParser(TraceParserBase):
     def __enter__(self):
         self._tp.__enter__()
         def must_compute(key):
-            cheap = {
-                'time-range'
+            not_supported = {
+                'trace-id',
             }
-            return (
+            cheap = {
+                'time-range',
+                'available-events',
+            }
+            requested_metadata = self._requested_metadata - not_supported
+            return bool(
                 # If the metadata was explicitly requested, we don't really
                 # have a choice.
-                key in self._requested_metadata
+                key in requested_metadata
                 or (
                     key in cheap
                     and (
-                        # A trace load would be needed, so we may as well get the
-                        # metadata out of it while we have it as loading the trace is
-                        # expensive.
+                        # A trace load would be needed, so we may as well get
+                        # the metadata out of it while we have it as loading
+                        # the trace is expensive.
                         self._requested_events
-                        # Most metadata require a trace load as well.
-                        or self._requested_metadata - {'trace-id'}
+                        # Metadata require a trace load as well.
+                        or requested_metadata
                     )
                 )
+            )
+
+        def metadata_query(query):
+            return self._query(
+                query,
+                ingest_ftrace_in_raw=bool(self._requested_events),
             )
 
         meta = {}
@@ -988,18 +1024,35 @@ class PerfettoTraceParser(TraceParserBase):
         # parser, so we just rely on the generic file hash instead.
         #
         # if must_compute('trace-id'):
-        #     trace_id = '-'.join(
-        #         row.str_value
-        #         for row in self._query("SELECT str_value FROM metadata WHERE name = 'trace_uuid'")
-        #     )
-        #     if trace_id:
-        #         meta['trace-id'] = f'perfetto-{trace_id}'
+        #    trace_id = '-'.join(
+        #        row.str_value
+        #        for row in metadata_query("SELECT str_value FROM metadata WHERE name = 'trace_uuid'")
+        #    )
+        #    assert trace_id
+        #    meta['trace-id'] = f'perfetto-{trace_id}'
 
         if must_compute('available-events'):
-            meta['available-events'] = self._available_events
+
+            # We could use "SELECT DISTINCT name FROM ftrace_event" but that
+            # requires loading ftrace_event raw data in Perfetto's
+            # trace_processor which is quite costly. In comparison, this is
+            # extremely cheap.
+            row, = metadata_query(
+                """
+                SELECT str_value
+                FROM metadata
+                WHERE name = 'trace_config_pbtxt'
+                """,
+            )
+            config = row.str_value
+            meta['available-events'] = set(
+                m.group('event')
+                for row in config.splitlines()
+                if (m := re.match(r'\s*ftrace_events: "(?:(?P<subsys>.*?)/)?(?P<event>.*?)"', row)) is not None
+            )
 
         if must_compute('time-range'):
-            time_range, = self._query("SELECT trace_start(), trace_end()")
+            time_range, = metadata_query("SELECT trace_start(), trace_end()")
 
             start = Timestamp(
                 time_range.__dict__['trace_start()'],
@@ -1020,16 +1073,12 @@ class PerfettoTraceParser(TraceParserBase):
         self._tp.__exit__(*args, **kwargs)
         return super().__exit__(*args, **kwargs)
 
-    @property
-    @memoized
-    def _available_events(self):
-        return set(
-            row.name
-            for row in self._query("SELECT DISTINCT name FROM ftrace_event")
+    def _query(self, query, process=tuple, ingest_ftrace_in_raw=False):
+        return self._tp.query(
+            query,
+            process=process,
+            ingest_ftrace_in_raw=ingest_ftrace_in_raw,
         )
-
-    def _query(self, query, process=tuple):
-        return self._tp.query(query, process)
 
     @classmethod
     def _download_trace_processor(cls, url):
@@ -1059,6 +1108,9 @@ class PerfettoTraceParser(TraceParserBase):
             (escaped,) = dummy_sql_cursor.execute("SELECT quote(?)", (value,)).fetchone()
             return escaped
 
+        def event_query(query, *args, **kwargs):
+            return self._query(query, *args, **kwargs, ingest_ftrace_in_raw=True)
+
         # List the fields of the event so we know their types and can query them
         query = f"SELECT arg_set_id FROM ftrace_event WHERE name = {sql_quote(event)} LIMIT 1"
 
@@ -1067,7 +1119,7 @@ class PerfettoTraceParser(TraceParserBase):
         # the event does not exist.
         res = [
             row.arg_set_id
-            for row in self._query(query)
+            for row in event_query(query)
         ]
         try:
             arg_set_id, = res
@@ -1077,7 +1129,7 @@ class PerfettoTraceParser(TraceParserBase):
             )
 
         query = f"SELECT key, flat_key, value_type FROM args WHERE arg_set_id = {sql_quote(arg_set_id)}"
-        arg_fields = self._query(query)
+        arg_fields = event_query(query)
 
         def pick_col(typ):
             return {
@@ -1217,7 +1269,7 @@ WHERE
     ftrace_event.name = {sql_quote(event)}
 """
 
-            df = self._query(query, lambda res: res.as_pandas_dataframe())
+            df = event_query(query, lambda res: res.as_pandas_dataframe())
             df = pl.from_pandas(df, schema_overrides=pre_rename_schema)
             df = df.lazy()
 
