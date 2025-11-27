@@ -31,7 +31,7 @@ import polars as pl
 
 from devlib.target import KernelVersion
 
-from lisa.trace import Trace, TxtTraceParser, MockTraceParser, _TraceProxy
+from lisa.trace import Trace, TraceBase, TxtTraceParser, MockTraceParser, _TraceProxy
 from lisa.analysis.tasks import TaskID
 from lisa.datautils import df_squash
 from lisa.platforms.platinfo import PlatformInfo
@@ -501,6 +501,9 @@ class TraceTestCase(StorageTestCase):
         trace = self.get_trace('doc')
         trace_id = trace.get_metadata('trace-id')
         assert trace_id == 'trace.dat-8785260356321690258'
+
+    def test_isinstance_base(self):
+        assert isinstance(self.trace, TraceBase)
 
     def test_df_fmt(self):
         import polars as pl
