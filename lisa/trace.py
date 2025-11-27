@@ -3017,6 +3017,16 @@ class _InternalTraceBase(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def _expand_events(self, events):
+        """
+        Return a :class:`TraceEventCheckerBase` representing the events
+        expanded to raw events, e.g. to resolve namespaces or meta events.
+
+        :param events: Events to expand.
+        :type events: TraceEventCheckerBase
+        """
+        pass
+
     def _preload_events(self, events):
         """
         Preload the given events by parsing them if necessary.
@@ -3024,7 +3034,10 @@ class _InternalTraceBase(abc.ABC):
         This can be more efficient than requesting events one by one as the
         parser might be able to parse multiple events in one pass.
         """
-        pass
+        events = AndTraceEventChecker.from_events(events)
+        events = self._expand_events(events)
+        events = events.get_all_events()
+        self._preload_raw_events(events)
 
     def __getitem__(self, window):
         """
@@ -3369,8 +3382,8 @@ class _TraceViewBase(
             self.base_trace.trace_state,
         )
 
-    def _preload_events(self, *args, **kwargs):
-        return self.base_trace._preload_events(*args, **kwargs)
+    def _expand_events(self, *args, **kwargs):
+        return self.base_trace._expand_events(*args, **kwargs)
 
     def _internal_df_event(self, *args, **kwargs):
         return self.base_trace._internal_df_event(*args, **kwargs)
@@ -3711,13 +3724,14 @@ class _PreloadEventsTraceView(_TraceViewBase):
             events = AndTraceEventChecker.from_events(events)
 
         if events or events is _ALL_EVENTS:
-            preloaded = trace._preload_events(events)
+            trace._preload_events(events)
 
+            available_events = trace.available_events
             if events is _ALL_EVENTS:
-                events = AndTraceEventChecker.from_events(set(trace.available_events))
+                events = AndTraceEventChecker.from_events(set(available_events))
 
             if strict_events:
-                events.check_events(preloaded)
+                events.check_events(available_events)
 
         self._events = events
 
@@ -3746,37 +3760,19 @@ class _NamespaceTraceView(_TraceViewBase):
         self._events_namespaces = namespaces or []
         self._preload_events(self.base_trace.events)
 
-    def _preload_events(self, events):
+    def _expand_events(self, events):
+        namespaces = self._events_namespaces
+
         # It is critical to not enter that path if we don't have any actual
         # namespaces, otherwise the overhead of the loop will get multiplicated
         # at every layer and we end up with large overheads.
-        if self._events_namespaces:
-            if events is _ALL_EVENTS:
-                preloaded = super()._preload_events(events)
-                if None in self._events_namespaces:
-                    return preloaded
-                else:
-                    return set()
-            else:
-                mapping = {
-                    _event: event
-                    for event in events
-                    for _event in self._expand_namespaces(event)
-                }
+        if namespaces:
+            namespaces = self._resolve_namespaces(namespaces)
+            events = events.expand_namespaces(
+                namespaces=namespaces,
+            )
 
-                # Preload the events in a single batch. This is critical for
-                # performance, otherwise we will spin up the parser multiple times.
-                preloaded = self.base_trace._preload_events(mapping.keys())
-
-                return {
-                    # Return the requested name instead of the actual event
-                    # preloaded so that _PreloadEventsTraceView() can check for
-                    # what it actually asked for
-                    mapping.get(_event, _event)
-                    for _event in preloaded
-                }
-        else:
-            return super()._preload_events(events)
+        return super()._expand_events(events)
 
     @property
     def trace_state(self):
@@ -3855,7 +3851,7 @@ class _NamespaceTraceView(_TraceViewBase):
             # Preload all the events as we likely will only get one match
             # anyway, so we can avoid spinning up a parser several times for
             # nothing.
-            events = sorted(trace._preload_events(events))
+            trace._preload_events(events)
 
             last_excep = MissingTraceEventError([event])
             for _event in events:
@@ -3959,16 +3955,61 @@ class _AvailableTraceEventsSet:
     def __contains__(self, event):
         return self.contains(event)
 
-    def contains(self, event, namespaces=None):
+    def contains(self, event, namespaces=None, try_load=True):
         trace = self._trace
-        view = trace.get_view(events_namespaces=namespaces)
+        trace = trace.get_view(events_namespaces=namespaces)
 
-        try:
-            trace._internal_df_event(event=event)
-        except MissingTraceEventError:
-            return False
-        else:
+        def slow(event):
+            if try_load:
+                try:
+                    trace._internal_df_event(event=event)
+                except MissingTraceEventError:
+                    return False
+                else:
+                    return True
+            else:
+                return False
+
+        def from_available(event, available_events):
+            # We only use an exact match for meta events, as we otherwise
+            # cannot guarantee that parsing will succeed even if the source
+            # events are available.
+            if trace._is_meta_event(event):
+                checker = TraceEventChecker(event)
+            else:
+                checker = trace._expand_events(
+                    TraceEventChecker(event)
+                )
+
+            try:
+                checker.check_events(available_events)
+            except MissingTraceEventError:
+                return False
+            else:
+                return True
+
+        # _AvailableTraceEventsSet._available_events is sometimes a subset of
+        # the actually events events. If it's in there, great, otherwise it is
+        # not conclusive.
+        if from_available(event, self._available_events):
             return True
+        else:
+            try:
+                available_events = trace.get_metadata('available-events')
+            except MissingMetadataError:
+                return slow(event)
+            else:
+                # We can only delay if we are guaranteed to succeed when we
+                # actually get the data.
+                contained = from_available(event, available_events)
+
+                # If a meta event is not directly supported by the parser, we
+                # cannot conclude it is not available as our generic
+                # implementation may support it.
+                if not contained and trace._is_meta_event(event):
+                    return slow(event)
+                else:
+                    return contained
 
     @property
     def _available_events(self):
@@ -4372,6 +4413,18 @@ class _TraceCache(Loggable):
             lambda: self._thread_executor.shutdown()
         ]
 
+    @property
+    def enabled(self):
+        return self.has_swap or self.max_mem_size
+
+    @property
+    def has_swap(self):
+        try:
+            self.swap_dir
+        except ValueError:
+            return False
+        else:
+            return True
 
     @property
     def swap_dir(self):
@@ -5452,20 +5505,28 @@ class _Trace(Loggable, _InternalTraceBase):
             if (value := load(key)) is not None
         }
 
-    def _preload_events(self, events):
-        if events is _ALL_EVENTS:
-            return self._preload_all_events()
+    def _expand_events(self, events):
+        return events
+
+    def _preload_raw_events(self, events):
+        if self._cache.enabled:
+            if events is _ALL_EVENTS:
+                preloaded = self._preload_all_events()
+            else:
+                events = OptionalTraceEventChecker.from_events(events)
+
+                # This creates a polars LazyFrame from the cache if available, so it's
+                # cheap since we always cache the data coming from the parser.
+                df_map = self._load_cache_raw_df(
+                    events,
+                    allow_missing_events=True,
+                )
+
+                preloaded = set(df_map.keys())
+
+            return preloaded
         else:
-            events = OptionalTraceEventChecker.from_events(events)
-
-            # This creates a polars LazyFrame from the cache if available, so it's
-            # cheap since we always cache the data coming from the parser.
-            df_map = self._load_cache_raw_df(
-                events,
-                allow_missing_events=True,
-            )
-
-            return set(df_map.keys())
+            return set()
 
     @memoized
     def _preload_all_events(self):
@@ -5513,13 +5574,10 @@ class _Trace(Loggable, _InternalTraceBase):
             return (meta, df_map)
 
         def load_from_cache(event):
-            cache_desc = self._make_raw_cache_desc(event)
             try:
-                df = self._cache.fetch(cache_desc, insert=True)
+                return self._fetch_cache_raw_df(event)
             except KeyError:
                 return None
-            else:
-                return _ParsedDataFrame.from_df(df)
 
         def parse(preloaded_df_map, preloaded_meta, events):
             needed_metadata = set(TraceParserBase.METADATA_KEYS) - set(preloaded_meta.keys())
@@ -5975,17 +6033,11 @@ class _Trace(Loggable, _InternalTraceBase):
         if raw:
             raise ValueError(f'raw=True is not supported anymore, dataframes are always post processed by parsers to be as close as possible to the ftrace event format')
 
-        # Make sure all raw descriptors are made the same way, to avoid
-        # missed sharing opportunities
-        cache_desc = self._make_raw_cache_desc(event)
-
         try:
             try:
-                df = self._cache.fetch(cache_desc, insert=True)
+                df = self._fetch_cache_raw_df(event)
             except KeyError:
                 df = self._load_cache_raw_df(TraceEventChecker(event))[event]
-            else:
-                df = _ParsedDataFrame.from_df(df)
         except MissingTraceEventError as e:
             e.available_events = self.available_events
             raise e
@@ -5998,28 +6050,27 @@ class _Trace(Loggable, _InternalTraceBase):
             meta = dict(event=event)
             return df, meta
 
+    def _fetch_cache_raw_df(self, event):
+        # Make sure all raw descriptors are made the same way, to avoid
+        # missed sharing opportunities
+        cache_desc = self._make_raw_cache_desc(event)
+        df = self._cache.fetch(cache_desc, insert=True)
+        return _ParsedDataFrame.from_df(df)
+
     def _load_cache_raw_df(self, event_checker, allow_missing_events=False):
         events = event_checker.get_all_events()
 
         # Get the raw dataframe from the cache if possible
         def try_from_cache(event):
-            cache_desc = self._make_raw_cache_desc(event)
             try:
-                df = self._cache.fetch(cache_desc, insert=True)
+                return self._fetch_cache_raw_df(event)
             except KeyError:
                 return None
-            else:
-                return _ParsedDataFrame.from_df(df)
-
-        from_cache = {
-            event: try_from_cache(event)
-            for event in events
-        }
 
         from_cache = {
             event: df
-            for event, df in from_cache.items()
-            if df is not None
+            for event in events
+            if (df := try_from_cache(event)) is not None
         }
 
         # Load the remaining events from the trace directly
@@ -6633,8 +6684,8 @@ class Trace(
     def _internal_df_event(self, *args, **kwargs):
         return self.__view._internal_df_event(*args, **kwargs)
 
-    def _preload_events(self, *args, **kwargs):
-        return self.__view._preload_events(*args, **kwargs)
+    def _expand_events(self, *args, **kwargs):
+        return self.__view._expand_events(*args, **kwargs)
 
     @property
     def basetime(self):
