@@ -31,7 +31,7 @@ import polars as pl
 
 from devlib.target import KernelVersion
 
-from lisa.trace import Trace, TraceBase, TxtTraceParser, MockTraceParser, _TraceProxy
+from lisa.trace import Trace, TraceBase, TxtTraceParser, MockTraceParser, _TraceProxy, MissingTraceEventError
 from lisa.analysis.tasks import TaskID
 from lisa.datautils import df_squash
 from lisa.platforms.platinfo import PlatformInfo
@@ -172,6 +172,19 @@ class TraceTestCase(StorageTestCase):
     def test_meta_event_available(self):
         trace = self.get_trace('doc')
         assert 'userspace@rtapp_stats' in trace.available_events
+
+    def test_event_available(self):
+        trace = self.get_trace('doc')
+        event = 'sched_switch'
+        assert event in trace.available_events
+        trace.df_event(event)
+
+    def test_event_not_available(self):
+        trace = self.get_trace('doc')
+        event = 'foobar_inexistent_event'
+        assert event not in trace.available_events
+        with pytest.raises(MissingTraceEventError):
+            trace.df_event(event)
 
     def _test_tasks_dfs(self, trace_name):
         """Helper for smoke testing _dfg methods in tasks_analysis"""
