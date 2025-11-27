@@ -4545,10 +4545,15 @@ class _TraceCache(Loggable):
         Write the persistent state to the given ``path``.
         """
         def f():
-            mapping = self.to_json_map()
-            with open(path, 'w') as f:
-                json.dump(mapping, f)
-                f.write('\n')
+            try:
+                mapping = self.to_json_map()
+                with open(path, 'w') as f:
+                    json.dump(mapping, f)
+                    f.write('\n')
+            except Exception as e:
+                if not blocking:
+                    self.logger.error(f'Failed to write trace metadata to {path}: {e}')
+                raise
 
         with measure_time() as m:
             if blocking:
