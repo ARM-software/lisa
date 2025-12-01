@@ -2013,6 +2013,13 @@ class TxtTraceParserBase(TraceParserBase):
             .rename({'__timestamp': 'Time'})
         )
 
+        df = df.select(
+            order_as(
+                sorted(df.collect_schema().names()),
+                ['Time'],
+            )
+        )
+
         schema = df.collect_schema()
         if event == 'sched_switch':
             if isinstance(schema['prev_state'], (pl.String, pl.Categorical)):
