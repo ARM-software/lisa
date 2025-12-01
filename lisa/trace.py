@@ -3499,19 +3499,6 @@ class _WindowTraceView(_WindowTraceViewBase):
         if window is not None:
             _deprecated_warn('"window", "signals" and "signals_init" are deprecated parameter of Trace.df_event(). Instead, use the matching parameters on trace.get_view(...).df_event(...)')
 
-        def fixup_signals(events):
-            return {
-                signal_desc
-                for event in events
-                for signal_desc in self._fixup_signals(
-                    event=event,
-                    signals=signals,
-                    signals_init=signals_init,
-                    legacy_signals=_legacy_signals,
-                    inner_window=_inner_window,
-                )
-            }
-
         _window = self._fixup_window(window)
         _signals = self._fixup_signals(
                 event=event,
