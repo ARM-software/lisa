@@ -110,6 +110,51 @@ class TraceTestCase(StorageTestCase):
         assert 'userspace@rtapp_stats' in trace.available_events
         assert len(df) == 465
 
+    def test_meta_event_2(self):
+        in_data = """
+          rt-app-5732  [001]   471.410977940: print:                tracing_mark_write: rtapp_main: event=start
+         big_0-0-5733  [003]   471.412970020: print:                tracing_mark_write: rtapp_main: event=clock_ref data=471324860
+          rt-app-5732  [002]   472.920141960: print:                tracing_mark_write: rtapp_main: event=end
+        """
+        trace = self.make_trace(in_data)
+        df = trace.df_event('userspace@rtapp_main')
+        assert 'userspace@rtapp_main' in trace.available_events
+        assert len(df) == 3
+
+    def test_meta_event_3(self):
+        trace = self.get_trace('doc')
+
+        # This window is somewhere at the beginning of the trace, before the
+        # first "print" event.
+        trace = trace[470.783594680:470.784129640]
+
+        # Ensure the _MetaEventTraceView that will process our request is above
+        # the _WindowTraceView in the stack.
+        trace = trace.get_view()
+
+        assert len(trace.df_event('sched_switch')) == 3
+
+        # But it does not contain any rtapp_stats meta events.
+        df = trace.df_event('userspace@rtapp_stats')
+        assert list(df.columns) == [
+            '__cpu',
+            '__pid',
+            '__comm',
+            'c_period',
+            'c_run',
+            'period',
+            'run',
+           'slack',
+           'wu_lat',
+        ]
+        assert len(df) == 0
+
+    def test_meta_event_missing(self):
+        trace = self.get_trace('doc')
+        with pytest.raises(MissingTraceEventError):
+            trace.df_event('userspace@foo')
+        assert 'userspace@foo' not in trace.available_events
+
     def test_meta_event_available(self):
         trace = self.get_trace('doc')
         assert 'userspace@rtapp_stats' in trace.available_events
