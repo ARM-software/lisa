@@ -149,6 +149,17 @@ class TraceTestCase(StorageTestCase):
         ]
         assert len(df) == 0
 
+    def test_window(self):
+        trace = self.get_trace('doc')
+        trace = trace[470.783594680:470.784129640]
+        assert len(trace.df_event('sched_switch')) == 3
+
+    def test_window_2(self):
+        trace = self.get_trace('doc')
+        trace = trace[470.783594680:470.784129640]
+        trace = trace.get_view()
+        assert len(trace.df_event('sched_switch')) == 3
+
     def test_meta_event_missing(self):
         trace = self.get_trace('doc')
         with pytest.raises(MissingTraceEventError):
