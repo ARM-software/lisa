@@ -599,6 +599,13 @@ class TestTraceView(TraceTestCase):
         assert trace.time_range == pytest.approx(expected_duration)
 
 
+class TestTraceViewNested(TestTraceView):
+    def _wrap_trace(self, trace):
+        for _ in range(100):
+            trace = trace.get_view()
+        return trace
+
+
 class TestNestedTraceView(TestTraceView):
     def _wrap_trace(self, trace):
         trace = super()._wrap_trace(trace)
