@@ -3351,6 +3351,24 @@ class _TraceViewBase(
     def end(self):
         return self.base_trace.end
 
+    def _show_view_stack(self):
+        view = self
+        while True:
+            dct = '\n    '.join(
+                f'{k}: {v}'
+                for k, v in view.__dict__.items()
+            )
+            print(f'{view.__class__.__name__}:\n    {dct}')
+            try:
+                base = view.base_trace
+            except AttributeError:
+                break
+            else:
+                if base is view:
+                    break
+                else:
+                    view = base
+
 
 class _WindowTraceViewBase(_TraceViewBase, abc.ABC):
     @property
