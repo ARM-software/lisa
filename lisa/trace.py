@@ -3729,18 +3729,17 @@ class _PreloadEventsTraceView(_TraceViewBase):
         elif isinstance(events, str):
             raise ValueError('Events passed to Trace(events=...) must be a list of strings, not a string.')
 
+        available_events = trace.available_events
+
         if events is _ALL_EVENTS:
-            pass
+            trace._preload_all_events()
+            events = AndTraceEventChecker.from_events(set(available_events))
         else:
             events = set(events or [])
             events = AndTraceEventChecker.from_events(events)
 
-        if events or events is _ALL_EVENTS:
-            trace._preload_events(events)
-
-            available_events = trace.available_events
-            if events is _ALL_EVENTS:
-                events = AndTraceEventChecker.from_events(set(available_events))
+            if events:
+                trace._preload_events(events)
 
             if strict_events:
                 events.check_events(available_events)
@@ -5535,22 +5534,17 @@ class _Trace(Loggable, _InternalTraceBase):
 
     def _preload_raw_events(self, events, _meta_is_raw=False):
         if self._cache.enabled:
-            if events is _ALL_EVENTS:
-                preloaded = self._preload_all_events()
-            else:
-                events = OptionalTraceEventChecker.from_events(events)
+            events = OptionalTraceEventChecker.from_events(events)
 
-                # This creates a polars LazyFrame from the cache if available, so it's
-                # cheap since we always cache the data coming from the parser.
-                df_map = self._load_cache_raw_df(
-                    events,
-                    allow_missing_events=True,
-                    _meta_is_raw=_meta_is_raw,
-                )
+            # This creates a polars LazyFrame from the cache if available, so it's
+            # cheap since we always cache the data coming from the parser.
+            df_map = self._load_cache_raw_df(
+                events,
+                allow_missing_events=True,
+                _meta_is_raw=_meta_is_raw,
+            )
 
-                preloaded = set(df_map.keys())
-
-            return preloaded
+            return set(df_map.keys())
         else:
             return set()
 
