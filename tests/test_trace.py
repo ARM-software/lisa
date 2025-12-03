@@ -106,6 +106,14 @@ class TraceTestCase(StorageTestCase):
         trace = self.trace
         trace.get_view(events='all')
 
+    def test_preload(self):
+        trace = self.trace
+        trace.get_view(
+            events={'switch'},
+            events_namespaces=('sched_',),
+            strict_events=True,
+        )
+
     def test_context_manager(self):
         trace = self.get_trace('doc')
         with trace:
