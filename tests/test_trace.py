@@ -102,6 +102,10 @@ class TraceTestCase(StorageTestCase):
         path = os.path.join(trace_dir, 'plat_info.yml')
         return PlatformInfo.from_yaml_map(path)
 
+    def test_parse_all(self):
+        trace = self.trace
+        trace.get_view(events='all')
+
     def test_context_manager(self):
         trace = self.get_trace('doc')
         with trace:
