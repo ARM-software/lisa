@@ -5514,7 +5514,11 @@ class _Trace(Loggable, _InternalTraceBase):
             max_swap_size=max_swap_size,
             max_mem_size=max_mem_size,
             trace_id=trace_id,
-            metadata=self._cache._metadata,
+            metadata=(
+                {'trace-id': trace_id}
+                if swap_dir else
+                self._cache._metadata
+            ),
         )
         stack.enter_context(cache)
         self._cache = cache
