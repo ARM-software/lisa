@@ -4505,6 +4505,10 @@ class _TraceCache(Loggable):
         """
         if metadata:
             with self._lock:
+                # It is critical here that we don't modify existing values of
+                # the keys here, otherwise we cannot safely use a shallow copy
+                # of the metadata when sending them to a thread for
+                # non-blocking serialization.
                 self._metadata.update(metadata)
             self.to_swap_dir(blocking=blocking)
 
@@ -4533,20 +4537,19 @@ class _TraceCache(Loggable):
                 else:
                     trace_path = os.path.relpath(trace_path, swap_dir)
 
-            return ({
+            return {
                 'version-token': VERSION_TOKEN,
                 'metadata': self._metadata,
                 'trace-path': trace_path,
                 'trace-id': self._trace_id,
-            })
+            }
 
     def to_path(self, path, blocking=True):
         """
         Write the persistent state to the given ``path``.
         """
-        def f():
+        def f(mapping):
             try:
-                mapping = self.to_json_map()
                 with open(path, 'w') as f:
                     json.dump(mapping, f)
                     f.write('\n')
@@ -4555,11 +4558,15 @@ class _TraceCache(Loggable):
                     self.logger.error(f'Failed to write trace metadata to {path}: {e}')
                 raise
 
-        with measure_time() as m:
+        with measure_time() as m, self._lock:
+            mapping = self.to_json_map()
             if blocking:
-                f()
+                f(mapping)
             else:
-                self._thread_executor.submit(f)
+                # Ensure abscence of race when the executor thread reads the
+                # data to dump.
+                mapping['metadata'] = copy.copy(mapping['metadata'])
+                self._thread_executor.submit(f, mapping)
 
     @classmethod
     def _from_swap_dir(cls, swap_dir, trace_id, trace_path=None, metadata=None, **kwargs):
