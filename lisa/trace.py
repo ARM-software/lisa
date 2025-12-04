@@ -5428,7 +5428,6 @@ class _Trace(Loggable, _InternalTraceBase):
     ):
         super().__init__()
         self._lock = threading.RLock()
-        self._parseable_events = {}
         self._delayed_events = set()
 
         stack = contextlib.ExitStack()
@@ -5536,11 +5535,6 @@ class _Trace(Loggable, _InternalTraceBase):
         # max_swap_size right from the beginning
         self._cache.scrub_swap()
         self._cache.to_swap_dir(blocking=False)
-
-        try:
-            self._parseable_events = self._cache.get_metadata('parseable-events')
-        except MissingMetadataError:
-            pass
 
         # Preload metadata from the cache, to trigger any side effect when
         # processing them. For example, this can help avoiding spinning the
@@ -6046,22 +6040,31 @@ class _Trace(Loggable, _InternalTraceBase):
             with contextlib.suppress(MissingMetadataError):
                 self._get_metadata(key, parser=parser)
 
+    @property
+    def _parseable_events(self):
+        return self._cache.get_metadata(
+            'parseable-events',
+            default=dict(),
+        )
+
     def _update_parseable_events(self, mapping):
         with self._lock:
+            parseable_events = self._parseable_events
             update = {
                 k: v
                 for k, v in mapping.items()
-                if v != self._parseable_events.get(k)
+                if v != parseable_events.get(k)
             }
             if update:
-                self._parseable_events.update(update)
                 self._cache.update_metadata(
                     {
-                        'parseable-events': self._parseable_events,
+                        'parseable-events': {
+                            **parseable_events,
+                            **update,
+                        },
                     },
                     blocking=False,
                 )
-            return self._parseable_events
 
     @property
     def basetime(self):
