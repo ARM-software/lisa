@@ -74,6 +74,7 @@ from lisa._assets import get_bin
 
 
 _DEFAULT_PARQUET_COMPRESSION = 'lz4'
+_NO_DEFAULT = object()
 
 
 def _deprecated_warn(msg, **kwargs):
@@ -4533,15 +4534,23 @@ class _TraceCache(Loggable):
                 self._metadata.update(metadata)
             self.to_swap_dir(blocking=blocking)
 
-    def get_metadata(self, key):
+    def get_metadata(self, key, default=_NO_DEFAULT):
         """
         Get the value of the given metadata ``key``.
         """
-        try:
-            with self._lock:
-                return self._metadata[key]
-        except KeyError as e:
-            raise MissingMetadataError(key) from e
+        with self._lock:
+            try:
+                value = self._metadata[key]
+            except KeyError as e:
+                if default is _NO_DEFAULT:
+                    raise MissingMetadataError(key) from e
+                else:
+                    value = default
+                    self.update_metadata(
+                        {key: value},
+                        blocking=True,
+                    )
+            return copy.copy(value)
 
     def to_json_map(self):
         """
