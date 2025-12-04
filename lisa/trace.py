@@ -5560,7 +5560,7 @@ class _Trace(Loggable, _InternalTraceBase):
         def load(key):
             try:
                 return self._process_metadata(key=key, get=fail)
-            except ValueError:
+            except (MissingMetadataError, ValueError):
                 return None
 
         return {
@@ -5900,8 +5900,21 @@ class _Trace(Loggable, _InternalTraceBase):
             try:
                 value = self._cache.get_metadata(key)
             except MissingMetadataError:
-                value = _get(key)
-                self._cache.update_metadata({key: value}, blocking=False)
+                parseable_metadata = self._cache.get_metadata(
+                    'parseable-metadata',
+                    default=dict()
+                )
+                compute = parseable_metadata.get(key, True)
+
+                if compute:
+                    value = _get(key)
+                    self._cache.update_metadata(
+                        {key: value},
+                        blocking=False,
+                    )
+                else:
+                    raise MissingMetadataError(key)
+
             return value
 
         value = get_cacheable(key)
@@ -6024,21 +6037,41 @@ class _Trace(Loggable, _InternalTraceBase):
                     temp_dir=temp_dir,
                 )
 
-                with parser as parser:
-                    yield parser
-
-                # While we are at it, gather a bunch of metadata. Since we did not
-                # explicitly asked for it, the parser will only give
-                # it if it was a cheap byproduct.
-                self._update_metadata(parser)
+                try:
+                    with parser as parser:
+                        yield parser
+                finally:
+                    # While we are at it, gather a bunch of metadata. Since we did not
+                    # explicitly asked for it, the parser will only give
+                    # it if it was a cheap byproduct.
+                    self._update_metadata(parser, needed_metadata)
 
         return cm()
 
-    def _update_metadata(self, parser):
+    def _update_metadata(self, parser, needed_metadata):
+        parseable_metadata = self._cache.get_metadata(
+            'parseable-metadata',
+            default=dict()
+        )
+
         # Tentatively get the metadata value, in case they are available
         for key in TraceParserBase.METADATA_KEYS:
-            with contextlib.suppress(MissingMetadataError):
+            try:
                 self._get_metadata(key, parser=parser)
+            except MissingMetadataError:
+                # Only register a key as being unparseable if we explicitly
+                # asked for it. Otherwise the error is inconclusive.
+                if key in needed_metadata:
+                    parseable_metadata[key] = False
+            else:
+                parseable_metadata[key] = True
+
+        self._cache.update_metadata(
+            {
+                'parseable-metadata': parseable_metadata,
+            },
+            blocking=False,
+        )
 
     @property
     def _parseable_events(self):
