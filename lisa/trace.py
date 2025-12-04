@@ -3039,6 +3039,19 @@ class _InternalTraceBase(abc.ABC):
         events = events.get_all_events()
         self._preload_raw_events(events)
 
+    def _is_event_delayed(self, event):
+        return (
+            # Delayed events rely on the cache to make preloaded dataframes
+            # available when needed.
+            self._cache.enabled and
+            self.available_events.contains(
+                event,
+                # We don't want to trigger parsing the event here. If the test is
+                # inconclusive, we just will fall back on the non-delayed path.
+                try_load=False,
+            )
+        )
+
     def __getitem__(self, window):
         """
         Slice the trace with the given time range.
@@ -3356,7 +3369,10 @@ class _TraceViewBase(
 
         ### First all view classes that modify the name of events.
 
-        view = _NamespaceTraceView(view, namespaces=events_namespaces)
+        view = _NamespaceTraceView(
+            view,
+            namespaces=events_namespaces,
+        )
 
         ### Data-altering views
         #
@@ -3382,7 +3398,7 @@ class _TraceViewBase(
         view = _PreloadEventsTraceView(
             view,
             events=events,
-            strict_events=strict_events
+            strict_events=strict_events,
         )
 
         return view
@@ -3716,7 +3732,6 @@ class _ProcessTraceView(_TraceViewBase):
 class _PreloadEventsTraceView(_TraceViewBase):
     def __init__(self, trace, events=None, strict_events=False):
         super().__init__(trace)
-        trace = self.base_trace
 
         if events == 'all':
             events = _ALL_EVENTS
@@ -3729,17 +3744,17 @@ class _PreloadEventsTraceView(_TraceViewBase):
         elif isinstance(events, str):
             raise ValueError('Events passed to Trace(events=...) must be a list of strings, not a string.')
 
-        available_events = trace.available_events
+        available_events = self.available_events
 
         if events is _ALL_EVENTS:
-            trace._preload_all_events()
+            self._preload_all_events()
             events = AndTraceEventChecker.from_events(set(available_events))
         else:
             events = set(events or [])
             events = AndTraceEventChecker.from_events(events)
 
             if events:
-                trace._preload_events(events)
+                self._preload_events(events)
 
             if strict_events:
                 events.check_events(available_events)
@@ -3764,12 +3779,8 @@ class _PreloadEventsTraceView(_TraceViewBase):
 
 class _NamespaceTraceView(_TraceViewBase):
     def __init__(self, trace, namespaces):
-        # Allow using self.base_trace.events
-        trace = _PreloadEventsTraceView(trace)
         super().__init__(trace)
-
         self._events_namespaces = namespaces or []
-        self._preload_events(self.base_trace.events)
 
     def _expand_events(self, events):
         namespaces = self._events_namespaces
@@ -3862,7 +3873,7 @@ class _NamespaceTraceView(_TraceViewBase):
             # Preload all the events as we likely will only get one match
             # anyway, so we can avoid spinning up a parser several times for
             # nothing.
-            trace._preload_events(events)
+            self._preload_events(events)
 
             last_excep = MissingTraceEventError([event])
             for _event in events:
@@ -5532,9 +5543,20 @@ class _Trace(Loggable, _InternalTraceBase):
 
         return events.map(fixup)
 
-    def _preload_raw_events(self, events, _meta_is_raw=False):
+    def _preload_raw_events(self, events, force=False, _meta_is_raw=False):
         if self._cache.enabled:
-            events = OptionalTraceEventChecker.from_events(events)
+            delayed = set()
+            immediate = set()
+            for event in events:
+                if not force and self._is_event_delayed(event):
+                    delayed.add(event)
+                else:
+                    immediate.add(event)
+
+            with self._lock:
+                self._delayed_events.update(delayed)
+
+            events = OptionalTraceEventChecker.from_events(immediate)
 
             # This creates a polars LazyFrame from the cache if available, so it's
             # cheap since we always cache the data coming from the parser.
@@ -6541,7 +6563,11 @@ class Trace(
         return self.__view.__exit__(*args)
 
     def __init__(self, *args, df_fmt=None, **kwargs):
-        view = self._view_from_user_kwargs(*args, **kwargs)
+        view = self._view_from_user_kwargs(
+            *args,
+            df_fmt=df_fmt,
+            **kwargs,
+        )
         self._init(
             view,
             df_fmt=df_fmt,
@@ -6554,6 +6580,7 @@ class Trace(
         strict_events=False,
         events=None,
         events_namespaces=('lisa__', None),
+        df_fmt=None,
 
         sanitization_functions=None,
         write_swap=None,
@@ -6582,6 +6609,7 @@ class Trace(
             events_namespaces=events_namespaces,
             strict_events=strict_events,
             events=events,
+            df_fmt=df_fmt,
         )
 
         trace = _Trace(*args, **kwargs)
@@ -6632,13 +6660,17 @@ class Trace(
     # Allow positional parameter for "window" for backward compat
     def get_view(self, window=None, *, df_fmt=None, **kwargs):
         kwargs['window'] = window
-        view = self.__view.get_view(**kwargs)
+        df_fmt = df_fmt or self._df_fmt
+        view = self.__view.get_view(
+            df_fmt=df_fmt,
+            **kwargs,
+        )
         # Always preserve the same user-visible type so that view types are
         # 100% an implementation detail that does not leak.
         new = Trace.__new__(self.__class__)
         new._init(
             view=view,
-            df_fmt=df_fmt or self._df_fmt,
+            df_fmt=df_fmt,
         )
         return new
 
@@ -6664,17 +6696,23 @@ class Trace(
             df = _df_to(df, index='Time', fmt=df_fmt)
             return df
 
+        def get_df():
+            with self._lock:
+                _events = self._delayed_events
+                events = AndTraceEventChecker.from_events(list(_events))
+                events = events.get_all_events()
+                _events.clear()
+
+            self.logger.debug(f'Delayed events loading triggered by "{event}": {events}')
+
+            # Preload using the low-leve function that uses non-namespaced
+            # event names.
+            self._preload_raw_events(events, force=True)
+            return get_non_delayed(self)
+
         delayed = (
             df_fmt == 'polars-lazyframe' and
-            # Delayed events rely on the cache to make preloaded dataframes
-            # available when needed.
-            self._cache.enabled and
-            self.available_events.contains(
-                event,
-                # We don't want to trigger parsing the event here. If the test is
-                # inconclusive, we just will fall back on the non-delayed path.
-                try_load=False,
-            )
+            self._is_event_delayed(event)
         )
 
         if delayed:
@@ -6683,30 +6721,17 @@ class Trace(
                 self._delayed_events.add(expanded)
 
             def _get_df(*args):
-                with self._lock:
-                    _events = self._delayed_events
-                    events = AndTraceEventChecker(list(_events)).get_all_events()
-                    _events.clear()
-
-                self.logger.debug(f'Delayed events loading triggered by "{event}": {events}')
-
-                # Preload using the low-leve function that uses non-namespaced
-                # event names.
-                self._preload_raw_events(events)
-                return get_non_delayed(self)
-
-            def get_df(*args):
                 try:
-                    return _get_df(*args)
+                    return get_df()
                 except Exception as e:
                     # TODO: we can remove that exception wrapping once this
                     # issue gets fixed:
                     # https://github.com/pola-rs/polars/issues/25561
                     raise ValueError(str(e))
 
-            return pl.LazyFrame().pipe_with_schema(get_df)
+            return pl.LazyFrame().pipe_with_schema(_get_df)
         else:
-            return get_non_delayed(self)
+            return get_df()
 
     @classmethod
     @contextlib.contextmanager
