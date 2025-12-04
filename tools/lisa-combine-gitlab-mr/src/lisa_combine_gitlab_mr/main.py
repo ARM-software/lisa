@@ -47,6 +47,19 @@ def get_gitlab_mrs(api_url, project_id, api_token=None, state="opened", scope="a
         r.raise_for_status()
         return r
 
+    def call_gitlab_api_paged(endpoint):
+        # obvioulsy at start 1
+        page_number = 1
+        while True:
+            response = call_gitlab_api(f'{endpoint}&page={page_number}')
+            yield response
+
+            if response.headers["X-Next-Page"]:
+                page_number = response.headers["X-Next-Page"]
+            else:
+                break
+
+
     # Get the clone URL of the original repo
     clone_url = call_gitlab_api(
         f"projects/{project_id}"
@@ -54,12 +67,12 @@ def get_gitlab_mrs(api_url, project_id, api_token=None, state="opened", scope="a
 
     def get_mr(mr):
         iid = mr['iid']
-        mr_commit_response = call_gitlab_api(
-            f"projects/{project_id}/merge_requests/{iid}/commits"
+        commits_count = sum(
+            len(response.json())
+            for response in call_gitlab_api_paged(
+                f"projects/{project_id}/merge_requests/{iid}/commits"
+            )
         )
-        mr_commit_response = mr_commit_response.json()
-        assert isinstance(mr_commit_response, list)
-        commits_count = len(mr_commit_response)
 
         return dict(
             sha=mr['sha'],
@@ -71,23 +84,14 @@ def get_gitlab_mrs(api_url, project_id, api_token=None, state="opened", scope="a
             clone_url=clone_url,
         )
 
-    results = []
-    # obvioulsy at start 1
-    page_number = 1
-    while True:
-        mr_response = call_gitlab_api(
-            f"merge_requests?state={state}&scope={scope}{labels}&page={page_number}"
+    results = [
+        get_mr(mr)
+        for mr_response in call_gitlab_api_paged(
+            f"merge_requests?state={state}&scope={scope}{labels}"
         )
-        results.extend(
-            get_mr(mr)
-            for mr in mr_response.json()
-            if mr.get("project_id") == project_id
-        )
-
-        # handle paging - only required for mr
-        if not mr_response.headers["X-Next-Page"]:
-            break
-        page_number = mr_response.headers["X-Next-Page"]
+        for mr in mr_response.json()
+        if mr.get("project_id") == project_id
+    ]
 
     return results
 
