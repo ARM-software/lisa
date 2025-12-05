@@ -25,6 +25,7 @@ from collections import ChainMap
 from operator import itemgetter
 import argparse
 import logging
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 import requests
 
@@ -48,10 +49,17 @@ def get_gitlab_mrs(api_url, project_id, api_token=None, state="opened", scope="a
         return r
 
     def call_gitlab_api_paged(endpoint):
+        parts = urlparse(url)
+        query = parse_qs(parts.query)
+
         # obvioulsy at start 1
         page_number = 1
         while True:
-            response = call_gitlab_api(f'{endpoint}&page={page_number}')
+            query['page'] = [page_number]
+            url = urlunparse(
+                parts._replace(query=urlencode(query, doseq=True))
+            )
+            response = call_gitlab_api(url)
             yield response
 
             if response.headers["X-Next-Page"]:
