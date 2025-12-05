@@ -1165,14 +1165,64 @@ class PerfettoTraceParser(TraceParserBase):
         return row.max_id
 
     def parse_event(self, event):
+        if event.startswith('perfetto-sql@'):
+            _, query = event.split('perfetto-sql@', 1)
+            return self._parse_sql(query)
+        else:
+            return self._parse_ftrace_event(event)
 
+    def _parse_sql(self, query):
+        def sql_query(query, *args, **kwargs):
+            return self._query(
+                query,
+                *args,
+                **kwargs,
+                ingest_ftrace_in_raw=False,
+            )
+
+        df = sql_query(query, lambda res: res.as_pandas_dataframe())
+        df = pl.from_pandas(df)
+        df = df.lazy()
+
+        df = df.select(order_as(
+            sorted(df.collect_schema().names()),
+            ['Time']
+        ))
+
+        # Make sure the file is unique as we may be asked to create more than
+        # one in the temp dir.
+        parquet_id = uuid.uuid4().hex
+        path = self._temp_dir / f'{parquet_id}.parquet'
+
+        # We immediately dump to a parquet file so that the Perfetto
+        # TraceProcessor instance does not live for longer than necessary.
+        # Since it loads the entire trace in memory, having a TraceProcessor
+        # attached to a dataframe would be disastrous.
+        df.sink_parquet(
+            path,
+            compression=_DEFAULT_PARQUET_COMPRESSION,
+        )
+
+        return _ParsedDataFrame.from_df(
+            df=pl.scan_parquet(path),
+            swap_cacheable=True,
+            mem_cacheable=True,
+            steal_files=True,
+        )
+
+    def _parse_ftrace_event(self, event):
         def sql_quote(value):
             dummy_sql_cursor = sqlite3.connect(":memory:").cursor()
             (escaped,) = dummy_sql_cursor.execute("SELECT quote(?)", (value,)).fetchone()
             return escaped
 
         def event_query(query, *args, **kwargs):
-            return self._query(query, *args, **kwargs, ingest_ftrace_in_raw=True)
+            return self._query(
+                query,
+                *args,
+                **kwargs,
+                ingest_ftrace_in_raw=True,
+            )
 
         # List the fields of the event so we know their types and can query them
         query = f"""
@@ -6024,6 +6074,7 @@ class _Trace(Loggable, _InternalTraceBase):
         'trace_printk': {
             'bprint': _select_trace_printk,
         },
+        'perfetto-sql': None,
     }
     """
     Define the source of each meta event.
@@ -6554,9 +6605,25 @@ class _Trace(Loggable, _InternalTraceBase):
         return process(key, value)
 
     @classmethod
+    def _get_meta_event_prefix(cls, event):
+        try:
+            prefix, _ = event.split('@', 1)
+        except ValueError:
+            raise ValueError(f'This is not a meta event: {event}')
+        else:
+            if prefix in _Trace._META_EVENT_SOURCE:
+                return prefix
+            else:
+                raise ValueError(f'This is not a registered meta event: {event}')
+
+    @classmethod
     def _is_meta_event(cls, event):
-        sources = Trace.get_event_sources(event)
-        return len(sources) > 1
+        try:
+            cls._get_meta_event_prefix(event)
+        except ValueError:
+            return False
+        else:
+            return True
 
     @classmethod
     def get_event_sources(cls, event):
@@ -6570,16 +6637,19 @@ class _Trace(Loggable, _InternalTraceBase):
         meta-event.
         """
         try:
-            prefix, _ = event.split('@', 1)
+            prefix = cls._get_meta_event_prefix(event)
         except ValueError:
-            return [event]
+            return (event,)
+        else:
+            sources = _Trace._META_EVENT_SOURCE.get(prefix, [])
+            if sources:
+                sources = sorted(sources.keys())
+            else:
+                sources = []
 
-        try:
             # It is capital that "event" is the first item so we allow the
             # parser to handle it directly.
-            return (event, *sorted(_Trace._META_EVENT_SOURCE[prefix].keys()))
-        except KeyError:
-            return (event,)
+            return (event, *sources)
 
     @property
     # Memoization is necessary to ensure the parser always gets the same name
@@ -6941,6 +7011,7 @@ class _Trace(Loggable, _InternalTraceBase):
         def make_spec(meta_event):
             prefix, event = meta_event.split('@', 1)
             data_getters = self._META_EVENT_SOURCE[prefix]
+            data_getters = data_getters or {}
             return (meta_event, event, data_getters)
 
         # Preload all the source events that this event may need so we
@@ -7092,13 +7163,16 @@ class _Trace(Loggable, _InternalTraceBase):
 
         # Avoid infinite recursion when preloading events inside
         # _parse_meta_events()
-        if not _meta_is_raw:
+        if _meta_is_raw:
+            normal_events = events
+        else:
             df_map.update(
                 self._parse_meta_events(meta_events)
             )
+            normal_events = events - meta_events
 
         df_map.update(
-            self._parse_raw_events(events - df_map.keys())
+            self._parse_raw_events(normal_events)
         )
 
         # remember the events that we tried to parse and that turned out to not
