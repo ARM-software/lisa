@@ -5921,9 +5921,25 @@ class _Trace(Loggable, _InternalTraceBase):
         return process(key, value)
 
     @classmethod
+    def _get_meta_event_prefix(cls, event):
+        try:
+            prefix, _ = event.split('@', 1)
+        except ValueError:
+            raise ValueError(f'This is not a meta event: {event}')
+        else:
+            if prefix in _Trace._META_EVENT_SOURCE:
+                return prefix
+            else:
+                raise ValueError(f'This is not a registered meta event: {event}')
+
+    @classmethod
     def _is_meta_event(cls, event):
-        sources = Trace.get_event_sources(event)
-        return len(sources) > 1
+        try:
+            cls._get_meta_event_prefix(event)
+        except ValueError:
+            return False
+        else:
+            return True
 
     @classmethod
     def get_event_sources(cls, event):
@@ -5937,16 +5953,19 @@ class _Trace(Loggable, _InternalTraceBase):
         meta-event.
         """
         try:
-            prefix, _ = event.split('@', 1)
+            prefix = cls._get_meta_event_prefix(event)
         except ValueError:
-            return [event]
+            return (event,)
+        else:
+            sources = _Trace._META_EVENT_SOURCE.get(prefix, [])
+            if sources:
+                sources = sorted(sources.keys())
+            else:
+                sources = []
 
-        try:
             # It is capital that "event" is the first item so we allow the
             # parser to handle it directly.
-            return (event, *sorted(_Trace._META_EVENT_SOURCE[prefix].keys()))
-        except KeyError:
-            return (event,)
+            return (event, *sources)
 
     @property
     # Memoization is necessary to ensure the parser always gets the same name
@@ -6308,6 +6327,7 @@ class _Trace(Loggable, _InternalTraceBase):
         def make_spec(meta_event):
             prefix, event = meta_event.split('@', 1)
             data_getters = self._META_EVENT_SOURCE[prefix]
+            data_getters = data_getters or {}
             return (meta_event, event, data_getters)
 
         # Preload all the source events that this event may need so we
