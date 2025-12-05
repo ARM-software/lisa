@@ -49,7 +49,7 @@ def get_gitlab_mrs(api_url, project_id, api_token=None, state="opened", scope="a
         return r
 
     def call_gitlab_api_paged(endpoint):
-        parts = urlparse(url)
+        parts = urlparse(endpoint)
         query = parse_qs(parts.query)
 
         # obvioulsy at start 1
