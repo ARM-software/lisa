@@ -340,7 +340,9 @@ def _df_to_pandas(df, index):
     if isinstance(df, pd.DataFrame):
         return df
     else:
-        assert isinstance(df, pl.LazyFrame)
+        assert isinstance(df, (pl.LazyFrame, pl.DataFrame))
+        df = df.lazy()
+
         index = _polars_index_col(df, index)
         schema = df.collect_schema()
         has_time_index = index == 'Time' and schema[index].is_temporal()
@@ -2077,9 +2079,15 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, prune=T
     # Apply the function to each group, and assign the result to the output
     # Note that we cannot use GroupBy.transform() as it currently cannot handle
     # NaN groups.
-    output = df.groupby('duplicate_group', sort=False, as_index=True, group_keys=False, observed=True)[df.columns].apply(func)
+    output = df.groupby(
+        'duplicate_group',
+        sort=False,
+        as_index=True,
+        group_keys=False,
+        observed=True
+    )[df.columns].apply(func)
     if not output.empty:
-        init_df[output_col].update(output)
+        init_df[output_col] = output
 
     # Ensure the column is created if it does not exists yet
     try:

@@ -3482,12 +3482,15 @@ class _TimeMeasure:
 _measure_time_stack = threading.local()
 
 @contextlib.contextmanager
-def measure_time(clock=time.monotonic):
+def measure_time(clock=time.monotonic, show=None):
     """
     Context manager to measure time in seconds.
 
     :param clock: Clock to use.
     :type clock: collections.abc.Callable
+
+    :param show: Function called to show the delta
+    :type show: typing.Callable[[str], None] or None
 
     **Example**::
 
@@ -3521,6 +3524,9 @@ def measure_time(clock=time.monotonic):
             pass
         else:
             parent_measure.nested_delta += measure.delta
+
+        if show is not None:
+            show(measure.delta)
 
 
 def checksum(file_, method):
