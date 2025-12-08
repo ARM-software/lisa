@@ -1165,8 +1165,8 @@ class PerfettoTraceParser(TraceParserBase):
         return row.max_id
 
     def parse_event(self, event):
-        if event.startswith('perfetto-sql@'):
-            _, query = event.split('perfetto-sql@', 1)
+        if event.startswith('perfetto@sql@'):
+            _, query = event.split('perfetto@sql@', 1)
             return self._parse_sql(query)
         else:
             return self._parse_ftrace_event(event)
@@ -1181,13 +1181,25 @@ class PerfettoTraceParser(TraceParserBase):
             )
 
         df = sql_query(query, lambda res: res.as_pandas_dataframe())
-        df = pl.from_pandas(df)
-        df = df.lazy()
+        df = _df_to(df, fmt='polars-lazyframe')
 
-        df = df.select(order_as(
-            sorted(df.collect_schema().names()),
-            ['Time']
-        ))
+        # This avoids a costly ORDER BY clause in the common cases.
+        sort_cols = [
+            col
+            for col in [
+                # We almost always want to sort by Time first for monotonic
+                # frames
+                'Time',
+                # Then by "id", as they are usually allocated sequentially and
+                # can be used as a tie breaker if Time is equal. This is
+                # important as SQL otherwise does not guarantee any specific
+                # order for rows, so we cannot rely on a "physical row order".
+                'id',
+            ]
+            if col in df.collect_schema()
+        ]
+        if sort_cols:
+            df = df.sort(sort_cols)
 
         # Make sure the file is unique as we may be asked to create more than
         # one in the temp dir.
@@ -1405,7 +1417,7 @@ LIMIT {n}
 
             df = event_query(query, lambda res: res.as_pandas_dataframe())
             df = pl.from_pandas(df, schema_overrides=pre_rename_schema)
-            df = df.lazy()
+            df = _df_to(df, fmt='polars-lazyframe')
 
             df = df.rename(
                 renames,
@@ -5135,7 +5147,16 @@ class _TraceCache(Loggable):
             # Ensure we block until all workers are finished. Otherwise, e.g.
             # removing the swap area might fail because an worker is still creating
             # the metadata file in there.
-            lambda: self._thread_executor.shutdown()
+            lambda: self._thread_executor.shutdown(
+                # We cannot wait here, as this may execute inside one of the
+                # executor's thread. When this happens, it results in an
+                # exception (Python prevents waiting on the current thread as
+                # this would deadlock).
+                # Not waiting means the executor will not accept any new work,
+                # and it will tear itself down when all threads are finished
+                # with their current jobs.
+                wait=False,
+            )
         ]
 
     @property
@@ -6074,7 +6095,7 @@ class _Trace(Loggable, _InternalTraceBase):
         'trace_printk': {
             'bprint': _select_trace_printk,
         },
-        'perfetto-sql': None,
+        'perfetto': None,
     }
     """
     Define the source of each meta event.
