@@ -21,14 +21,17 @@ from unittest import TestCase
 import copy
 import math
 from pathlib import Path
+import functools
+import tempfile
 
 import pytest
 import numpy as np
 import pandas as pd
+import polars as pl
 
 from devlib.target import KernelVersion
 
-from lisa.trace import Trace, TxtTraceParser, MockTraceParser, _TraceProxy
+from lisa.trace import Trace, TraceBase, TxtTraceParser, MockTraceParser, _TraceProxy, MissingTraceEventError
 from lisa.analysis.tasks import TaskID
 from lisa.datautils import df_squash
 from lisa.platforms.platinfo import PlatformInfo
@@ -99,6 +102,18 @@ class TraceTestCase(StorageTestCase):
         path = os.path.join(trace_dir, 'plat_info.yml')
         return PlatformInfo.from_yaml_map(path)
 
+    def test_parse_all(self):
+        trace = self.trace
+        trace.get_view(events='all')
+
+    def test_preload(self):
+        trace = self.trace
+        trace.get_view(
+            events={'switch'},
+            events_namespaces=('sched_',),
+            strict_events=True,
+        )
+
     def test_context_manager(self):
         trace = self.get_trace('doc')
         with trace:
@@ -110,9 +125,78 @@ class TraceTestCase(StorageTestCase):
         assert 'userspace@rtapp_stats' in trace.available_events
         assert len(df) == 465
 
+    def test_meta_event_2(self):
+        in_data = """
+          rt-app-5732  [001]   471.410977940: print:                tracing_mark_write: rtapp_main: event=start
+         big_0-0-5733  [003]   471.412970020: print:                tracing_mark_write: rtapp_main: event=clock_ref data=471324860
+          rt-app-5732  [002]   472.920141960: print:                tracing_mark_write: rtapp_main: event=end
+        """
+        trace = self.make_trace(in_data)
+        df = trace.df_event('userspace@rtapp_main')
+        assert 'userspace@rtapp_main' in trace.available_events
+        assert len(df) == 3
+
+    def test_meta_event_3(self):
+        trace = self.get_trace('doc')
+
+        # This window is somewhere at the beginning of the trace, before the
+        # first "print" event.
+        trace = trace[470.783594680:470.784129640]
+
+        # Ensure the _MetaEventTraceView that will process our request is above
+        # the _WindowTraceView in the stack.
+        trace = trace.get_view()
+
+        assert len(trace.df_event('sched_switch')) == 3
+
+        # But it does not contain any rtapp_stats meta events.
+        df = trace.df_event('userspace@rtapp_stats')
+        assert list(df.columns) == [
+            '__cpu',
+            '__pid',
+            '__comm',
+            'c_period',
+            'c_run',
+            'period',
+            'run',
+           'slack',
+           'wu_lat',
+        ]
+        assert len(df) == 0
+
+    def test_window(self):
+        trace = self.get_trace('doc')
+        trace = trace[470.783594680:470.784129640]
+        assert len(trace.df_event('sched_switch')) == 3
+
+    def test_window_2(self):
+        trace = self.get_trace('doc')
+        trace = trace[470.783594680:470.784129640]
+        trace = trace.get_view()
+        assert len(trace.df_event('sched_switch')) == 3
+
+    def test_meta_event_missing(self):
+        trace = self.get_trace('doc')
+        with pytest.raises(MissingTraceEventError):
+            trace.df_event('userspace@foo')
+        assert 'userspace@foo' not in trace.available_events
+
     def test_meta_event_available(self):
         trace = self.get_trace('doc')
         assert 'userspace@rtapp_stats' in trace.available_events
+
+    def test_event_available(self):
+        trace = self.get_trace('doc')
+        event = 'sched_switch'
+        assert event in trace.available_events
+        trace.df_event(event)
+
+    def test_event_not_available(self):
+        trace = self.get_trace('doc')
+        event = 'foobar_inexistent_event'
+        assert event not in trace.available_events
+        with pytest.raises(MissingTraceEventError):
+            trace.df_event(event)
 
     def _test_tasks_dfs(self, trace_name):
         """Helper for smoke testing _dfg methods in tasks_analysis"""
@@ -443,6 +527,44 @@ class TraceTestCase(StorageTestCase):
         trace_id = trace.get_metadata('trace-id')
         assert trace_id == 'trace.dat-8785260356321690258'
 
+    def test_isinstance_base(self):
+        assert isinstance(self.trace, TraceBase)
+
+    def test_df_fmt(self):
+        import polars as pl
+        trace = self.get_trace('doc')
+
+        df = trace.df_event('sched_switch', df_fmt='polars-lazyframe')
+        assert isinstance(df, pl.LazyFrame)
+
+        df = trace.get_view(df_fmt='polars-lazyframe').df_event('sched_switch')
+        assert isinstance(df, pl.LazyFrame)
+
+    def test_lazyframe_scan_path_rewrite(self):
+        trace = self.trace
+        trace = trace.get_view(df_fmt='polars-lazyframe')
+        df = trace.df_event('sched_switch')
+
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / 'df.parquet'
+            df.sink_parquet(path)
+            df = pl.scan_parquet(path)
+
+            paths = []
+            def update_path(path):
+                paths.append(path)
+                return path
+
+            from lisa.trace import _lazyframe_rewrite, _logical_plan_update_paths
+            df = _lazyframe_rewrite(
+                df=df,
+                update_plan=functools.partial(
+                    _logical_plan_update_paths,
+                    update_path=update_path,
+                )
+            )
+            assert paths == [str(path)]
+
 
 class TestTrace(TraceTestCase):
     """Smoke tests for LISA's Trace class"""
@@ -489,10 +611,19 @@ class TestTraceView(TraceTestCase):
         assert trace.time_range == pytest.approx(expected_duration)
 
 
+class TestTraceViewNested(TestTraceView):
+    def _wrap_trace(self, trace):
+        for _ in range(100):
+            trace = trace.get_view()
+        return trace
+
+
 class TestNestedTraceView(TestTraceView):
     def _wrap_trace(self, trace):
         trace = super()._wrap_trace(trace)
-        return trace[trace.start:trace.end]
+        view = trace[trace.start:trace.end]
+        assert view is not trace
+        return view
 
 
 class TestTraceNoClusterData(TestTrace):

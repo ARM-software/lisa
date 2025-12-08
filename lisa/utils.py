@@ -84,6 +84,10 @@ import lisa
 from lisa.version import parse_version, format_version, VERSION_TOKEN
 from lisa._unshare import _empty_main
 
+_EXTRA_ASSERTS = bool(os.getenv('LISA_EXTRA_ASSERTS', False))
+"""
+If set to ``1``, extra asserts that are normally too costly will be enabled.
+"""
 
 # Do not infer the value using __file__, since it will break later on when
 # lisa package is installed in the site-package locations using pip, which
@@ -3478,12 +3482,15 @@ class _TimeMeasure:
 _measure_time_stack = threading.local()
 
 @contextlib.contextmanager
-def measure_time(clock=time.monotonic):
+def measure_time(clock=time.monotonic, show=None):
     """
     Context manager to measure time in seconds.
 
     :param clock: Clock to use.
     :type clock: collections.abc.Callable
+
+    :param show: Function called to show the delta
+    :type show: typing.Callable[[str], None] or None
 
     **Example**::
 
@@ -3517,6 +3524,9 @@ def measure_time(clock=time.monotonic):
             pass
         else:
             parent_measure.nested_delta += measure.delta
+
+        if show is not None:
+            show(measure.delta)
 
 
 def checksum(file_, method):
@@ -4557,6 +4567,9 @@ def DelegateToAttr(attr, attr_classes=None):
         implementation. This means that there could be a runtime
         :exc:`AttributeError` when accessing some of these attributes, but it
         is deemed to be more acceptable than simply not documenting those.
+        Listed classes that have :class:`abc.ABCMeta` as metaclass will be
+        registered as base classes using the :meth:`abc.ABCMeta.register`
+        infrastructure.
     :type attr_classes: list(type) or None
 
     The documentation will list all the attributes and methods that the class
@@ -4625,6 +4638,10 @@ def DelegateToAttr(attr, attr_classes=None):
         def __dir__(self):
             delegated = getattr(self, delegated_to)
             return sorted(set(super().__dir__()) | set(dir(delegated)))
+
+    for cls in delegated_to_classes:
+        if isinstance(cls, abc.ABCMeta):
+            cls.register(_DelegatedToAttr)
 
     return _DelegatedToAttr
 

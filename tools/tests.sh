@@ -28,6 +28,11 @@ source init_env || exit 1
 set -e
 
 echo "Starting self tests ..."
+
+# This should be set by pytest as well, but we also want it enabled when
+# building the doc as well to increase coverage (building example plots etc).
+export LISA_EXTRA_ASSERTS=1
+
 # Use timeout to send SIGINT if the test hangs, so we get a proper backtrace
 # before github action kills the whole thing without any useful log
 timeout -s INT 1h python3 -m pytest -vv
@@ -41,7 +46,7 @@ lisa-doc-build
 MANPAGE_PYTHON_VERSION="3.11"
 
 echo "Checking that the man pages are up to date ..."
-if python3 --version | grep -F "$MANPAGE_PYTHON_VERSION" ; then
+if python3 --version | grep -w -F "$MANPAGE_PYTHON_VERSION" ; then
     if ! git diff --exit-code doc/man1/; then
         echo "Please regenerate man pages in doc/man1 and commit them"
         exit 1

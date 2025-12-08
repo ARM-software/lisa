@@ -227,17 +227,32 @@ def _polars_duration_window(window):
 _MEM_LAZYFRAMES_LOCK = threading.Lock()
 _MEM_LAZYFRAMES = weakref.WeakValueDictionary()
 def _polars_declare_in_memory(df):
-        with _MEM_LAZYFRAMES_LOCK:
-            _MEM_LAZYFRAMES[id(df)] = df
+    with _MEM_LAZYFRAMES_LOCK:
+        _MEM_LAZYFRAMES[id(df)] = df
+
 
 def _polars_df_in_memory(df):
-    try:
-        with _MEM_LAZYFRAMES_LOCK:
-            _df = _MEM_LAZYFRAMES[id(df)]
-    except KeyError:
-        return False
+    if isinstance(df, pl.DataFrame):
+        return True
+    elif isinstance(df, pl.LazyFrame):
+        try:
+            with _MEM_LAZYFRAMES_LOCK:
+                _df = _MEM_LAZYFRAMES[id(df)]
+        except KeyError:
+            return False
+        else:
+            return _df is df
     else:
-        return _df is df
+        raise ValueError(f'Unsupported dataframe type: {df.__class__}')
+
+
+def _df_in_memory(df):
+    if isinstance(df, pd.DataFrame):
+        return True
+    elif isinstance(df, (pl.DataFrame, pl.LazyFrame)):
+        return _polars_df_in_memory(df)
+    else:
+        raise ValueError(f'Unsupported dataframe type: {df.__class__}')
 
 
 class _NoIndex:
@@ -258,8 +273,27 @@ def _polars_index_col(df, index=None):
         return columns[0]
 
 
+# TODO: re-evaluate the need for these flags if Common Subplan Elimination
+# (CSE) stops preventing other optimizations:
+# https://github.com/pola-rs/polars/issues/22108#issuecomment-2778105148
+_POLARS_OPTIMS = pl.QueryOptFlags(
+    comm_subplan_elim=False,
+)
+
+
+def _polars_fast_collect(df):
+    return df.collect(optimizations=_POLARS_OPTIMS)
+
+
+def _polars_fast_collect_all(items):
+    return pl.collect_all(
+        items,
+        optimizations=_POLARS_OPTIMS,
+    )
+
+
 def _df_to_polars(df, index):
-    in_memory = _polars_df_in_memory(df)
+    in_memory = _df_in_memory(df)
 
     if isinstance(df, pl.LazyFrame):
         index = _polars_index_col(df, index)
@@ -288,7 +322,6 @@ def _df_to_polars(df, index):
     # data is backed by a "DataFrameScan" instead of a "Scan" of a file:
     # https://github.com/pola-rs/polars/issues/9771
     elif isinstance(df, pl.DataFrame):
-        in_memory = True
         df = df.lazy()
         df = _df_to_polars(df, index=index)
     elif isinstance(df, pd.DataFrame):
@@ -307,7 +340,9 @@ def _df_to_pandas(df, index):
     if isinstance(df, pd.DataFrame):
         return df
     else:
-        assert isinstance(df, pl.LazyFrame)
+        assert isinstance(df, (pl.LazyFrame, pl.DataFrame))
+        df = df.lazy()
+
         index = _polars_index_col(df, index)
         schema = df.collect_schema()
         has_time_index = index == 'Time' and schema[index].is_temporal()
@@ -315,7 +350,7 @@ def _df_to_pandas(df, index):
         df = df.with_columns(
             cs.duration().dt.total_nanoseconds() * 1e-9
         )
-        df = df.collect()
+        df = _polars_fast_collect(df)
 
         # Make sure we get nullable dtypes:
         # https://arrow.apache.org/docs/python/pandas.html
@@ -1448,7 +1483,9 @@ def _polars_window_signals(df, window, signals, compress_init):
             )
 
             if compress_init:
-                first_row = post_df.select(index).head(1).collect()
+                first_row = _polars_fast_collect(
+                    post_df.select(index).head(1)
+                )
                 try:
                     first_time = first_row.item()
                 except ValueError:
@@ -2042,9 +2079,15 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, prune=T
     # Apply the function to each group, and assign the result to the output
     # Note that we cannot use GroupBy.transform() as it currently cannot handle
     # NaN groups.
-    output = df.groupby('duplicate_group', sort=False, as_index=True, group_keys=False, observed=True)[df.columns].apply(func)
+    output = df.groupby(
+        'duplicate_group',
+        sort=False,
+        as_index=True,
+        group_keys=False,
+        observed=True
+    )[df.columns].apply(func)
     if not output.empty:
-        init_df[output_col].update(output)
+        init_df[output_col] = output
 
     # Ensure the column is created if it does not exists yet
     try:

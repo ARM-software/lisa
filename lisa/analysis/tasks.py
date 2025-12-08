@@ -27,16 +27,18 @@ from operator import itemgetter
 import re
 import functools
 from typing import NamedTuple, Optional
+import operator
 
 import numpy as np
 import pandas as pd
 import holoviews as hv
 import bokeh.models
 import polars as pl
+from colorcet import glasbey_hv
 
 from lisa.analysis.base import TraceAnalysisBase
-from lisa.utils import memoized, kwargs_forwarded_to, deprecate, order_as
-from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates, SignalDesc, _df_to, NO_INDEX
+from lisa.utils import memoized, kwargs_forwarded_to, deprecate, order_as, is_running_ipython
+from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates, SignalDesc, _df_to, NO_INDEX, _polars_fast_collect, _polars_fast_collect_all
 from lisa.trace import requires_events, will_use_events_from, may_use_events, CPU, MissingTraceEventError, OrTraceEventChecker
 from lisa.notebook import _hv_neutral, plot_signal
 from lisa._typeclass import FromString
@@ -319,7 +321,7 @@ class TasksAnalysis(TraceAnalysisBase):
         df = df.select('name', 'pid')
 
         with pl.StringCache():
-            df = df.collect()
+            df = _polars_fast_collect(df)
 
         def finalize(df, key_col):
             assert len(df.columns) == 2
@@ -633,7 +635,8 @@ class TasksAnalysis(TraceAnalysisBase):
                     for pid, comms in self._task_pid_map.items()
                     if comms
                 },
-                default=None
+                default=None,
+                return_dtype=pl.Categorical,
             )
         )
         return df
@@ -660,9 +663,6 @@ class TasksAnalysis(TraceAnalysisBase):
             except AttributeError:
                 return isinstance(task, str)
 
-        def state(value):
-            return pl.lit(value, pl.Int64)
-
         # Add the rename events if we are interested in the comm of tasks
         add_rename = any(map(filters_comm, tasks or []))
 
@@ -676,12 +676,6 @@ class TasksAnalysis(TraceAnalysisBase):
                 SignalDesc('task_rename', ['__pid']),
             ],
             compress_signals_init=True,
-            events=[
-                'sched_switch',
-                'sched_wakeup',
-                'sched_wakeup_new',
-                *(['task_rename'] if add_rename else [])
-            ]
         )
 
         wk_df = trace.df_event('sched_wakeup')
@@ -693,6 +687,12 @@ class TasksAnalysis(TraceAnalysisBase):
             pass
         else:
             wk_df = pl.concat([wk_df, wkn_df], how='diagonal_relaxed')
+
+        def state(value):
+            return pl.lit(
+                value,
+                dtype=sw_df.collect_schema()['prev_state'],
+            )
 
         wk_df = wk_df.select(["Time", "pid", "comm", "target_cpu", "__cpu"])
         wk_df = wk_df.with_columns(
@@ -743,7 +743,14 @@ class TasksAnalysis(TraceAnalysisBase):
         # Integer values are prefered here, otherwise the whole column
         # is converted to float64
         # FIXME: should we just use null here ?
-        all_sw_df = all_sw_df.with_columns(target_cpu=pl.lit(-1, pl.Int32))
+        all_sw_df = all_sw_df.with_columns(
+            target_cpu=pl.lit(
+                -1,
+                # Ensure we use the exact same dtype so that there is no
+                # mismatch when concatenating
+                dtype=wk_df.collect_schema()['target_cpu']
+            )
+        )
 
         df = pl.concat([all_sw_df, wk_df], how='diagonal_relaxed')
         df = df.sort('Time')
@@ -903,7 +910,11 @@ class TasksAnalysis(TraceAnalysisBase):
             }
 
             def fixup(df, col):
-                str_col = (pl.col(col) & 0xff).replace_strict(mapping, default=None)
+                str_col = (pl.col(col) & 0xff).replace_strict(
+                    mapping,
+                    default=None,
+                    return_dtype=pl.Categorical,
+                )
                 str_col = (
                     pl.when(str_col.is_null() & (pl.col(col) > 0))
                     .then(
@@ -1066,60 +1077,90 @@ class TasksAnalysis(TraceAnalysisBase):
             the task, updated at each pair of activation and sleep.
         """
 
-        df = self.df_task_states(task)
-
-        def f(state):
-            if state == TaskState.TASK_ACTIVE:
-                return active_value
-            # TASK_RUNNING happens when a task is preempted (so it's not
-            # TASK_ACTIVE anymore but still runnable)
-            elif state == TaskState.TASK_RUNNING:
-                # Return NaN regardless of preempted_value, since some below
-                # code relies on that
-                return np.nan
-            else:
-                return sleep_value
+        trace = self.trace.get_view(df_fmt='polars-lazyframe')
+        ana = trace.ana.tasks
+        df = ana.df_task_states(task)
 
         if cpu is not None:
-            df = df[df['cpu'] == cpu]
-
-        df = df.copy()
+            df = df.filter(pl.col('cpu') == cpu)
 
         # TASK_WAKING can just be removed. The delta will then be computed
         # without it, which means the time spent in WAKING state will be
         # accounted into the previous state.
-        df = df[df['curr_state'] != TaskState.TASK_WAKING]
+        df = df.filter(pl.col('curr_state') != TaskState.TASK_WAKING)
 
-        df['active'] = df['curr_state'].map(f)
-        df = df[['active', 'cpu']]
+        df = df.with_columns(
+            active=pl.col('curr_state').replace_strict(
+                {
+                    TaskState.TASK_ACTIVE: active_value,
+                    # TASK_RUNNING happens when a task is preempted (so it's not
+                    # TASK_ACTIVE anymore but still runnable).
+                    # Use null regardless of preempted_value, since some below code
+                    # relies on that
+                    TaskState.TASK_RUNNING: None,
+                },
+                default=sleep_value
+            )
+        )
+        df = df.select(('Time', 'active', 'cpu'))
 
         # Only keep first occurence of each adjacent duplicates, since we get
         # events when the signal changes
-        df = df_deduplicate(df, consecutives=True, keep='first')
+        on = pl.struct(('active', 'cpu'))
+        df = df.filter((on != on.shift()).fill_null(True))
 
         # Once we removed the duplicates, we can compute the time spent while sleeping or activating
-        df_add_delta(df, col='duration', inplace=True)
+        df = df_add_delta(df, col='duration')
 
         if not np.isnan(preempted_value):
-            df['active'] = df['active'].fillna(preempted_value)
+            df = df.with_columns(
+                active=pl.col('active').fill_null(preempted_value)
+            )
 
-        # Merge consecutive activations' duration. They could have been
-        # split in two by a bit of preemption, and we don't want that to
-        # affect the duty cycle.
-        df_combine_duplicates(df, cols=['active'], func=lambda df: df['duration'].sum(), output_col='duration', inplace=True)
+        # Merge consecutive activations' duration. They could have been split
+        # in two by a bit of preemption, and we don't want that to affect the
+        # duty cycle.
+        active = pl.col('active')
+        df = df.group_by_dynamic(
+            # Assign an id to each consecutive run of "active", which is used
+            # as a "group id". We then create a window that only contains a
+            # given group ID.
+            index_column=active.rle_id().cast(pl.Int32).alias('__active_rle_id'),
+            every='1i',
+        ).agg(
+            # In each group, we take the first row for all columns except the
+            # duration that is summed
+            pl.all().exclude('duration').first(),
+            pl.when(
+                pl.col('duration').count() > 0,
+            ).then(
+                pl.col('duration').sum(),
+            )
+        ).drop('__active_rle_id')
 
         # Make a dataframe where the rows corresponding to preempted time are
         # removed, unless preempted_value is set to non-NA
-        preempt_free_df = df.dropna().copy()
+        df = df.drop_nulls('active')
 
-        sleep = preempt_free_df[preempt_free_df['active'] == sleep_value]['duration']
-        active = preempt_free_df[preempt_free_df['active'] == active_value]['duration']
-        # Pair an activation time with it's following sleep time
-        sleep = sleep.reindex(active.index, method='bfill')
-        duty_cycle = active / (active + sleep)
+        # Pair an activation time with it's following sleep time. Since we
+        # combined all active runs, we are guaranteed an active row is
+        # immediately succeeded by a non-active row.
+        df = df.join_asof(
+            df.filter(
+                active == sleep_value
+            ).select('Time', sleep_duration='duration'),
+            on='Time',
+            strategy='forward',
+        )
 
-        df['duty_cycle'] = duty_cycle.ffill()
-
+        df = df.with_columns(
+            duty_cycle=pl.when(
+                active == active_value,
+            ).then(
+                pl.col('duration') / (pl.col('duration') + pl.col('sleep_duration'))
+            )
+        )
+        df = df.drop('sleep_duration')
         return df
 
 ###############################################################################
@@ -1408,7 +1449,9 @@ class TasksAnalysis(TraceAnalysisBase):
     @df_task_activation.used_events
     def _plot_tasks_activation(self, tasks, show_legend=None, cpu: CPU=None, alpha:
             float=None, overlay: bool=None, duration: bool=False, duty_cycle:
-            bool=False, which_cpu: bool=False, height_duty_cycle: bool=False, best_effort=False):
+            bool=False, which_cpu: bool=False, height_duty_cycle: bool=False,
+            best_effort: bool =False,
+        ):
         logger = self.logger
         trace = self.trace.get_view(df_fmt='polars-lazyframe')
         ana = trace.ana
@@ -1489,6 +1532,9 @@ class TasksAnalysis(TraceAnalysisBase):
                 else:
                     raise ValueError(msg)
             else:
+                df = df.with_columns(
+                    pl.col('duration').dt.total_nanoseconds() / 1e9
+                )
                 return ensure_last_rectangle(df)
 
         def get_task_data(task, df):
@@ -1533,25 +1579,36 @@ class TasksAnalysis(TraceAnalysisBase):
             )
 
             data_df = data_df.join_asof(
-                df.select(('Time', 'cpu', 'duration', 'duty_cycle')),
+                df.select((
+                    'Time',
+                    'cpu',
+                    'active',
+                    'duration',
+                    'duty_cycle',
+                )),
                 on='Time',
             )
 
             data_df = data_df.with_columns(
-                # Use a string for PID so that holoviews interprets it as
-                # categorical variable, rather than continuous. This is
-                # important for correct color mapping
-                pid=pl.lit(str(task.pid)),
+                pid=pl.lit(
+                    task.pid
+                    if use_rasterize else
+                    # Use a string so it is recognized as a categorical column
+                    str(task.pid)
+                ),
                 start=pl.col('Time'),
                 cpu=pl.col('CPU'),
             )
             return data_df
 
         def plot_rect(data):
-            if show_legend:
+            data = data.lazy()
+
+            if show_legend or use_rasterize:
                 opts = {}
             else:
-                # If there is no legend, we are gonna plot all the rectangles at once so we use colormapping to distinguish the tasks
+                # If there is no legend, we are gonna plot all the rectangles
+                # at once so we use colormapping to distinguish the tasks
                 opts = dict(
                     color='pid',
                     # Colormap from colorcet with a large number of color, so it is
@@ -1559,7 +1616,20 @@ class TasksAnalysis(TraceAnalysisBase):
                     cmap='glasbey_hv',
                 )
 
-            return hv.Rectangles(
+            if use_rasterize:
+                channels = ('red', 'green', 'blue')
+                data = data.with_columns(
+                    pl.col('pid').replace_strict(
+                        color_key,
+                        return_dtype=pl.Array(
+                            pl.UInt8, 3
+                        )
+                    ).arr.to_struct(
+                        fields=channels
+                    ).struct.unnest()
+                )
+
+            fig = hv.Rectangles(
                 _df_to(data, fmt='pandas', index=NO_INDEX),
                 kdims=[
                     # Ensure we have Time as kdim, otherwise some generic code
@@ -1579,8 +1649,44 @@ class TasksAnalysis(TraceAnalysisBase):
             ).options(
                 backend='bokeh',
                 line_width=0,
+                line_color=None,
                 tools=[self._BOKEH_TASK_HOVERTOOL],
             )
+
+            if use_rasterize:
+
+                interactive = is_running_ipython()
+                # Merge on each RGB channels. This way we can pre-assign the color
+                # of each rectangle in the data set and we just end up with blended
+                # color when zooming out.
+                from holoviews.operation.datashader import datashade, stack
+                import datashader as ds
+
+                fig = functools.reduce(
+                    operator.mul,
+                    (
+                        datashade(
+                            fig,
+                            # Select the rectangle with the longest duration, so
+                            # that shorter ones are displayed "as part of it"
+                            aggregator=ds.where(ds.max('duration'), chan),
+                            # We use a single color name, so the aggregated value
+                            # for each pixel is used as alpha for that color.
+                            cmap=chan,
+                            # Ensure the value that shade() picks is the value
+                            # we asked for. We do not want any re-normalization
+                            # or offset of any kind.
+                            cnorm='linear',
+                            clims=(0, 255),
+                            min_alpha=0,
+                            precompute=True,
+                            dynamic=interactive,
+                        )
+                        for chan in channels
+                    )
+                )
+                fig = stack(fig, compositor='add', link_inputs=True)
+            return fig
 
         if alpha is None:
             if duty_cycle or duration:
@@ -1588,12 +1694,24 @@ class TasksAnalysis(TraceAnalysisBase):
             else:
                 alpha = 1
 
-        # For performance reasons, plot all the tasks as one hv.Rectangles
-        # invocation when we get too many tasks
-        if show_legend is None:
-            show_legend = len(tasks) < 5
 
         cpus_count = trace.cpus_count
+
+        if show_legend:
+            use_rasterize = False
+        else:
+            event_per_sec = 1000
+            approx_rectangles = (trace.end - trace.start) * event_per_sec * cpus_count
+            use_rasterize = approx_rectangles > 5_000
+
+        # TODO: undo that when this gets fixed:
+        # https://github.com/holoviz/holoviews/issues/6736
+        use_rasterize=False
+
+        # For performance reasons, plot all the tasks as one hv.Rectangles
+        # invocation when we get too many tasks
+        if show_legend is None and not use_rasterize:
+            show_legend = len(tasks) < 5
 
         task_dfs = {
             task: check_df(
@@ -1610,10 +1728,31 @@ class TasksAnalysis(TraceAnalysisBase):
         }
         tasks = sorted(task_dfs.keys())
 
+        # Assign a color to each PID
+        color_key = {
+            pid: tuple(int(c * 255) for c in color)
+            for pid, color in zip(
+                sorted({
+                    task.pid
+                    for task in tasks
+                }),
+                itertools.cycle(list(glasbey_hv))
+            )
+        }
+
         if show_legend:
+            task_dfs = dict(zip(
+                task_dfs.keys(),
+                _polars_fast_collect_all(
+                    itertools.starmap(
+                        get_task_data,
+                        task_dfs.items()
+                    )
+                )
+            ))
             fig = hv.Overlay(
                 [
-                    plot_rect(get_task_data(task, df)).relabel(
+                    plot_rect(df).relabel(
                         f'Activations of {task.pid} (' +
                         ', '.join(
                             task_id.comm
