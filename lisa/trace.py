@@ -4454,7 +4454,16 @@ class _TraceCache(Loggable):
             # Ensure we block until all workers are finished. Otherwise, e.g.
             # removing the swap area might fail because an worker is still creating
             # the metadata file in there.
-            lambda: self._thread_executor.shutdown()
+            lambda: self._thread_executor.shutdown(
+                # We cannot wait here, as this may execute inside one of the
+                # executor's thread. When this happens, it results in an
+                # exception (Python prevents waiting on the current thread as
+                # this would deadlock).
+                # Not waiting means the executor will not accept any new work,
+                # and it will tear itself down when all threads are finished
+                # with their current jobs.
+                wait=False,
+            )
         ]
 
     @property
