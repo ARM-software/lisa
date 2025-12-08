@@ -231,6 +231,15 @@ function _lisa-install-git-hooks {
 function lisa-install {
     _lisa-install-system-check
 
+    if nslookup 'artifactory.arm.com' 2>&1 >/dev/null; then
+        local arm_index=https://artifactory.arm.com/artifactory/api/pypi/mirrors.pypi_org/simple
+        [[ -z "$PIP_INDEX_URL" ]] && export PIP_INDEX_URL=$arm_index
+        [[ -z "$UV_INDEX_URL" ]] && export UV_INDEX_URL=$arm_index
+    fi
+
+    [[ -n "$PIP_INDEX_URL" ]] && echo "Using alternative pip index: $PIP_INDEX_URL"
+    [[ -n "$UV_INDEX_URL" ]] && echo "Using alternative uv index: $UV_INDEX_URL"
+
     _lisa-venv-create || return 1
     lisa-venv-activate || return 1
     _lisa-upgrade-pip
