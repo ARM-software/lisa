@@ -41,7 +41,7 @@ lisa-doc-build
 MANPAGE_PYTHON_VERSION="3.11"
 
 echo "Checking that the man pages are up to date ..."
-if python3 --version | grep -F "$MANPAGE_PYTHON_VERSION" ; then
+if python3 --version | grep -w -F "$MANPAGE_PYTHON_VERSION" ; then
     if ! git diff --exit-code doc/man1/; then
         echo "Please regenerate man pages in doc/man1 and commit them"
         exit 1
