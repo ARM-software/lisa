@@ -1896,7 +1896,7 @@ def intersphinx_warn_missing_reference_handler(app, domain, node, non_ignored_re
         for name in possible_names:
             try:
                 docobj = SphinxDocObject.from_name(name)
-            except ValueError:
+            except (ValueError, SyntaxError):
                 pass
             else:
                 if docobj.autodoc_is_skipped(app):
@@ -2011,7 +2011,8 @@ def autodoc_skip_member_handler(app, what, name, obj, skip, options, default_exc
 
         return any(map(_filter, fullname.split('.')))
 
-    excluded = options.get('exclude-members', set())
+    excluded = options.get('exclude-members')
+    excluded = excluded or set()
     if excluded:
         # Either it's a one-item set with the string passed in conf.py
         try:

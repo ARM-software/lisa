@@ -91,13 +91,11 @@ extras_require={
 extras_require["doc"] = [
     # Force ReadTheDocs to use a recent version, rather than the defaults used
     # for old projects.
-    # Add higher bound until this nbsphinx issue is resolved:
-    # https://github.com/spatialaudio/nbsphinx/issues/825
-    "sphinx > 2, <8.2.0",
+    "sphinx > 2",
     "pydata-sphinx-theme",
     "sphinxcontrib-plantuml",
-    "nbsphinx",
-
+    # nbsphinx >= 0.9.8: https://github.com/spatialaudio/nbsphinx/issues/825
+    "nbsphinx >= 0.9.8",
     # Add all the other optional dependencies to ensure all modules from lisa
     # can safely be imported
     *itertools.chain.from_iterable(extras_require.values())
@@ -108,7 +106,7 @@ extras_require['all'] = sorted(set(
     itertools.chain.from_iterable(extras_require.values())
 ))
 
-python_requires = '>= 3.9'
+python_requires = '>= 3.10'
 
 if __name__ == "__main__":
 
