@@ -331,8 +331,11 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinxcontrib.plantuml',
     'nbsphinx',
-    'sphinx_llm.txt',
 ]
+
+
+if int(os.environ.get('LISA_DOC_BUILD_LLMS_TXT', '1')):
+    extensions.append('sphinx_llm.txt')
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
