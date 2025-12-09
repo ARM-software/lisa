@@ -41,7 +41,9 @@ echo "Starting exekall self tests"
 exekall run "$LISA_HOME/tools/exekall/src/exekall/_tests"
 
 echo "Starting documentation pedantic build ..."
-lisa-doc-build
+# Disable llms-full.txt and llms.txt generation as this takes a _long_ time and
+# all non-markdown-related issues will show up on a normal build anyway.
+LISA_DOC_BUILD_LLMS_TXT=0 lisa-doc-build
 
 MANPAGE_PYTHON_VERSION="3.11"
 

@@ -2195,7 +2195,8 @@ def autodoc_process_analysis_plots(app, what, name, obj, options, lines, plots):
         return
     else:
         if rst_figure:
-            rst_figure = f'{rst_figure}\n'
+            rst_figure = indent(rst_figure, level=3)
+            rst_figure = f'.. only:: html\n\n{rst_figure}\n'
             lines[:0] = rst_figure.splitlines()
 
 
@@ -2330,7 +2331,7 @@ def get_deprecated_table():
     :mod:`lisa`.
     """
 
-    def indent(string):
+    def _indent(string):
         idt = ' ' * 4
         return string.replace('\n', '\n' + idt)
 
@@ -2356,10 +2357,10 @@ def get_deprecated_table():
             replaced_by = f"*Replaced by:* {replaced_by}\n\n"
 
         return "* - {name}{msg}{replaced_by}{removed_in}".format(
-            name=indent(name + '\n\n'),
-            msg=indent(msg + '\n\n' if msg else ''),
-            replaced_by=indent(replaced_by),
-            removed_in=indent(removed_in),
+            name=_indent(name + '\n\n'),
+            msg=_indent(msg + '\n\n' if msg else ''),
+            replaced_by=_indent(replaced_by),
+            removed_in=_indent(removed_in),
         )
 
     def make_table(entries, removed_in):
@@ -2378,7 +2379,7 @@ def get_deprecated_table():
                 removed_in = ''
 
             table = ".. list-table:: Deprecated names{removed_in}\n    :align: left{entries}".format(
-                entries=indent('\n\n' + entries),
+                entries=_indent('\n\n' + entries),
                 removed_in=removed_in,
             )
             header = f'Deprecated names{removed_in}'
