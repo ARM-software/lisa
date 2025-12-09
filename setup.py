@@ -96,6 +96,8 @@ extras_require["doc"] = [
     "sphinxcontrib-plantuml",
     # nbsphinx >= 0.9.8: https://github.com/spatialaudio/nbsphinx/issues/825
     "nbsphinx >= 0.9.8",
+    "sphinx-llm",
+
     # Add all the other optional dependencies to ensure all modules from lisa
     # can safely be imported
     *itertools.chain.from_iterable(extras_require.values())
