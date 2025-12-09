@@ -2195,7 +2195,8 @@ def autodoc_process_analysis_plots(app, what, name, obj, options, lines, plots):
         return
     else:
         if rst_figure:
-            rst_figure = f'{rst_figure}\n'
+            rst_figure = indent(rst_figure, level=3)
+            rst_figure = f'.. only:: html\n\n{rst_figure}\n'
             lines[:0] = rst_figure.splitlines()
 
 
