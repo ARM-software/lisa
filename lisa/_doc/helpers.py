@@ -2174,6 +2174,17 @@ def autodoc_pre_make_plots(conf, plot_methods):
                 })
 
             print(f'Plot for {meth.__qualname__} generated in {m.delta}s')
+
+            rst_figure = indent(rst_figure, level=3)
+            rst_figure = f'''
+.. only:: not html
+
+   Plots are only avaliable for HTML
+
+.. only:: html
+
+{rst_figure}
+'''
             return rst_figure
 
     preload_events(conf, plot_methods)
@@ -2195,8 +2206,7 @@ def autodoc_process_analysis_plots(app, what, name, obj, options, lines, plots):
         return
     else:
         if rst_figure:
-            rst_figure = indent(rst_figure, level=3)
-            rst_figure = f'.. only:: html\n\n{rst_figure}\n'
+            rst_figure = f'{rst_figure}\n'
             lines[:0] = rst_figure.splitlines()
 
 
