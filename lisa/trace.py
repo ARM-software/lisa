@@ -1316,6 +1316,7 @@ class PerfettoTraceParser(TraceParserBase):
             WHERE arg_set_id = {sql_quote(arg_set_id)}
             """
         )
+
         schema = {
             'Time': pl.UInt64,
             # We use 64 bit ints here otherwise we would have a different type
@@ -1339,11 +1340,14 @@ class PerfettoTraceParser(TraceParserBase):
 
         common_fragments = [
             {
+                'flat_key': '__lisa_perfetto_event_id',
                 'select': 'ftrace_event.id AS __lisa_perfetto_event_id',
+                'preserve': True,
             },
             {
                 'flat_key': 'Time',
                 'select': 'ftrace_event.ts AS Time',
+                'preserve': True,
             },
             {
                 'flat_key': '__cpu',
@@ -1372,6 +1376,37 @@ class PerfettoTraceParser(TraceParserBase):
             arg_fragments,
         ))
 
+        try:
+            pushdowns = self._pushdowns[event]
+        except KeyError:
+            n_rows = None
+        else:
+            if (columns := pushdowns.get('with-columns')) is not None:
+                self.logger.debug(f'Applying projection pushdown: {columns}')
+
+                def select_fragment(frag):
+                    if frag.get('preserve'):
+                        return True
+                    else:
+                        try:
+                            return frag['flat_key'] in columns
+                        except KeyError:
+                            return True
+
+                fragments = [
+                    frag
+                    for frag in fragments
+                    if select_fragment(frag)
+                ]
+                schema = {
+                    col: dtype
+                    for col, dtype in schema.items()
+                    if col in columns
+                }
+
+            if (n_rows := pushdowns.get('n-rows')) is not None:
+                self.logger.debug(f'Applying slice pushdown: {n_rows}')
+
         renames = {
             col: flat_key
             for frag in fragments
@@ -1398,10 +1433,9 @@ class PerfettoTraceParser(TraceParserBase):
                 frag['select']
                 for frag in fragments
                 if (
-                    columns is None
-                    or (flat_key := frag.get('flat_key')) is None
+                    frag.get('preserve')
+                    or columns is None
                     or flat_key in columns
-                    or flat_key in ('Time', '__lisa_perfetto_event_id')
                 )
             )
             # SQL's BETWEEN operator is inclusive on the right bound, so we
@@ -1455,15 +1489,16 @@ LIMIT {n}
             remaining_rows = n_rows
             last_id = first_id
             sql_n_rows = 100_000
-            while (
-                last_id <= max_id and
-                (remaining_rows is None or remaining_rows > 0)
-            ):
-                n = (
-                    sql_n_rows
-                    if remaining_rows is None else
-                    min(remaining_rows, sql_n_rows)
-                )
+            while True:
+                if remaining_rows is None:
+                    if last_id > max_id:
+                        break
+                    n = sql_n_rows
+                else:
+                    if remaining_rows <= 0:
+                        break
+                    n = min(sql_n_rows, remaining_rows)
+
                 to_ = last_id + n
                 _last_id, df = get_chunk(
                     columns=with_columns,
@@ -1471,14 +1506,14 @@ LIMIT {n}
                     to_=to_,
                 )
 
-                if with_columns is not None:
-                    df = df.select(with_columns)
-
                 if predicate is not None:
                     df = df.filter(predicate)
 
                 if remaining_rows is not None:
                     df = df.head(remaining_rows)
+
+                if with_columns is not None:
+                    df = df.select(with_columns)
 
                 df = df.collect()
 
@@ -1530,6 +1565,9 @@ LIMIT {n}
             sorted(df.collect_schema().names()),
             ['Time', '__cpu', '__pid', '__comm']
         ))
+
+        if n_rows is not None:
+            df = df.head(n_rows)
 
         # Make sure the file is unique as we may be asked to create more than
         # one in the temp dir.
