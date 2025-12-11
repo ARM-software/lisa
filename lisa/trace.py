@@ -7481,6 +7481,7 @@ class Trace(
         [_InternalTraceBase],
     ),
     TraceBase,
+    Loggable,
 ):
     """
     This class provides a way to access event dataframes and ties
@@ -7867,6 +7868,146 @@ class Trace(
             )
 
         proxy._set_trace(trace)
+
+    @classmethod
+    def map_traces(cls, f, traces):
+        """
+        Map the given ``f`` function on all ``traces`` in a similar fashion to
+        :func:`map`.
+
+        Execution of ``f`` on the first trace will be analyzed for usage
+        patterns and the resulting profile will be applied to other traces to
+        optimize data loading.
+
+        .. important::
+
+            Since data will be prefiltered according to what was required when
+            processing the first trace, the *processing must be the same* for
+            all traces. In particular, it is capital that the set of column
+            used for a given event is the same across all traces.
+
+        :param f: Function called on each trace.
+        :type f: typing.Callable[[lisa.trace.TraceBase], typing.Any]
+
+        :param traces: Iterable of traces to call ``f`` upon.
+        :type traces: collections.abc.Iterable(lisa.trace.TraceBase)
+        """
+        def process_many(traces):
+            first, *others = traces
+
+            # We do not try to apply any sort of pushdown immediately, as a
+            # given event dataframe may be used in more than one way in the
+            # processing. If we applied pushdowns then, we would end up
+            # re-parsing the same event multiple time which has a much worst
+            # "average bad case" than simply just loading the whole dataset as
+            # per usual.
+            first = first.get_view(_record_pushdowns=True)
+            first_res = f(first)
+
+            # Only collecting the lazyframe will trigger writing to the
+            # _activity_log, so if the user returns a LazyFrame from f(), we
+            # won't detect anything yet. By the time they collect it, it will
+            # be too late. To fix that, we trigger an early collection.
+            if isinstance(first_res, pl.LazyFrame):
+                # Collect a single row, but do it without slicing (e.g.
+                # head(1)) so that any pushed-down slice stays relevant.
+                #
+                # In polars 1.36.1, LazyFrame.collect_batches() is afflicted by
+                # deadlocks:
+                # https://github.com/pola-rs/polars/issues/25745
+                # https://github.com/pola-rs/polars/issues/25754
+                # So we use sink_batches() instead, which allows early
+                # termination as a supported pattern.
+                first_res.sink_batches(
+                    # Get one batch then return immediately.
+                    lambda _: True,
+                    # Each batch has only a single row in it, we want to
+                    # keep it as cheap as possible.
+                    chunk_size=1,
+                )
+
+            def merge_pushdowns(group):
+                per_key = dict(groupby(
+                    (
+                        (k, v)
+                        for spec in group
+                        for k, v in spec['pushdowns'].items()
+                        if v is not None
+                    ),
+                    key=itemgetter(0)
+                ))
+                per_key = {
+                    k: [
+                        v
+                        for _, v in group
+                    ]
+                    for k, group in per_key.items()
+                }
+
+                merged = {}
+
+                if (n_rows := per_key.get('n-rows')):
+                    merged['n-rows'] = max(n_rows)
+
+                if (columns := per_key.get('with-columns')):
+                    merged['with-columns'] = tuple(sorted(set(
+                        itertools.chain.from_iterable(columns)
+                    )))
+
+                if (predicates := per_key.get('predicate')):
+                    merged['predicate'] = functools.reduce(
+                        operator.or_,
+                        predicates,
+                    )
+
+                return merged
+
+            pushdowns = {
+                event: merge_pushdowns(group)
+                for event, group in groupby(
+                    (
+                        item['data']
+                        for item in first._activity_log
+                        if item['type'] == 'df-event-pushdown'
+                    ),
+                    key=itemgetter('event'),
+                )
+            }
+
+            events = [
+                item['data']['event']
+                for item in first._activity_log
+                if item['type'] == 'df-event-raw'
+            ]
+
+            def prepare(trace):
+                trace = trace.get_view(_pushdowns=pushdowns)
+                trace._preload_raw_events(events)
+                return trace
+
+            cls.get_logger().debug(f'map_traces() detected pushdowns: {pushdowns}')
+            return itertools.chain(
+                [first_res],
+                (
+                    f(prepare(trace))
+                    for trace in others
+                )
+            )
+
+        traces = list(traces)
+        if traces:
+            try:
+                trace, = traces
+            except ValueError:
+                xs = process_many(traces)
+            else:
+                # If there is only a single trace, there is no point in paying
+                # the profiling overhead, we just process it in the normal way.
+                xs = [f(trace)]
+        else:
+            xs = []
+
+        return iter(xs)
 
     @classmethod
     def get_event_sources(cls, *args, **kwargs):
