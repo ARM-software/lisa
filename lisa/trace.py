@@ -35,6 +35,7 @@ import contextlib
 import tempfile
 from functools import wraps
 from collections.abc import Set, Mapping, Sequence, Iterable
+import operator
 from operator import itemgetter, attrgetter
 from numbers import Number, Integral, Real
 import multiprocessing
@@ -72,7 +73,7 @@ import devlib
 
 from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, set_nested_key, unzip_into, order_as, DirCache, DelegateToAttr, _EXTRA_ASSERTS
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
-from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df, _polars_fast_collect, _polars_fast_collect_all, _df_in_memory
+from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df, _polars_fast_collect, _polars_fast_collect_all, _df_in_memory, _polars_record_pushdowns
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString
 from lisa._kmod import LISADynamicKmod
@@ -4077,7 +4078,22 @@ class _TraceViewBase(
         return self.base_trace.__exit__(*args)
 
     @classmethod
-    def _make_view(cls, trace, *, window=None, signals=None, compress_signals_init=None, normalize_time=False, events_namespaces=None, events=None, strict_events=False, process_df=None, df_fmt=None, clear_base_cache=None):
+    def _make_view(
+        cls,
+        trace,
+        *,
+        window=None,
+        signals=None,
+        compress_signals_init=None,
+        normalize_time=False,
+        events_namespaces=None,
+        events=None,
+        strict_events=False,
+        process_df=None,
+        df_fmt=None,
+        clear_base_cache=None,
+        _record_pushdowns=False,
+    ):
         if clear_base_cache is not None:
             _deprecated_warn(f'"clear_base_cache" parameter has no effect anymore')
 
@@ -4122,6 +4138,7 @@ class _TraceViewBase(
             view,
             events=events,
             strict_events=strict_events,
+            _record_pushdowns=_record_pushdowns,
         )
 
         return view
@@ -4453,8 +4470,9 @@ class _ProcessTraceView(_TraceViewBase):
 
 
 class _PreloadEventsTraceView(_TraceViewBase):
-    def __init__(self, trace, events=None, strict_events=False):
+    def __init__(self, trace, events=None, strict_events=False, _record_pushdowns=False):
         super().__init__(trace)
+        self._record_pushdowns = _record_pushdowns
 
         if events == 'all':
             events = _ALL_EVENTS
@@ -4483,6 +4501,13 @@ class _PreloadEventsTraceView(_TraceViewBase):
                 events.check_events(available_events)
 
         self._events = events
+
+    def _internal_df_event(self, event, _record_pushdowns=False, **kwargs):
+        return self.base_trace._internal_df_event(
+            event,
+            _record_pushdowns=self._record_pushdowns or _record_pushdowns,
+            **kwargs,
+        )
 
     @property
     def events(self):
@@ -6914,6 +6939,7 @@ class _Trace(Loggable, _InternalTraceBase):
             *,
             df_fmt=None,
             _meta_is_raw=False,
+            _record_pushdowns=True,
 
             # Deprecated
             write_swap=None,
@@ -6949,6 +6975,22 @@ class _Trace(Loggable, _InternalTraceBase):
         else:
             assert isinstance(df, _ParsedDataFrame)
             df = _df_to(df.df, fmt='polars-lazyframe')
+
+            if _record_pushdowns:
+                def record_pushdowns(with_columns, predicate, n_rows):
+                    self._activity_log.log(
+                        'df-event-pushdown',
+                        {
+                            'event': event,
+                            'pushdowns': {
+                                'with-columns': tuple(with_columns),
+                                'predicate': predicate,
+                                'n-rows': n_rows,
+                            }
+                        }
+                    )
+                df = _polars_record_pushdowns(df, record_pushdowns)
+
             # TODO: If and when this is solved, attach the name of the event to
             # the LazyFrames:
             # https://github.com/pola-rs/polars/issues/5117
@@ -7083,13 +7125,23 @@ class _Trace(Loggable, _InternalTraceBase):
             _meta_is_raw=True,
         )
 
+        def get_event(event, **kwargs):
+            return self._internal_df_event(
+                event,
+                # Pushdown recording interposes a polars IO plugin, which
+                # cannot be serialized. We need this LazyFrame to be
+                # serializable for the cache, so we disable that recording.
+                _record_pushdowns=False,
+                **kwargs,
+            )
+
         df_map = {}
 
         # On some parsers, meta events are treated as regular events so attempt
         # to load them from there as well
         for meta_event in meta_events:
             with contextlib.suppress(MissingTraceEventError):
-                df, meta = self._internal_df_event(
+                df, meta = get_event(
                     meta_event,
                     _meta_is_raw=True,
                 )
@@ -7110,7 +7162,7 @@ class _Trace(Loggable, _InternalTraceBase):
         # dataframes one by one
         for source_event, specs in groupby(meta_specs, key=itemgetter(2)):
             try:
-                df, meta = self._internal_df_event(source_event)
+                df, meta = get_event(source_event)
             except MissingTraceEventError:
                 pass
             else:
@@ -7429,6 +7481,7 @@ class Trace(
         events=None,
         events_namespaces=('lisa__', None),
         df_fmt=None,
+        _record_pushdowns=False,
 
         sanitization_functions=None,
         write_swap=None,
@@ -7458,6 +7511,7 @@ class Trace(
             strict_events=strict_events,
             events=events,
             df_fmt=df_fmt,
+            _record_pushdowns=_record_pushdowns,
         )
 
         trace = _Trace(*args, **kwargs)

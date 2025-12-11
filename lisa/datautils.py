@@ -31,9 +31,13 @@ import decimal
 from numbers import Number
 import weakref
 import threading
+import queue
+import sys
+
 
 import polars as pl
 import polars.selectors as cs
+from polars.io.plugins import register_io_source
 import numpy as np
 import pandas as pd
 import pandas.api.extensions
@@ -2735,6 +2739,116 @@ def df_find_redundant_cols(df, col, cols=None):
             if (grouped[_col].nunique() == 1).all()
         )
     }
+
+
+
+# TODO: Review if we should use LazyFrame.collect_batches() directly once these
+# issues are fixed:
+# https://github.com/pola-rs/polars/issues/25754
+# https://github.com/pola-rs/polars/issues/25745
+def _polars_collect_batches(df, **kwargs):
+    # We use queue.Queue.shutdown() which is only available starting from
+    # Python 3.13
+    assert sys.version_info >= (3, 13)
+
+    q = queue.Queue(maxsize=1)
+
+    def task(owner):
+        def callback(df):
+            try:
+                q.put(df)
+            except queue.ShutDown:
+                return True
+            else:
+                return False
+
+        df.sink_batches(
+            callback,
+            **kwargs,
+        )
+        q.shutdown()
+
+    def generator():
+        try:
+            while True:
+                try:
+                    df = q.get()
+                except queue.ShutDown:
+                    break
+                else:
+                    yield df
+        finally:
+            q.shutdown()
+            thread.join()
+
+    def weakref_cb(_):
+        try:
+            # If the generator is garbage collected, we want the thread to
+            # immediately shutdown and free its resources.
+            q.shutdown()
+        # The environment could be half torn-down already, so we ignore any
+        # exception.
+        except Exception:
+            pass
+
+    owner = generator()
+
+    # We don't have an absolute guarantee weakref_cb() will be called, but
+    # the thread is daemon so the interpreter will not hang forever if the
+    # q.put() operation blocks.
+    ref = weakref.ref(owner, weakref_cb)
+
+    thread = threading.Thread(
+        target=task,
+        args=(ref,),
+        daemon=True,
+    )
+    thread.start()
+
+    return owner
+
+
+def _polars_record_pushdowns(df, callback):
+    lock = threading.Lock()
+
+    def make_df(with_columns, predicate, n_rows, batch_size):
+        nonlocal callback
+        with lock:
+            if callback is not None:
+                callback(
+                    with_columns=with_columns,
+                    predicate=predicate,
+                    n_rows=n_rows,
+                )
+                callback = None
+
+        _df = df
+
+        if predicate is not None:
+            _df = _df.filter(predicate)
+
+        # This has to be applied after the predicate (both for correctness and
+        # to allow predicate pushdown to work)
+        if n_rows is not None:
+            _df = _df.head(n_rows)
+
+        if with_columns is not None:
+            _df = _df.select(with_columns)
+
+        return _polars_collect_batches(_df, chunk_size=batch_size)
+
+    # TODO: remove that alternate path when either:
+    # 1. LazyFrame.collect_batches() is fixed
+    # 2. Or we find a better implementation of _polars_collect_batches() that
+    #    does not need 3.13
+    if sys.version_info < (3, 13):
+        return df
+    else:
+        return register_io_source(
+            make_df,
+            schema=df.collect_schema(),
+            is_pure=True,
+        )
 
 
 # Defined outside SignalDesc as it references SignalDesc itself
