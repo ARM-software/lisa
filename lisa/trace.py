@@ -71,7 +71,7 @@ from polars.io.plugins import register_io_source
 
 import devlib
 
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, set_nested_key, unzip_into, order_as, DirCache, DelegateToAttr, _EXTRA_ASSERTS
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, set_nested_key, unzip_into, order_as, DirCache, DelegateToAttr, _EXTRA_ASSERTS, FrozenDict
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df, _polars_fast_collect, _polars_fast_collect_all, _df_in_memory, _polars_record_pushdowns
 from lisa.version import VERSION_TOKEN
@@ -550,6 +550,11 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
     :param needed_metadata: Set of metadata name to gather in the parser.
     :type needed_metadata: collections.abc.Iterable(str)
 
+    :param pushdowns: Dictionary of event pushdowns (such as projection
+        pushdowns and predicate pushdowns from :mod:`polars`). Pushdowns are
+        provided as an optimization hint but can safely be ignored.
+    :type pushdowns: dict(str, dict(str, object))
+
     The parser will be used as a context manager whenever it is queried for
     either events dataframes. Querying for metadata could happen immediately
     after object creation, but without expectation of success. Expensive
@@ -576,11 +581,12 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
     Possible metadata keys
     """
 
-    def __init__(self, events, temp_dir, needed_metadata=None, path=None):
+    def __init__(self, events, temp_dir, needed_metadata=None, path=None, pushdowns=None):
         # pylint: disable=unused-argument
         self._requested_metadata = set(needed_metadata or [])
         self._requested_events = events if events is _ALL_EVENTS else set(events)
         self._temp_dir = Path(temp_dir)
+        self._pushdowns = pushdowns
 
     def get_parser_id(self):
         """
@@ -3763,6 +3769,9 @@ class _InternalTraceBase(abc.ABC):
         events = events.get_all_events()
         self._preload_raw_events(events)
 
+    def _preload_raw_events(self, events, **kwargs):
+        return self.base_trace._preload_raw_events(events, **kwargs)
+
     def _is_event_delayed(self, event):
         return (
             # Delayed events rely on the cache to make preloaded dataframes
@@ -4093,6 +4102,7 @@ class _TraceViewBase(
         df_fmt=None,
         clear_base_cache=None,
         _record_pushdowns=False,
+        _pushdowns=None,
     ):
         if clear_base_cache is not None:
             _deprecated_warn(f'"clear_base_cache" parameter has no effect anymore')
@@ -4139,6 +4149,7 @@ class _TraceViewBase(
             events=events,
             strict_events=strict_events,
             _record_pushdowns=_record_pushdowns,
+            _pushdowns=_pushdowns,
         )
 
         return view
@@ -4470,9 +4481,10 @@ class _ProcessTraceView(_TraceViewBase):
 
 
 class _PreloadEventsTraceView(_TraceViewBase):
-    def __init__(self, trace, events=None, strict_events=False, _record_pushdowns=False):
+    def __init__(self, trace, events=None, strict_events=False, _record_pushdowns=False, _pushdowns=None):
         super().__init__(trace)
         self._record_pushdowns = _record_pushdowns
+        self._pushdowns = _pushdowns or {}
 
         if events == 'all':
             events = _ALL_EVENTS
@@ -4502,10 +4514,31 @@ class _PreloadEventsTraceView(_TraceViewBase):
 
         self._events = events
 
-    def _internal_df_event(self, event, _record_pushdowns=False, **kwargs):
+    def _internal_df_event(
+        self,
+        event,
+        *,
+        _record_pushdowns=False,
+        _pushdowns=None,
+        **kwargs,
+    ):
         return self.base_trace._internal_df_event(
             event,
             _record_pushdowns=self._record_pushdowns or _record_pushdowns,
+            _pushdowns={
+                **self._pushdowns,
+                **(_pushdowns or {}),
+            },
+            **kwargs,
+        )
+
+    def _preload_raw_events(self, *args, pushdowns=None, **kwargs):
+        return super()._preload_raw_events(
+            *args,
+            pushdowns={
+                **self._pushdowns,
+                **(pushdowns or {}),
+            },
             **kwargs,
         )
 
@@ -6325,7 +6358,7 @@ class _Trace(Loggable, _InternalTraceBase):
 
         return events.map(fixup)
 
-    def _preload_raw_events(self, events, force=False, _meta_is_raw=False):
+    def _preload_raw_events(self, events, force=False, _meta_is_raw=False, pushdowns=None):
         if self._cache.enabled:
             delayed = set()
             immediate = set()
@@ -6346,6 +6379,7 @@ class _Trace(Loggable, _InternalTraceBase):
                 events,
                 allow_missing_events=True,
                 _meta_is_raw=_meta_is_raw,
+                pushdowns=pushdowns,
             )
 
             return set(df_map.keys())
@@ -6795,7 +6829,12 @@ class _Trace(Loggable, _InternalTraceBase):
 
             return count
 
-    def _get_parser(self, events=tuple(), needed_metadata=None):
+    def _get_parser(
+        self,
+        events=tuple(),
+        needed_metadata=None,
+        pushdowns=None,
+    ):
         cache = self._cache
         path = self.trace_path
         events = events if events is _ALL_EVENTS else set(events)
@@ -6810,14 +6849,16 @@ class _Trace(Loggable, _InternalTraceBase):
                         'path': path,
                         'events': sorted(events),
                         'metadata': sorted(needed_metadata),
+                        'pushdowns': pushdowns,
                     }
                 )
-                self.logger.debug(f'Spinning up trace parser {self._parser}: path={path}, events={events}, needed_metadata={needed_metadata}')
+                self.logger.debug(f'Spinning up trace parser {self._parser}: path={path}, events={events}, needed_metadata={needed_metadata}, pushdowns={pushdowns}')
                 parser = self._parser(
                     path=path,
                     events=events,
                     needed_metadata=needed_metadata,
                     temp_dir=temp_dir,
+                    pushdowns=pushdowns or {},
                 )
 
                 try:
@@ -6922,14 +6963,27 @@ class _Trace(Loggable, _InternalTraceBase):
             )
             return id_
 
+    def _make_raw_cache_desc(self, event, pushdowns=None):
+        pushdowns = FrozenDict({
+            k: v
+            for k, v in (pushdowns or {}).items()
+            if v is not None
+        })
+
+        return self._do_make_raw_cache_desc(
+            event,
+            pushdowns=pushdowns,
+        )
+
     @memoized
-    def _make_raw_cache_desc(self, event):
+    def _do_make_raw_cache_desc(self, event, pushdowns):
         spec = dict(
             # This is used when clearing the cache to know if a given entry is
             # related to a raw event or e.g. an analysis.
             raw=True,
             event=event,
             trace_state=self.trace_state,
+            pushdowns=pushdowns,
         )
         return _CacheDataDesc(spec=spec, fmt=_TraceCache.DATAFRAME_SWAP_FORMAT)
 
@@ -6940,6 +6994,7 @@ class _Trace(Loggable, _InternalTraceBase):
             df_fmt=None,
             _meta_is_raw=False,
             _record_pushdowns=True,
+            _pushdowns=None,
 
             # Deprecated
             write_swap=None,
@@ -6968,6 +7023,7 @@ class _Trace(Loggable, _InternalTraceBase):
             df = self._load_cache_raw_df(
                 TraceEventChecker(event),
                 _meta_is_raw=_meta_is_raw,
+                pushdowns=_pushdowns or {},
             )[event]
         except MissingTraceEventError as e:
             e.available_events = self.available_events
@@ -6997,20 +7053,59 @@ class _Trace(Loggable, _InternalTraceBase):
             meta = dict(event=event)
             return df, meta
 
-    def _fetch_cache_raw_df(self, event):
+    def _fetch_cache_raw_df(self, event, pushdowns=None):
         # Make sure all raw descriptors are made the same way, to avoid
         # missed sharing opportunities
-        cache_desc = self._make_raw_cache_desc(event)
-        df = self._cache.fetch(cache_desc, insert=True)
-        return _ParsedDataFrame.from_df(df)
 
-    def _load_cache_raw_df(self, event_checker, allow_missing_events=False, _meta_is_raw=False):
+        def fetch(cache_desc):
+            df = self._cache.fetch(cache_desc, insert=True)
+            return _ParsedDataFrame.from_df(df)
+
+        if pushdowns:
+            # First try the smallest data set we have. We still try the full
+            # dataset if we don't have any filtered data.
+            _cache_desc = self._make_raw_cache_desc(
+                event,
+                pushdowns=pushdowns,
+            )
+            try:
+                return fetch(_cache_desc)
+            except KeyError:
+                pass
+
+        return fetch(self._make_raw_cache_desc(
+            event,
+        ))
+
+    def _load_cache_raw_df(
+        self,
+        event_checker,
+        allow_missing_events=False,
+        _meta_is_raw=False,
+        pushdowns=None,
+    ):
         events = event_checker.get_all_events()
+        pushdowns = pushdowns or {}
+        pushdowns = {
+            event: {
+                k: v
+                for k, v in _pushdowns.items()
+                # Remove predicate pushdown, as polars does not allow stable
+                # Expr introspection in Python. On top of that, we would need
+                # to serialize it to JSON for the cache descriptor, which is
+                # supported at the moment but deprecated in polars.
+                if k not in {'predicate'}
+            }
+            for event, _pushdowns in pushdowns.items()
+        }
 
         # Get the raw dataframe from the cache if possible
         def try_from_cache(event):
             try:
-                return self._fetch_cache_raw_df(event)
+                return self._fetch_cache_raw_df(
+                    event,
+                    pushdowns=pushdowns.get(event),
+                )
             except KeyError:
                 return None
 
@@ -7038,8 +7133,12 @@ class _Trace(Loggable, _InternalTraceBase):
         df_from_trace = self._load_raw_df(
             events_to_load,
             _meta_is_raw=_meta_is_raw,
+            pushdowns=pushdowns,
         )
-        df_from_trace = self._insert_events(df_from_trace)
+        df_from_trace = self._insert_events(
+            df_from_trace,
+            pushdowns=pushdowns,
+        )
 
         df_map = {**from_cache, **df_from_trace}
         try:
@@ -7053,11 +7152,14 @@ class _Trace(Loggable, _InternalTraceBase):
 
         return df_map
 
-    def _insert_events(self, df_map):
+    def _insert_events(self, df_map, pushdowns=None):
         def insert_event(event, df):
             assert isinstance(df, _ParsedDataFrame)
             if df.meta['mem_cacheable']:
-                cache_desc = self._make_raw_cache_desc(event)
+                cache_desc = self._make_raw_cache_desc(
+                    event,
+                    pushdowns=(pushdowns or {}).get(event),
+                )
                 df = self._cache.insert(
                     cache_desc,
                     df.df,
@@ -7075,7 +7177,7 @@ class _Trace(Loggable, _InternalTraceBase):
             for event, df in df_map.items()
         }
 
-    def _parse_raw_events(self, events):
+    def _parse_raw_events(self, events, pushdowns):
         if not events:
             return {}
 
@@ -7092,7 +7194,7 @@ class _Trace(Loggable, _InternalTraceBase):
                 return None
 
 
-        with self._get_parser(events) as parser:
+        with self._get_parser(events, pushdowns=pushdowns) as parser:
             df_map = {
                 event: _convert_df_from_parser(
                     df=df,
@@ -7269,7 +7371,7 @@ class _Trace(Loggable, _InternalTraceBase):
             for meta_event, (df_list, meta) in df_map.items()
         }
 
-    def _load_raw_df(self, events, _meta_is_raw):
+    def _load_raw_df(self, events, _meta_is_raw, pushdowns):
         events = set(events)
         meta_events = set(filter(self._is_meta_event, events))
 
@@ -7286,7 +7388,7 @@ class _Trace(Loggable, _InternalTraceBase):
             normal_events = events - meta_events
 
         df_map.update(
-            self._parse_raw_events(normal_events)
+            self._parse_raw_events(normal_events, pushdowns=pushdowns)
         )
 
         # remember the events that we tried to parse and that turned out to not
@@ -7482,6 +7584,7 @@ class Trace(
         events_namespaces=('lisa__', None),
         df_fmt=None,
         _record_pushdowns=False,
+        _pushdowns=None,
 
         sanitization_functions=None,
         write_swap=None,
@@ -7512,6 +7615,7 @@ class Trace(
             events=events,
             df_fmt=df_fmt,
             _record_pushdowns=_record_pushdowns,
+            _pushdowns=_pushdowns,
         )
 
         trace = _Trace(*args, **kwargs)
@@ -7609,7 +7713,7 @@ class Trace(
 
             # Preload using the low-leve function that uses non-namespaced
             # event names.
-            self._preload_raw_events(events, force=True)
+            self.__view._preload_raw_events(events, force=True)
             return get_non_delayed(self)
 
         delayed = (
