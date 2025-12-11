@@ -6008,6 +6008,55 @@ class _TraceCache(Loggable):
                 )
 
 
+
+class _ActivityLog(Iterable):
+    @abc.abstractmethod
+    def log(self, typ, data):
+        pass
+
+
+class _NestedActivityLog(_ActivityLog):
+    def __init__(self, outer, inner):
+        self._inner = inner
+        self._outer = outer
+
+    def log(self, *args, **kwargs):
+        self._outer.log(*args, **kwargs)
+        self._inner.log(*args, **kwargs)
+
+    def __iter__(self):
+        return iter(self._inner)
+
+
+class _NoopActivityLog(_ActivityLog):
+    def log(self, typ, data):
+        pass
+
+    def __iter__(self):
+        return iter([])
+
+
+class _RecordingActivityLog(_ActivityLog):
+    def __init__(self, trace):
+        self._log = []
+        self._trace = trace
+
+    @property
+    def _lock(self):
+        return self._trace._lock
+
+    def log(self, typ, data):
+        with self._lock:
+            self._log.append({
+                'type': typ,
+                'data': data,
+            })
+
+    def __iter__(self):
+        with self._lock:
+            return iter(list(self._log))
+
+
 class _Trace(Loggable, _InternalTraceBase):
     """
     Object at the bottom of a :class:`_TraceViewBase` stack.
@@ -6076,6 +6125,10 @@ class _Trace(Loggable, _InternalTraceBase):
         super().__init__()
         self._lock = threading.RLock()
         self._delayed_events = set()
+        # By default, we don't record anything as this is not generally useful
+        # and could lead to memory leak if someone were to e.g. call df_event()
+        # in a tight loop.
+        self._activity_log = _NoopActivityLog()
 
         stack = contextlib.ExitStack()
         self._cm_stack = stack
@@ -6202,6 +6255,21 @@ class _Trace(Loggable, _InternalTraceBase):
     def __exit__(self, *args):
         self.__deallocator.run()
 
+    @contextlib.contextmanager
+    def _with_activity_log(self):
+        with self._lock:
+            outer = self._activity_log
+            new = _NestedActivityLog(
+                outer=outer,
+                inner=_RecordingActivityLog(self),
+            )
+            self._activity_log = new
+        try:
+            yield new
+        finally:
+            with self._lock:
+                self._activity_log = outer
+
     def _preload_metadata_cache(self):
         def fail():
             raise ValueError('Fake metadata value')
@@ -6261,10 +6329,13 @@ class _Trace(Loggable, _InternalTraceBase):
 
     @memoized
     def _preload_all_events(self):
+        self._activity_log.log('preload-all-events', None)
+
         meta, df_map = self._parse_all()
         return set(df_map.keys())
 
     def _parse_all(self):
+        self._activity_log.log('parse-all', None)
 
         def convert(parser, df_map):
             return {
@@ -6392,6 +6463,13 @@ class _Trace(Loggable, _InternalTraceBase):
         return self._get_metadata(key=key)
 
     def _get_metadata(self, key, parser=None, try_hard=False):
+        self._activity_log.log(
+            'get-metadata',
+            {
+                'key': key,
+                'run-parser': (parser is None) or try_hard
+            }
+        )
         def get():
             if parser is None:
                 @contextlib.contextmanager
@@ -6701,6 +6779,14 @@ class _Trace(Loggable, _InternalTraceBase):
         @contextlib.contextmanager
         def cm():
             with pl.StringCache(), self._cache._parser_temp_path() as temp_dir:
+                self._activity_log.log(
+                    'spinup-parser',
+                    {
+                        'path': path,
+                        'events': sorted(events),
+                        'metadata': sorted(needed_metadata),
+                    }
+                )
                 self.logger.debug(f'Spinning up trace parser {self._parser}: path={path}, events={events}, needed_metadata={needed_metadata}')
                 parser = self._parser(
                     path=path,
@@ -6844,6 +6930,13 @@ class _Trace(Loggable, _InternalTraceBase):
 
         if raw:
             raise ValueError(f'raw=True is not supported anymore, dataframes are always post processed by parsers to be as close as possible to the ftrace event format')
+
+        self._activity_log.log(
+            'df-event-raw',
+            {
+                'event': event,
+            }
+        )
 
         try:
             df = self._load_cache_raw_df(
@@ -7468,6 +7561,15 @@ class Trace(
         delayed = (
             df_fmt == 'polars-lazyframe' and
             self._is_event_delayed(event)
+        )
+
+        self._activity_log.log(
+            'df-event',
+            {
+                'event': event,
+                'df-fmt': df_fmt,
+                'delayed': delayed,
+            }
         )
 
         if delayed:
