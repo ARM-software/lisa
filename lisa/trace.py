@@ -1106,7 +1106,6 @@ class PerfettoTraceParser(TraceParserBase):
         #    costly.
         # 2. A full scan of the ingested events, which is costly as well.
         if must_compute('available-events'):
-            config = row.str_value
             meta['available-events'] = set(
                 row.name
                 for row in metadata_query("SELECT DISTINCT name FROM ftrace_event")
@@ -1428,7 +1427,7 @@ class PerfettoTraceParser(TraceParserBase):
             if (join := frag.get('join'))
         )))
 
-        def get_chunk(from_, to_, columns):
+        def get_chunk(from_, to_, n, columns):
             projections = ',\n    '.join(
                 frag['select']
                 for frag in fragments
@@ -1438,15 +1437,11 @@ class PerfettoTraceParser(TraceParserBase):
                     or flat_key in columns
                 )
             )
+            assert n
+
             # SQL's BETWEEN operator is inclusive on the right bound, so we
             # readjust.
             to_ = max(to_ - 1, 0)
-
-            # Limit the amount of data we get in the window as we may request a
-            # very large window if there is very few of this event per section
-            # of IDs. If we suddenly get a window with lots of events, we could
-            # end up with a giant batch.
-            n = abs(to_ - from_)
             query = f"""
 SELECT\n    {projections}
 FROM ftrace_event
@@ -1455,6 +1450,7 @@ WHERE
     ftrace_event.id BETWEEN {from_} AND {to_} AND
     ftrace_event.name = {sql_quote(event)}
 LIMIT {n}
+ORDER BY ftrace_event.id
 """
 
             df = event_query(query, lambda res: res.as_pandas_dataframe())
@@ -1474,13 +1470,6 @@ LIMIT {n}
             ))
 
             last_id = df.select(pl.col('__lisa_perfetto_event_id').max()).collect().item()
-
-            # Sort each small chunk on its own to be streaming-friendly. We
-            # don't want to use ORDER BY in the query as this triggers the
-            # creation of an ephemeral index (USE TEMP B-TREE FOR ORDER BY in
-            # EXPLAIN QUERY PLAN). That consumes large amounts of memory and
-            # massively slows down the query.
-            df = df.sort('__lisa_perfetto_event_id', 'Time')
             df = df.drop('__lisa_perfetto_event_id')
             return (last_id, df)
 
@@ -1499,11 +1488,22 @@ LIMIT {n}
                         break
                     n = min(sql_n_rows, remaining_rows)
 
-                to_ = last_id + n
+                assert sql_n_rows
+                assert n
+
+                # Make sure we scan a large-enough block so that we still make
+                # progress even if the event is very sparse.
+                to_ = last_id + sql_n_rows
+
                 _last_id, df = get_chunk(
                     columns=with_columns,
                     from_=last_id,
                     to_=to_,
+                    # Limit the amount of data we get in the window as we may
+                    # request a very large window if there is very few of this
+                    # event per section of IDs. If we suddenly get a window
+                    # with lots of events, we could end up with a giant batch.
+                    n=n,
                 )
 
                 if predicate is not None:
@@ -1557,9 +1557,12 @@ LIMIT {n}
             is_pure=True,
         )
 
-        # Each chunk is sorted on Time, so the concatenation is also sorted on
-        # Time
-        df = df.set_sorted('Time')
+        # Sort in polars. We don't want to use ORDER BY in the query as this
+        # triggers the creation of an ephemeral index (USE TEMP B-TREE FOR
+        # ORDER BY in EXPLAIN QUERY PLAN). That consumes large amounts of
+        # memory and massively slows down the query. Polars can be much more
+        # efficient for a taks like that.
+        df = df.sort('Time')
 
         df = df.select(order_as(
             sorted(df.collect_schema().names()),
