@@ -4793,7 +4793,7 @@ class _AvailableTraceEventsSet:
         return str(self._available_events)
 
 
-class _CacheDataDesc(Mapping):
+class _CacheDataDesc:
     """
     Cached data descriptor.
 
@@ -4803,12 +4803,6 @@ class _CacheDataDesc(Mapping):
     :class:`pandas.DataFrame` or :class:`pandas.Series` or
     :class:`polars.LazyFrame` or :class:`polars.DataFrame`. It is used to
     manage the cache and swap.
-
-    It implements the :class:`collections.abc.Mapping` interface, so
-    specification keys can be accessed directly like from a dict.
-
-    .. note:: Once introduced in a container, instances must not be modified,
-        directly or indirectly.
     """
 
     def __init__(self, spec, fmt):
@@ -4825,15 +4819,6 @@ class _CacheDataDesc(Mapping):
         Normal form of the descriptor. Equality is implemented by comparing
         this attribute.
         """
-
-    def __getitem__(self, key):
-        return self.spec[key]
-
-    def __iter__(self):
-        return iter(self.spec)
-
-    def __len__(self):
-        return len(self.spec)
 
     def __repr__(self):
         return '{}({})'.format(
@@ -6021,58 +6006,6 @@ class _TraceCache(Loggable):
                     write_meta=write_meta,
                     best_effort=best_effort,
                 )
-
-    def write_swap_all(self, **kwargs):
-        """
-        Attempt to write all cached data to the swap.
-        """
-        with self._lock:
-            cache_descs = list(self._cache.keys())
-
-        for cache_desc in cache_descs:
-            self.write_swap(cache_desc, **kwargs)
-
-    def clear_event(self, event, raw=None):
-        """
-        Clear cache entries referencing a given event.
-
-        :param event: Event to clear.
-        :type event: str
-
-        :param raw: If ``True``, only clear entries that refer to raw data. If
-            ``False``, only clear entries that refer to non-raw data. If
-            ``None``, ignore whether the descriptor is about raw data or not.
-        :type raw: bool or None
-        """
-        with self._lock:
-            self._cache = {
-                cache_desc: data
-                for cache_desc, data in self._cache.items()
-                if not (
-                    cache_desc.get('event') == event
-                    and (
-                        raw is None
-                        or cache_desc.get('raw') == raw
-                    )
-                )
-            }
-
-    def clear_all_events(self, raw=None):
-        """
-        Same as :meth:`clear_event` but works on all events at once.
-        """
-        with self._lock:
-            self._cache = {
-                cache_desc: data
-                for cache_desc, data in self._cache.items()
-                if (
-                    # Cache entries can be associated to something else than events
-                    'event' not in cache_desc or
-                    # Either we care about raw and we check, or blanket clear
-                    raw is None or
-                    cache_desc.get('raw') == raw
-                )
-            }
 
 
 class _Trace(Loggable, _InternalTraceBase):
