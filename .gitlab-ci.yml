@@ -288,8 +288,11 @@ pages:
       # Provide the list of versions for the version switcher
       export LISA_DOC_ALL_VERSIONS='["main", "preview", "master"]'
       fail build_branch main main
-      fail build_branch preview preview
-      fail build_branch master master
+
+      # Disable llms.txt and llms-full.txt generation for most branches as it
+      # doubles the doc build time and would be of limited use.
+      LISA_DOC_BUILD_LLMS_TXT=0 fail build_branch preview preview
+      LISA_DOC_BUILD_LLMS_TXT=0 fail build_branch master master
 
       # TODO: For now the release branch doc won't build as it lacks some necessary fixes
       # build_branch release release
