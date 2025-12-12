@@ -1922,7 +1922,14 @@ def intersphinx_warn_missing_reference_handler(app, domain, node, non_ignored_re
                 if docobj.autodoc_is_skipped(app):
                     return True
                 elif any(
-                    regex.match(docobj.fullname)
+                    regex.match(
+                        # The context in which the module was referenced does
+                        # not really matter, as modules are basically never
+                        # members of a class.
+                        docobj.obj.__name__
+                        if inspect.ismodule(docobj.obj) else
+                        docobj.fullname
+                    )
                     for regex in non_ignored_refs
                 ):
                     return None
