@@ -33,6 +33,8 @@ import weakref
 import threading
 import queue
 import sys
+import json
+import io
 
 
 import polars as pl
@@ -2849,6 +2851,106 @@ def _polars_record_pushdowns(df, callback):
             schema=df.collect_schema(),
             is_pure=True,
         )
+
+
+# FIXME: write unit tests as serialize(format='json') is unstable
+def _polars_parse_predicate(expr, schema, binop, unaryop, column, literal):
+    if isinstance(expr, pl.Expr):
+        expr = expr.meta.serialize(format='json')
+    if isinstance(expr, str):
+        expr = json.loads(expr)
+
+    def deserialize(expr):
+        return pl.Expr.deserialize(
+            io.BytesIO(json.dumps(expr).encode('utf-8')),
+            format='json',
+        )
+
+    def get_dtype(expr):
+        expr = deserialize(expr)
+        # Put the expression in the context of the schema
+        df = pl.LazyFrame(schema=schema).select(expr.alias('expr'))
+        return df.collect_schema()['expr']
+
+    def parse(expr):
+        match expr:
+            case {'BinaryExpr': {'left': left, 'op': op, 'right': right}}:
+                def parse_op(left, op, right):
+                    match op:
+                        case 'Eq':
+                            return '=='
+                        case 'NotEq':
+                            return '!='
+                        case 'Gt':
+                            return '>'
+                        case 'Lt':
+                            return '<'
+                        case 'GtEq':
+                            return '>='
+                        case 'LtEq':
+                            return '<='
+                        case 'And' | 'Or':
+                            left_dtype = get_dtype(left)
+                            right_dtype = get_dtype(right)
+                            if (
+                                left_dtype.is_(right_dtype)
+                                or (left_dtype.is_integer() and right_dtype.is_integer())
+                                or (left_dtype.is_float() and right_dtype.is_float())
+                            ):
+                                # Boolean version of the operators when dtypes
+                                # are boolean
+                                if left_dtype == pl.Boolean:
+                                    return {
+                                        'Or': '||',
+                                        'And': '&&',
+                                    }[op]
+                                # Otherwise, it is the bitwise variant of the
+                                # operator as defined by polars.
+                                else:
+                                    return {
+                                        'Or': '|',
+                                        'And': '&',
+                                    }[op]
+                            else:
+                                raise ValueError(f'Operator "{op}" is not supported for mixed operand dtypes: left={left_dtype} and right={right_dtype}')
+
+                return binop(
+                    parse(left),
+                    parse_op(left, op, right),
+                    parse(right),
+                )
+            case {'Function': {'function': {'Boolean': op}, 'input': [x]}}:
+                def parse_op(op, x):
+                    match op:
+                        case 'Not':
+                            match get_dtype(x):
+                                case pl.Boolean:
+                                    return '!'
+                                case _:
+                                    return '~'
+                        case _:
+                            raise ValueError(f'Unary operator "{op}" is not handled')
+
+                return unaryop(
+                    parse_op(op, x),
+                    parse(x),
+                )
+            case {'Column': col}:
+                return column(col)
+            case {'Literal': lit}:
+                match lit:
+                    case {'Scalar': scalar} | {'Dyn': scalar}:
+                        match list(scalar.values()):
+                            case [x]:
+                                return literal(x)
+                            case _:
+                                raise ValueError(f'Scalar value not handled: {scalar}')
+                    case _:
+                        raise ValueError(f'Literal value not handled: {lit}')
+            case _:
+                raise ValueError(f'Expression not handled: {lit}')
+
+    return parse(expr)
 
 
 # Defined outside SignalDesc as it references SignalDesc itself

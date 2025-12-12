@@ -73,7 +73,7 @@ import devlib
 
 from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, set_nested_key, unzip_into, order_as, DirCache, DelegateToAttr, _EXTRA_ASSERTS, FrozenDict
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
-from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df, _polars_fast_collect, _polars_fast_collect_all, _df_in_memory, _polars_record_pushdowns
+from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df, _polars_fast_collect, _polars_fast_collect_all, _df_in_memory, _polars_record_pushdowns, _polars_parse_predicate
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString
 from lisa._kmod import LISADynamicKmod
@@ -1295,10 +1295,12 @@ class PerfettoTraceParser(TraceParserBase):
             uuid_ = uuid.uuid4().hex
             table = f'__lisa_field_table_{uuid_}'
             col = f'__lisa_field_col_{uuid_}'
+            selected = f"{table}.{pick_col(field.value_type)}"
             return {
                 'column': col,
                 'flat_key': field.flat_key,
-                'select': f"{table}.{pick_col(field.value_type)} AS {col}",
+                'selected': selected,
+                'select': f"{selected} AS {col}",
                 'join': f"JOIN args AS {table} ON {table}.arg_set_id = ftrace_event.arg_set_id AND {table}.key = {sql_quote(field.key)}"
             }
 
@@ -1350,20 +1352,24 @@ class PerfettoTraceParser(TraceParserBase):
         common_fragments = [
             {
                 'flat_key': '__lisa_perfetto_event_id',
+                'selected': 'ftrace_event.id',
                 'select': 'ftrace_event.id AS __lisa_perfetto_event_id',
                 'preserve': True,
             },
             {
                 'flat_key': 'Time',
+                'selected': 'ftrace_event.ts',
                 'select': 'ftrace_event.ts AS Time',
                 'preserve': True,
             },
             {
                 'flat_key': '__cpu',
+                'selected': 'ftrace_event.cpu',
                 'select': 'ftrace_event.cpu AS __cpu',
             },
             {
                 'flat_key': '__pid',
+                'selected': 'thread.tid',
                 'select': 'thread.tid AS __pid',
                 # Ideally we would use LEFT JOIN to cope with a missing thread
                 # info (it shouldn't happen, but who knows). However, LEFT JOIN
@@ -1375,6 +1381,7 @@ class PerfettoTraceParser(TraceParserBase):
             },
             {
                 'flat_key': '__comm',
+                'selected': 'thread.name',
                 'select': 'thread.name AS __comm',
                 'join': 'JOIN thread ON thread.utid = ftrace_event.utid',
             },
@@ -1385,10 +1392,21 @@ class PerfettoTraceParser(TraceParserBase):
             arg_fragments,
         ))
 
+        fragments_per_flat_key = {
+            flat_key: frag
+            for frag in fragments
+            if (flat_key := frag.get('flat_key')) is not None
+        }
+
+        def select_fragment(frag):
+            return True
+
+        predicate_used_selected = set()
         try:
             pushdowns = self._pushdowns[event]
         except KeyError:
             n_rows = None
+            predicate = None
         else:
             if (columns := pushdowns.get('with-columns')) is not None:
                 self.logger.debug(f'Applying projection pushdown: {columns}')
@@ -1402,19 +1420,71 @@ class PerfettoTraceParser(TraceParserBase):
                         except KeyError:
                             return True
 
-                fragments = [
-                    frag
-                    for frag in fragments
-                    if select_fragment(frag)
-                ]
-                schema = {
-                    col: dtype
-                    for col, dtype in schema.items()
-                    if col in columns
-                }
-
             if (n_rows := pushdowns.get('n-rows')) is not None:
                 self.logger.debug(f'Applying slice pushdown: {n_rows}')
+
+            if (predicate := pushdowns.get('predicate')) is not None:
+                def binop(left, op, right):
+                    op = {
+                        '&': '&',
+                        '&&': 'AND',
+                        '|': '|',
+                        '||': 'OR',
+                        '==': '=',
+                        '!=': '<>',
+                    }.get(op, op)
+                    return f'({left} {op} {right})'
+
+                def unaryop(op, x):
+                    op = {
+                        '~': '~',
+                        '!': 'NOT',
+                    }[op]
+                    return f'({op} {x})'
+
+                def column(col):
+                    try:
+                        frag = fragments_per_flat_key[col]
+                    except KeyError:
+                        raise ValueError(f'No fragment found with flat_key: {col}')
+                    else:
+                        selected = frag['selected']
+                        predicate_used_selected.add(selected)
+                        return selected
+
+                def literal(x):
+                    if isinstance(x, str):
+                        return sql_quote(x)
+                    elif isinstance(x, (bool, int, float)):
+                        return x
+                    # TODO: handle temporal dtype (maybe)
+                    else:
+                        raise ValueError(f'Literal type not handled: {x} ({type(x)})')
+
+                try:
+                    predicate = _polars_parse_predicate(
+                        predicate,
+                        schema=schema,
+                        binop=binop,
+                        unaryop=unaryop,
+                        column=column,
+                        literal=literal,
+                    )
+                except ValueError as e:
+                    self.logger.debug(f'Could not apply predicate pushdown: {e}')
+                    predicate = None
+                else:
+                    self.logger.debug(f'Applying predicate pushdown: {predicate}')
+
+                    _select = select_fragment
+                    def select_fragment(frag):
+                        return (
+                            _select(frag)
+                            or (
+                                frag['selected'] in predicate_used_selected
+                            )
+                        )
+
 
         renames = {
             col: flat_key
@@ -1426,28 +1496,39 @@ class PerfettoTraceParser(TraceParserBase):
             new: old
             for old, new in renames.items()
         }
+
         pre_rename_schema = {
             inverse_renames.get(col, col): dtype
             for col, dtype in schema.items()
         }
 
+        schema = {
+            col: dtype
+            for col, dtype in schema.items()
+            if select_fragment(fragments_per_flat_key[col])
+        }
+
         joins = '\n'.join(sorted(set(
             join
             for frag in fragments
-            if (join := frag.get('join'))
+            if (
+                select_fragment(frag)
+                and (join := frag.get('join'))
+            )
         )))
 
         def get_chunk(from_, to_, n, columns):
             projections = ',\n    '.join(
                 frag['select']
                 for frag in fragments
-                if (
-                    frag.get('preserve')
-                    or columns is None
-                    or flat_key in columns
-                )
+                # We ignore the local "columns" here as we need to strictly
+                # match what was made available in "joins". Otherwise we will
+                # be referencing columns that do not exist.
+                if select_fragment(frag)
             )
             assert n
+
+            _predicate = f'AND {predicate}' if predicate else ''
 
             # SQL's BETWEEN operator is inclusive on the right bound, so we
             # readjust.
@@ -1459,8 +1540,9 @@ FROM ftrace_event
 WHERE
     ftrace_event.id BETWEEN {from_} AND {to_} AND
     ftrace_event.name = {sql_quote(event)}
-LIMIT {n}
+    {_predicate}
 ORDER BY ftrace_event.id
+LIMIT {n}
 """
 
             df = event_query(query, lambda res: res.as_pandas_dataframe())
@@ -7045,7 +7127,7 @@ class _Trace(Loggable, _InternalTraceBase):
             *,
             df_fmt=None,
             _meta_is_raw=False,
-            _record_pushdowns=True,
+            _record_pushdowns=False,
             _pushdowns=None,
 
             # Deprecated
@@ -7138,18 +7220,6 @@ class _Trace(Loggable, _InternalTraceBase):
     ):
         events = event_checker.get_all_events()
         pushdowns = pushdowns or {}
-        pushdowns = {
-            event: {
-                k: v
-                for k, v in _pushdowns.items()
-                # Remove predicate pushdown, as polars does not allow stable
-                # Expr introspection in Python. On top of that, we would need
-                # to serialize it to JSON for the cache descriptor, which is
-                # supported at the moment but deprecated in polars.
-                if k not in {'predicate'}
-            }
-            for event, _pushdowns in pushdowns.items()
-        }
 
         # Get the raw dataframe from the cache if possible
         def try_from_cache(event):
@@ -7893,6 +7963,9 @@ class Trace(
         :type traces: collections.abc.Iterable(lisa.trace.TraceBase)
         """
         def process_many(traces):
+            # FIXME: is there a way to know before-hand what trace will be the
+            # cheapest to process without pushdowns ? Maybe we could sort by
+            # file size.
             first, *others = traces
 
             # We do not try to apply any sort of pushdown immediately, as a
@@ -7902,29 +7975,33 @@ class Trace(
             # "average bad case" than simply just loading the whole dataset as
             # per usual.
             first = first.get_view(_record_pushdowns=True)
-            first_res = f(first)
 
-            # Only collecting the lazyframe will trigger writing to the
-            # _activity_log, so if the user returns a LazyFrame from f(), we
-            # won't detect anything yet. By the time they collect it, it will
-            # be too late. To fix that, we trigger an early collection.
-            if isinstance(first_res, pl.LazyFrame):
-                # Collect a single row, but do it without slicing (e.g.
-                # head(1)) so that any pushed-down slice stays relevant.
-                #
-                # In polars 1.36.1, LazyFrame.collect_batches() is afflicted by
-                # deadlocks:
-                # https://github.com/pola-rs/polars/issues/25745
-                # https://github.com/pola-rs/polars/issues/25754
-                # So we use sink_batches() instead, which allows early
-                # termination as a supported pattern.
-                first_res.sink_batches(
-                    # Get one batch then return immediately.
-                    lambda _: True,
-                    # Each batch has only a single row in it, we want to
-                    # keep it as cheap as possible.
-                    chunk_size=1,
-                )
+            with first._with_activity_log() as log:
+                first_res = f(first)
+
+                # Only collecting the lazyframe will trigger writing to the
+                # _activity_log, so if the user returns a LazyFrame from f(),
+                # we won't detect anything yet. By the time they collect it, it
+                # will be too late. To fix that, we trigger an early
+                # collection.
+                if isinstance(first_res, pl.LazyFrame):
+                    # Collect a single row, but do it without slicing (e.g.
+                    # head(1)) so that any pushed-down slice stays relevant.
+                    #
+                    # In polars 1.36.1, LazyFrame.collect_batches() is
+                    # afflicted by deadlocks:
+                    # https://github.com/pola-rs/polars/issues/25745
+                    # https://github.com/pola-rs/polars/issues/25754
+                    # So we use sink_batches() instead, which allows early
+                    # termination as a supported pattern.
+                    first_res.sink_batches(
+                        # Get one batch then return immediately.
+                        lambda _: True,
+                        # Each batch has only a single row in it, we want to
+                        # keep it as cheap as possible.
+                        chunk_size=1,
+                    )
+                log = list(log)
 
             def merge_pushdowns(group):
                 per_key = dict(groupby(
@@ -7955,10 +8032,11 @@ class Trace(
                     )))
 
                 if (predicates := per_key.get('predicate')):
-                    merged['predicate'] = functools.reduce(
+                    predicate = functools.reduce(
                         operator.or_,
                         predicates,
                     )
+                    merged['predicate'] = predicate.meta.serialize(format='json')
 
                 return merged
 
@@ -7967,7 +8045,7 @@ class Trace(
                 for event, group in groupby(
                     (
                         item['data']
-                        for item in first._activity_log
+                        for item in log
                         if item['type'] == 'df-event-pushdown'
                     ),
                     key=itemgetter('event'),
@@ -7976,11 +8054,22 @@ class Trace(
 
             events = [
                 item['data']['event']
-                for item in first._activity_log
+                for item in log
                 if item['type'] == 'df-event-raw'
             ]
 
+            assert set(events) >= set(pushdowns.keys())
+
             def prepare(trace):
+                # FIXME: If the processing is not actually the same (or
+                # data-dependent), the pushdowns may not be correct. To fix
+                # that, we need an indirection layer in as an I/O plugin that
+                # checks the pushdowns that we actually get are the same as the
+                # ones we expected.
+
+                # FIXME: remove that once the above issue is fixed
+                pushdowns = None
+
                 trace = trace.get_view(_pushdowns=pushdowns)
                 trace._preload_raw_events(events)
                 return trace
