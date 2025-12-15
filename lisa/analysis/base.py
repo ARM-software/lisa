@@ -1235,12 +1235,7 @@ class TraceAnalysisBase(AnalysisHelpers):
         skipped completely when possible.
 
         :param fmt: Format of the data to write to the cache. This will
-            influence the extension of the cache file created. If ``disk-only``
-            format is chosen, the data is not retained in memory and the path
-            to the allocated cache file is passed as first parameter to the
-            wrapped function. This allows manual management of the file's
-            content, as well having a path to a file to pass to external tools
-            if they can consume the data directly.
+            influence the extension of the cache file created.
         :type fmt: str
 
         :param ignored_params: Parameters to ignore when trying to hit the
@@ -1255,79 +1250,65 @@ class TraceAnalysisBase(AnalysisHelpers):
         # Ignore "self"
         ignored_kwargs.add(parameter_names[0])
 
-        memory_cache = fmt != 'disk-only'
-
-        if not memory_cache:
-            path_param = parameter_names[1]
-            ignored_kwargs.add(path_param)
-
         @functools.wraps(f)
         def wrapper(self, *args, **kwargs):
-            # Make some room for the argument we will fill later
-            if not memory_cache:
-                args = (None,) + args
-
             # Express the arguments as kwargs-only
             params = sig.bind(self, *args, **kwargs)
             params.apply_defaults()
 
             trace = self.trace
-            cache_desc = _AnalysisCacheDataDesc(
-                fmt=fmt,
-                trace_state=trace.trace_state,
-                bound_class=self.__class__,
-                func=f,
-                # Make a deepcopy as it is critical that the
-                # _AnalysisCacheDataDesc is not modified under the hood once
-                # inserted in the cache
-                kwargs=copy.deepcopy({
-                    k: v
-                    for k, v in params.arguments.items()
-                    if k not in ignored_kwargs
-                }),
-            )
             cache = trace._cache
 
             def call_f():
-                if not memory_cache:
-                    try:
-                        swap_path = cache._cache_desc_swap_path(cache_desc, create=True)
-                    except Exception as e:
-                        swap_path = None
-                    params.arguments[path_param] = swap_path
-
                 with measure_time() as measure:
                     data = f(*params.args, **params.kwargs)
+                    if isinstance(data, pd.DataFrame):
+                        data = _pandas_cleanup_df(data)
 
-                if isinstance(data, pd.DataFrame):
-                    data = _pandas_cleanup_df(data)
+                # Do not use measure.exclusive_delta, otherwise a simple
+                # function making thousands of quick calls to a child
+                # function may appear with a low cost, even though it
+                # actually has a high total cost.
+                compute_cost = measure.delta
+                return (compute_cost, data)
 
-                if memory_cache:
-                    # Do not use measure.exclusive_delta, otherwise a simple
-                    # function making thousands of quick calls to a child
-                    # function may appear with a low cost, even though it
-                    # actually has a high total cost.
-                    compute_cost = measure.delta
-                else:
-                    compute_cost = None
-
-                return cache.insert(cache_desc, data, compute_cost=compute_cost, write_swap='best-effort')
-
-            if memory_cache:
+            try:
+                cache_desc = _AnalysisCacheDataDesc(
+                    fmt=fmt,
+                    trace_state=trace.trace_state,
+                    bound_class=self.__class__,
+                    func=f,
+                    # Make a deepcopy as it is critical that the
+                    # _AnalysisCacheDataDesc is not modified under the hood once
+                    # inserted in the cache
+                    kwargs=copy.deepcopy({
+                        k: v
+                        for k, v in params.arguments.items()
+                        if k not in ignored_kwargs
+                    }),
+                )
+            # If we cannot represent the arguments as a cache descriptor, it is
+            # impossible to cache this call at all.
+            except ValueError:
+                _, data = call_f()
+                return data
+            else:
                 try:
                     # Be warned that the type of the data returned by the cache
                     # may not match what was inserted. This can happen notably
                     # when a dataframe (from either pandas or polars) is
                     # cached, as it will be stored in a parquet file and
                     # reloaded most likely as a polars LazyFrame.
-                    data = cache.fetch(cache_desc)
+                    return cache.fetch(cache_desc)
                 except KeyError:
-                    data = call_f()
-            else:
-                data = call_f()
-
-            return data
-
+                    compute_cost, data = call_f()
+                    return cache.insert(
+                        cache_desc=cache_desc,
+                        data=data,
+                        compute_cost=compute_cost,
+                        write_swap=True,
+                        best_effort=True,
+                    )
         return wrapper
 
     @classmethod

@@ -552,6 +552,7 @@ class TraceTestCase(StorageTestCase):
 
             paths = []
             def update_path(path):
+                path = str(path)
                 paths.append(path)
                 return path
 
