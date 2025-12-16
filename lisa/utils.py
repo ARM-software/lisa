@@ -3677,7 +3677,7 @@ class FrozenDict(Mapping):
     def __init__(self, x, deepcopy=True, type_=dict):
         dct = type_(x)
         if deepcopy:
-            dct = copy.deepcopy(x)
+            dct = copy.deepcopy(dct)
 
         self._dct = dct
         # We cannot use memoized() since it would create an infinite loop
