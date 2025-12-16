@@ -59,9 +59,11 @@ import urllib.request
 import urllib.parse
 import sqlite3
 import logging
+import enum
 
 import numpy as np
 import pandas as pd
+import pyarrow
 import pyarrow.lib
 import pyarrow.parquet
 import polars as pl
@@ -71,7 +73,7 @@ from polars.io.plugins import register_io_source
 
 import devlib
 
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, set_nested_key, unzip_into, order_as, DirCache, DelegateToAttr, _EXTRA_ASSERTS, FrozenDict
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, set_nested_key, unzip_into, order_as, DirCache, DelegateToAttr, _EXTRA_ASSERTS, FrozenDict, get_subclasses, checksum
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df, _polars_fast_collect, _polars_fast_collect_all, _df_in_memory, _polars_record_pushdowns, _polars_parse_predicate
 from lisa.version import VERSION_TOKEN
@@ -365,7 +367,7 @@ def _logical_plan_update_paths(plan, update_path):
     return plan
 
 
-def _convert_df_from_parser(df, parser, cache):
+def _convert_df_from_parser(df, parser, cache, trace_state):
     def to_polars(df):
         index = 'Time'
         if isinstance(df, pd.DataFrame):
@@ -387,6 +389,7 @@ def _convert_df_from_parser(df, parser, cache):
                     key=uuid.uuid4().hex,
                 ),
                 compute_cost=None,
+                trace_state=trace_state,
             )
             hardlink_base, hardlink_path = cache._hardlink_path(hardlinks_base, cache_path.name)
 
@@ -462,21 +465,6 @@ def _lazyframe_rewrite(df, update_plan):
     plan = io.StringIO(plan)
     df = _df_json_deserialize(plan)
     return df
-
-
-class _CacheDataDescEncodable(abc.ABC):
-    """
-    Inheriting from this class allows encoding a value in JSON for a cache
-    desc.
-    """
-
-    @abc.abstractmethod
-    def json_encode(self):
-        """
-        Returns a more basic object that can readily be encoded by an
-        unmodified json serializer.
-        """
-        pass
 
 
 CPU = newtype(int, 'CPU', doc='Alias to ``int`` used for CPU IDs')
@@ -3700,6 +3688,37 @@ class SysTraceParser(HRTxtTraceParser):
         return super().from_txt_file(*args, **kwargs)
 
 
+class _JsonEncodable(abc.ABC):
+    """
+    Inheriting from this class allows encoding a value in JSON for a cache
+    desc.
+    """
+
+    @abc.abstractmethod
+    def json_encode(self):
+        """
+        Returns a more basic object that can readily be encoded by an
+        unmodified json serializer.
+        """
+        pass
+
+    @classmethod
+    def json_dumps(cls, x):
+        class Encoder(json.JSONEncoder):
+            def default(self, o):
+                if isinstance(o, cls):
+                    _cls = o.__class__
+                    return {
+                        'module': _cls.__module__,
+                        'cls': _cls.__qualname__,
+                        'value': o.json_encode(),
+                    }
+                else:
+                   return super().default(o)
+
+        return Encoder().encode(x)
+
+
 class _InternalTraceBase(abc.ABC):
     """
     Base class for common functionalities between :class:`_Trace` and
@@ -3747,7 +3766,7 @@ class _InternalTraceBase(abc.ABC):
         '''
 
     @property
-    def trace_state(self):
+    def _trace_state(self):
         """
         State of the trace object that might impact the output of dataframe
         getter functions like :meth:`lisa.trace.TraceBase.df_event`.
@@ -3756,6 +3775,17 @@ class _InternalTraceBase(abc.ABC):
         recorded when analysis methods results are cached to the swap.
         """
         return None
+
+    @property
+    def trace_state(self):
+        """
+        State of the trace object that might impact the output of dataframe
+        getter functions like :meth:`lisa.trace.TraceBase.df_event`.
+        """
+        state = _JsonEncodable.json_dumps(self._trace_state)
+        state = state.encode('utf-8')
+        content = io.BytesIO(state)
+        return checksum(content, 'md5')
 
     @property
     def time_range(self):
@@ -4289,10 +4319,10 @@ class _TraceViewBase(
         return view
 
     @property
-    def trace_state(self):
+    def _trace_state(self):
         return (
             self.__class__.__qualname__,
-            self.base_trace.trace_state,
+            self.base_trace._trace_state,
         )
 
     def _expand_events(self, *args, **kwargs):
@@ -4475,11 +4505,14 @@ class _WindowTraceView(_WindowTraceViewBase):
         return window
 
     @property
-    def trace_state(self):
+    def _trace_state(self):
         return (
-            super().trace_state,
+            super()._trace_state,
             self.window,
-            self._signals,
+            [
+                sig._to_json()
+                for sig in self._signals
+            ],
             self._compress_signals_init,
         )
 
@@ -4595,11 +4628,11 @@ class _ProcessTraceView(_TraceViewBase):
         self._process_df = process_df
 
     @property
-    def trace_state(self):
+    def _trace_state(self):
         f = self._process_df
 
         return (
-            super().trace_state,
+            super()._trace_state,
             # This likely will be a value that cannot be serialized to JSON if
             # it was user-provided. This will prevent caching as it should.
             f,
@@ -4712,9 +4745,9 @@ class _NamespaceTraceView(_TraceViewBase):
         return super()._expand_events(events)
 
     @property
-    def trace_state(self):
+    def _trace_state(self):
         return (
-            super().trace_state,
+            super()._trace_state,
             self._events_namespaces,
         )
 
@@ -4802,7 +4835,7 @@ class _NamespaceTraceView(_TraceViewBase):
             return super()._internal_df_event(event, **kwargs)
 
 
-class _TimeOffsetter(_CacheDataDescEncodable):
+class _TimeOffsetter(_JsonEncodable):
     def __init__(self, offset):
         assert isinstance(offset, Timestamp)
         offset_ns = offset.as_nanoseconds
@@ -4863,10 +4896,10 @@ class _NormalizedTimeTraceView(_WindowTraceViewBase):
         return self.base_trace.end - self._offset
 
     @property
-    def trace_state(self):
+    def _trace_state(self):
         return (
-            super().trace_state,
-            self._offset,
+            super()._trace_state,
+            self._offset.as_nanoseconds,
         )
 
     @property
@@ -4985,6 +5018,12 @@ class _AvailableTraceEventsSet:
         return str(self._available_events)
 
 
+class _CacheDataDescKind(enum.IntEnum):
+    EVENT = 1
+    DISK_ONLY = 2
+    ANALYSIS = 3
+
+
 class _CacheDataDesc:
     """
     Cached data descriptor.
@@ -4996,121 +5035,45 @@ class _CacheDataDesc:
     :class:`polars.LazyFrame` or :class:`polars.DataFrame`. It is used to
     manage the cache and swap.
     """
+    KIND = None
 
-    def __init__(self, spec, fmt):
-        if fmt == 'polars-lazyframe':
-            spec = {
-                'polars-version': pl.__version__,
-                **spec
-            }
-
+    def __init__(self, fmt, trace_state):
         self.fmt = fmt
-        self.spec = spec
-        self.normal_form = _CacheDataDescNF.from_spec(self.spec, fmt)
-        """
-        Normal form of the descriptor. Equality is implemented by comparing
-        this attribute.
-        """
+        self.trace_state = trace_state
 
     def __repr__(self):
         return '{}({})'.format(
             self.__class__.__name__,
             ', '.join(
                 f'{key}={val!r}'
-                for key, val in self.__dict__.items()
+                for key, val in sorted(self.__dict__.items())
             )
         )
 
     def __eq__(self, other):
-        if isinstance(other, self.__class__):
-            return self.normal_form == other.normal_form
-        else:
-            return False
-
-    def __hash__(self):
-        return hash(self.normal_form)
-
-
-class _CacheDataDescNF:
-    """
-    Normal form of :class:`_CacheDataDesc`.
-
-    The normal form of the descriptor allows removing any possible differences
-    in shape of values, and is serializable to JSON. The serialization is
-    allowed to destroy some information (type mainly), as long as it does make
-    two descriptors wrongly equal.
-    """
-    def __init__(self, nf, fmt):
-        assert fmt != _CacheDataSwapEntry.META_EXTENSION
-        self._fmt = fmt
-        self._nf = nf
-        # Since it's going to be inserted in dict for sure, precompute the hash
-        # once and for all.
-        self._hash = hash(self._nf)
-
-    @classmethod
-    def from_spec(cls, spec, fmt):
-        """
-        Build from a spec that can include any kind of Python objects.
-        """
-        nf = tuple(sorted(
-            (key, cls._coerce(val))
-            for key, val in spec.items()
-        ))
-        return cls(nf=nf, fmt=fmt)
-
-    @classmethod
-    def _coerce(cls, val):
-        "Coerce data to a normal form that must be hashable"
-        if isinstance(val, _CacheDataDescEncodable):
-            type_name = f'{val.__class__.__module__}.{val.__class__.__qualname__}'
-            val = ('json_encoded', type_name, cls._coerce(val.json_encode()))
-        elif isinstance(val, Integral):
-            val = int(val)
-        elif isinstance(val, Real):
-            # Use a lossless representation of the float.
-            val = ('float', float(val).hex())
-        elif isinstance(val, bytes):
-            val = ('bytes', str(bytes))
-        elif isinstance(val, (type(None), str, Number)):
-            pass
-        elif isinstance(val, Mapping):
-            val = tuple(
-                (cls._coerce(key), cls._coerce(val))
-                for key, val in sorted(val.items())
+        if isinstance(other, _CacheDataDesc):
+            return (
+                self.KIND == other.KIND
+                and self.__dict__ == other.__dict__
             )
-            val = ('mapping', val)
-        elif isinstance(val, Set):
-            val = tuple(map(cls._coerce, sorted(val)))
-            val = ('set', val)
-        elif isinstance(val, Sequence):
-            val = tuple(map(cls._coerce, val))
-            val = ('sequence', val)
-        # In other cases save the name of the type along the value to make
-        # sure we are not going to compare apple and oranges in the future
-        else:
-            type_name = f'{val.__class__.__module__}.{val.__class__.__qualname__}'
-            val = (type_name, val)
-
-        return val
-
-    def __str__(self):
-        return str(self._nf)
-
-    def __eq__(self, other):
-        if isinstance(other, self.__class__):
-            return self._fmt == other._fmt and self._nf == other._nf
-        else:
-            return False
 
     def __hash__(self):
-        return self._hash
+        return hash(tuple(sorted(self.__dict__.items())))
+
+    def _to_json(self):
+        return {
+            'fmt': self.fmt,
+            'trace_state': self.trace_state,
+        }
 
     def to_json_map(self):
-        dct = dict(
-            fmt=self._fmt,
-            data=self._nf,
-        )
+        kind = self.KIND
+        assert kind is not None
+
+        dct = {
+            'kind': kind,
+            'data': self._to_json(),
+        }
         if _EXTRA_ASSERTS:
             assert self == self.from_json_map(
                 json.loads(
@@ -5122,17 +5085,10 @@ class _CacheDataDescNF:
         return dct
 
     @classmethod
-    def _coerce_json(cls, x):
-        """
-        JSON converts the original tuples into lists, so we need to convert it
-        back.
-        """
-        if isinstance(x, str):
-            return x
-        elif isinstance(x, Sequence):
-            return tuple(map(cls._coerce_json, x))
-        else:
-            return x
+    def _from_json(cls, mapping):
+        x = cls.__new__(cls)
+        x.__dict__.update(mapping)
+        return x
 
     @classmethod
     def from_json_map(cls, mapping):
@@ -5142,13 +5098,148 @@ class _CacheDataDescNF:
         JSON does not preserve tuples for example, so they need to be converted
         back.
         """
-        fmt = mapping['fmt']
-        data = dict(mapping['data'])
-        nf = tuple(sorted(
-            (key, cls._coerce_json(val))
-            for key, val in data.items()
-        ))
-        return cls(nf=nf, fmt=fmt)
+        classes = {
+            _cls.KIND: _cls
+            for _cls in get_subclasses(_CacheDataDesc)
+        }
+
+        kind = mapping['kind']
+        attrs = mapping['data']
+
+        try:
+            cls = classes[kind]
+        except KeyError:
+            raise ValueError(f'Unsupported _CacheDataDesc kind: {kind}')
+        else:
+            data = mapping['data']
+            return cls._from_json(data)
+
+
+class _EventCacheDataDesc(_CacheDataDesc):
+    KIND = _CacheDataDescKind.EVENT
+
+    def __init__(self, event, trace_state, pushdowns):
+        fmt = _TraceCache.DATAFRAME_SWAP_FORMAT
+        super().__init__(
+            fmt=fmt,
+            trace_state=trace_state,
+        )
+
+        assert isinstance(event, str)
+        self.event = event
+
+        self.pushdowns = FrozenDict(pushdowns)
+
+        self.lib_versions = FrozenDict({
+            'pandas': pd.__version__,
+            'polars': pl.__version__,
+            'pyarrow': pyarrow.__version__,
+        })
+
+    def _to_json(self):
+        return {
+            **super()._to_json(),
+            'event': self.event,
+            'pushdowns': dict(self.pushdowns),
+            'lib_versions': dict(self.lib_versions),
+        }
+
+    @classmethod
+    def _from_json(cls, data):
+        data = data.copy()
+        data['pushdowns'] = FrozenDict(data['pushdowns'])
+        data['lib_versions'] = FrozenDict(data['lib_versions'])
+        return super()._from_json(data)
+
+
+class _DiskOnlyCacheDataDesc(_CacheDataDesc):
+    KIND = _CacheDataDescKind.DISK_ONLY
+
+    def __init__(self, trace_state):
+        super().__init__(
+            fmt='disk-only',
+            trace_state=trace_state,
+        )
+
+        # This unique key ensures we will never accidentally re-use that path
+        # for anything else.
+        self.token = uuid.uuid4().hex
+
+    def _to_json(self):
+        return {
+            **super()._to_json(),
+            'token': self.token,
+        }
+
+
+class _AnalysisCacheDataDesc(_CacheDataDesc):
+    KIND = _CacheDataDescKind.ANALYSIS
+
+    def __init__(
+        self,
+        fmt,
+        trace_state,
+        bound_class,
+        func,
+        kwargs,
+    ):
+        super().__init__(
+            fmt=fmt,
+            trace_state=trace_state,
+        )
+
+        self.bound_class_module = bound_class.__module__
+        self.bound_class_qualname = bound_class.__qualname__
+
+        self.func_module = func.__module__
+        self.func_qualname = func.__qualname__
+
+        kwargs = self._coerce_kwargs(kwargs)
+        kwargs = json.dumps(kwargs).encode('utf-8')
+        kwargs = io.BytesIO(kwargs)
+        self.kwargs_checksum = checksum(kwargs, 'md5')
+
+    @classmethod
+    def _coerce_kwargs(cls, val):
+        "Coerce data to a normal form that must be hashable"
+        if isinstance(val, Integral):
+            val = int(val)
+        elif isinstance(val, Real):
+            # Use a lossless representation of the float.
+            val = ('float', float(val).hex())
+        elif isinstance(val, bytes):
+            val = ('bytes', str(bytes))
+        elif isinstance(val, (type(None), str, Number)):
+            pass
+        elif isinstance(val, Mapping):
+            val = tuple(
+                (cls._coerce_kwargs(key), cls._coerce_kwargs(val))
+                for key, val in sorted(val.items())
+            )
+            val = ('mapping', val)
+        elif isinstance(val, Set):
+            val = tuple(map(cls._coerce_kwargs, sorted(val)))
+            val = ('set', val)
+        elif isinstance(val, Sequence):
+            val = tuple(map(cls._coerce_kwargs, val))
+            val = ('sequence', val)
+        # In other cases save the name of the type along the value to make
+        # sure we are not going to compare apple and oranges in the future
+        else:
+            type_name = f'{val.__class__.__module__}.{val.__class__.__qualname__}'
+            val = (type_name, val)
+
+        return val
+
+    def _to_json(self):
+        return {
+            **super()._to_json(),
+            'bound_class_module': self.bound_class_module,
+            'bound_class_qualname': self.bound_class_qualname,
+            'func_module': self.func_module,
+            'func_qualname': self.func_qualname,
+            'kwargs_checksum': self.kwargs_checksum,
+        }
 
 
 class _CannotWriteSwapEntry(Exception):
@@ -5159,9 +5250,8 @@ class _CacheDataSwapEntry:
     """
     Entry in the data swap area of :class:`Trace`.
 
-    :param cache_desc_nf: Normal form descriptor describing what the entry
-        contains.
-    :type cache_desc_nf: _CacheDataDescNF
+    :param cache_desc: Cache descriptor describing what the entry contains.
+    :type cache_desc: _CacheDataDesc
 
     :param name: Name of the entry. If ``None``, a random UUID will be
         generated.
@@ -5176,8 +5266,8 @@ class _CacheDataSwapEntry:
     Extension used by the metadata file of the swap entry in the swap.
     """
 
-    def __init__(self, cache_desc_nf, name=None, written=False):
-        self.cache_desc_nf = cache_desc_nf
+    def __init__(self, cache_desc, name=None, written=False):
+        self.cache_desc = cache_desc
         self.name = name or uuid.uuid4().hex
         self.written = written
 
@@ -5193,7 +5283,7 @@ class _CacheDataSwapEntry:
         """
         Format of the swap entry.
         """
-        return self.cache_desc_nf._fmt
+        return self.cache_desc.fmt
 
     @property
     def data_filename(self):
@@ -5206,7 +5296,7 @@ class _CacheDataSwapEntry:
         """
         Return a mapping suitable for JSON serialization.
         """
-        desc = self.cache_desc_nf.to_json_map()
+        desc = self.cache_desc.to_json_map()
         try:
             # Use json.dumps() here to fail early if the descriptor cannot be
             # dumped to JSON
@@ -5229,9 +5319,9 @@ class _CacheDataSwapEntry:
             raise _TraceCacheSwapVersionError('Version token differ')
 
         desc = json.loads(mapping['encoded_desc'])
-        cache_desc_nf = _CacheDataDescNF.from_json_map(desc)
+        cache_desc = _CacheDataDesc.from_json_map(desc)
         name = mapping['name']
-        return cls(cache_desc_nf=cache_desc_nf, name=name, written=written)
+        return cls(cache_desc=cache_desc, name=name, written=written)
 
     def to_path(self, path):
         """
@@ -5531,7 +5621,7 @@ class _TraceCache(Loggable):
                     except Exception:
                         continue
                     else:
-                        yield (swap_entry.cache_desc_nf, swap_entry)
+                        yield (swap_entry.cache_desc, swap_entry)
 
             swap_content = dict(load_swap_content(swap_dir))
 
@@ -5597,8 +5687,6 @@ class _TraceCache(Loggable):
         return os.path.join(self.swap_dir, swap_entry.meta_filename)
 
     def _cache_desc_swap_path(self, cache_desc, create=False):
-        cache_desc_nf = cache_desc.normal_form
-
         if create and not self._is_written_to_swap(cache_desc):
             self.insert(
                 cache_desc,
@@ -5615,14 +5703,14 @@ class _TraceCache(Loggable):
             )
 
         with self._lock:
-            swap_entry = self._swap_content[cache_desc_nf]
+            swap_entry = self._swap_content[cache_desc]
         filename = swap_entry.data_filename
         return os.path.join(self.swap_dir, filename)
 
     def _is_written_to_swap(self, cache_desc):
         try:
             with self._lock:
-                swap_entry = self._swap_content[cache_desc.normal_form]
+                swap_entry = self._swap_content[cache_desc]
         except KeyError:
             return False
         else:
@@ -5792,16 +5880,15 @@ class _TraceCache(Loggable):
             if self._is_written_to_swap(cache_desc):
                 return
 
-            cache_desc_nf = cache_desc.normal_form
             # We may already have a swap entry if we used the None data
             # placeholder. This would have allowed the user to reserve the swap
             # data file in advance so they can write to it directly, instead of
             # managing the data in the memory cache.
             try:
                 with self._lock:
-                    swap_entry = self._swap_content[cache_desc_nf]
+                    swap_entry = self._swap_content[cache_desc]
             except KeyError:
-                swap_entry = _CacheDataSwapEntry(cache_desc_nf)
+                swap_entry = _CacheDataSwapEntry(cache_desc)
 
             data_path = Path(swap_dir, swap_entry.data_filename)
 
@@ -5840,7 +5927,7 @@ class _TraceCache(Loggable):
                         swap_entry.written = True
 
                 with self._lock:
-                    self._swap_content[swap_entry.cache_desc_nf] = swap_entry
+                    self._swap_content[swap_entry.cache_desc] = swap_entry
 
                 try:
                     data_swapped_size = data_path.stat().st_size
@@ -5947,7 +6034,7 @@ class _TraceCache(Loggable):
     def _clear_cache_desc_swap(self, cache_desc):
         with self._lock:
             try:
-                swap_entry = self._swap_content[cache_desc.normal_form]
+                swap_entry = self._swap_content[cache_desc]
             except KeyError:
                 pass
             else:
@@ -5960,7 +6047,7 @@ class _TraceCache(Loggable):
             pass
         else:
             with self._lock:
-                self._swap_content.pop(swap_entry.cache_desc_nf, None)
+                self._swap_content.pop(swap_entry.cache_desc, None)
 
             for filename in (swap_entry.meta_filename, swap_entry.data_filename):
                 path = os.path.join(swap_dir, filename)
@@ -6091,8 +6178,8 @@ class _TraceCache(Loggable):
         else:
             return data
 
-    def insert_disk_only(self, spec, compute_cost=None):
-        cache_desc = _CacheDataDesc(spec=spec, fmt='disk-only')
+    def insert_disk_only(self, spec, trace_state, compute_cost=None):
+        cache_desc = _DiskOnlyCacheDataDesc(trace_state=trace_state)
         self.insert(cache_desc, data=None, compute_cost=compute_cost, write_swap=True)
         path = self._cache_desc_swap_path(cache_desc, create=True)
         return Path(path).resolve()
@@ -6529,6 +6616,7 @@ class _Trace(Loggable, _InternalTraceBase):
 
     def _parse_all(self):
         self._activity_log.log('parse-all', None)
+        trace_state = self.trace_state
 
         def convert(parser, df_map):
             return {
@@ -6536,6 +6624,7 @@ class _Trace(Loggable, _InternalTraceBase):
                     df,
                     parser=parser,
                     cache=self._cache,
+                    trace_state=trace_state,
                 )
                 for event, df in df_map.items()
             }
@@ -6895,7 +6984,7 @@ class _Trace(Loggable, _InternalTraceBase):
     # Memoization is necessary to ensure the parser always gets the same name
     # on a given Trace instance when the parser is not a type.
     @lru_memoized(first_param_maxsize=None, other_params_maxsize=None)
-    def trace_state(self):
+    def _trace_state(self):
         parser = self._parser
         # The parser type will potentially change the exact content in raw
         # dataframes
@@ -7111,15 +7200,11 @@ class _Trace(Loggable, _InternalTraceBase):
 
     @memoized
     def _do_make_raw_cache_desc(self, event, pushdowns):
-        spec = dict(
-            # This is used when clearing the cache to know if a given entry is
-            # related to a raw event or e.g. an analysis.
-            raw=True,
+        return _EventCacheDataDesc(
             event=event,
             trace_state=self.trace_state,
             pushdowns=pushdowns,
         )
-        return _CacheDataDesc(spec=spec, fmt=_TraceCache.DATAFRAME_SWAP_FORMAT)
 
     def _internal_df_event(
             self,
@@ -7316,12 +7401,14 @@ class _Trace(Loggable, _InternalTraceBase):
                 return None
 
 
+        trace_state = self.trace_state
         with self._get_parser(events, pushdowns=pushdowns) as parser:
             df_map = {
                 event: _convert_df_from_parser(
                     df=df,
                     parser=parser,
                     cache=self._cache,
+                    trace_state=trace_state,
                 )
                 for event in events
                 if (df := parse(parser, event)) is not None
@@ -7450,6 +7537,7 @@ class _Trace(Loggable, _InternalTraceBase):
                                     _df,
                                     parser=parser,
                                     cache=self._cache,
+                                    trace_state=self.trace_state,
                                 )
                                 _df = _df.df
                                 assert isinstance(_df, pl.LazyFrame)
@@ -7804,9 +7892,9 @@ class Trace(
         return new
 
     @property
-    def trace_state(self):
+    def _trace_state(self):
         return (
-            self.__view.trace_state,
+            self.__view._trace_state,
             self._df_fmt,
         )
 

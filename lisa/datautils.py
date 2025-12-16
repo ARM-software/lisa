@@ -47,7 +47,7 @@ import scipy.integrate
 import scipy.signal
 import pyarrow
 
-from lisa.utils import TASK_COMM_MAX_LEN, groupby, deprecate, order_as
+from lisa.utils import TASK_COMM_MAX_LEN, groupby, deprecate, order_as, FrozenDict
 
 
 class Timestamp(float):
@@ -2336,8 +2336,17 @@ class SignalDesc:
         else:
             return False
 
+    def _to_map(self):
+        return FrozenDict({
+            'event': self.event,
+            'fields': tuple(self.fields),
+        })
+
     def __hash__(self):
-        return hash(self.event) ^ hash(tuple(self.fields))
+        return hash(self._to_map())
+
+    def _to_json(self):
+        return dict(self._to_map())
 
     @classmethod
     @deprecate(msg='No new signals will be added to this list, use explicit signal description where appropriate in the Trace API', deprecated_in='3.0', removed_in='4.0')

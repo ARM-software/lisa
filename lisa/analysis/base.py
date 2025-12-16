@@ -47,7 +47,7 @@ import pandas as pd
 
 
 from lisa.utils import Loggable, deprecate, get_doc_url, get_short_doc, get_subclasses, guess_format, is_running_ipython, measure_time, memoized, update_wrapper_doc, _import_all_submodules, optional_kwargs, get_parent_namespace
-from lisa.trace import _CacheDataDesc
+from lisa.trace import _AnalysisCacheDataDesc
 from lisa.notebook import _hv_fig_to_pane, _hv_link_dataframes, _hv_has_options, axis_cursor_delta, axis_link_dataframes, make_figure
 from lisa.datautils import _df_to, _pandas_cleanup_df
 
@@ -1272,25 +1272,20 @@ class TraceAnalysisBase(AnalysisHelpers):
             params.apply_defaults()
 
             trace = self.trace
-            spec = dict(
-                bound_class=(
-                    self.__class__.__module__,
-                    self.__class__.__qualname__,
-                ),
-                module=f.__module__,
-                func=f.__qualname__,
-                # Include the trace window in the spec since that influences
-                # what the analysis was seeing
+            cache_desc = _AnalysisCacheDataDesc(
+                fmt=fmt,
                 trace_state=trace.trace_state,
-                # Make a deepcopy as it is critical that the _CacheDataDesc is
-                # not modified under the hood once inserted in the cache
+                bound_class=self.__class__,
+                func=f,
+                # Make a deepcopy as it is critical that the
+                # _AnalysisCacheDataDesc is not modified under the hood once
+                # inserted in the cache
                 kwargs=copy.deepcopy({
                     k: v
                     for k, v in params.arguments.items()
                     if k not in ignored_kwargs
                 }),
             )
-            cache_desc = _CacheDataDesc(spec=spec, fmt=fmt)
             cache = trace._cache
 
             def call_f():
