@@ -230,8 +230,12 @@ pages:
           # (https://github.com/advisories/GHSA-xqrq-4mgf-ff32) is not
           # concerning as we do not manipulate files from unknown origin that
           # are not also the origin of code (e.g. PyPI packages).
+          #
+          # Vulnerability CVE-2025-53000: Only affects windows, and we run on
+          # Linux.
           pip-audit \
             --ignore-vuln GHSA-xqrq-4mgf-ff32 \
+            --ignore-vuln CVE-2025-53000 \
             || exit 1
       }
 
