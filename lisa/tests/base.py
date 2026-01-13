@@ -279,7 +279,7 @@ class ResultBundle(ResultBundleBase):
     def __init__(self, result, utc_datetime=None, context=None):
         self.result = result
         self.metrics = {}
-        self.utc_datetime = utc_datetime or datetime.datetime.now(tz=datetime.UTC)
+        self.utc_datetime = utc_datetime or datetime.datetime.now(tz=datetime.timezone.utc)
         self.context = context if context is not None else {}
 
     @classmethod
