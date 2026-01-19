@@ -4,7 +4,7 @@ Contributing
 Code
 ----
 
-We welcome code contributions via GitHub pull requests. To help with
+We welcome code contributions via GitLab merge requests. To help with
 maintainability of the code line we ask that the code uses a coding style
 consistent with the rest of WA code. Briefly, it is
 
@@ -23,7 +23,7 @@ New extensions should also follow implementation guidelines specified in the
 :ref:`writing-plugins` section of the documentation.
 
 We ask that the following checks are performed on the modified code prior to
-submitting a pull request:
+submitting a merge request:
 
 .. note:: You will need pylint and pep8 static checkers installed::
 
@@ -57,9 +57,9 @@ submitting a pull request:
   of new/updated sections in resulting HTML should be performed to ensure
   everything renders as expected.
 
-Once you have your contribution is ready, please follow instructions in `GitHub
-documentation <https://help.github.com/articles/creating-a-pull-request/>`_ to
-create a pull request.
+Once you have your contribution is ready, please follow instructions in `GitLab
+documentation <https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/>`_ to
+create a merge request.
 
 --------------------------------------------------------------------------------
 

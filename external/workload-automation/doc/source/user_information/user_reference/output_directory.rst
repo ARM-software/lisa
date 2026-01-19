@@ -75,7 +75,7 @@ run.log
                   see on the console. This may be useful for quickly spotting
                   error and warning messages when scrolling through the log.
 
-                  https://github.com/ARM-software/workload-automation/blob/next/extras/walog.vim
+                  https://gitlab.arm.com/tooling/workload-automation/workload-automation/-/blob/main/extras/walog.vim
 
 __meta
         This directory contains configuration and run metadata. See

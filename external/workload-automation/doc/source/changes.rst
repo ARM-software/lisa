@@ -2,9 +2,9 @@
 What's New in Workload Automation
 =================================
 
-***********
+*************
 Version 3.3.1
-***********
+*************
 
 .. warning:: This is the last release supporting Python 3.5 and Python 3.6.
              Subsequent releases will support Python 3.7+.
@@ -412,8 +412,8 @@ Other:
   page_size_kb.
 - Uses cache directory to reduce target calls, e.g. will now use cached
   version of TargetInfo if local copy is found.
-- Update recommended :ref:`installation <github>` commands when installing from
-  github due to pip not following dependency links correctly.
+- Update recommended :ref:`installation <gitlab>` commands when installing from
+  GitLab due to pip not following dependency links correctly.
 - Fix incorrect parameter names in runtime parameter documentation.
 
 
@@ -442,7 +442,7 @@ However, we do not intend to port absolutely everything, as some things we
 believe to be no longer useful.
 
 .. note:: If there a particular WA2 extension you would like to see in WA3 that
-          is not yet there, please let us know via the GitHub issues. (And, of
+          is not yet there, please let us know via the GitLab issues. (And, of
           course, we always welcome pull requests, if you have the time to
           do the port yourselves :-) ).
 
@@ -490,7 +490,7 @@ New Features
 - All-new documentation. The docs have been revamped to be more useful and
   complete.
 
-.. _devlib: https://github.com/ARM-software/devlib
+.. _devlib: https://gitlab.arm.com/tooling/workload-automation/devlib
 
 Changes
 =======

@@ -25,7 +25,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        cd /tmp && git clone https://github.com/ARM-software/devlib.git && cd devlib && pip install .
+        cd /tmp && git clone https://gitlab.arm.com/tooling/workload-automation/devlib.git && cd devlib && pip install .
         cd $GITHUB_WORKSPACE && pip install .[test]
         python -m pip install pylint==2.6.2 pep8 flake8 mock nose
     - name: Run pylint
@@ -54,7 +54,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        cd /tmp && git clone https://github.com/ARM-software/devlib.git && cd devlib && pip install .
+        cd /tmp && git clone https://gitlab.arm.com/tooling/workload-automation/devlib.git && cd devlib && pip install .
         cd $GITHUB_WORKSPACE && pip install .
     - name: Run test workload
       run: |
@@ -79,7 +79,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        cd /tmp && git clone https://github.com/ARM-software/devlib.git && cd devlib && pip install .
+        cd /tmp && git clone https://gitlab.arm.com/tooling/workload-automation/devlib.git && cd devlib && pip install .
         cd $GITHUB_WORKSPACE && pip install .
     - name: Test Show Command
       run: |

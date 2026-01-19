@@ -75,7 +75,7 @@ params = dict(
     package_data=data_files,
     include_package_data=True,
     scripts=scripts,
-    url='https://github.com/ARM-software/workload-automation',
+    url='https://gitlab.arm.com/tooling/workload-automation/workload-automation',
     license='Apache v2',
     maintainer='ARM Architecture & Technology Device Lab',
     maintainer_email='workload-automation@arm.com',
@@ -98,7 +98,7 @@ params = dict(
         'pandas>=0.23.0; python_version>="3.5.3"',  # Data analysis and manipulation
         'future',  # Python 2-3 compatiblity
     ],
-    dependency_links=['https://github.com/ARM-software/devlib/tarball/master#egg=devlib-{}'.format(devlib_version)],
+    dependency_links=['https://gitlab.arm.com/tooling/workload-automation/devlib/tarball/main#egg=devlib-{}'.format(devlib_version)],
     extras_require={
         'test': ['nose', 'mock'],
         'notify': ['notify2'],
