@@ -26,7 +26,7 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-ENV DEVLIB_REF=master
+ENV DEVLIB_REF=main
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -58,7 +58,7 @@ RUN apt-get -y autoremove && \
     apt-get clean && \
     rm -rf /var/cache/apt
 
-RUN git clone -b ${DEVLIB_REF} -v https://github.com/ARM-software/devlib.git /devlib
+RUN git clone -b ${DEVLIB_REF} -v https://gitlab.arm.com/tooling/workload-automation/devlib.git /devlib
 RUN cd /devlib && \
     pip install --upgrade pip setuptools wheel && \
     pip install .[full]

@@ -89,7 +89,7 @@ params = dict(
     version=__version__,
     packages=packages,
     package_data=data_files,
-    url='https://github.com/ARM-software/devlib',
+    url='https://gitlab.arm.com/tooling/workload-automation/devlib',
     license='Apache v2',
     maintainer='ARM Ltd.',
     python_requires='>= 3.7',

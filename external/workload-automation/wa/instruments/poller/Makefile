@@ -5,7 +5,7 @@ CC=gcc
 ifdef DEBUG
 	CFLAGS=-static -lc -g
 else
-	CFLAGS=-static -lc -O2
+	CFLAGS=-static -s -lc -O2
 endif
 
 poller: poller.c

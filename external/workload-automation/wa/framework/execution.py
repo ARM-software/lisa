@@ -532,6 +532,7 @@ class Runner(object):
                 job.finalize(self.context)
         self.logger.info('Finalizing run')
         self.context.end_run()
+        instrumentation.enable_all()
         self.pm.enable_all()
         with signal.wrap('RUN_OUTPUT_PROCESSED', self):
             self.pm.process_run_output(self.context)
