@@ -29,7 +29,7 @@ Installation
 
 To install::
 
-        git clone git@github.com:ARM-software/workload-automation.git workload-automation
+        git clone git@gitlab.arm.com/tooling/workload-automation/workload-automation.git workload-automation
         sudo -H python setup [install|develop]
 
 Note: A `requirements.txt` is included however this is designed to be used as a
@@ -72,8 +72,8 @@ directories).
 Feedback, Contributions and Support
 ===================================
 
-- Please use the GitHub Issue Tracker associated with this repository for
+- Please use the GitLab Issue Tracker associated with this repository for
   feedback.
 - ARM licensees may contact ARM directly via their partner managers.
-- We welcome code contributions via GitHub Pull requests. Please see
+- We welcome code contributions via GitLab Merge requests. Please see
   "Contributing Code" section of the documentation for details.

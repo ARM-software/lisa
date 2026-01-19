@@ -55,7 +55,7 @@ class Speedometer(Workload):
     1. Run 'git clone https://github.com/WebKit/webkit'
 
     2. Copy PerformanceTests/Speedometer to a directory called document_root, renaming Speedometer
-      to Speedometer<version>. For example, Speedometer2.0.
+       to Speedometer<version>. For example, Speedometer2.0.
 
     3. Modify document_root/Speedometer<version>/index.html:
 
@@ -123,11 +123,11 @@ class Speedometer(Workload):
         ),
         Parameter(
             "version",
-            allowed_values=["2.0", "3.0"],
+            allowed_values=["2.0", "2.1", "3.0"],
             kind=str,
             default="2.0",
             description="""
-                  Speedometer version to run. Currently supports 2.0 and 3.0.
+                  Speedometer version to run. Currently supports 2.0, 2.1 and 3.0.
                   """,
         ),
     ]

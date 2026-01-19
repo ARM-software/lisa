@@ -13,7 +13,6 @@ sphinx:
 # Build the docs in additional formats such as PDF and ePub
 formats: all
 
-
 # Configure the build environment
 build:
   os: ubuntu-22.04
@@ -22,7 +21,7 @@ build:
 
 # Ensure doc dependencies are installed before building
 python:
-   install:
-      - requirements: doc/requirements.txt
-      - method: pip
-        path: .
+  install:
+    - requirements: doc/requirements.txt
+    - method: pip
+      path: .
