@@ -13,7 +13,7 @@ Installation
 
 This page describes the 3 methods of installing Workload Automation 3. The first
 option is to use :ref:`pip` which will install the latest release of WA, the
-latest development version from :ref:`github <github>` or via a
+latest development version from :ref:`gitlab <gitlab>` or via a
 :ref:`dockerfile`.
 
 
@@ -185,7 +185,7 @@ may not always have Internet access).
 
 
 
-.. _github:
+.. _gitlab:
 
 Installing
 ==========
@@ -200,18 +200,18 @@ install all optional dependencies at the same time, do the following instead::
        sudo -H pip install wlauto[all]
 
 
-Alternatively, you can also install the latest development version from GitHub
+Alternatively, you can also install the latest development version from GitLab
 (you will need git installed for this to work)::
 
-       git clone git@github.com:ARM-software/workload-automation.git workload-automation
+       git clone git@gitlab.arm.com:tooling/workload-automation/workload-automation.git workload-automation
        cd workload-automation
        sudo -H python setup.py install
 
-.. note:: Please note that if using pip to install from github this will most
+.. note:: Please note that if using pip to install from gitlab this will most
           likely result in an older and incompatible version of devlib being
           installed alongside WA. If you wish to use pip please also manually
           install the latest version of
-          `devlib <https://github.com/ARM-software/devlib>`_.
+          `devlib <https://gitlab.arm.com/tooling/workload-automation/devlib>`_.
 
 .. note:: Please note that while a `requirements.txt` is included, this is
           designed to be a reference of known working packages rather to than to
@@ -241,7 +241,7 @@ sure that you are willing to accept these prior to building and running the
 image in a container.
 
 The Dockerfile can be found in the "extras" directory or online at
-`<https://github.com/ARM-software /workload- automation/blob/next/extras/Dockerfile>`_
+`<https://gitlab.arm.com/tooling/workload-automation/workload-automation/-/blob/main/extras/Dockerfile>`_
 which contains additional information about how to build and to use the file.
 
 

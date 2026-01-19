@@ -15,13 +15,13 @@ FAQ
 
 **A:** Some workload e.g. AdobeReader, GooglePhotos etc require external asset
 files. We host some additional workload dependencies in the `WA Assets Repo
-<https://github.com/ARM-software/workload-automation-assets>`_. To allow WA to
+<https://gitlab.arm.com/tooling/workload-automation/workload-automation-assets>`_. To allow WA to
 try and automatically download required assets from the repository please add
 the following to your configuration:
 
 .. code-block:: YAML
 
-        remote_assets_url: https://raw.githubusercontent.com/ARM-software/workload-automation-assets/master/dependencies
+        remote_assets_url: https://gitlab.arm.com/tooling/workload-automation/workload-automation-assets/-/raw/main/dependencies
 
 ------------
 

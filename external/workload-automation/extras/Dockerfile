@@ -103,12 +103,12 @@ ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
 # Let's get the two repos we need, and install them
-RUN git clone -v https://github.com/ARM-software/devlib.git /tmp/devlib && \
+RUN git clone -v https://gitlab.arm.com/tooling/workload-automation/devlib.git /tmp/devlib && \
     cd /tmp/devlib && \
     git checkout $DEVLIB_REF && \
     python3 setup.py install && \
     pip3 install .[full]
-RUN git clone -v https://github.com/ARM-software/workload-automation.git /tmp/wa && \
+RUN git clone -v https://gitlab.arm.com/tooling/workload-automation/workload-automation.git /tmp/wa && \
     cd /tmp/wa && \
     git checkout $WA_REF && \
     python3 setup.py install && \
@@ -144,5 +144,5 @@ RUN echo 'source /home/wa/.wa_environment' >> /home/wa/.bashrc
 RUN /home/wa/AndroidSDK/platform-tools/adb keygen /home/wa/.android/adbkey
 
 # We need to make sure to add the remote assets too
-RUN wa --version && echo 'remote_assets_url: https://raw.githubusercontent.com/ARM-software/workload-automation-assets/master/dependencies' >> /home/wa/.workload_automation/config.yaml
+RUN wa --version && echo 'remote_assets_url: https://gitlab.arm.com/tooling/workload-automation/workload-automation-assets/-/raw/main/dependencies' >> /home/wa/.workload_automation/config.yaml
 
