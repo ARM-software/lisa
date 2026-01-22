@@ -561,10 +561,14 @@ class SphinxDocObject:
     @memoized
     def mro(self):
         mro = inspect.getmro(self.obj)
-        return [
+        mro = [
             self.from_namespace(base)
             for base in mro
         ]
+        assert len(mro) >= 1
+        assert mro[0].obj is self.obj
+        mro[0] = self
+        return mro
 
     @property
     def is_dynamic(self):
