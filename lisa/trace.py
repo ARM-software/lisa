@@ -6516,27 +6516,31 @@ class _Trace(Loggable, _InternalTraceBase):
                 # The parsers can provide a list of names for each address, but
                 # our API only exposes a single name, so we pick the best one
                 def pick(names):
+                    names = sorted(
+                        names,
+                        key=lambda name: (len(name), name),
+                    )
                     # If we can, we choose from the names that are valid
                     # identifiers. This will weed-out strange symbols like arm
                     # mapping symbols and the likes.
-                    best_names = sorted(
-                        (
-                            name
-                            for name in names
-                            if name.isidentifier()
-                        ),
-                        key=len,
-                    )
-                    if best_names:
+                    best_names = (
+                        name
                         # Return the longest name, as it's less likely to be a
                         # less descriptive section name or something like that.
-                        return best_names[-1]
-                    else:
+                        for name in reversed(names)
+                        if name.isidentifier()
+                    )
+                    try:
+                        return next(best_names)
+                    except StopIteration:
                         return names[0]
 
                 value = {
                     addr: pick(names)
-                    for addr, names in value.items()
+                    for addr, names in sorted(
+                        value.items(),
+                        key=itemgetter(0),
+                    )
                 }
 
             return value
