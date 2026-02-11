@@ -5298,6 +5298,9 @@ class _TraceCache(Loggable):
                     self.logger.error(f'Failed to write trace metadata to {path}: {e}')
                 raise
 
+        # FIXME: having blocking == False seems to lead to symbols-address
+        # metadata corruption, even with a deepcopy
+        blocking = True
         with measure_time() as m, self._lock:
             mapping = self.to_json_map()
             if blocking:
@@ -5305,7 +5308,7 @@ class _TraceCache(Loggable):
             else:
                 # Ensure abscence of race when the executor thread reads the
                 # data to dump.
-                mapping['metadata'] = copy.copy(mapping['metadata'])
+                mapping = copy.deepcopy(mapping)
                 self._thread_executor.submit(f, mapping)
 
     @classmethod
