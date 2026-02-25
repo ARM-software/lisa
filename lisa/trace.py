@@ -2520,27 +2520,29 @@ class TxtTraceParserBase(TraceParserBase):
             if begin_time is None:
                 begin_time = line_time
 
-            # If we can parse it right away, let's do it now
             try:
                 search, data = events_data[event]
-                append(
-                    data,
-                    # Add the fixedup time
-                    groups(search(line)) + (line_time,)
-                )
-            # If we don't have a parser for it yet (search == None),
-            # just store the line so we can infer its parser later
-            except TypeError:
-                # Add the fixedup time and the full line for later
-                # parsing as well
-                append(
-                    skeleton_data,
-                    groups(match) + (line_time, line)
-                )
-            # We are not interested in that event, but we still remember the
-            # pareseable events
             except KeyError:
+                # We are not interested in that event, but we still remember
+                # the pareseable events
                 available_events.add(event)
+            else:
+                # If we don't have a parser for it yet (search == None), just
+                # store the line so we can infer its parser later
+                if search is None:
+                    # Add the fixedup time and the full line for later parsing
+                    # as well
+                    append(
+                        skeleton_data,
+                        groups(match) + (line_time, line)
+                    )
+                else:
+                    # If we can parse it right away, let's do it now
+                    append(
+                        data,
+                        # Add the fixedup time
+                        groups(search(line)) + (line_time,)
+                    )
 
         # This should have been set on the first line.
         # Note: we don't raise the exception if no events were asked for, to
