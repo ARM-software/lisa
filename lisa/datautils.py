@@ -2962,6 +2962,53 @@ def _polars_parse_predicate(expr, schema, binop, unaryop, column, literal):
     return parse(expr)
 
 
+def _polars_iter_to_lazyframe(make_iter, schema):
+    def _get_chunks(with_columns, predicate, n_rows, batch_size):
+        iterator = make_iter()
+        while (n_rows is None or n_rows > 0):
+            df = pl.DataFrame(
+                itertools.islice(iterator, batch_size),
+                orient='row',
+                schema=schema,
+            )
+            if len(df):
+                df = df.lazy()
+
+                if predicate is not None:
+                    df = df.filter(predicate)
+
+                if n_rows is not None:
+                    df = df.head(n_rows)
+
+                if with_columns is not None:
+                    df = df.select(with_columns)
+
+                df = df.collect()
+
+                if n_rows is not None:
+                    n_rows -= len(df)
+                yield df
+            else:
+                break
+
+    def get_chunks(*args):
+        try:
+            yield from _get_chunks(*args)
+        except Exception as e:
+            import traceback
+            # polars does not show the detail traceback, so get it
+            # ourselves
+            traceback.print_exc()
+            raise
+
+    return register_io_source(
+        get_chunks,
+        schema=schema,
+        validate_schema=True,
+        is_pure=True,
+    )
+
+
 # Defined outside SignalDesc as it references SignalDesc itself
 _SIGNALS = [
     SignalDesc('sched_switch', ['next_comm', 'next_pid']),

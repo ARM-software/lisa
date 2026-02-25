@@ -34,7 +34,7 @@ import shlex
 import contextlib
 import tempfile
 from functools import wraps
-from collections.abc import Set, Mapping, Sequence, Iterable
+from collections.abc import Set, Mapping, Sequence, Iterable, Iterator
 import operator
 from operator import itemgetter, attrgetter
 from numbers import Number, Integral, Real
@@ -74,7 +74,7 @@ import devlib
 
 from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, set_nested_key, unzip_into, order_as, DirCache, DelegateToAttr, _EXTRA_ASSERTS, FrozenDict, get_subclasses, checksum
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
-from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df, _polars_fast_collect, _polars_fast_collect_all, _df_in_memory, _polars_declare_in_memory, _polars_record_pushdowns, _polars_parse_predicate
+from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df, _polars_fast_collect, _polars_fast_collect_all, _df_in_memory, _polars_declare_in_memory, _polars_record_pushdowns, _polars_parse_predicate, _polars_iter_to_lazyframe
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString
 from lisa._kmod import LISADynamicKmod
@@ -2031,25 +2031,14 @@ class TxtEventParser(EventParserBase):
             event=event,
             fields=fields,
         )
-        regex = self._get_regex(event, fields, positional_field, greedy_field)
-        self.regex = re.compile(regex, flags=re.ASCII)
+        self.pattern = self._get_regex(event, fields, positional_field, greedy_field)
         self.raw = raw
-
-    @property
-    def bytes_regex(self):
-        """
-        Same as ``regex`` but acting on :class:`bytes` instead of :class:`str`.
-        """
-        regex = self.regex
-        return re.compile(
-            self.regex.pattern.encode('ascii'),
-            flags=regex.flags,
-        )
 
     @classmethod
     def _get_fields_regex(cls, event, fields, positional_field, greedy_field):
         """
-        Returns the regex to parse the fields part of the event line.
+        Returns the :mod:`polars` regex to parse the fields part of the event
+        line.
 
         :param event: name of the event
         :type event: str
@@ -2145,12 +2134,12 @@ class TxtEventParser(EventParserBase):
             if field in ('__timestamp', '__event')
         )
 
-        regex = r'(?:(?:^.*?:)|^){blank}{__comm}-{__pid}{blank}\[{__cpu}\]{blank}{__timestamp}:{blank}{__event}:'.format(**compos, blank=blank)
+        regex = r'(?:^|{blank}){__comm}-{__pid}{blank}\[{__cpu}\]{blank}{__timestamp}:{blank}{__event}:'.format(**compos, blank=blank)
         return regex
 
     def _get_regex(self, event, fields, positional_field, greedy_field):
         """
-        Return the full regex to parse the event line.
+        Return the full :mod:`polars` regex to parse the event line.
 
         This includes both the header and the fields part.
         """
@@ -2239,8 +2228,11 @@ class TxtTraceParserBase(TraceParserBase):
     """
     Text trace parser base class.
 
-    :param lines: Iterable of text lines as :class:`bytes`.
-    :type lines: collections.abc.Iterable(bytes)
+    :param lines: Iterable, iterator, or function returning an iterator of text
+        lines as :class:`bytes`. If possible, avoid iterators as they will have
+        to be consumed fully so that the internals of the class can restart
+        iteration if necessary.
+    :type lines: collections.abc.Iterable(bytes) or collections.abc.Iterator(bytes) or collections.abc.Callable[[], collections.abc.Iterator(bytes)]
 
     :param events: List of events that will be available using
         :meth:`parse_event`. If not provided, all events will be considered.
@@ -2261,6 +2253,14 @@ class TxtTraceParserBase(TraceParserBase):
     :param pre_filled_metadata: Metadata pre-filled by the caller of the
         constructor.
     :type pre_filled_metadata: dict(str, object) or None
+
+    :param time: Timestamps matching ``lines``. The same input types are
+        accepted as for ``lines``.
+    :type time: collections.abc.Iterable(float) or collections.abc.Iterator(float) or collections.abc.Callable[[], collections.abc.Iterator(float)]
+
+    :param time_unit: Unit of the time used both for ``time`` and processed
+        trace data. Passed to :class:`lisa.datautils.Timestamp`.
+    :param time_unit: str
     """
 
     _KERNEL_DTYPE = {
@@ -2317,8 +2317,6 @@ class TxtTraceParserBase(TraceParserBase):
     will be used as is.
     """
 
-    _RE_MATCH_CLS = re.Match
-
     @kwargs_forwarded_to(TraceParserBase.__init__)
     def __init__(self,
         lines,
@@ -2327,10 +2325,13 @@ class TxtTraceParserBase(TraceParserBase):
         event_parsers=None,
         default_event_parser_cls=None,
         pre_filled_metadata=None,
+        time=None,
+        time_unit='s',
         **kwargs,
     ):
         needed_metadata = set(needed_metadata or [])
         super().__init__(events, needed_metadata=needed_metadata, **kwargs)
+
         self._pre_filled_metadata = pre_filled_metadata or {}
         events = set(events or [])
 
@@ -2347,26 +2348,24 @@ class TxtTraceParserBase(TraceParserBase):
             # If we don't need the fields in the skeleton df, avoid collecting them
             # to save memory and speed things up
             need_fields = (events != event_parsers.keys())
-            skeleton_regex = self._get_skeleton_regex(need_fields)
 
-            self.logger.debug(f'Scanning the trace for metadata {needed_metadata} and events: {events}')
-
-            events_df, skeleton_df, time_range, available_events = self._eagerly_parse_lines(
+            skeleton_df = self._make_skeleton_df(
                 lines=lines,
-                skeleton_regex=skeleton_regex,
-                event_parsers=event_parsers,
-                events=events,
+                time=time,
+                time_unit=time_unit,
+                skeleton_regex=self._get_skeleton_regex(need_fields),
             )
-            self._events_df = events_df
-            self._time_range = time_range
-            self._skeleton_df = skeleton_df
-            self._available_events = available_events
-
+            skeleton_df_path = self._temp_dir / f'skeleton.parquet'
+            # Dump to a parquet file as the LazyFrame references an IO plugin,
+            # which cannot be serialized to JSON. Using a parquet files avoids
+            # keeping everything in memory.
+            skeleton_df.sink_parquet(
+                skeleton_df_path,
+                compression=_DEFAULT_PARQUET_COMPRESSION,
+            )
+            self._skeleton_df_path = skeleton_df_path
+            skeleton_df = pl.scan_parquet(skeleton_df_path)
             inferred_event_descs = self._get_event_descs(skeleton_df, events, event_parsers)
-            # We only needed the fields to infer the descriptors, so let's drop
-            # them to lower peak memory usage
-            with contextlib.suppress(KeyError):
-                self._skeleton_df = self._skeleton_df.drop(['__fields'], strict=False)
 
             event_parsers = {
                 **{
@@ -2381,10 +2380,31 @@ class TxtTraceParserBase(TraceParserBase):
                 **event_parsers,
             }
             self._event_parsers = event_parsers
+
+            stat_df = skeleton_df.select(
+                pl.col('__timestamp').min().alias('min_ts'),
+                pl.col('__timestamp').max().alias('max_ts'),
+                (
+                    pl.col('__timestamp').is_null()
+                    & pl.col("line").str.contains('EVENTS DROPPED')
+                ).any().alias('dropped_events'),
+                pl.col('__event').unique().drop_nulls().implode().alias('available_events'),
+            )
+
+            stat_df = stat_df.collect()
+            stat = stat_df.row(0, named=True)
+
+            if stat['dropped_events']:
+                raise DroppedTraceEventError('The trace buffer got overridden by new data, increase the buffer size to ensure all events are recorded')
+
+            self._time_range = (
+                Timestamp(stat['min_ts'], unit='ns', rounding='down'),
+                Timestamp(stat['max_ts'], unit='ns', rounding='up'),
+            )
+            self._available_events = set(stat['available_events'])
         else:
-            self._events_df = {}
             self._time_range = None
-            self._skeleton_df = None
+            self._skeleton_df_path = None
             self._available_events = None
             self._event_parsers = {}
 
@@ -2448,13 +2468,17 @@ class TxtTraceParserBase(TraceParserBase):
 
         :Variable keyword arguments: Forwarded to ``__init__``
         """
-        with open(path, 'rb') as f:
-            return cls(lines=f, **kwargs)
+        def file_lines():
+            with open(path, 'rb') as f:
+                yield from f
+
+        return cls(lines=file_lines, **kwargs)
 
     @abc.abstractmethod
     def _get_skeleton_regex(self, need_fields):
         """
-        Return a :class:`bytes` regex that provides the following groups:
+        Return a :class:`bytes` :mod:`polars` regex pattern that provides the
+        following groups:
 
             * ``__event``: name of the event
             * ``__timestamp``: timestamp of event occurence
@@ -2465,242 +2489,109 @@ class TxtTraceParserBase(TraceParserBase):
             scan the whole trace.
         """
 
-    @staticmethod
-    def _make_df_from_data(regex, data, extra_cols=None):
-        extra_cols = extra_cols or []
-        columns = sorted(
-            regex.groupindex.keys(),
-            # Order columns so that we can directly append the
-            # groups() tuple of the regex match
-            key=lambda field: regex.groupindex[field]
+    def _make_skeleton_df(self, skeleton_regex, lines, time, time_unit):
+        def to_callable(xs):
+            if callable(xs):
+                _xs = xs
+            elif isinstance(xs, Iterator):
+                # Iterators have to be reified into an iterable, so that we can
+                # restart iteration if needed.
+                xs = list(xs)
+                def _xs():
+                    yield from xs
+            elif isinstance(xs, Iterable):
+                def _xs():
+                    yield from iter(xs)
+            else:
+                raise TypeError(f'Data source type not handled: {type(xs)}')
+
+            return _xs
+
+        time = None if time is None else to_callable(time)
+        lines = to_callable(lines)
+
+        # Actually stream from the data source if possible.
+        if time is None:
+            df = _polars_iter_to_lazyframe(
+                lambda: (
+                    {'line': line}
+                    for line in lines()
+                ),
+                schema={'line': pl.Binary},
+            )
+        else:
+            df = _polars_iter_to_lazyframe(
+                lambda: (
+                    {
+                        '__timestamp': ts,
+                        'line': line,
+                    }
+                    for ts, line in zip(time(), lines())
+                ),
+                schema={
+                    '__timestamp': pl.UInt64,
+                    'line': pl.Binary,
+                },
+            )
+
+        df = df.with_columns(
+            pl.col('line').cast(pl.String)
         )
-        # Rename regex columns to avoid clashes that were explicitly added as
-        # extra
-        columns = [
-            f'__parsed_{col}' if col in extra_cols else col
-            for col in columns
-        ]
-        columns += extra_cols
 
-        df = pl.DataFrame(
-            data,
-            orient='row',
-            schema=columns,
-            # Scan the entire dataset to figure out the best dtype
-            infer_schema_length=None,
-        ).lazy()
+        df = df.with_columns(
+            __match=(
+                pl.col('line')
+                .str.strip_chars()
+                .str.extract_groups(
+                    skeleton_regex
+                )
+            )
+        )
 
-        df = df.with_columns(cs.binary().cast(pl.String))
+        if time is not None:
+            df = (
+                df
+                .with_columns(
+                    pl.col('__match').struct.with_fields(
+                        __timestamp=pl.col('__timestamp'),
+                    )
+                )
+                .drop('__timestamp')
+            )
 
-        # Put the timestamp first so it's recognized as the index
-        df = df.select(
-            order_as(columns, ['__timestamp'])
+        df = df.unnest('__match')
+
+        try:
+            mul_power = {
+                's': 9,
+                'ms': 6,
+                'us': 3,
+                'ns': 0,
+            }[time_unit]
+        except KeyError:
+            raise ValueError(f'Unsupported time unit: {time_unit}')
+
+        if isinstance(df.collect_schema()['__timestamp'], pl.String):
+            def type_convert(col):
+                # Preserve enough digits after the comma for the subsequent
+                # multiplication
+                return col.str.to_decimal(scale=mul_power)
+        else:
+            def type_convert(col):
+                return col
+
+        df = df.with_columns(
+            __timestamp=(
+                type_convert(pl.col('__timestamp'))
+                # Normalize the unit to ns
+                * (10 ** mul_power)
+            ).cast(pl.UInt64)
+        )
+
+        df = df.with_columns(
+            pl.col('__event').cast(pl.Categorical),
         )
         return df
-
-    def _eagerly_parse_lines(self, lines, skeleton_regex, event_parsers, events, time=None, time_unit='s'):
-        """
-        Filter the lines to select the ones with events.
-
-        Also eagerly parse events from them to avoid the extra memory
-        consumption from line storage, and to speed up parsing by acting as a
-        pipeline on lazy lines stream.
-        """
-
-        # Recompile all regex so that they work on bytes rather than strings.
-        # This simplifies the rest of the code while allowing the raw output
-        # from a process to be fed
-        def encode(string):
-            return string.encode('ascii')
-
-        events = list(map(encode, events))
-        event_parsers = {
-            encode(event): parser
-            for event, parser in event_parsers.items()
-        }
-
-        # Only add an extra iterator and tuple unpacking if that is strictly
-        # necessary, as it comes with a performance cost
-        time_is_provided = time is not None
-        skel_search = skeleton_regex.search
-        if time_is_provided:
-            lines = zip(time, lines)
-            drop_filter = lambda line: not skel_search(line[1])
-        else:
-            drop_filter = lambda line: not skel_search(line)
-
-        # First, get rid of all the lines coming before the trace
-        lines = itertools.dropwhile(drop_filter, lines)
-
-        # Appending to lists is amortized O(1). Inside the list, we store
-        # tuples since they are:
-        # 1) the most compact Python representation of a product type
-        # 2) output directly by regex.search()
-        skeleton_data = []
-        events_data = {
-            **{event: (None, None) for event in events},
-            **{
-                event: (parser.bytes_regex.search, [])
-                for event, parser in event_parsers.items()
-            },
-        }
-        available_events = set()
-
-        begin_time = None
-        end_time = None
-
-        # THE FOLLOWING LOOP IS A THE MOST PERFORMANCE-SENSITIVE PART OF THAT
-        # CLASS, APPLY EXTREME CARE AND BENCHMARK WHEN MODIFYING
-        # Best practices:
-        # - resolve all dotted names ahead of time
-        # - minimize the amount of local variables. Prefer anonymous
-        #   expressions
-        # - Catch exceptions for exceptional cases rather than explicit check
-
-        # Pre-lookup methods out of the loop to speed it up
-        append = list.append
-        group = self._RE_MATCH_CLS.group
-        groups = self._RE_MATCH_CLS.groups
-        inf = math.inf
-        prev_time = Timestamp(0, unit='ns')
-        parse_time = '__timestamp' in skeleton_regex.groupindex.keys()
-
-        for line in lines:
-            if time_is_provided:
-                line_time, line = line
-
-            match = skel_search(line)
-            # Stop at the first non-matching line
-            try:
-                event = group(match, '__event')
-            # The line did not match the skeleton regex, so skip it
-            except TypeError:
-                if b'EVENTS DROPPED' in line:
-                    raise DroppedTraceEventError('The trace buffer got overridden by new data, increase the buffer size to ensure all events are recorded')
-                # Unknown line, could be coming e.g. from stderr
-                else:
-                    continue
-            else:
-                if not time_is_provided:
-                    line_time = Timestamp(
-                        group(match, '__timestamp').decode('utf-8')
-                    )
-                    # Do a global deduplication of timestamps, across all
-                    # events regardless of the one we will parse. This ensures
-                    # stable results and joinable dataframes from multiple
-                    # parser instance.
-                    line_time = line_time.as_nanoseconds
-                    if line_time <= prev_time:
-                        line_time += prev_time - line_time + 2
-                    prev_time = line_time
-
-            if begin_time is None:
-                begin_time = line_time
-
-            try:
-                search, data = events_data[event]
-            except KeyError:
-                # We are not interested in that event, but we still remember
-                # the pareseable events
-                available_events.add(event)
-            else:
-                # If we don't have a parser for it yet (search == None), just
-                # store the line so we can infer its parser later
-                if search is None:
-                    # Add the fixedup time and the full line for later parsing
-                    # as well
-                    append(
-                        skeleton_data,
-                        groups(match) + (line_time, line)
-                    )
-                else:
-                    # If we can parse it right away, let's do it now
-                    append(
-                        data,
-                        # Add the fixedup time
-                        groups(search(line)) + (line_time,)
-                    )
-
-        # This should have been set on the first line.
-        # Note: we don't raise the exception if no events were asked for, to
-        # allow creating dummy parsers without any line
-        if begin_time is None and events:
-            raise ValueError('No lines containing events have been found')
-
-        available_events = {
-            event.decode('ascii')
-            for event in available_events
-        }
-
-        end_time = line_time
-        available_events.update(
-            event.decode('ascii')
-            for event, (search, data) in events_data.items()
-            if data
-        )
-
-        events_df = {}
-        for event, parser in event_parsers.items():
-            try:
-                # Remove the tuple data from the dict as we go, to free memory
-                # before proceeding to the next event to smooth the peak memory
-                # consumption
-                _, data = events_data.pop(event)
-            except KeyError:
-                pass
-            else:
-                decoded_event = event.decode('ascii')
-                df = self._make_df_from_data(parser.regex, data, ['__timestamp'])
-                # Post-process immediately to shorten the memory consumption
-                # peak
-                df = self._postprocess_df(
-                    decoded_event,
-                    parser,
-                    df,
-                )
-                events_df[decoded_event] = df
-
-        # Compute the skeleton dataframe for the events that have not been
-        # parsed already. It contains the event name, the time, and potentially
-        # the fields if they are needed
-        skeleton_df = self._make_df_from_data(skeleton_regex, skeleton_data, ['__timestamp', 'line'])
-        skeleton_df = skeleton_df.with_columns(
-            pl.col('__event').cast(pl.Categorical)
-        )
-
-        # Drop unnecessary columns that might have been parsed by the regex
-        to_keep = {'__timestamp', '__event', '__fields', 'line'}
-        skeleton_df = skeleton_df.select(sorted(to_keep & set(skeleton_df.collect_schema().names())))
-        # This is very fast on a category dtype
-        available_events.update(
-            skeleton_df.select(
-                pl.col('__event').unique()
-            ).collect()['__event']
-        )
-
-        if time_is_provided:
-            begin_time = Timestamp(begin_time, unit=time_unit)
-            end_time = Timestamp(end_time, unit=time_unit)
-        else:
-            begin_time = Timestamp(begin_time, unit='ns')
-            end_time = Timestamp(end_time, unit='ns')
-
-        return (events_df, skeleton_df, (begin_time, end_time), available_events)
-
-    def _lazily_parse_event(self, event, parser, df):
-        # Only parse the lines that have a chance to match
-        df = df.filter(
-            pl.col('__event') == event
-        )
-
-        pattern = parser.bytes_regex.pattern.decode('utf-8')
-
-        new_df = df.select((
-            pl.col('__timestamp'),
-            pl.col('line').str.strip_chars().str.extract_groups(pattern),
-        )).unnest('line')
-        new_df = self._postprocess_df(event, parser, new_df)
-        return new_df
 
     @staticmethod
     def _get_event_descs(df, events, event_parsers):
@@ -2710,9 +2601,6 @@ class TxtTraceParserBase(TraceParserBase):
         if not all_events and set(events) == user_supplied:
             return {}
         else:
-            def encode(string):
-                return string.encode('ascii')
-
             # Find the field names only for the events we don't already know about,
             # since the inference is relatively expensive
             if all_events:
@@ -2764,30 +2652,56 @@ class TxtTraceParserBase(TraceParserBase):
             }
             return dct
 
+    def _parse_event(self, event, skeleton_df, parser):
+        df = skeleton_df.filter(
+            pl.col('__event') == event
+        )
+        df = df.select(
+            pl.col('__timestamp'),
+            (
+                pl.col('line')
+                .str.strip_chars()
+                .str.extract_groups(parser.pattern)
+                .struct.unnest()
+            ),
+        )
+
+        df = self._postprocess_df(event, parser, df)
+        return df
+
     def parse_event(self, event):
         try:
             parser = self._event_parsers[event]
         except KeyError as e:
             raise MissingTraceEventError([event])
-
-        # Maybe it was eagerly parsed
-        try:
-            df = self._events_df[event]
-        except KeyError:
-            df = self._lazily_parse_event(event, parser, self._skeleton_df)
-
-        # Everything resides in memory anyway, so make that clear to the _Trace
-        # infrastructure so it does not accidentally tries to serialize a
-        # LazyFrame as a huge JSON.
-        df = df.collect()
-
-        # Since there is no way to distinguish between no event entry and
-        # non-collected events in text traces, map empty dataframe to missing
-        # event
-        if len(df):
-            return df
         else:
-            raise MissingTraceEventError([event])
+            if (skeleton_df_path := self._skeleton_df_path) is None:
+                raise MissingTraceEventError([event])
+            else:
+                # Make a "copy" of the parquet file, so it can be stolen by
+                # the the Trace
+                _path = self._temp_dir / f'{uuid.uuid4().hex}.parquet'
+                _path.hardlink_to(skeleton_df_path)
+                skeleton_df = pl.scan_parquet(_path)
+
+                df = self._parse_event(
+                    event,
+                    skeleton_df=skeleton_df,
+                    parser=parser,
+                )
+
+                # Since there is no way to distinguish between no event entry and
+                # non-collected events in text traces, map empty dataframe to
+                # missing event
+                if len(df.head(1).collect()):
+                    return _ParsedDataFrame.from_df(
+                        df=df,
+                        swap_cacheable=True,
+                        mem_cacheable=True,
+                        steal_files=True,
+                    )
+                else:
+                    raise MissingTraceEventError([event])
 
     @classmethod
     def _postprocess_df(cls, event, parser, df):
@@ -2828,6 +2742,11 @@ class TxtTraceParserBase(TraceParserBase):
                 # repetitive
                 col: pl.Categorical if isinstance(dtype, (pl.String, pl.Binary)) else dtype
                 for col, dtype in schema.items()
+            }
+
+            schema = {
+                **schema,
+                '__timestamp': pl.UInt64,
             }
 
             return schema
@@ -3393,8 +3312,7 @@ class TxtTraceParser(TxtTraceParserBase):
         regex = r'\] +(?P<__timestamp>{floating}): *(?P<__event>{identifier}):'.format(**TxtEventParser.PARSER_REGEX_TERMINALS)
         if need_fields:
             regex += r' *(?P<__fields>.*)'
-
-        return re.compile(regex.encode('ascii'), flags=re.ASCII)
+        return regex
 
 
 class SimpleTxtTraceParser(TxtTraceParserBase):
@@ -3448,7 +3366,7 @@ class SimpleTxtTraceParser(TxtTraceParserBase):
 
     HEADER_REGEX = None
     """
-    Default regex to use to parse event header.
+    Default :mod:`polars` regex to use to parse event header.
     It must parse the following groups:
 
     * ``__timestamp``: the timestamp of the event
@@ -3496,9 +3414,11 @@ class SimpleTxtTraceParser(TxtTraceParserBase):
         )
 
     def _get_skeleton_regex(self, need_fields):
+        regex = self.header_regex
         # Parse the whole header, which is wasteful but provides a simpler interface
-        regex = self.header_regex + r' *(?P<__fields>.*)'
-        return re.compile(regex.encode('ascii'), flags=re.ASCII)
+        if need_fields:
+            regex += r' *(?P<__fields>.*)'
+        return regex
 
 
 class MetaTxtTraceParser(SimpleTxtTraceParser):
@@ -3567,18 +3487,6 @@ class MetaTxtTraceParser(SimpleTxtTraceParser):
         ),
     }
 
-    @kwargs_forwarded_to(SimpleTxtTraceParser.__init__)
-    def __init__(self, *args, time, time_unit='s', **kwargs):
-        self._time = time
-        self._time_unit = time_unit
-        super().__init__(*args, **kwargs)
-
-    def _eagerly_parse_lines(self, *args, **kwargs):
-        # Use the iloc as "time", and we fix it up manually afterwards
-        return super()._eagerly_parse_lines(
-            *args, **kwargs, time=self._time, time_unit=self._time_unit,
-        )
-
 
 class HRTxtTraceParser(SimpleTxtTraceParser):
     """
@@ -3619,7 +3527,7 @@ class HRTxtTraceParser(SimpleTxtTraceParser):
         ),
     }
 
-    HEADER_REGEX = r'\s*(?P<__comm>.+)-(?P<__pid>\d+)[^[]*\[(?P<__cpu>\d*)\][^\d]+(?P<__timestamp>\d+\.\d+): +(?P<__event>\w+):'
+    HEADER_REGEX = r'\s*(?P<__comm>.+)-(?P<__pid>\d+)[^\[]*\[(?P<__cpu>\d*)\][^\d]+(?P<__timestamp>\d+\.\d+): +(?P<__event>\w+):'
 
 
 class SysTraceParser(HRTxtTraceParser):
