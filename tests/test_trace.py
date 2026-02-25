@@ -39,19 +39,7 @@ from .utils import StorageTestCase, ASSET_DIR
 
 
 class TraceTestCase(StorageTestCase):
-    traces_dir = ASSET_DIR
-    events = [
-        'sched_switch',
-        'sched_wakeup',
-        'sched_overutilized',
-        'cpu_idle',
-        'sched_load_avg_task',
-        'sched_load_se'
-    ]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.plat_info = self._get_plat_info()
+    traces_dir = Path(ASSET_DIR)
 
     def _wrap_trace(self, trace):
         return trace
@@ -60,10 +48,13 @@ class TraceTestCase(StorageTestCase):
     def trace(self):
         return self._wrap_trace(
             Trace(
-                os.path.join(self.traces_dir, 'trace.txt'),
-                plat_info=self.plat_info,
-                events=self.events,
+                self.traces_dir / 'trace_txt' / 'trace.txt',
+                plat_info=self._get_plat_info('trace_txt'),
                 normalize_time=False,
+                # We need to specify the parser explicitly, as we don't have a
+                # human-readable trace (the result of rendering each event
+                # according to its format string). Instead, we have a raw text
+                # trace.
                 parser=TxtTraceParser.from_txt_file,
             )
         )
@@ -75,8 +66,8 @@ class TraceTestCase(StorageTestCase):
         return self._wrap_trace(
             Trace(
                 None,
-                plat_info=self.plat_info if plat_info is None else plat_info,
-                events=self.events if events is None else events,
+                plat_info=plat_info,
+                events=events,
                 normalize_time=False,
                 parser=TxtTraceParser.from_string(in_data),
             )
@@ -88,18 +79,13 @@ class TraceTestCase(StorageTestCase):
         """
         return self._wrap_trace(
             Trace(
-                Path(self.traces_dir, trace_name, 'trace.dat'),
+                self.traces_dir / trace_name / 'trace.dat',
                 plat_info=self._get_plat_info(trace_name),
-                events=self.events,
             )
         )
 
-    def _get_plat_info(self, trace_name=None):
-        trace_dir = self.traces_dir
-        if trace_name:
-            trace_dir = os.path.join(trace_dir, trace_name)
-
-        path = os.path.join(trace_dir, 'plat_info.yml')
+    def _get_plat_info(self, trace_name):
+        path = self.traces_dir / trace_name / 'plat_info.yml'
         return PlatformInfo.from_yaml_map(path)
 
     def test_parse_all(self):
@@ -635,7 +621,7 @@ class TestTraceNoClusterData(TestTrace):
     no cluster info the platform dict.
     """
 
-    def _get_plat_info(self, trace_name=None):
+    def _get_plat_info(self, trace_name):
         plat_info = super()._get_plat_info(trace_name)
         plat_info = copy.copy(plat_info)
         plat_info.force_src('freq-domains', ['SOURCE THAT DOES NOT EXISTS'])
@@ -650,7 +636,7 @@ class TestTraceNoPlatform(TestTrace):
     platform=None
     """
 
-    def _get_plat_info(self, trace_name=None):
+    def _get_plat_info(self, trace_name):
         return None
 
 class TestMockTraceParser(TestCase):
