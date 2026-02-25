@@ -6591,7 +6591,6 @@ class _Trace(Loggable, _InternalTraceBase):
             self.plots_dir = plots_dir
 
             new_cache = _TraceCache.from_swap_dir(
-                trace_path=trace_path,
                 swap_dir=swap_dir,
                 max_swap_size=max_swap_size,
                 max_mem_size=max_mem_size,

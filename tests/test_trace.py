@@ -23,17 +23,21 @@ import math
 from pathlib import Path
 import functools
 import tempfile
+import contextlib
+import itertools
+import abc
 
 import pytest
 import numpy as np
 import pandas as pd
 import polars as pl
+from polars.testing import assert_frame_equal
 
 from devlib.target import KernelVersion
 
-from lisa.trace import Trace, TraceBase, TxtTraceParser, MockTraceParser, _TraceProxy, MissingTraceEventError
+from lisa.trace import Trace, TraceBase, TxtTraceParser, MockTraceParser, _TraceProxy, MissingTraceEventError, TraceParserBase, MissingMetadataError, _json_checksum
 from lisa.analysis.tasks import TaskID
-from lisa.datautils import df_squash
+from lisa.datautils import df_squash, Timestamp
 from lisa.platforms.platinfo import PlatformInfo
 from .utils import StorageTestCase, ASSET_DIR
 
@@ -73,7 +77,7 @@ class TraceTestCase(StorageTestCase):
             )
         )
 
-    def get_trace(self, trace_name):
+    def get_trace(self, trace_name, **kwargs):
         """
         Get a trace from a separate provided trace file
         """
@@ -81,8 +85,20 @@ class TraceTestCase(StorageTestCase):
             Trace(
                 self.traces_dir / trace_name / 'trace.dat',
                 plat_info=self._get_plat_info(trace_name),
+                **kwargs,
             )
         )
+
+    @contextlib.contextmanager
+    def get_trace_fresh_swap(self, trace_name):
+        with tempfile.TemporaryDirectory() as folder:
+            def f(**kwargs):
+                return self.get_trace(
+                    trace_name,
+                    swap_dir=folder,
+                    **kwargs,
+                )
+            yield f
 
     def _get_plat_info(self, trace_name):
         path = self.traces_dir / trace_name / 'plat_info.yml'
@@ -639,6 +655,7 @@ class TestTraceNoPlatform(TestTrace):
     def _get_plat_info(self, trace_name):
         return None
 
+
 class TestMockTraceParser(TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -663,5 +680,422 @@ class TestMockTraceParser(TestCase):
     def test_time_range(self):
         assert self.trace.start.as_nanoseconds == 0
         assert self.trace.end.as_nanoseconds == 42000000000
+
+
+class TraceLogCursor:
+    def __init__(self, pos, log):
+        self.pos = pos
+        self.log = log
+
+
+class NotMatchedError(Exception):
+    def __init__(self, cursor, msg):
+        self.msg = msg
+        self.cursor = cursor
+
+    def __str__(self):
+        return self.msg
+
+
+class TraceLogPattern(abc.ABC):
+    def assert_log(self, log):
+        cursor = TraceLogCursor(
+            log=iter(log),
+            pos=0,
+        )
+        self._match(cursor)
+
+    def __invert__(self):
+        return TraceLogNotPattern(self)
+
+    @abc.abstractmethod
+    def _match(self, cursor):
+        return cursor
+
+
+class TraceLogNotPattern(TraceLogPattern):
+    def __init__(self, pattern):
+        self._pattern = pattern
+
+    def _match(self, cursor):
+        pattern = self._pattern
+        try:
+            cursor = pattern._match(cursor)
+        except NotMatchedError as e:
+            return e.cursor
+        else:
+            raise NotMatchedError(
+                cursor,
+                f'Could not match pattern: {self}',
+            )
+
+    def __str__(self):
+        return f'~({self._pattern})'
+
+
+class TraceLogPredicatePattern(TraceLogPattern):
+    def __init__(self, f):
+        self._f = f
+
+    def _match(self, cursor):
+        f = self._f
+        log = cursor.log
+        _cursor = cursor
+        for i, entry in enumerate(log):
+            _cursor = TraceLogCursor(
+                pos=cursor.pos + i + 1,
+                log=log,
+            )
+            if f(entry):
+                return _cursor
+
+        raise NotMatchedError(
+            _cursor,
+            f'Could not match: {self}',
+        )
+
+    def __str__(self):
+        return f'{self._f.__code__}'
+
+
+class TraceLogLookbehindPattern(TraceLogPattern):
+    def __init__(self, behind, pattern):
+        self._behind = behind
+        self._pattern = pattern
+
+    def _match(self, cursor):
+        saved_pos = cursor.pos
+        saved_log, = itertools.tee(cursor.log, 1)
+
+        cursor = self._pattern._match(cursor)
+
+        cursor2 = TraceLogCursor(
+            log=itertools.islice(saved_log, cursor.pos - saved_pos),
+            pos=saved_pos,
+        )
+
+        self._behind._match(cursor2)
+        return cursor
+
+    def __str__(self):
+        return f'(?<{self._behind})({self._pattern})'
+
+
+class TraceLogSeqPattern(TraceLogPattern):
+    def __init__(self, patterns):
+        self._patterns = list(patterns)
+
+    def _match(self, cursor):
+        for pattern in self._patterns:
+            cursor = pattern._match(cursor)
+        return cursor
+
+    def __str__(self):
+        return ''.join(
+            f'({pattern})'
+            for pattern in self._patterns
+        )
+
+
+class TestTraceCache(TraceTestCase):
+    """Test the trace cache"""
+
+    def _assert_event(self, log, event, seq):
+        return self._assert_data(
+            log=log,
+            key=event,
+            typ='event',
+            seq=seq,
+        )
+
+    def _assert_metadata(self, log, key, seq):
+        return self._assert_data(
+            log=log,
+            key=key,
+            typ='metadata',
+            seq=seq,
+        )
+
+    def _assert_data(self, log, key, typ, seq):
+
+        def event_cold(event):
+            return TraceLogSeqPattern([
+                TraceLogPredicatePattern(lambda entry: (
+                    entry['type'] == 'df-event'
+                    and entry['data']['event'] == event
+                )),
+                TraceLogPredicatePattern(lambda entry: (
+                    entry['type'] == 'spinup-parser'
+                    and event in entry['data']['events']
+                )),
+            ])
+
+        def event_hot(event):
+            return TraceLogLookbehindPattern(
+                # We should not spin up the parser for the 2nd df_event()
+                # call, as we expect it to be available in the cache.
+                behind=~TraceLogPredicatePattern(lambda entry: (
+                    entry['type'] == 'spinup-parser'
+                    and event in entry['data']['events']
+                )),
+                pattern=TraceLogPredicatePattern(lambda entry: (
+                    entry['type'] == 'df-event'
+                    and entry['data']['event'] == event
+                )),
+            )
+
+        def metadata_cold(key):
+            return TraceLogSeqPattern([
+                TraceLogPredicatePattern(lambda entry: (
+                    entry['type'] == 'get-metadata'
+                    and entry['data']['key'] == key
+                )),
+                TraceLogPredicatePattern(lambda entry: (
+                    entry['type'] == 'spinup-parser'
+                    and key in entry['data']['metadata']
+                )),
+            ])
+
+        def metadata_hot(key):
+            return TraceLogLookbehindPattern(
+                # We should not spin up the parser for the 2nd get_metadata()
+                # call, as we expect it to be available in the cache.
+                behind=~TraceLogPredicatePattern(lambda entry: (
+                    entry['type'] == 'spinup-parser'
+                    and key in entry['data']['metadata']
+                )),
+                pattern=TraceLogPredicatePattern(lambda entry: (
+                    entry['type'] == 'get-metadata'
+                    and entry['data']['key'] == key
+                )),
+            )
+
+        def pick(pattern):
+            match (typ, pattern):
+                case ('event', 'hot'):
+                    return event_hot(key)
+                case ('event', 'cold'):
+                    return event_cold(key)
+                case ('event', '~hot'):
+                    return ~event_hot(key)
+                case ('event', '~cold'):
+                    return ~event_cold(key)
+                case ('metadata', 'hot'):
+                    return metadata_hot(key)
+                case ('metadata', 'cold'):
+                    return metadata_cold(key)
+                case ('metadata', '~hot'):
+                    return ~metadata_hot(key)
+                case ('metadata', '~cold'):
+                    return ~metadata_cold(key)
+                case _:
+                    raise ValueError(f'Unknown pattern: {pattern}')
+
+        pattern = TraceLogSeqPattern(map(pick, seq))
+        pattern.assert_log(log)
+
+    def test_basic_event(self):
+        event1 = 'sched_switch'
+
+        with self.get_trace_fresh_swap('doc') as make_trace:
+            trace1 = make_trace(df_fmt='polars-lazyframe')
+            with trace1._with_activity_log() as log1:
+                df = trace1.df_event(event1)
+                df1 = df.collect()
+
+                self._assert_event(log1, event1, ['~hot'])
+                self._assert_event(log1, event1, ['cold'])
+
+                df = trace1.df_event(event1)
+                df2 = df.collect()
+
+                self._assert_event(log1, event1, ['cold', 'hot'])
+                assert_frame_equal(df1, df2)
+
+            del trace1
+
+            trace1 = make_trace(df_fmt='polars-lazyframe')
+            with trace1._with_activity_log() as log1:
+                df = trace1.df_event(event1)
+                df.collect()
+
+                self._assert_event(log1, event1, ['~cold'])
+                self._assert_event(log1, event1, ['hot'])
+
+    def test_delayed_event(self):
+        event1 = 'sched_switch'
+        event2 = 'sched_wakeup'
+
+        for i in range(2):
+            with self.get_trace_fresh_swap('doc') as make_trace:
+                trace1 = make_trace(df_fmt='polars-lazyframe')
+                with trace1._with_activity_log() as log1:
+
+                    df1 = trace1.df_event(event1)
+                    df2 = trace1.df_event(event2)
+
+                    # With delayed events parsing, the LazyFrame is returned
+                    # immediately without spinning up the parser, so it appears
+                    # to be hot at first.
+                    for event in (event1, event2):
+                        self._assert_event(log1, event, ['hot'])
+
+                    match i:
+                        case 0:
+                            df1.collect()
+                        case 1:
+                            df2.collect()
+
+                    # Then after collecting one of the LazyFrame, the parsing
+                    # got triggered and the load finally looks like a cold
+                    # load.
+                    for event in (event1, event2):
+                        self._assert_event(log1, event, ['cold'])
+
+    def test_shared_cache(self):
+        event1 = 'sched_switch'
+        event2 = 'sched_wakeup'
+
+        with self.get_trace_fresh_swap('doc') as make_trace:
+            trace1 = make_trace(df_fmt='polars-lazyframe')
+            with trace1._with_activity_log() as log1:
+                trace1.df_event(event1).collect()
+
+                self._assert_event(log1, event1, ['~hot'])
+                self._assert_event(log1, event1, ['cold'])
+
+                # Same Trace object, query again. This should be serviced by the
+                # cache.
+                t1e1 = trace1.df_event(event1).collect()
+
+                self._assert_event(log1, event1, ['cold', 'hot'])
+
+                trace2 = make_trace(df_fmt='polars-lazyframe')
+                with trace2._with_activity_log() as log2:
+                    t2e2 = trace2.df_event(event2).collect()
+
+                    # event2 should not be hot in trace2 swap
+                    # But it should be cold
+                    self._assert_event(log2, event2, ['~hot'])
+                    self._assert_event(log2, event2, ['cold'])
+
+                    # And now it has been parsed, so it is hot
+                    trace2.df_event(event2).collect()
+                    self._assert_event(log2, event2, ['cold', 'hot'])
+
+                    # And it is hot in trace1 as well, since they share the
+                    # swap
+                    t1e2 = trace1.df_event(event2).collect()
+                    self._assert_event(log1, event2, ['hot'])
+
+                    # trace2 shares the swap with trace1, so it has event1 hot already
+                    t2e1 = trace2.df_event(event1).collect()
+                    self._assert_event(log2, event1, ['hot'])
+
+                    assert_frame_equal(t1e1, t2e1)
+                    assert_frame_equal(t1e2, t2e2)
+
+
+    def test_metadata(self):
+        with self.get_trace_fresh_swap('doc') as make_trace:
+            trace1 = make_trace(df_fmt='polars-lazyframe')
+            with trace1._with_activity_log() as log1:
+                keys = sorted(TraceParserBase.METADATA_KEYS)
+
+                def get_meta(trace, key):
+                    try:
+                        return trace.get_metadata(key)
+                    except MissingMetadataError:
+                        return None
+
+                def get_all_meta(trace):
+                    return {
+                        key: value
+                        for key in keys
+                        if (value := get_meta(trace, key)) is not None
+                    }
+
+                # Before we parse anything in the trace, the keys should not
+                # have been loaded.
+                for key in keys:
+                    self._assert_metadata(log1, key, ['~cold'])
+                    self._assert_metadata(log1, key, ['~hot'])
+
+                m1 = get_all_meta(trace1)
+
+                # Now that the metadata is loaded, it should be either hot or
+                # cold, as loading the first metadata may lead to load them
+                # all, so some of them could appear as hot already.
+                for key in m1.keys():
+                    try:
+                        self._assert_metadata(log1, key, ['cold'])
+                    except NotMatchedError:
+                        self._assert_metadata(log1, key, ['hot'])
+
+                assert set(m1.keys()) == {
+                    'available-events',
+                    'cpus-count',
+                    'symbols-address',
+                    'time-range',
+                    'trace-id',
+                }
+
+                assert m1['available-events'] == {
+                    'cpu_frequency',
+                    'cpu_idle',
+                    'print',
+                    'sched_cpu_capacity',
+                    'sched_migrate_task',
+                    'sched_overutilized',
+                    'sched_pelt_cfs',
+                    'sched_pelt_dl',
+                    'sched_pelt_irq',
+                    'sched_pelt_rt',
+                    'sched_pelt_se',
+                    'sched_process_exec',
+                    'sched_process_exit',
+                    'sched_process_fork',
+                    'sched_process_free',
+                    'sched_process_wait',
+                    'sched_stat_runtime',
+                    'sched_switch',
+                    'sched_util_est_cfs',
+                    'sched_util_est_se',
+                    'sched_wakeup',
+                    'sched_wakeup_new',
+                    'sched_waking',
+                    'task_newtask',
+                    'task_rename',
+                }
+
+                assert m1['cpus-count'] == 6
+
+                assert len(m1['symbols-address']) == 138329
+                assert _json_checksum(
+                    m1['symbols-address'],
+                    method='sha256',
+                ) == '756c9f59f61f272442385ee6fdc55921bf85f0773c157433c0811cbe98eea765'
+
+                assert m1['trace-id'] == 'trace.dat-8785260356321690258'
+
+                assert m1['time-range'] == (
+                    Timestamp(470783168860, unit='ns'),
+                    Timestamp(473280164600, unit='ns'),
+                )
+
+                m2 = get_all_meta(trace1)
+                assert m1 == m2
+
+                trace2 = make_trace(df_fmt='polars-lazyframe')
+                with trace2._with_activity_log() as log2:
+
+                    m3 = get_all_meta(trace2)
+                    assert m1 == m3
+
+                    # All the keys are hot now, as they were loaded by the
+                    # previous Trace instance
+                    for key in m1.keys():
+                        self._assert_metadata(log2, key, ['hot'])
+
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
