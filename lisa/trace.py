@@ -1231,9 +1231,10 @@ class PerfettoTraceParser(TraceParserBase):
 
     def _parse_ftrace_event(self, event):
         def sql_quote(value):
-            dummy_sql_cursor = sqlite3.connect(":memory:").cursor()
-            (escaped,) = dummy_sql_cursor.execute("SELECT quote(?)", (value,)).fetchone()
-            return escaped
+            with contextlib.closing(sqlite3.connect(':memory:')) as conn:
+                dummy_sql_cursor = conn.cursor()
+                (escaped,) = dummy_sql_cursor.execute("SELECT quote(?)", (value,)).fetchone()
+                return escaped
 
         def event_query(query, *args, **kwargs):
             return self._query(
