@@ -419,6 +419,17 @@ def _lazyframe_rewrite(df, update_plan):
     return df
 
 
+def _make_pushdowns(with_columns, predicate, n_rows):
+    if isinstance(predicate, pl.Expr):
+        predicate = predicate.meta.serialize(format='json')
+
+    return {
+        'with-columns': tuple(with_columns),
+        'predicate': predicate,
+        'n-rows': n_rows,
+    }
+
+
 CPU = newtype(int, 'CPU', doc='Alias to ``int`` used for CPU IDs')
 
 
@@ -7352,14 +7363,16 @@ class _Trace(Loggable, _InternalTraceBase):
             if _record_pushdowns:
                 def record_pushdowns(with_columns, predicate, n_rows):
                     self._activity_log.log(
-                        'df-event-pushdown',
+                        'df-collect-with-pushdowns',
                         {
                             'event': event,
-                            'pushdowns': {
-                                'with-columns': tuple(with_columns),
-                                'predicate': predicate,
-                                'n-rows': n_rows,
-                            }
+                            'compatible': True,
+                            'parser-pushdowns': {},
+                            'collect-pushdowns': _make_pushdowns(
+                                with_columns=with_columns,
+                                predicate=predicate,
+                                n_rows=n_rows,
+                            ),
                         }
                     )
                 df = _polars_record_pushdowns(df, record_pushdowns)
@@ -7450,6 +7463,119 @@ class _Trace(Loggable, _InternalTraceBase):
                     msg='Events not found in the trace: {missing_events}{available}'
                 ) from e
 
+        def _polars_dispatch_pushdowns(event, pushdowns, df):
+            def make_df(with_columns, predicate, n_rows, batch_size):
+                predicate_expr = predicate
+
+                # Normalize the format
+                _pushdowns = _make_pushdowns(
+                    with_columns=with_columns,
+                    predicate=predicate,
+                    n_rows=n_rows,
+                )
+                with_columns = _pushdowns['with-columns']
+                n_rows = _pushdowns['n-rows']
+                predicate = _pushdowns['predicate']
+
+                compatible = True
+
+                # No selection of specific columns, we want all columns to be
+                # available.
+                if with_columns is None:
+                    if pushdowns.get('with-columns') is not None:
+                        compatible = False
+                else:
+                    if set(
+                        pushdowns.get('with-columns', with_columns)
+                    ) < set(with_columns):
+                        compatible = False
+
+                # FIXME: implement proper predicate overlap detection
+                if pushdowns.get('predicate', predicate) != predicate:
+                    compatible = False
+
+                # No limit on number of rows, so we want all rows
+                if n_rows is None:
+                    if pushdowns.get('n-rows') != n_rows:
+                        compatible = False
+                else:
+                    if n_rows > pushdowns.get('n-rows', math.inf):
+                        compatible = False
+
+                self._activity_log.log(
+                    'df-collect-with-pushdowns',
+                    {
+                        'event': event,
+                        'compatible': compatible,
+                        'parser-pushdowns': pushdowns,
+                        'collect-pushdowns': _make_pushdowns(
+                            with_columns=with_columns,
+                            predicate=predicate_expr,
+                            n_rows=n_rows,
+                        ),
+                    }
+                )
+
+                if compatible:
+                    _df = df
+                else:
+                    # If the pushdowns are not compatible with the ones we
+                    # loaded already, we just get the un-filtered LazyFrame and
+                    # call it a day. We do not attempt to propagate the current
+                    # pushdowns further as we will likely need the same event
+                    # with different pushdowns again later (we were wrong once
+                    # already), so it's probably best to re-parse once and for
+                    # all.
+                    _df = self._load_cache_raw_df(
+                        TraceEventChecker(event),
+                        _meta_is_raw=_meta_is_raw,
+                        pushdowns={},
+                    )[event]
+                    _df = _df.df
+                    assert isinstance(_df, pl.LazyFrame)
+
+                if predicate_expr is not None:
+                    _df = _df.filter(predicate_expr)
+
+                # This has to be applied after the predicate (both for
+                # correctness and to allow predicate pushdown to work)
+                if n_rows is not None:
+                    _df = _df.head(n_rows)
+
+                if with_columns is not None:
+                    _df = _df.select(with_columns)
+
+                return _df.collect_batches(chunk_size=batch_size)
+
+            return register_io_source(
+                make_df,
+                schema=df.collect_schema(),
+                is_pure=True,
+            )
+
+        def _wrap_pushdowns(event, pushdowns, df):
+            assert isinstance(df, _ParsedDataFrame)
+            assert isinstance(df.df, pl.LazyFrame)
+
+            return _ParsedDataFrame.from_df(
+                _polars_dispatch_pushdowns(
+                    event=event,
+                    pushdowns=pushdowns,
+                    df=df.df,
+                ),
+                **df.meta,
+            )
+
+        df_map.update({
+            _event: _wrap_pushdowns(
+                event=_event,
+                pushdowns=_pushdowns,
+                df=_df,
+            )
+            for _event, _pushdowns in pushdowns.items()
+            if (_df := df_map.get(_event)) is not None
+        })
+
         return df_map
 
     def _insert_events(self, df_map, pushdowns=None):
@@ -7469,8 +7595,7 @@ class _Trace(Loggable, _InternalTraceBase):
                     # since parsing cost is known to be high
                     ignore_cost=True,
                 )
-                df = _ParsedDataFrame.from_df(df)
-            return df
+            return _ParsedDataFrame.from_df(df)
 
         return {
             event: insert_event(event, df)
@@ -8184,7 +8309,7 @@ class Trace(
                     (
                         (k, v)
                         for spec in group
-                        for k, v in spec['pushdowns'].items()
+                        for k, v in spec['collect-pushdowns'].items()
                         if v is not None
                     ),
                     key=itemgetter(0)
@@ -8197,24 +8322,31 @@ class Trace(
                     for k, group in per_key.items()
                 }
 
-                merged = {}
-
                 if (n_rows := per_key.get('n-rows')):
-                    merged['n-rows'] = max(n_rows)
+                    merged_n_rows = max(n_rows)
+                else:
+                    merged_n_rows = None
 
                 if (columns := per_key.get('with-columns')):
-                    merged['with-columns'] = tuple(sorted(set(
+                    merged_with_columns = tuple(sorted(set(
                         itertools.chain.from_iterable(columns)
                     )))
+                else:
+                    merged_with_columns = None
 
                 if (predicates := per_key.get('predicate')):
-                    predicate = functools.reduce(
+                    merged_predicate = functools.reduce(
                         operator.or_,
                         predicates,
                     )
-                    merged['predicate'] = predicate.meta.serialize(format='json')
+                else:
+                    merged_predicate = None
 
-                return merged
+                return _make_pushdowns(
+                    with_columns=merged_with_columns,
+                    predicate=merged_predicate,
+                    n_rows=merged_n_rows,
+                )
 
             pushdowns = {
                 event: merge_pushdowns(group)
@@ -8222,7 +8354,7 @@ class Trace(
                     (
                         item['data']
                         for item in log
-                        if item['type'] == 'df-event-pushdown'
+                        if item['type'] == 'df-collect-with-pushdowns'
                     ),
                     key=itemgetter('event'),
                 )
@@ -8236,25 +8368,43 @@ class Trace(
 
             assert set(events) >= set(pushdowns.keys())
 
-            def prepare(trace):
-                # FIXME: If the processing is not actually the same (or
-                # data-dependent), the pushdowns may not be correct. To fix
-                # that, we need an indirection layer in as an I/O plugin that
-                # checks the pushdowns that we actually get are the same as the
-                # ones we expected.
+            disable_pushdowns = set()
 
-                # FIXME: remove that once the above issue is fixed
-                pushdowns = None
-
-                trace = trace.get_view(_pushdowns=pushdowns)
+            def run(trace, f):
+                trace = trace.get_view(
+                    _pushdowns={
+                        _event: _pushdowns
+                        for _event, _pushdowns in pushdowns.items()
+                        if _event not in disable_pushdowns
+                    }
+                )
                 trace._preload_raw_events(events)
-                return trace
+
+                with trace._with_activity_log() as log:
+                    try:
+                        return f(trace)
+                    finally:
+                        # If at any point we find an event for which the parser
+                        # pushdowns were not compatible with the collect
+                        # pushdowns, we disable pushdowns for that event for
+                        # the traces that havent been processed yet, as there
+                        # is a very high risk the collect pushdown would also
+                        # not be compatible with the ones recorded while the
+                        # processing first trace.
+                        disable_pushdowns.update(
+                            item['data']['event']
+                            for item in log
+                            if (
+                                item['type'] == 'df-collect-with-pushdowns'
+                                and not item['data']['compatible']
+                            )
+                        )
 
             cls.get_logger().debug(f'map_traces() detected pushdowns: {pushdowns}')
             return itertools.chain(
                 [first_res],
                 (
-                    f(prepare(trace))
+                    run(trace, f)
                     for trace in others
                 )
             )

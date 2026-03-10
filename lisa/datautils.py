@@ -2752,73 +2752,6 @@ def df_find_redundant_cols(df, col, cols=None):
     }
 
 
-
-# TODO: Review if we should use LazyFrame.collect_batches() directly once these
-# issues are fixed:
-# https://github.com/pola-rs/polars/issues/25754
-# https://github.com/pola-rs/polars/issues/25745
-def _polars_collect_batches(df, **kwargs):
-    # We use queue.Queue.shutdown() which is only available starting from
-    # Python 3.13
-    assert sys.version_info >= (3, 13)
-
-    q = queue.Queue(maxsize=1)
-
-    def task(owner):
-        def callback(df):
-            try:
-                q.put(df)
-            except queue.ShutDown:
-                return True
-            else:
-                return False
-
-        df.sink_batches(
-            callback,
-            **kwargs,
-        )
-        q.shutdown()
-
-    def generator():
-        try:
-            while True:
-                try:
-                    df = q.get()
-                except queue.ShutDown:
-                    break
-                else:
-                    yield df
-        finally:
-            q.shutdown()
-            thread.join()
-
-    def weakref_cb(_):
-        try:
-            # If the generator is garbage collected, we want the thread to
-            # immediately shutdown and free its resources.
-            q.shutdown()
-        # The environment could be half torn-down already, so we ignore any
-        # exception.
-        except Exception:
-            pass
-
-    owner = generator()
-
-    # We don't have an absolute guarantee weakref_cb() will be called, but
-    # the thread is daemon so the interpreter will not hang forever if the
-    # q.put() operation blocks.
-    ref = weakref.ref(owner, weakref_cb)
-
-    thread = threading.Thread(
-        target=task,
-        args=(ref,),
-        daemon=True,
-    )
-    thread.start()
-
-    return owner
-
-
 def _polars_record_pushdowns(df, callback):
     lock = threading.Lock()
 
@@ -2846,20 +2779,13 @@ def _polars_record_pushdowns(df, callback):
         if with_columns is not None:
             _df = _df.select(with_columns)
 
-        return _polars_collect_batches(_df, chunk_size=batch_size)
+        return _df.collect_batches(chunk_size=batch_size)
 
-    # TODO: remove that alternate path when either:
-    # 1. LazyFrame.collect_batches() is fixed
-    # 2. Or we find a better implementation of _polars_collect_batches() that
-    #    does not need 3.13
-    if sys.version_info < (3, 13):
-        return df
-    else:
-        return register_io_source(
-            make_df,
-            schema=df.collect_schema(),
-            is_pure=True,
-        )
+    return register_io_source(
+        make_df,
+        schema=df.collect_schema(),
+        is_pure=True,
+    )
 
 
 # FIXME: write unit tests as serialize(format='json') is unstable
@@ -2960,6 +2886,54 @@ def _polars_parse_predicate(expr, schema, binop, unaryop, column, literal):
                 raise ValueError(f'Expression not handled: {lit}')
 
     return parse(expr)
+
+
+# FIXME: remove if unused. It may be useful to write unit tests.
+def _polars_predicate_to_ir(expr, schema):
+
+    def binop(left, op, right):
+        return {
+            'type': 'binop',
+            'data': {
+                'left': left,
+                'op': op,
+                'right': right,
+            }
+        }
+
+    def unaryop(op, expr):
+        return {
+            'type': 'unaryop',
+            'data': {
+                'op': op,
+                'expr': expr,
+            }
+        }
+
+    def column(col):
+        return {
+            'type': 'column',
+            'data': {
+                'column': col,
+            }
+        }
+
+    def literal(lit):
+        return {
+            'type': 'literal',
+            'data': {
+                'literal': lit,
+            }
+        }
+
+    return _polars_parse_predicate(
+        expr=expr,
+        schema=schema,
+        binop=binop,
+        unaryop=unaryop,
+        column=column,
+        literal=literal
+    )
 
 
 def _polars_iter_to_lazyframe(make_iter, schema):

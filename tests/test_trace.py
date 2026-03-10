@@ -42,7 +42,7 @@ from lisa.platforms.platinfo import PlatformInfo
 from .utils import StorageTestCase, ASSET_DIR
 
 
-class TraceTestCase(StorageTestCase):
+class TraceTestCaseBase(StorageTestCase):
     traces_dir = Path(ASSET_DIR)
 
     def _wrap_trace(self, trace):
@@ -81,9 +81,11 @@ class TraceTestCase(StorageTestCase):
         """
         Get a trace from a separate provided trace file
         """
+        path = self.traces_dir / trace_name
+        path, = path.glob('trace.*')
         return self._wrap_trace(
             Trace(
-                self.traces_dir / trace_name / 'trace.dat',
+                path,
                 plat_info=self._get_plat_info(trace_name),
                 **kwargs,
             )
@@ -102,7 +104,13 @@ class TraceTestCase(StorageTestCase):
 
     def _get_plat_info(self, trace_name):
         path = self.traces_dir / trace_name / 'plat_info.yml'
-        return PlatformInfo.from_yaml_map(path)
+        try:
+            return PlatformInfo.from_yaml_map(path)
+        except FileNotFoundError:
+            return PlatformInfo()
+
+
+class TraceTestCase(TraceTestCaseBase):
 
     def test_parse_all(self):
         trace = self.trace
@@ -1097,5 +1105,115 @@ class TestTraceCache(TraceTestCase):
                     for key in m1.keys():
                         self._assert_metadata(log2, key, ['hot'])
 
+
+class TestMapTraces(TraceTestCaseBase):
+    def test_map_traces(self):
+        def check(f, expected_pushdowns):
+            with contextlib.ExitStack() as trace_stack:
+
+                @contextlib.contextmanager
+                def make_trace():
+                    with self.get_trace_fresh_swap('doc') as make_trace:
+                        yield make_trace(df_fmt='polars-lazyframe')
+
+                traces = [
+                    trace_stack.enter_context(
+                        make_trace()
+                    )
+                    for _ in range(5)
+                ]
+
+                collect_pushdowns = TraceLogPredicatePattern(
+                    lambda entry: (
+                        entry['type'] == 'df-collect-with-pushdowns'
+                        and entry['data']['compatible']
+                        and all(
+                            entry['data']['collect-pushdowns'][key] == value
+                            for key, value in expected_pushdowns.items()
+                        )
+                    ),
+                )
+
+                parser_pushdowns = TraceLogPredicatePattern(
+                    lambda entry: (
+                        entry['type'] == 'df-collect-with-pushdowns'
+                        and entry['data']['compatible']
+                        and all(
+                            entry['data']['parser-pushdowns'][key] == value
+                            for key, value in expected_pushdowns.items()
+                        )
+                    ),
+                )
+
+                with contextlib.ExitStack() as log_stack:
+                    logs = [
+                        log_stack.enter_context(
+                            trace._with_activity_log()
+                        )
+                        for trace in traces
+                    ]
+
+                    collected = pl.collect_all(
+                        df.lazy()
+                        for df in Trace.map_traces(f, traces)
+                    )
+
+                    # The first LazyFrame was not parsed with pushdowns as it was
+                    # the instrumented one.
+                    for log in logs[1:]:
+                        parser_pushdowns.assert_log(log)
+
+                    for log in logs:
+                        collect_pushdowns.assert_log(log)
+
+                    for df in collected:
+                        if (with_columns := expected_pushdowns.get('with-columns')):
+                            assert list(df.columns) == list(with_columns)
+
+                        if (n_rows := expected_pushdowns.get('n-rows')) is not None:
+                            assert len(df) == n_rows
+
+
+        def f1(trace):
+            df = trace.df_event('sched_switch')
+            df = df.head(2)
+            df = df.select(('prev_comm', 'prev_pid'))
+            df = df.filter(
+                pl.col('prev_pid') == 0
+            )
+            return df
+
+        check(
+            f=f1,
+            expected_pushdowns={
+                'n-rows': 2,
+                'with-columns': ('prev_comm', 'prev_pid'),
+            }
+        )
+
+
+        def f2(trace):
+            df = f1(trace)
+            return df.collect()
+
+        check(
+            f=f2,
+            expected_pushdowns={
+                'n-rows': 2,
+                'with-columns': ('prev_comm', 'prev_pid'),
+            }
+        )
+
+
+        def f3(trace):
+            return f2(trace).lazy()
+
+        check(
+            f=f3,
+            expected_pushdowns={
+                'n-rows': 2,
+                'with-columns': ('prev_comm', 'prev_pid'),
+            }
+        )
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
