@@ -543,7 +543,7 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
             attr: repr(val)
             for attr, val in sorted(self.__dict__['_kwargs'].items())
         }
-        id_ = _json_checksum(id_, method='md5')
+        id_ = _json_checksum(id_, method='sha256')
         return f'{cls.__module__}.{cls.__qualname__}-{id_}'
 
     def get_metadata(self, key):
@@ -3733,7 +3733,7 @@ class _InternalTraceBase(abc.ABC):
         """
         return _json_checksum(
             self._trace_state,
-            method='md5',
+            method='sha256',
         )
 
     @property
@@ -5056,7 +5056,7 @@ class _EventCacheDataDesc(_CacheDataDesc):
                 'event': event,
                 'pushdowns': dict(pushdowns),
             },
-            method='md5',
+            method='sha256',
         )
 
         super().__init__(
@@ -5085,7 +5085,7 @@ class _AnalysisCacheDataDesc(_CacheDataDesc):
                 'func_qualname': func.__qualname__,
                 'kwargs': self._coerce_kwargs(kwargs),
             },
-            method='md5',
+            method='sha256',
         )
 
         super().__init__(
@@ -5163,7 +5163,7 @@ class _CacheDataSwapEntry:
             'polars': pl.__version__,
             'pyarrow': pyarrow.__version__,
         },
-        method='md5',
+        method='sha256',
     )
 
     def __init__(self, cache_desc, uuid, data_size, version=None):
@@ -7322,8 +7322,8 @@ class _Trace(Loggable, _InternalTraceBase):
         except MissingMetadataError:
             if (path := self.trace_path):
                 with open(path, 'rb') as f:
-                    md5 = checksum(f, 'md5')
-                id_ = f'md5sum-{md5}'
+                    sha256 = checksum(f, 'sha256')
+                id_ = f'sha256sum-{sha256}'
             else:
                 id_ = '<unknown>'
 
