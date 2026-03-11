@@ -3933,8 +3933,9 @@ class _InternalTraceBase(abc.ABC):
         events = events.get_all_events()
         self._preload_raw_events(events)
 
-    def _preload_raw_events(self, events, **kwargs):
-        return self.base_trace._preload_raw_events(events, **kwargs)
+    @abc.abstractmethod
+    def _preload_raw_events(self, *args, **kwargs):
+        pass
 
     def _is_event_delayed(self, event):
         return (
@@ -4330,6 +4331,9 @@ class _TraceViewBase(
 
     def _internal_df_event(self, *args, **kwargs):
         return self.base_trace._internal_df_event(*args, **kwargs)
+
+    def _preload_raw_events(self, *args, **kwargs):
+        return self.base_trace._preload_raw_events(*args, **kwargs)
 
     @property
     def basetime(self):
@@ -7635,7 +7639,7 @@ class _Trace(Loggable, _InternalTraceBase):
 
 class Trace(
     DelegateToAttr(
-        '_Trace__view',
+        'base_trace',
         [_InternalTraceBase],
     ),
     TraceBase,
@@ -7765,15 +7769,15 @@ class Trace(
     """
 
     def _init(self, view, df_fmt):
-        self.__view = view
+        self.base_trace = view
         self._df_fmt = df_fmt or 'pandas'
 
     def __enter__(self):
-        self.__view.__enter__()
+        self.base_trace.__enter__()
         return self
 
     def __exit__(self, *args):
-        return self.__view.__exit__(*args)
+        return self.base_trace.__exit__(*args)
 
     def __init__(self, *args, df_fmt=None, **kwargs):
         view = self._view_from_user_kwargs(
@@ -7878,7 +7882,7 @@ class Trace(
     def get_view(self, window=None, *, df_fmt=None, **kwargs):
         kwargs['window'] = window
         df_fmt = df_fmt or self._df_fmt
-        view = self.__view.get_view(
+        view = self.base_trace.get_view(
             df_fmt=df_fmt,
             **kwargs,
         )
@@ -7894,7 +7898,7 @@ class Trace(
     @property
     def _trace_state(self):
         return (
-            self.__view._trace_state,
+            self.base_trace._trace_state,
             self._df_fmt,
         )
 
@@ -7902,7 +7906,7 @@ class Trace(
         df_fmt = df_fmt or self._df_fmt
 
         def get_non_delayed(trace):
-            df, meta = self.__view._internal_df_event(
+            df, meta = self.base_trace._internal_df_event(
                 event,
                 # Provide the information to the stack so that we can apply the
                 # legacy signals in _WindowTraceView for pandas format
@@ -7924,7 +7928,7 @@ class Trace(
 
             # Preload using the low-leve function that uses non-namespaced
             # event names.
-            self.__view._preload_raw_events(events, force=True)
+            self.base_trace._preload_raw_events(events, force=True)
             return get_non_delayed(self)
 
         delayed = (
@@ -8191,26 +8195,29 @@ class Trace(
         return _Trace.get_event_sources(*args, **kwargs)
 
     def _internal_df_event(self, *args, **kwargs):
-        return self.__view._internal_df_event(*args, **kwargs)
+        return self.base_trace._internal_df_event(*args, **kwargs)
 
     def _expand_events(self, *args, **kwargs):
-        return self.__view._expand_events(*args, **kwargs)
+        return self.base_trace._expand_events(*args, **kwargs)
+
+    def _preload_raw_events(self, *args, **kwargs):
+        return self.base_trace._preload_raw_events(*args, **kwargs)
 
     @property
     def basetime(self):
-        return self.__view.basetime
+        return self.base_trace.basetime
 
     @property
     def endtime(self):
-        return self.__view.endtime
+        return self.base_trace.endtime
 
     @property
     def start(self):
-        return self.__view.start
+        return self.base_trace.start
 
     @property
     def end(self):
-        return self.__view.end
+        return self.base_trace.end
 
 
 class _TraceProxy(
