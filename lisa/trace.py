@@ -894,10 +894,19 @@ class _PerfettoTraceProcessorWrapper(Loggable):
         self._executor = executor
         return self
 
+    def _close_tps(self, tps):
+        tps = set(tps)
+        self._tp = {
+            _key: _tp
+            for _key, _tp in self._tp.items()
+            if _tp not in tps
+        }
+
+        for tp in tps:
+            tp.close()
+
     def _cleanup(self):
-        tp = self._tp
-        self._tp = {}
-        del tp
+        self._close_tps(self._tp.values())
 
     def __exit__(self, *args, **kwargs):
         executor = self._executor
@@ -937,8 +946,17 @@ class _PerfettoTraceProcessorWrapper(Loggable):
             try:
                 tp, *_ = ok
             except ValueError as e:
-                from perfetto.trace_processor import TraceProcessor, TraceProcessorConfig
+                self._close_tps(
+                    _tp
+                    for _key, _tp in self._tp.items()
+                    # If one were to request a given key and the TraceProcessor
+                    # we are about to make would satisfy that query, it means
+                    # the one we are about to make is more generic and we can
+                    # just close the other one to free some memory.
+                    if compat_key(_key, key)
+                )
 
+                from perfetto.trace_processor import TraceProcessor, TraceProcessorConfig
                 config = TraceProcessorConfig(
                     # Without that, perfetto will disallow querying for most events in
                     # the ftrace_event table
@@ -951,14 +969,6 @@ class _PerfettoTraceProcessorWrapper(Loggable):
                         config=config,
                     )
                 logger.debug(f'Loaded Perfetto trace in trace_processor in {m.delta:.2f}s')
-
-                # Purge existing TraceProcessor instances that overlap with the
-                # one we just made to free memory.
-                self._tp = {
-                    _key: _tp
-                    for _key, _tp in self._tp.items()
-                    if not compat_key(key, _key)
-                }
                 self._tp[key] = tp
 
             return tp
