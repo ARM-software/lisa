@@ -2983,6 +2983,26 @@ def _polars_iter_to_lazyframe(make_iter, schema):
     )
 
 
+def _polars_json_serialize(df):
+    # TODO: revisit based on the outcome of:
+    # https://github.com/pola-rs/polars/issues/18284
+    with warnings.catch_warnings():
+        warnings.simplefilter(action='ignore')
+        plan = df.serialize(format='json')
+    return json.loads(plan)
+
+
+def _polars_json_deserialize(plan):
+    plan = json.dumps(plan)
+    plan = io.StringIO(plan)
+
+    # TODO: revisit based on the outcome of:
+    # https://github.com/pola-rs/polars/issues/18284
+    with warnings.catch_warnings():
+        warnings.simplefilter(action='ignore')
+        return pl.LazyFrame.deserialize(plan, format='json')
+
+
 # Defined outside SignalDesc as it references SignalDesc itself
 _SIGNALS = [
     SignalDesc('sched_switch', ['next_comm', 'next_pid']),

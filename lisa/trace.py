@@ -74,7 +74,7 @@ import devlib
 
 from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, set_nested_key, unzip_into, order_as, DirCache, DelegateToAttr, _EXTRA_ASSERTS, FrozenDict, get_subclasses, checksum
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
-from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df, _polars_fast_collect, _polars_fast_collect_all, _df_in_memory, _polars_declare_in_memory, _polars_record_pushdowns, _polars_parse_predicate, _polars_iter_to_lazyframe
+from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df, _polars_fast_collect, _polars_fast_collect_all, _df_in_memory, _polars_declare_in_memory, _polars_record_pushdowns, _polars_parse_predicate, _polars_iter_to_lazyframe, _polars_json_serialize, _polars_json_deserialize
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString
 from lisa._kmod import LISADynamicKmod
@@ -212,26 +212,6 @@ class _LazyFrameOnDelete(_Deallocator):
         # that we don't accidentally end up with 2 objects owning the same set
         # of paths.
         return (_make_identity, tuple())
-
-
-def _df_json_serialize(df):
-    # TODO: revisit based on the outcome of:
-    # https://github.com/pola-rs/polars/issues/18284
-    with warnings.catch_warnings():
-        warnings.simplefilter(action='ignore')
-        plan = df.serialize(format='json')
-    return json.loads(plan)
-
-
-def _df_json_deserialize(plan):
-    plan = json.dumps(plan)
-    plan = io.StringIO(plan)
-
-    # TODO: revisit based on the outcome of:
-    # https://github.com/pola-rs/polars/issues/18284
-    with warnings.catch_warnings():
-        warnings.simplefilter(action='ignore')
-        return pl.LazyFrame.deserialize(plan, format='json')
 
 
 def _df_hardlink_data(df, swap_dir, src_base=None):
@@ -413,9 +393,9 @@ def _lazyframe_rewrite(df, update_plan):
     # TODO: once this is solved, we can just inspect the plan rather than
     # serialize()/deserialize() in JSON
     # https://github.com/pola-rs/polars/issues/9771
-    plan = _df_json_serialize(df)
+    plan = _polars_json_serialize(df)
     plan = update_plan(plan)
-    df = _df_json_deserialize(plan)
+    df = _polars_json_deserialize(plan)
     return df
 
 
@@ -5809,7 +5789,7 @@ class _TraceCache(Loggable):
                 # they were in the swap_dir (i.e. if they had been stolen from
                 # the parser).
                 plan = move_to_swap_entry(plan)
-                data = _df_json_deserialize(plan)
+                data = _polars_json_deserialize(plan)
 
                 # Replace the absolute paths by a placeholder so the swap dir
                 # can be moved around when LISA is not running.
@@ -5827,7 +5807,7 @@ class _TraceCache(Loggable):
                 return to_parquet(data)
             else:
                 try:
-                    plan = _df_json_serialize(data)
+                    plan = _polars_json_serialize(data)
                 # We failed to serialize the logical plan. This could happen
                 # because it contains references to UDF (e.g. a lambda passed
                 # to Expr.map_elements())
@@ -5904,7 +5884,7 @@ class _TraceCache(Loggable):
                     src_base=Path('/LISA_SWAP_ENTRY'),
                     dst_base=path,
                 )
-                data = _df_json_deserialize(plan)
+                data = _polars_json_deserialize(plan)
                 data = _df_hardlink_data(
                     data,
                     swap_dir=swap_dir,
