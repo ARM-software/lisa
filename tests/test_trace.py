@@ -35,9 +35,9 @@ from polars.testing import assert_frame_equal
 
 from devlib.target import KernelVersion
 
-from lisa.trace import Trace, TraceBase, TxtTraceParser, MockTraceParser, _TraceProxy, MissingTraceEventError, TraceParserBase, MissingMetadataError, _json_checksum
+from lisa.trace import Trace, TraceBase, TxtTraceParser, MockTraceParser, _TraceProxy, MissingTraceEventError, TraceParserBase, MissingMetadataError, _json_checksum, _ScanPushdowns
 from lisa.analysis.tasks import TaskID
-from lisa.datautils import df_squash, Timestamp
+from lisa.datautils import df_squash, Timestamp, _polars_parse_predicate
 from lisa.platforms.platinfo import PlatformInfo
 from .utils import StorageTestCase, ASSET_DIR
 
@@ -695,6 +695,49 @@ class TraceLogCursor:
         self.pos = pos
         self.log = log
 
+    @classmethod
+    def from_log(cls, log):
+        return cls(
+            log=iter(log),
+            pos=0,
+        )
+
+    def consume(self):
+        for i, entry in enumerate(self.log):
+            cursor = self.__class__(
+                pos=self.pos + i + 1,
+                log=self.log,
+            )
+            yield (cursor, entry)
+
+    def tee(self, n=2):
+        pos = self.pos
+        logs = itertools.tee(self.log, n)
+        return (
+            self.__class__(
+                log=log,
+                pos=pos,
+            )
+            for log in logs
+        )
+
+    def max_entries(self, n):
+        return self.__class__(
+            log=itertools.islice(self.log, n),
+            pos=self.pos,
+        )
+
+class TraceLogMatch:
+    def __init__(self, cursor, width):
+        self.width = width
+        self.cursor = cursor
+
+    @property
+    def span(self):
+        width = self.width
+        pos = self.cursor.pos
+        return (pos - width, pos)
+
 
 class NotMatchedError(Exception):
     def __init__(self, cursor, msg):
@@ -707,10 +750,7 @@ class NotMatchedError(Exception):
 
 class TraceLogPattern(abc.ABC):
     def assert_log(self, log):
-        cursor = TraceLogCursor(
-            log=iter(log),
-            pos=0,
-        )
+        cursor = TraceLogCursor.from_log(log)
         self._match(cursor)
 
     def __invert__(self):
@@ -718,7 +758,10 @@ class TraceLogPattern(abc.ABC):
 
     @abc.abstractmethod
     def _match(self, cursor):
-        return cursor
+        return TraceLogMatch(
+            cursor=cursor,
+            width=0,
+        )
 
 
 class TraceLogNotPattern(TraceLogPattern):
@@ -727,13 +770,17 @@ class TraceLogNotPattern(TraceLogPattern):
 
     def _match(self, cursor):
         pattern = self._pattern
+        cursor, cursor_bak = cursor.tee()
         try:
-            cursor = pattern._match(cursor)
+            pattern._match(cursor)
         except NotMatchedError as e:
-            return e.cursor
+            return TraceLogMatch(
+                cursor=cursor_bak,
+                width=0,
+            )
         else:
             raise NotMatchedError(
-                cursor,
+                cursor_bak,
                 f'Could not match pattern: {self}',
             )
 
@@ -746,19 +793,15 @@ class TraceLogPredicatePattern(TraceLogPattern):
         self._f = f
 
     def _match(self, cursor):
-        f = self._f
-        log = cursor.log
-        _cursor = cursor
-        for i, entry in enumerate(log):
-            _cursor = TraceLogCursor(
-                pos=cursor.pos + i + 1,
-                log=log,
-            )
-            if f(entry):
-                return _cursor
+        for cursor, entry in cursor.consume():
+            if self._f(entry):
+                return TraceLogMatch(
+                    cursor=cursor,
+                    width=1,
+                )
 
         raise NotMatchedError(
-            _cursor,
+            cursor,
             f'Could not match: {self}',
         )
 
@@ -773,20 +816,61 @@ class TraceLogLookbehindPattern(TraceLogPattern):
 
     def _match(self, cursor):
         saved_pos = cursor.pos
-        saved_log, = itertools.tee(cursor.log, 1)
+        cursor1, cursor2 = cursor.tee()
 
-        cursor = self._pattern._match(cursor)
+        match1 = self._pattern._match(cursor1)
+        consumed = match1.cursor.pos - saved_pos
 
-        cursor2 = TraceLogCursor(
-            log=itertools.islice(saved_log, cursor.pos - saved_pos),
-            pos=saved_pos,
-        )
-
+        cursor2 = cursor2.max_entries(max(0, consumed - match1.width))
         self._behind._match(cursor2)
-        return cursor
+
+        return match1
 
     def __str__(self):
         return f'(?<{self._behind})({self._pattern})'
+
+
+class TraceLogLookaheadPattern(TraceLogPattern):
+    def __init__(self, pattern, ahead):
+        self._ahead = ahead
+        self._pattern = pattern
+
+    def _match(self, cursor):
+        match1 = self._pattern._match(cursor)
+        cursor1, cursor2 = match1.cursor.tee()
+
+        try:
+            self._ahead._match(cursor2)
+        except NotMatchedError as e:
+            raise NotMatchedError(
+                cursor1,
+                e.msg,
+            )
+        else:
+            return TraceLogMatch(
+                cursor=cursor1,
+                width=match1.width,
+            )
+
+    def __str__(self):
+        return f'({self._pattern})(?={self._ahead})'
+
+
+class TraceLogLookaroundPattern(TraceLogPattern):
+    def __init__(self, behind, pattern, ahead):
+        self._pattern = TraceLogLookaheadPattern(
+            pattern=TraceLogLookbehindPattern(
+                behind=behind,
+                pattern=pattern,
+            ),
+            ahead=ahead,
+        )
+
+    def _match(self, cursor):
+        return self._pattern._match(cursor)
+
+    def __str__(self):
+        return str(self._pattern)
 
 
 class TraceLogSeqPattern(TraceLogPattern):
@@ -794,9 +878,17 @@ class TraceLogSeqPattern(TraceLogPattern):
         self._patterns = list(patterns)
 
     def _match(self, cursor):
-        for pattern in self._patterns:
-            cursor = pattern._match(cursor)
-        return cursor
+        start = cursor.pos
+        for i, pattern in enumerate(self._patterns):
+            match = pattern._match(cursor)
+            cursor = match.cursor
+            if i == 0:
+                start, _ = match.span
+
+        return TraceLogMatch(
+            cursor=cursor,
+            width=cursor.pos - start,
+        )
 
     def __str__(self):
         return ''.join(
@@ -826,6 +918,12 @@ class TestTraceCache(TraceTestCase):
 
     def _assert_data(self, log, key, typ, seq):
 
+        def event_parsed(event):
+            return TraceLogPredicatePattern(lambda entry: (
+                entry['type'] == 'spinup-parser'
+                and event in entry['data']['events']
+            ))
+
         def event_cold(event):
             return TraceLogSeqPattern([
                 TraceLogPredicatePattern(lambda entry: (
@@ -839,17 +937,18 @@ class TestTraceCache(TraceTestCase):
             ])
 
         def event_hot(event):
-            return TraceLogLookbehindPattern(
-                # We should not spin up the parser for the 2nd df_event()
-                # call, as we expect it to be available in the cache.
-                behind=~TraceLogPredicatePattern(lambda entry: (
-                    entry['type'] == 'spinup-parser'
-                    and event in entry['data']['events']
-                )),
+            return TraceLogLookaroundPattern(
+                # We should not spin up the parser for a df_event() call before
+                # the df-event log, if it is expected to be available in the
+                # cache.
+                behind=~event_parsed(event),
                 pattern=TraceLogPredicatePattern(lambda entry: (
                     entry['type'] == 'df-event'
                     and entry['data']['event'] == event
                 )),
+                # We also do not expect it _after_ the call, which could happen
+                # with cold delayed events.
+                ahead=~event_parsed(event),
             )
 
         def metadata_cold(key):
@@ -884,10 +983,14 @@ class TestTraceCache(TraceTestCase):
                     return event_hot(key)
                 case ('event', 'cold'):
                     return event_cold(key)
+                case ('event', 'parsed'):
+                    return event_parsed(key)
                 case ('event', '~hot'):
                     return ~event_hot(key)
                 case ('event', '~cold'):
                     return ~event_cold(key)
+                case ('event', '~parsed'):
+                    return ~event_parsed(key)
                 case ('metadata', 'hot'):
                     return metadata_hot(key)
                 case ('metadata', 'cold'):
@@ -929,6 +1032,158 @@ class TestTraceCache(TraceTestCase):
 
                 self._assert_event(log1, event1, ['~cold'])
                 self._assert_event(log1, event1, ['hot'])
+
+    def test_pushdowns(self):
+        def make_predicate_pushdowns(predicate):
+            return _ScanPushdowns(
+                schema={
+                    'prev_pid': pl.Int32,
+                },
+                predicate=predicate,
+            )
+
+        def make_column_pushdowns(columns):
+            return _ScanPushdowns(
+                schema={
+                    'prev_pid': pl.Int32,
+                    'prev_comm': pl.Categorical,
+                },
+                columns=columns,
+            )
+
+        @contextlib.contextmanager
+        def make_trace():
+            with self.get_trace_fresh_swap('doc') as make_trace:
+                yield make_trace(df_fmt='polars-lazyframe')
+
+        def check(f):
+            i = 0
+            def _f(trace):
+                nonlocal i
+                try:
+                    return f(i, trace)
+                finally:
+                    i += 1
+
+            with contextlib.ExitStack() as trace_stack:
+                traces = [
+                    trace_stack.enter_context(
+                        make_trace()
+                    )
+                    for _ in range(3)
+                ]
+
+                dfs = Trace.map_traces(_f, traces)
+                pl.collect_all(dfs)
+
+        def f_predicate(i, trace, *, predicate1, predicate2):
+            assert make_predicate_pushdowns(predicate1).subsumes(
+                make_predicate_pushdowns(predicate2)
+            )
+
+            df = trace.df_event('sched_switch')
+
+            if i == 0:
+                df = df.filter(predicate1)
+            else:
+                # We collect the dataframe, with the predicate that we
+                # expected from the processing of the first trace. This
+                # should spinup the parser with that predicate pushdown and
+                # parse it.
+                df.filter(predicate1).collect()
+
+                # We then get a new dataframe and filter it with a
+                # different predicate. Since predicate1 subsumes predicate2
+                # (all the rows selected by predicate2 are also selected by
+                # predicate1, plus more), we should be able to re-use the
+                # cache entry.
+                with trace._with_activity_log() as log:
+                    df = trace.df_event('sched_switch')
+                    df = df.filter(predicate2)
+                    df = df.collect()
+                    # Check that the event we have a cache hit straight away,
+                    # coming from the re-use of the previously parsed dataframe
+                    # with a different predicate that subsumes this one.
+                    self._assert_event(log, 'sched_switch', ['hot'])
+                    df = df.lazy()
+
+            return df
+
+        def f_columns(i, trace, *, cols1, cols2):
+            assert make_column_pushdowns(cols1).subsumes(
+                make_column_pushdowns(cols2)
+            )
+
+            df = trace.df_event('sched_switch')
+
+            if i == 0:
+                df = df.select(cols1)
+            else:
+                df.select(cols1).collect()
+
+                with trace._with_activity_log() as log:
+                    df = trace.df_event('sched_switch')
+                    df = df.select(cols2)
+                    df = df.collect()
+                    # Check that the event we have a cache hit straight away,
+                    # coming from the re-use of the previously parsed dataframe
+                    # with a different predicate that subsumes this one.
+                    self._assert_event(log, 'sched_switch', ['hot'])
+                    df = df.lazy()
+
+            return df
+
+
+        def f_columns_non_subsume(i, trace, *, cols1, cols2):
+            assert not make_column_pushdowns(cols1).subsumes(
+                make_column_pushdowns(cols2)
+            )
+
+            if i == 0:
+                return trace.df_event('sched_switch')
+            else:
+                with trace._with_activity_log() as log:
+                    df = trace.df_event('sched_switch')
+                    df = df.select(cols2)
+                    df = df.collect()
+                    # Since cols2 is not a subset of cols1, we will trigger the
+                    # path that re-parses the trace because we asked for some
+                    # pushdowns that are incompatible with how the first trace
+                    # was processed.
+                    self._assert_event(log, 'sched_switch', ['cold'])
+                    return df.lazy()
+
+        check(
+            functools.partial(
+                f_predicate,
+                predicate1=pl.col('prev_pid') <= pl.lit(1, pl.Int32),
+                predicate2=pl.col('prev_pid') == pl.lit(1, pl.Int32),
+            )
+        )
+
+        check(
+            functools.partial(
+                f_predicate,
+                predicate1=pl.col('prev_pid') >= pl.lit(1, pl.Int32),
+                predicate2=pl.col('prev_pid') == pl.lit(1, pl.Int32),
+            )
+        )
+
+        check(
+            functools.partial(
+                f_columns,
+                cols1=['prev_pid', 'prev_comm'],
+                cols2=['prev_pid'],
+            )
+        )
+
+        check(
+            functools.partial(
+                f_columns_non_subsume,
+                cols1=['prev_pid', 'prev_comm'],
+                cols2=['next_pid'],
+            )
+        )
 
     def test_delayed_event(self):
         event1 = 'sched_switch'
@@ -1105,6 +1360,72 @@ class TestTraceCache(TraceTestCase):
                     for key in m1.keys():
                         self._assert_metadata(log2, key, ['hot'])
 
+    def _test_scrub(self, count_entries, clear_kwargs, shared_cache):
+        def collect_df(trace):
+            df = trace.df_event('sched_switch').collect()
+            # Sanity check on the dataframe, just to make sure we don't get
+            # something completely broken
+            assert len(df) == 1501
+            return df
+
+        with self.get_trace_fresh_swap('doc') as make_trace:
+            _make_trace = functools.partial(
+                make_trace,
+                df_fmt='polars-lazyframe'
+            )
+
+            trace1 = _make_trace()
+            collect_df(trace1)
+            count1 = count_entries(trace1)
+
+            trace2 = _make_trace(**clear_kwargs)
+            count2 = count_entries(trace2)
+            count1_2 = count_entries(trace1)
+
+            # There should be something in the cache
+            assert count1 > 0
+
+            # The cache should have been purged by **clear_kwargs, so less
+            # cache entries.
+            assert count2 <= count1
+
+            if shared_cache:
+                # The cache is shared in real time, so the new count on the old
+                # trace should be exactly the same
+                assert count1_2 == count2
+
+            # The cache should be now empty.
+            assert count2 == 0
+
+            # Make sure everything still works after purging caches
+            assert_frame_equal(
+                collect_df(trace1),
+                collect_df(trace2)
+            )
+
+    def test_scrub_swap(self):
+        def count_swap_entries(trace):
+            with trace._cache._swap_db_transaction('r') as trans:
+                return len(list(trans.load_all_swap_entries()))
+
+        return self._test_scrub(
+            count_entries=count_swap_entries,
+            clear_kwargs=dict(max_swap_size=0),
+            # The on-disk swap is shared dynamically between trace instances.
+            shared_cache=True,
+        )
+
+    def test_scrub_mem(self):
+        def count_cache_entries(trace):
+            return len(trace._cache._cache)
+
+        return self._test_scrub(
+            count_entries=count_cache_entries,
+            clear_kwargs=dict(max_mem_size=0),
+            # The in-memory cache is not shared dynamically between trace
+            # instances.
+            shared_cache=False,
+        )
 
 class TestMapTraces(TraceTestCaseBase):
     def test_map_traces(self):
@@ -1123,28 +1444,6 @@ class TestMapTraces(TraceTestCaseBase):
                     for _ in range(5)
                 ]
 
-                collect_pushdowns = TraceLogPredicatePattern(
-                    lambda entry: (
-                        entry['type'] == 'df-collect-with-pushdowns'
-                        and entry['data']['compatible']
-                        and all(
-                            entry['data']['collect-pushdowns'][key] == value
-                            for key, value in expected_pushdowns.items()
-                        )
-                    ),
-                )
-
-                parser_pushdowns = TraceLogPredicatePattern(
-                    lambda entry: (
-                        entry['type'] == 'df-collect-with-pushdowns'
-                        and entry['data']['compatible']
-                        and all(
-                            entry['data']['parser-pushdowns'][key] == value
-                            for key, value in expected_pushdowns.items()
-                        )
-                    ),
-                )
-
                 with contextlib.ExitStack() as log_stack:
                     logs = [
                         log_stack.enter_context(
@@ -1158,37 +1457,85 @@ class TestMapTraces(TraceTestCaseBase):
                         for df in Trace.map_traces(f, traces)
                     )
 
-                    # The first LazyFrame was not parsed with pushdowns as it was
-                    # the instrumented one.
-                    for log in logs[1:]:
-                        parser_pushdowns.assert_log(log)
+                    items = [
+                        {
+                            'trace': trace,
+                            'df': df,
+                            'log': list(log),
+                        }
+                        for trace, log, df in zip(
+                            traces,
+                            logs,
+                            collected,
+                        )
+                    ]
 
-                    for log in logs:
-                        collect_pushdowns.assert_log(log)
+                collect_pushdowns = lambda df: TraceLogPredicatePattern(
+                    lambda entry: (
+                        entry['type'] == 'df-collect-with-pushdowns'
+                        and entry['data']['parser-subsumes-collect']
+                        and entry['data']['collect-pushdowns'].subsumes(
+                            expected_pushdowns(df)
+                        )
+                    ),
+                )
 
-                    for df in collected:
-                        if (with_columns := expected_pushdowns.get('with-columns')):
-                            assert list(df.columns) == list(with_columns)
+                parser_pushdowns = lambda df: TraceLogPredicatePattern(
+                    lambda entry: (
+                        entry['type'] == 'df-collect-with-pushdowns'
+                        and entry['data']['parser-subsumes-collect']
+                        and entry['data']['parser-pushdowns'].subsumes(
+                            expected_pushdowns(df)
+                        )
+                    ),
+                )
 
-                        if (n_rows := expected_pushdowns.get('n-rows')) is not None:
-                            assert len(df) == n_rows
+                # The first LazyFrame was not parsed with pushdowns as it was
+                # the instrumented one.
+                for item in items[1:]:
+                    df = item['df']
+                    log = item['log']
+                    parser_pushdowns(df).assert_log(log)
 
+                for item in items:
+                    df = item['df']
+                    log = item['log']
+                    trace = item['trace']
+
+                    collect_pushdowns(df).assert_log(log)
+
+                    # Pushdowns should have been applied at the parser level
+                    # and in the higher layers of the Trace infrastructure, so
+                    # re-applying the same filtering should be a no-op.
+                    assert_frame_equal(
+                        df.lazy(),
+                        expected_pushdowns(df).apply(df),
+                    )
+
+                    # Check that we get the same result regardless of whether
+                    # we applied scan pushdowns or not.
+                    assert_frame_equal(
+                        df.lazy(),
+                        f(trace).lazy(),
+                    )
+
+        f1_pushdowns = lambda df: _ScanPushdowns(
+            schema=df.collect_schema(),
+            n_rows=2,
+            columns=('prev_comm', 'prev_pid'),
+            predicate=(
+                pl.col('prev_pid') == pl.lit(0, pl.Int32)
+            ),
+        )
 
         def f1(trace):
             df = trace.df_event('sched_switch')
-            df = df.head(2)
-            df = df.select(('prev_comm', 'prev_pid'))
-            df = df.filter(
-                pl.col('prev_pid') == 0
-            )
+            df = f1_pushdowns(df).apply(df)
             return df
 
         check(
             f=f1,
-            expected_pushdowns={
-                'n-rows': 2,
-                'with-columns': ('prev_comm', 'prev_pid'),
-            }
+            expected_pushdowns=f1_pushdowns,
         )
 
 
@@ -1198,10 +1545,7 @@ class TestMapTraces(TraceTestCaseBase):
 
         check(
             f=f2,
-            expected_pushdowns={
-                'n-rows': 2,
-                'with-columns': ('prev_comm', 'prev_pid'),
-            }
+            expected_pushdowns=f1_pushdowns,
         )
 
 
@@ -1210,10 +1554,520 @@ class TestMapTraces(TraceTestCaseBase):
 
         check(
             f=f3,
-            expected_pushdowns={
-                'n-rows': 2,
-                'with-columns': ('prev_comm', 'prev_pid'),
-            }
+            expected_pushdowns=f1_pushdowns,
+        )
+
+
+class TestScanPushdowns(TestCase):
+    def test_predicate_ir(self):
+        def to_ir(expr, schema):
+            def binop(left, op, right):
+                return {
+                    'type': 'binop',
+                    'data': {
+                        'left': left,
+                        'op': op,
+                        'right': right,
+                    }
+                }
+
+            def unaryop(op, expr):
+                return {
+                    'type': 'unaryop',
+                    'data': {
+                        'op': op,
+                        'expr': expr,
+                    }
+                }
+
+            def column(col):
+                return {
+                    'type': 'column',
+                    'data': col,
+                }
+
+            def literal(lit):
+                return {
+                    'type': 'literal',
+                    'data': lit,
+                }
+
+            return _polars_parse_predicate(
+                expr=expr,
+                schema=schema,
+                binop=binop,
+                unaryop=unaryop,
+                column=column,
+                literal=literal
+            )
+
+        def check(predicate, ir, schema):
+            _ir = to_ir(
+                expr=predicate,
+                schema=schema,
+            )
+            assert ir == _ir
+
+        check(
+            pl.lit(True),
+            {'type': 'literal', 'data': True},
+            schema={},
+        )
+
+        check(
+            pl.lit(False),
+            {'type': 'literal', 'data': False},
+            schema={},
+        )
+
+        check(
+            pl.lit(None),
+            {'type': 'literal', 'data': None},
+            schema={},
+        )
+
+        check(
+            pl.lit(None, pl.UInt8),
+            {'type': 'literal', 'data': None},
+            schema={},
+        )
+
+        check(
+            pl.lit(0),
+            {'type': 'literal', 'data': 0},
+            schema={},
+        )
+
+        check(
+            pl.lit(1),
+            {'type': 'literal', 'data': 1},
+            schema={},
+        )
+
+        check(
+            pl.lit(1.2),
+            {'type': 'literal', 'data': 1.2},
+            schema={},
+        )
+
+        with pytest.raises(ValueError):
+            check(
+                pl.lit(float('nan')),
+                {'type': 'literal', 'data': 42},
+                schema={},
+            )
+
+        with pytest.raises(ValueError):
+            check(
+                pl.lit(float('inf')),
+                {'type': 'literal', 'data': 42},
+                schema={},
+            )
+
+        check(
+            pl.lit("hello"),
+            {'type': 'literal', 'data': 'hello'},
+            schema={},
+        )
+
+        check(
+            pl.lit(b"hello"),
+            {'type': 'literal', 'data': b'hello'},
+            schema={},
+        )
+
+        check(
+            pl.col('a'),
+            {'type': 'column', 'data': 'a'},
+            schema={'a': pl.Int32},
+        )
+
+        check(
+            ~pl.col('a'),
+            {
+                'type': 'unaryop',
+                'data': {
+                    'op': '~',
+                    'expr': {'type': 'column', 'data': 'a'},
+                },
+            },
+            schema={'a': pl.Int32},
+        )
+
+        check(
+            ~pl.col('a'),
+            {
+                'type': 'unaryop',
+                'data': {
+                    'op': '!',
+                    'expr': {'type': 'column', 'data': 'a'},
+                },
+            },
+            schema={'a': pl.Boolean},
+        )
+
+        binops = [
+            (pl.col('a') == 1, '=='),
+            (pl.col('a') < 1, '<'),
+            (pl.col('a') | 1, '|'),
+        ]
+
+        for expr, op in binops:
+            check(
+                expr,
+                {
+                    'type': 'binop',
+                    'data': {
+                        'op': op,
+                        'left': {'type': 'column', 'data': 'a'},
+                        'right': {'type': 'literal', 'data': 1},
+                    }
+                },
+                schema={'a': pl.Int32},
+            )
+
+        check(
+            pl.col('a') <= 1,
+            {
+                'type': 'binop',
+                'data': {
+                    'op': '||',
+                    'left': {
+                        'type': 'binop',
+                        'data': {
+                            'left': {'type': 'column', 'data': 'a'},
+                            'right': {'type': 'literal', 'data': 1},
+                            'op': '==',
+                        }
+                    },
+                    'right': {
+                        'type': 'binop',
+                        'data': {
+                            'left': {'type': 'column', 'data': 'a'},
+                            'right': {'type': 'literal', 'data': 1},
+                            'op': '<',
+                        }
+                    },
+                }
+            },
+            schema={'a': pl.Int32},
+        )
+
+        check(
+            pl.col('a') > 1,
+            {
+                'type': 'unaryop',
+                'data': {
+                    'op': '!',
+                    'expr': {
+                        'type': 'binop',
+                        'data': {
+                            'op': '||',
+                            'left': {
+                                'type': 'binop',
+                                'data': {
+                                    'op': '==',
+                                    'left': {'type': 'column', 'data': 'a'},
+                                    'right': {'type': 'literal', 'data': 1},
+                                }
+                            },
+                            'right': {
+                                'type': 'binop',
+                                'data': {
+                                    'op': '<',
+                                    'left': {'type': 'column', 'data': 'a'},
+                                    'right': {'type': 'literal', 'data': 1},
+                                }
+                            },
+                        }
+                    },
+                }
+            },
+            schema={'a': pl.Int32},
+        )
+
+
+        check(
+            (pl.col('a') == 1) | (pl.col('b') == 1),
+            {
+                'type': 'binop',
+                'data': {
+                    'op': '||',
+                    'left': {
+                        'type': 'binop',
+                        'data': {
+                            'left': {'type': 'column', 'data': 'a'},
+                            'right': {'type': 'literal', 'data': 1},
+                            'op': '==',
+                        }
+                    },
+                    'right': {
+                        'type': 'binop',
+                        'data': {
+                            'left': {'type': 'column', 'data': 'b'},
+                            'right': {'type': 'literal', 'data': 1},
+                            'op': '==',
+                        }
+                    },
+                }
+            },
+            schema={
+                'a': pl.Int32,
+                'b': pl.Int32,
+            },
+        )
+
+        check(
+            pl.col('a') | pl.col('b'),
+            {
+                'type': 'binop',
+                'data': {
+                    'op': '|',
+                    'left': {'type': 'column', 'data': 'a'},
+                    'right': {'type': 'column', 'data': 'b'},
+                }
+            },
+            schema={
+                'a': pl.Int32,
+                'b': pl.Int32,
+            },
+        )
+
+    def test_predicate_subsumption(self):
+
+        def check(predicate1, predicate2, schema, check):
+            pushdowns1 = _ScanPushdowns(
+                predicate=predicate1,
+                schema=schema,
+            )
+
+            pushdowns2 = _ScanPushdowns(
+                predicate=predicate2,
+                schema=schema,
+            )
+
+            check(pushdowns1, pushdowns2)
+
+
+        def strict_subsumes(pushdowns1, pushdowns2):
+            assert pushdowns1.subsumes(pushdowns2)
+            assert not pushdowns2.subsumes(pushdowns1)
+
+        def neither_subsumes(pushdowns1, pushdowns2):
+            assert not pushdowns1.subsumes(pushdowns2)
+            assert not pushdowns2.subsumes(pushdowns1)
+
+        def both_subsumes(pushdowns1, pushdowns2):
+            assert pushdowns1.subsumes(pushdowns2)
+            assert pushdowns2.subsumes(pushdowns1)
+
+
+        check(
+            pl.lit(True),
+            pl.lit(True),
+            schema={},
+            check=both_subsumes,
+        )
+
+        check(
+            pl.lit(True),
+            pl.col('a'),
+            schema={'a': pl.Int32},
+            check=strict_subsumes,
+        )
+
+        check(
+            pl.lit(True),
+            pl.lit(False),
+            schema={},
+            check=strict_subsumes,
+        )
+
+        check(
+            pl.col('a') <= 1,
+            pl.col('a') == 1,
+            schema={'a': pl.Int32},
+            check=strict_subsumes,
+        )
+
+        check(
+            pl.col('a') >= 1,
+            pl.col('a') == 1,
+            schema={'a': pl.Int32},
+            check=strict_subsumes,
+        )
+
+        check(
+            (pl.col('a') == 1) | (pl.col('b') == 1),
+            pl.col('b') == 1,
+            schema={'a': pl.Int32, 'b': pl.Int32},
+            check=strict_subsumes,
+        )
+
+        check(
+            pl.col('a') >= 1,
+            pl.col('a') >= 1,
+            schema={'a': pl.Int32},
+            check=both_subsumes,
+        )
+
+        check(
+            pl.col('a') > 1,
+            pl.col('a') > 1,
+            schema={'a': pl.Int32},
+            check=both_subsumes,
+        )
+
+        check(
+            pl.col('a') >= 1,
+            pl.col('a') < 1,
+            schema={'a': pl.Int32},
+            check=neither_subsumes,
+        )
+
+        check(
+            pl.col('a') > 1,
+            pl.col('a') <= 1,
+            schema={'a': pl.Int32},
+            check=neither_subsumes,
+        )
+
+        check(
+            pl.col('a'),
+            pl.col('b'),
+            schema={'a': pl.Int32, 'b': pl.Int32},
+            check=neither_subsumes,
+        )
+
+        # De Morgan's laws
+        check(
+            ((pl.col('a') != 1) | (pl.col('b') != 1)),
+            ~((pl.col('a') == 1) & (pl.col('b') == 1)),
+            schema={'a': pl.Int32, 'b': pl.Int32},
+            check=both_subsumes,
+        )
+
+        # De Morgan's laws and "|" overload as boolean OR for Boolean columns
+        check(
+            (~pl.col('a') | ~pl.col('b')),
+            ~(pl.col('a') & pl.col('b')),
+            schema={'a': pl.Boolean, 'b': pl.Boolean},
+            check=both_subsumes,
+        )
+
+        check(
+            ~(pl.col('a') == 1),
+            pl.col('a') != 1,
+            schema={'a': pl.Int32},
+            check=both_subsumes,
+        )
+
+        check(
+            ~pl.col('a').is_null(),
+            pl.col('a').is_not_null(),
+            schema={'a': pl.Int32},
+            check=both_subsumes,
+        )
+
+        check(
+            ~~~~(pl.col('a') == 1),
+            pl.col('a') == 1,
+            schema={'a': pl.Int32},
+            check=both_subsumes,
+        )
+
+        check(
+            ~~~(pl.col('a') == 1),
+            ~(pl.col('a') == 1),
+            schema={'a': pl.Int32},
+            check=both_subsumes,
+        )
+
+        check(
+            ~~~(pl.col('a') == 1),
+            (pl.col('a') != 1),
+            schema={'a': pl.Int32},
+            check=both_subsumes,
+        )
+
+        check(
+            (pl.col('a') == 1),
+            (1 == pl.col('a')),
+            schema={'a': pl.Int32},
+            check=both_subsumes,
+        )
+
+        check(
+            (pl.col('a') ^ pl.col('b')),
+            (pl.col('a') ^ pl.col('b')),
+            schema={'a': pl.Boolean, 'b': pl.Boolean},
+            check=both_subsumes,
+        )
+
+        check(
+            (pl.col('a') & pl.col('a')),
+            pl.col('a'),
+            schema={'a': pl.Boolean},
+            check=both_subsumes,
+        )
+
+        check(
+            pl.lit(True) | pl.lit(False),
+            pl.lit(True),
+            schema={},
+            check=both_subsumes,
+        )
+        check(
+            pl.lit(False) | pl.lit(True),
+            pl.lit(True),
+            schema={},
+            check=both_subsumes,
+        )
+
+        check(
+            pl.lit(True) | pl.col('a'),
+            pl.lit(True),
+            schema={'a': pl.Boolean},
+            check=both_subsumes,
+        )
+        check(
+            pl.col('a') | pl.lit(True),
+            pl.lit(True),
+            schema={'a': pl.Boolean},
+            check=both_subsumes,
+        )
+
+        check(
+            pl.lit(True) & pl.lit(False),
+            pl.lit(False),
+            schema={},
+            check=both_subsumes,
+        )
+        check(
+            pl.lit(False) & pl.lit(True),
+            pl.lit(False),
+            schema={},
+            check=both_subsumes,
+        )
+
+        check(
+            pl.lit(False) & pl.col('a'),
+            pl.lit(False),
+            schema={'a': pl.Boolean},
+            check=both_subsumes,
+        )
+        check(
+            pl.col('a') & pl.lit(False),
+            pl.lit(False),
+            schema={'a': pl.Boolean},
+            check=both_subsumes,
+        )
+
+        check(
+            ~pl.lit(None),
+            pl.lit(None),
+            schema={},
+            check=both_subsumes,
         )
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

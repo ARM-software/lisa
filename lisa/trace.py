@@ -59,6 +59,8 @@ import urllib.request
 import urllib.parse
 import sqlite3
 import logging
+import hashlib
+import base64
 
 import numpy as np
 import pandas as pd
@@ -72,9 +74,9 @@ from polars.io.plugins import register_io_source
 
 import devlib
 
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, set_nested_key, unzip_into, order_as, DirCache, DelegateToAttr, _EXTRA_ASSERTS, FrozenDict, get_subclasses, checksum
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, set_nested_key, unzip_into, order_as, DirCache, DelegateToAttr, _EXTRA_ASSERTS, FrozenDict, get_subclasses, _json_checksum, _JsonEncodable
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
-from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df, _polars_fast_collect, _polars_fast_collect_all, _df_in_memory, _polars_declare_in_memory, _polars_record_pushdowns, _polars_parse_predicate, _polars_iter_to_lazyframe, _polars_json_serialize, _polars_json_deserialize
+from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df, _polars_fast_collect, _polars_fast_collect_all, _df_in_memory, _polars_declare_in_memory, _polars_record_pushdowns, _polars_parse_predicate, _polars_iter_to_lazyframe, _polars_json_serialize, _polars_json_deserialize, _polars_predicate_dnf_clauses_hash, _parquet_nr_rows
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString
 from lisa._kmod import LISADynamicKmod
@@ -172,7 +174,7 @@ class _LazyFrameOnDelete(_Deallocator):
             if nr_rows is None:
                 def get_nr_rows(path):
                     try:
-                        return pyarrow.parquet.read_metadata(path).num_rows
+                        return _parquet_nr_rows(path)
                     except Exception:
                         return 0
 
@@ -398,16 +400,242 @@ def _lazyframe_rewrite(df, update_plan):
     df = _polars_json_deserialize(plan)
     return df
 
+def _sql_quote(value):
+    with contextlib.closing(sqlite3.connect(':memory:')) as conn:
+        dummy_sql_cursor = conn.cursor()
+        (escaped,) = dummy_sql_cursor.execute("SELECT quote(?)", (value,)).fetchone()
+        return escaped
 
-def _make_pushdowns(with_columns, predicate, n_rows):
-    if isinstance(predicate, pl.Expr):
-        predicate = predicate.meta.serialize(format='json')
 
-    return {
-        'with-columns': tuple(with_columns),
-        'predicate': predicate,
-        'n-rows': n_rows,
-    }
+class _ScanPushdowns:
+    _NEUTRAL_PREDICATE = pl.lit(True)
+
+    def __init__(self, schema, columns=None, n_rows=None, predicate=None):
+        self.schema = (
+            dict(schema)
+            if isinstance(schema, pl.Schema) else
+            schema
+        )
+        self._columns = columns
+        self.n_rows = n_rows
+        self.predicate = predicate
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return (
+                all(
+                    self.schema.get(key) == other.schema.get(key)
+                    for key in self.schema.keys() | other.schema.keys()
+                )
+                and self.columns == other.columns
+                and self.n_rows == other.n_rows
+                and self._predicate_expr.meta.eq(other._predicate_expr)
+            )
+        else:
+            return NotImplemented
+
+    def __hash__(self):
+        return hash(self.checksum)
+
+    def __str__(self):
+        return f'{self.__class__.__name__}(schema={self.schema}, columns={self.columns}, n_rows={self.n_rows}, predicate={self.predicate})'
+
+    def __repr__(self):
+        return str(self)
+
+    def to_json(self):
+        def encode_bytes(b):
+            return base64.b64encode(b).decode("ascii")
+
+        return {
+            'columns': self.columns,
+            'n-rows': self.n_rows,
+            'predicate': encode_bytes(
+                self._predicate_expr.meta.serialize(format='binary'),
+            ),
+            'schema': encode_bytes(
+                pl.LazyFrame(
+                    dict(),
+                    # We can't convert a schema to JSON directly, so we use a
+                    # LazyFrame as a vehicle.
+                    schema=self.schema,
+                ).serialize(format='binary'),
+            ),
+        }
+
+    @classmethod
+    def from_json(cls, mapping):
+        def decode_bytes(s):
+            return base64.b64decode(s)
+
+        return cls(
+            columns=mapping['columns'],
+            n_rows=mapping['n-rows'],
+            predicate=pl.Expr.deserialize(
+                decode_bytes(mapping['predicate']),
+                format='binary',
+            ),
+            schema=pl.LazyFrame.deserialize(
+                decode_bytes(mapping['schema']),
+                format='binary',
+            ).collect_schema(),
+        )
+
+    @property
+    def checksum(self):
+        return _json_checksum(
+            self.to_json(),
+            method='sha256',
+        )
+
+    @property
+    def _dnf_clauses_hash(self):
+        true = frozenset([
+            _polars_predicate_dnf_clauses_hash(
+                expr=self._NEUTRAL_PREDICATE,
+                schema={}
+            )[0][0]
+        ])
+
+        return {
+            frozenset(hashes) | true
+            for hashes in _polars_predicate_dnf_clauses_hash(
+                expr=self._predicate_expr,
+                schema=self.schema,
+            )
+        }
+
+    @property
+    def _dnf_bloom_masks(self):
+        return sorted(
+            _bloom_mask(clause_hash, k=4)
+            for clause_hash in self._dnf_clauses_hash
+        )
+
+    @property
+    def _predicate_expr(self):
+        if (predicate := self.predicate) is None:
+            predicate = self._NEUTRAL_PREDICATE
+        return predicate
+
+    @property
+    def columns(self):
+        return tuple(sorted(
+            self.schema.keys()
+            if (cols := self._columns) is None else
+            cols
+        ))
+
+    def _union(self, other):
+        def combine(f, x, y):
+            # If there is no restriction in one of the sides, we don't want
+            # restrictions in the output either as we want the union of the
+            # data sets described by the scan pushdowns.
+            if x is None or y is None:
+                return None
+            else:
+                return f(x, y)
+
+        schema = self.schema | other.schema
+
+        n_rows = combine(max, self.n_rows, other.n_rows)
+
+        columns = combine(
+            lambda cols1, cols2: sorted(set(cols1) | set(cols2)),
+            self.columns,
+            other.columns,
+        )
+
+        predicate = combine(
+            operator.or_,
+            self.predicate,
+            other.predicate,
+        )
+
+        return self.__class__(
+            schema=schema,
+            n_rows=n_rows,
+            columns=columns,
+            predicate=predicate,
+        )
+
+    @classmethod
+    def union(cls, pushdowns):
+        return functools.reduce(
+            cls._union,
+            pushdowns,
+        )
+
+    def apply(self, df):
+        df = df.lazy()
+
+        schema = df.collect_schema()
+        assert all(
+            schema[col] == dtype
+            for col, dtype in self.schema.items()
+        )
+
+        if (predicate := self.predicate) is not None:
+            df = df.filter(predicate)
+
+        # This has to be applied after the predicate (both for
+        # correctness and to allow predicate pushdown to work)
+        if (n_rows := self.n_rows) is not None:
+            df = df.head(n_rows)
+
+        # Make sure the selected columns are in the same order as the schema,
+        # as this may be important to the caller.
+        df = df.select(order_as(
+            self.columns,
+            self.schema.keys()
+        ))
+
+        return df
+
+    def subsumes(self, other):
+        """
+        This function computes whether the rows and columns selected by
+        ``self`` are a superset of the ones selected by ``other`` on an
+        arbitrary dataframe..
+
+        .. note:: Since computing that property is NP-hard in general, this
+            function is allowed false negatives, i.e. it is allowed to return
+            ``False`` even if in practice ``self`` could be a superset of
+            ``other``. However, this implementation will never return ``True``
+            unless it is able to prove so.
+        """
+        if self.n_rows is not None:
+            if other.n_rows is None:
+                return False
+            elif self.n_rows < other.n_rows:
+                return False
+
+        # Be careful here for sets (not (s1 >= s2))
+        # is not the same as (s1 < s2)
+        if not (set(self.columns) >= set(other.columns)):
+            return False
+
+        other_dnf_clauses_hash = other._dnf_clauses_hash
+        self_dnf_clauses_hash = self._dnf_clauses_hash
+
+        # This is an approximation. The predicate is encoded as a disjunction
+        # of AND-groups (e.g. (atom1 AND atom2 AND atom3) OR (atom4 AND atom5)
+        # OR ...). For each of these AND-group (e.g. (atom4 AND atom5)), we
+        # check that there is a matching group in the other predicate that has
+        # at least the same atoms in it, plus some more. If this is true, then
+        # our predicate matches more rows than the other ones.
+        predicate_subsumes = all(
+            any(
+                self_clause_hash <= other_clause_hash
+                for self_clause_hash in self_dnf_clauses_hash
+            )
+            for other_clause_hash in other_dnf_clauses_hash
+        )
+
+        if not predicate_subsumes:
+            return False
+
+        return True
 
 
 CPU = newtype(int, 'CPU', doc='Alias to ``int`` used for CPU IDs')
@@ -468,6 +696,8 @@ class _ParsedDataFrame:
         return cls(df, **meta)
 
 
+# TODO: make this class private and cleanup the API:
+# * Make _ALL_EVENTS non-iterable.
 class TraceParserBase(abc.ABC, Loggable, PartialInit):
     """
     Abstract Base Class for trace parsers.
@@ -1167,12 +1397,6 @@ class PerfettoTraceParser(TraceParserBase):
         )
 
     def _parse_ftrace_event(self, event):
-        def sql_quote(value):
-            with contextlib.closing(sqlite3.connect(':memory:')) as conn:
-                dummy_sql_cursor = conn.cursor()
-                (escaped,) = dummy_sql_cursor.execute("SELECT quote(?)", (value,)).fetchone()
-                return escaped
-
         def event_query(query, *args, **kwargs):
             return self._query(
                 query,
@@ -1185,7 +1409,7 @@ class PerfettoTraceParser(TraceParserBase):
         query = f"""
         SELECT id, arg_set_id
         FROM ftrace_event
-        WHERE name = {sql_quote(event)}
+        WHERE name = {_sql_quote(event)}
         ORDER BY id
         LIMIT 1
         """
@@ -1229,7 +1453,7 @@ class PerfettoTraceParser(TraceParserBase):
                 'flat_key': field.flat_key,
                 'selected': selected,
                 'select': f"{selected} AS {col}",
-                'join': f"JOIN args AS {table} ON {table}.arg_set_id = ftrace_event.arg_set_id AND {table}.key = {sql_quote(field.key)}"
+                'join': f"JOIN args AS {table} ON {table}.arg_set_id = ftrace_event.arg_set_id AND {table}.key = {_sql_quote(field.key)}"
             }
 
         def translate_type(typ):
@@ -1252,7 +1476,7 @@ class PerfettoTraceParser(TraceParserBase):
             f"""
             SELECT key, flat_key, value_type
             FROM args
-            WHERE arg_set_id = {sql_quote(arg_set_id)}
+            WHERE arg_set_id = {_sql_quote(arg_set_id)}
             """
         )
 
@@ -1326,49 +1550,51 @@ class PerfettoTraceParser(TraceParserBase):
             if (flat_key := frag.get('flat_key')) is not None
         }
 
-        def select_fragment(frag):
-            return True
-
         predicate_used_selected = set()
         try:
             pushdowns = self._pushdowns[event]
         except KeyError:
             n_rows = None
             predicate = None
+            def select_fragment(frag):
+                return True
         else:
-            if (columns := pushdowns.get('with-columns')) is not None:
-                self.logger.debug(f'Applying projection pushdown: {columns}')
+            columns = pushdowns.columns
+            self.logger.debug(f'Applying projection pushdown: {columns}')
 
-                def select_fragment(frag):
-                    if frag.get('preserve'):
+            def select_fragment(frag):
+                if frag.get('preserve'):
+                    return True
+                else:
+                    try:
+                        return frag['flat_key'] in columns
+                    except KeyError:
                         return True
-                    else:
-                        try:
-                            return frag['flat_key'] in columns
-                        except KeyError:
-                            return True
 
-            if (n_rows := pushdowns.get('n-rows')) is not None:
+            if (n_rows := pushdowns.n_rows) is not None:
                 self.logger.debug(f'Applying slice pushdown: {n_rows}')
 
-            if (predicate := pushdowns.get('predicate')) is not None:
+            if (predicate := pushdowns.predicate) is not None:
                 def binop(left, op, right):
                     op = {
-                        '&': '&',
-                        '&&': 'AND',
-                        '|': '|',
                         '||': 'OR',
+                        '&&': 'AND',
                         '==': '=',
-                        '!=': '<>',
-                    }.get(op, op)
+                        '<': '<',
+                        '|': '|',
+                    }[op]
                     return f'({left} {op} {right})'
 
                 def unaryop(op, x):
-                    op = {
-                        '~': '~',
-                        '!': 'NOT',
-                    }[op]
-                    return f'({op} {x})'
+                    match op:
+                        case '~':
+                            return f'(~ {x})'
+                        case '!':
+                            return f'(NOT {x})'
+                        case 'isnull':
+                            return f'({x} IS NULL)'
+                        case op:
+                            raise ValueError(f'Unary operator not handled: {op}')
 
                 def column(col):
                     try:
@@ -1381,11 +1607,12 @@ class PerfettoTraceParser(TraceParserBase):
                         return selected
 
                 def literal(x):
-                    if isinstance(x, str):
-                        return sql_quote(x)
-                    elif isinstance(x, (bool, int, float)):
+                    if isinstance(x, (str, bytes, type(None))):
+                        return _sql_quote(x)
+                    elif isinstance(x, bool):
+                        return int(x)
+                    elif isinstance(x, (int, float)):
                         return x
-                    # TODO: handle temporal dtype (maybe)
                     else:
                         raise ValueError(f'Literal type not handled: {x} ({type(x)})')
 
@@ -1398,7 +1625,7 @@ class PerfettoTraceParser(TraceParserBase):
                         column=column,
                         literal=literal,
                     )
-                except ValueError as e:
+                except (ValueError, KeyError) as e:
                     self.logger.debug(f'Could not apply predicate pushdown: {e}')
                     predicate = None
                 else:
@@ -1467,7 +1694,7 @@ FROM ftrace_event
 {joins}
 WHERE
     ftrace_event.id BETWEEN {from_} AND {to_} AND
-    ftrace_event.name = {sql_quote(event)}
+    ftrace_event.name = {_sql_quote(event)}
     {_predicate}
 ORDER BY ftrace_event.id
 LIMIT {n}
@@ -1526,15 +1753,14 @@ LIMIT {n}
                     n=n,
                 )
 
-                if predicate is not None:
-                    df = df.filter(predicate)
+                pushdowns = _ScanPushdowns(
+                    schema=schema,
+                    predicate=predicate,
+                    n_rows=remaining_rows,
+                    columns=with_columns,
+                )
 
-                if remaining_rows is not None:
-                    df = df.head(remaining_rows)
-
-                if with_columns is not None:
-                    df = df.select(with_columns)
-
+                df = pushdowns.apply(df)
                 df = df.collect()
 
                 if remaining_rows is not None:
@@ -1678,7 +1904,7 @@ class TraceDumpTraceParser(TraceParserBase):
         meta = {}
 
         # time-range will not be available in the basic metadata, this requires
-        # a full parse
+        # a full scan
         if events or events is _ALL_EVENTS:
             meta = self._make_parquets(
                 path=path,
@@ -2597,7 +2823,7 @@ class TxtTraceParserBase(TraceParserBase):
         user_supplied = event_parsers.keys()
         all_events = events is _ALL_EVENTS
 
-        if not all_events and set(events) == user_supplied:
+        if set(events) == user_supplied and not all_events:
             return {}
         else:
             # Find the field names only for the events we don't already know about,
@@ -3298,7 +3524,7 @@ class TxtTraceParser(TxtTraceParserBase):
             ).splitlines()
             if not event.startswith('version =')
         }
-        events = kernel_events if events in (None, _ALL_EVENTS) else set(events)
+        events = kernel_events if events is _ALL_EVENTS else set(events)
         events &= kernel_events
 
         filter_events &= (events != kernel_events)
@@ -3577,37 +3803,6 @@ class SysTraceParser(HRTxtTraceParser):
     @wraps(HRTxtTraceParser.from_txt_file)
     def from_html(cls, *args, **kwargs):
         return super().from_txt_file(*args, **kwargs)
-
-
-class _JsonEncodable(abc.ABC):
-    """
-    Inheriting from this class allows encoding a value in JSON for a cache
-    desc.
-    """
-
-    @abc.abstractmethod
-    def json_encode(self):
-        """
-        Returns a more basic object that can readily be encoded by an
-        unmodified json serializer.
-        """
-        pass
-
-    @classmethod
-    def json_dumps(cls, x, **kwargs):
-        class Encoder(json.JSONEncoder):
-            def default(self, o):
-                if isinstance(o, cls):
-                    _cls = o.__class__
-                    return {
-                        'module': _cls.__module__,
-                        'cls': _cls.__qualname__,
-                        'value': o.json_encode(),
-                    }
-                else:
-                   return super().default(o)
-
-        return Encoder(**kwargs).encode(x)
 
 
 class _InternalTraceBase(abc.ABC):
@@ -4913,26 +5108,7 @@ class _AvailableTraceEventsSet:
         return str(self._available_events)
 
 
-def _json_checksum(value, method):
-    def dump(value):
-        try:
-            return _JsonEncodable.json_dumps(
-                value,
-                # Normalized JSON
-                sort_keys=True,
-                # Make it as compact as possible
-                separators=(',', ':'),
-            )
-        except TypeError as e:
-            raise ValueError(str(e))
-
-    data = dump(value)
-    data = data.encode('utf-8')
-    data = io.BytesIO(data)
-    return checksum(data, method=method)
-
-
-class _CacheDataDesc(abc.ABC):
+class _CacheDataDesc:
     """
     Cached data descriptor.
 
@@ -4943,6 +5119,7 @@ class _CacheDataDesc(abc.ABC):
     :class:`polars.LazyFrame` or :class:`polars.DataFrame`. It is used to
     manage the cache and swap.
     """
+    _DATA_VERSION = None
 
     KIND = None
     _KINDS = {}
@@ -4956,10 +5133,28 @@ class _CacheDataDesc(abc.ABC):
     def _cls_from_kind(cls, kind):
         return cls._KINDS[kind]
 
-    def __init__(self, fmt, trace_state, desc_key):
-        self.fmt = fmt
+    def __init__(self, data_fmt, trace_state, desc_key=None, data=None):
+        data = json.dumps(
+            data,
+            # Normalized JSON.
+            sort_keys=True,
+            # Make it as compact as possible
+            separators=(',', ':'),
+        )
+        desc_key = (
+            _json_checksum(data, method='sha256')
+            if desc_key is None else
+            desc_key
+        )
+
+        self.data_fmt = data_fmt
         self.trace_state = trace_state
         self.desc_key = desc_key
+        self.json_data = data
+
+    @property
+    def data(self):
+        return json.loads(self.json_data)
 
     def __repr__(self):
         return '{}({})'.format(
@@ -4974,11 +5169,21 @@ class _CacheDataDesc(abc.ABC):
         if isinstance(other, _CacheDataDesc):
             return (
                 self.__class__ == other.__class__
-                and self.__dict__ == other.__dict__
+                and self.data_fmt == other.data_fmt
+                and self.trace_state == other.trace_state
+                and self.desc_key == other.desc_key
+                # We purposefuly do not check self.json_data, as it may not be
+                # in a normalized format. self.desc_key equality is supposed to
+                # imply json_data equality where relevant.
             )
+        else:
+            return NotImplemented
 
     def __hash__(self):
         return hash(tuple(sorted(self.__dict__.items())))
+
+    def priority(self, path):
+        return 0
 
     @classmethod
     def _from_json(cls, mapping):
@@ -4986,54 +5191,373 @@ class _CacheDataDesc(abc.ABC):
         x.__dict__.update(mapping)
         return x
 
+    def _db_insert(self, trans, uuid_, data_size, priority):
+        row = {
+            'uuid': uuid_,
+            'kind': self.KIND,
+            'data_version': self._DATA_VERSION,
+            'data_fmt': self.data_fmt,
+            'trace_state': self.trace_state,
+            'data_size': data_size,
+            'priority': priority,
+            'desc_key': self.desc_key,
+            'json_data': self.json_data,
+        }
+
+        columns, values = zip(*row.items())
+        sql_columns = ', '.join(columns)
+        sql_values = ', '.join(f':{col}' for col in columns)
+        with trans.ensure('rw'):
+            try:
+                trans.execute(
+                    f'''
+                    INSERT INTO swap_entries ({sql_columns})
+                    VALUES ({sql_values})
+                    ''',
+                    row
+                )
+            # This could fail if another process independenty tried to
+            # write the same swap entry.
+            except sqlite3.IntegrityError:
+                raise _TraceCacheSwapEntryExistsError()
+
+    def _db_lookup(self, trans, on_found, on_not_found):
+        with trans.ensure('r') as trans:
+            # WARNING: when updating this query, ensure the swap_table's index
+            # created in _init_db() is matching the columns used here.
+            cursor = trans.execute(
+                f'''
+                SELECT *
+                FROM swap_entries
+                WHERE
+                    kind = :kind
+                    AND data_version = :data_version
+                    AND data_fmt = :data_fmt
+                    AND trace_state = :trace_state
+                    AND desc_key = :desc_key
+                ''',
+                {
+                    'data_fmt': self.data_fmt,
+                    'kind': self.KIND,
+                    'data_version': self._DATA_VERSION,
+                    'trace_state': self.trace_state,
+                    'desc_key': self.desc_key,
+                }
+            )
+            row = cursor.fetchone()
+            if row is None:
+                return on_not_found(trans)
+            else:
+                swap_entry = trans._make_swap_entry(row)
+                # Run the function while still inside the transaction.
+                return on_found(trans, swap_entry)
+
+
+def _bloom_mask(items, k):
+    def mask(data, k):
+        assert isinstance(data, str)
+        data = data.encode('utf-8')
+
+        m_bytes = 8
+        max_k = m_bytes * 8
+
+        if k >= max_k:
+            raise ValueError(f'Maximum value for "k" is {max_k}, passed k={k}')
+        else:
+            h = hashlib.blake2b(
+                data,
+                digest_size=m_bytes * 2,
+            )
+            h = h.digest()
+
+            h1 = int.from_bytes(h[:m_bytes], byteorder='little')
+            h2 = int.from_bytes(h[m_bytes:], byteorder='little')
+
+            # Avoid degenerate case h2 == 0
+            h2 |= 1
+
+            res = 0
+            for i in range(k):
+                bit = (h1 + i * h2) % (m_bytes * 8)
+                res |= (1 << bit)
+            return res
+
+    res = 0
+    for item in items:
+        res |= mask(item, k)
+
+    return res
+
+
+_PARQUET_DATA_VERSION = _json_checksum(
+    {
+        'lisa': VERSION_TOKEN,
+        'pandas': pd.__version__,
+        'polars': pl.__version__,
+        'pyarrow': pyarrow.__version__,
+    },
+    method='sha256',
+)
+
 
 class _EventCacheDataDesc(_CacheDataDesc):
     KIND = 'event'
+    _DATA_VERSION = _PARQUET_DATA_VERSION
 
     def __init__(self, event, trace_state, pushdowns):
         assert isinstance(event, str)
-
-        desc_key = _json_checksum(
-            {
+        super().__init__(
+            data_fmt='polars-lazyframe',
+            trace_state=trace_state,
+            data={
                 'event': event,
-                'pushdowns': dict(pushdowns),
+                'pushdowns': (
+                    None
+                    if pushdowns is None else
+                    pushdowns.to_json()
+                )
             },
+        )
+
+    def priority(self, path):
+        def get_nr_rows(path):
+            try:
+                return _parquet_nr_rows(path)
+            except Exception:
+                return 0
+
+        return sum(
+            # We are interested in the number of rows rather than the file
+            # size, as adding more columns to a parquet file does not make it
+            # more expensive to reload. Unneeded columns data are just skipped
+            # over by the reader anyway. What really costs is row-level
+            # filtering.
+            get_nr_rows(_path)
+            for _path in path.rglob('*')
+        )
+
+    def _without_pushdowns(self):
+        return self.__class__(
+            event=self.event,
+            trace_state=self.trace_state,
+            pushdowns=None,
+        )
+
+    @property
+    def _pushdowns_candidate_key(self):
+        return _json_checksum(
+            (
+                self.event,
+                self._DATA_VERSION,
+                self.trace_state,
+            ),
             method='sha256',
         )
 
-        super().__init__(
-            fmt='polars-lazyframe',
-            trace_state=trace_state,
-            desc_key=desc_key
+    @property
+    def event(self):
+        return self.data['event']
+
+    @property
+    def pushdowns(self):
+        if (pushdowns := self.data.get('pushdowns')) is None:
+            return None
+        else:
+            return _ScanPushdowns.from_json(pushdowns)
+
+    def _db_insert(self, trans, uuid_, data_size, priority):
+        super()._db_insert(
+            trans=trans,
+            uuid_=uuid_,
+            data_size=data_size,
+            priority=priority,
         )
+
+        if (pushdowns := self.pushdowns) is not None:
+            dnf_clause_masks = pushdowns._dnf_bloom_masks
+            candidate_key = self._pushdowns_candidate_key
+
+            with trans.ensure('rw'):
+                try:
+                    trans.execute(
+                        '''
+                        INSERT OR IGNORE INTO scan_pushdowns_n_rows (uuid, candidate_key, n_rows)
+                        VALUES (?, ?, ?)
+                        ''',
+                        (uuid_, candidate_key, pushdowns.n_rows)
+                    )
+
+                    trans.executemany(
+                        '''
+                        INSERT OR IGNORE INTO scan_pushdowns_dnf_predicate (uuid, dnf_clause_mask)
+                        VALUES (?, ?)
+                        ''',
+                        [
+                            (uuid_, dnf_clause_mask)
+                            for dnf_clause_mask in dnf_clause_masks
+                        ]
+                    )
+
+                    trans.executemany(
+                        '''
+                        INSERT OR IGNORE INTO scan_pushdowns_columns (uuid, column)
+                        VALUES (?, ?)
+                        ''',
+                        [
+                            (uuid_, column)
+                            for column in pushdowns.columns
+                        ]
+                    )
+                # This could fail if another process independenty removed the uuid
+                # from the swap_entries table, thereby violating the foreign key
+                # constraint.
+                except sqlite3.IntegrityError:
+                    raise _TraceCacheSwapEntryExistsError()
+
+    def _db_lookup(self, trans, on_found, on_not_found):
+        def not64(x):
+            return hex((~x) & 0xFF_FF_FF_FF_FF_FF_FF_FF)
+
+        def lookup_pushdowns(candidate_key, pushdowns, trans, on_found, on_not_found):
+            def check_col_order(col):
+                # Common column names should be checked last, as they are the
+                # least specific ones.
+                if col.startswith('__'):
+                    return 1
+                elif col == 'Time':
+                    return 2
+                else:
+                    return 0
+
+            def check_mask_order(mask):
+                # The more bits are cleared in the mask, the more bits set
+                # there is in ~mask and therefore the more selective is the
+                # filter "x & ~mask = 0"
+                return mask.bit_count()
+
+            exists = '\n'.join(itertools.chain(
+                (
+                    f'''
+                    AND EXISTS (
+                        SELECT 1
+                        FROM scan_pushdowns_columns
+                        WHERE (
+                            scan_pushdowns_columns.uuid = scan_pushdowns_n_rows.uuid
+                            AND
+                            scan_pushdowns_columns.column = {_sql_quote(column)}
+                        )
+                    )
+                    '''
+                    for column in sorted(
+                        pushdowns.columns,
+                        key=check_col_order,
+                    )
+                ),
+                (
+                    f'''
+                    AND EXISTS (
+                        SELECT 1
+                        FROM scan_pushdowns_dnf_predicate
+                        WHERE
+                            scan_pushdowns_dnf_predicate.uuid = scan_pushdowns_n_rows.uuid
+                            AND
+                            (scan_pushdowns_dnf_predicate.dnf_clause_mask & {not64(mask)}) = 0
+                    )
+                    '''
+                    for mask in sorted(
+                        pushdowns._dnf_bloom_masks,
+                        key=check_mask_order,
+                    )
+                ),
+            ))
+
+            if (n_rows := pushdowns.n_rows) is None:
+                min_n_rows = '1'
+            else:
+                min_n_rows = f'scan_pushdowns_n_rows.n_rows >= {n_rows}'
+
+            with trans.ensure('r') as trans:
+                # We drive the scan by looking at scan_pushdowns_n_rows first,
+                # as the >= check can be done by directly looking at the index.
+                # We then filter the UUIDs based on the other characteristics
+                # we are looking for.
+                cursor = trans.execute(
+                    f'''
+                    SELECT swap_entries.*
+                    FROM scan_pushdowns_n_rows
+                    JOIN swap_entries ON swap_entries.uuid = scan_pushdowns_n_rows.uuid
+
+                    WHERE
+                        scan_pushdowns_n_rows.candidate_key = :candidate_key
+                        AND {min_n_rows}
+                        {exists}
+                    ''',
+                    {
+                        'candidate_key': candidate_key,
+                    }
+                )
+                for row in cursor:
+                    swap_entry = trans._make_swap_entry(row)
+                    cache_desc = swap_entry.cache_desc
+                    assert isinstance(cache_desc, _EventCacheDataDesc)
+                    if cache_desc.pushdowns.subsumes(pushdowns):
+                        # Run the function while still inside the transaction.
+                        return on_found(trans, swap_entry)
+
+                return on_not_found(trans)
+
+        _SENTINEL = object()
+        res = super()._db_lookup(
+            trans=trans,
+            on_found=on_found,
+            on_not_found=lambda trans: _SENTINEL,
+        )
+        if res is _SENTINEL:
+            if (pushdowns := self.pushdowns) is None:
+                return on_not_found(trans)
+            else:
+                res = self._without_pushdowns()._db_lookup(
+                    trans=trans,
+                    on_found=on_found,
+                    on_not_found=lambda trans: _SENTINEL,
+                )
+                if res is _SENTINEL:
+                    return lookup_pushdowns(
+                        candidate_key=self._pushdowns_candidate_key,
+                        pushdowns=pushdowns,
+                        trans=trans,
+                        on_found=on_found,
+                        on_not_found=on_not_found,
+                    )
+                else:
+                    return res
+        else:
+            return res
 
 
 class _AnalysisCacheDataDesc(_CacheDataDesc):
     KIND = 'analysis'
+    _DATA_VERSION = _PARQUET_DATA_VERSION
 
     def __init__(
         self,
-        fmt,
+        data_fmt,
         trace_state,
         bound_class,
         func,
         kwargs,
     ):
-        desc_key = _json_checksum(
-            {
+
+        super().__init__(
+            data_fmt=data_fmt,
+            trace_state=trace_state,
+            data={
                 'bound_class_module': bound_class.__module__,
                 'bound_class_qualname': bound_class.__qualname__,
                 'func_module': func.__module__,
                 'func_qualname': func.__qualname__,
                 'kwargs': self._coerce_kwargs(kwargs),
             },
-            method='sha256',
-        )
-
-        super().__init__(
-            fmt=fmt,
-            trace_state=trace_state,
-            desc_key=desc_key,
         )
 
     @classmethod
@@ -5071,17 +5595,25 @@ class _AnalysisCacheDataDesc(_CacheDataDesc):
 
 class _MetadataCacheDataDesc(_CacheDataDesc):
     KIND = 'metadata'
+    _DATA_VERSION = _json_checksum(
+        {
+            'lisa': VERSION_TOKEN,
+        },
+        method='sha256',
+    )
 
-    def __init__(self, key, fmt, trace_state):
+    def __init__(self, key, data_fmt, trace_state):
         super().__init__(
-            fmt=fmt,
+            data_fmt=data_fmt,
             trace_state=trace_state,
-            desc_key=key,
+            data={
+                'key': key,
+            },
         )
 
     @property
     def metadata_key(self):
-        return self.desc_key
+        return self.data['key']
 
 
 class _CacheDataSwapEntry:
@@ -5098,31 +5630,27 @@ class _CacheDataSwapEntry:
     :type id_: int
     """
 
-    _VERSION_TOKEN = _json_checksum(
-        {
-            'lisa': VERSION_TOKEN,
-            'pandas': pd.__version__,
-            'polars': pl.__version__,
-            'pyarrow': pyarrow.__version__,
-        },
-        method='sha256',
-    )
-
-    def __init__(self, cache_desc, uuid, data_size, version=None):
+    def __init__(self, cache_desc, uuid, data_size):
         self.cache_desc = cache_desc
         self.uuid = uuid
         self.data_size = data_size
-        self.version = version or self._VERSION_TOKEN
+
+    @classmethod
+    def _uuid_data_folder(cls, uuid_, swap_dir):
+        return swap_dir / 'data' / uuid_
 
     def data_folder(self, swap_dir):
-        return swap_dir / 'data' / self.uuid
+        return self._uuid_data_folder(
+            uuid_=self.uuid,
+            swap_dir=swap_dir,
+        )
 
     @property
-    def fmt(self):
+    def data_fmt(self):
         """
         Format of the swap entry.
         """
-        return self.cache_desc.fmt
+        return self.cache_desc.data_fmt
 
 
 class _TraceCacheSwapReloadError(ValueError):
@@ -5136,7 +5664,11 @@ class _TraceCacheSwapEntryExistsError(Exception):
     pass
 
 
-class _SwapDBTransaction:
+class _TraceCacheSwapEntryNotFoundError(KeyError):
+    pass
+
+
+class _SwapDBTransaction(Loggable):
     def __init__(self, conn, mode, typ):
         self._conn = conn
         self._mode = mode
@@ -5163,164 +5695,232 @@ class _SwapDBTransaction:
         yield self
 
     def execute(self, *args, **kwargs):
-        return self._conn.execute(*args, **kwargs)
+        with self._explain_query(self._conn.execute, *args, **kwargs):
+            return self._conn.execute(*args, **kwargs)
 
-    def _init_db(self):
+    def executemany(self, *args, **kwargs):
+        with self._explain_query(self._conn.executemany, *args, **kwargs):
+            return self._conn.executemany(*args, **kwargs)
+
+    @contextlib.contextmanager
+    def _explain_query(self, execute, query, *args, **kwargs):
+        logger = self.logger
+        query = f'EXPLAIN QUERY PLAN {query}'
+        rows = execute(query, *args, **kwargs)
+        rows = list(map(dict, rows))
+
+        parents = {
+            row['id']: row['parent']
+            for row in rows
+        }
+        parents[0] = 0
+        def parent_of(id_):
+            return parents[id_]
+
+        @functools.lru_cache
+        def depth_of(id_):
+            if id_ == 0:
+                return 0
+            else:
+                return depth_of(parent_of(id_)) + 1
+
+        def get_idt(row):
+            return depth_of(row['id']) * 2 * ' '
+
+        plan = '\n'.join(
+            get_idt(row) + row['detail']
+            for row in rows
+        )
+
+        logger.debug(f'Query plan for: {query}\n\n{plan}')
+        with measure_time() as m:
+            yield
+        logger.debug(f'Ran query in {m.delta} seconds:\n{query}')
+
+    _INIT_DB = (
+        '''
+        CREATE TABLE IF NOT EXISTS swap_meta (
+            key TEXT PRIMARY KEY NOT NULL,
+            value TEXT NOT NULL
+        ) STRICT, WITHOUT ROWID;
+        ''',
+
+        '''
+        CREATE TABLE IF NOT EXISTS swap_entries (
+            -- UUID of the swap entry. It is also used to build the path to the
+            -- associated data file.
+            uuid TEXT PRIMARY KEY NOT NULL,
+
+            -- Kind of the swap entry (event, metadata, etc.), which acts as a
+            -- namespace for data_version as well.
+            kind TEXT NOT NULL,
+
+            -- Version of the data file. This allows avoiding to reload a
+            -- parquet file created with an old version of polars for example,
+            -- to avoid old bugs from carrying over silently to newer version.
+            -- The overall layout of the swap is not conditional on that
+            -- version. Any LISA version must be able to reload and cleanup all
+            -- entries in a given SQLite3 database.
+            data_version TEXT NOT NULL,
+
+            -- This encodes things like the parser used for that trace
+            -- instance. This way, we don't accidentally mix different datasets if
+            -- the same file can be used with different parsers (or the same
+            -- parser configured differently).
+            trace_state TEXT NOT NULL,
+
+            -- This is the descriptor key, which should identify uniquely the
+            -- resource to lookup within a given kind.
+            desc_key TEXT NOT NULL,
+
+            -- Extra data as a JSON string. This allows roundtripping
+            -- _CacheDataDesc instances and provides an easy way to store small
+            -- pieces of extra data.
+            json_data TEXT,
+
+            -- Format of the associated data file.
+            data_fmt TEXT NOT NULL,
+
+            -- Size of the associated data file
+            data_size INTEGER NOT NULL
+                CHECK (data_size >= 0),
+
+            -- If more than one row matches a query, the one with lowest
+            -- priority will be picked.
+            priority INTEGER NOT NULL
+                CHECK (priority >= 0)
+        ) STRICT;
+        ''',
+
+        # WARNING: This index must match what lookup_cache_desc() uses.  The
+        # only exception is for the "data_fmt" column, as we don't want to allow 2
+        # rows or more to only differ by their data format.
+        #
+        # The unique constraint means the index must be uniquely
+        # identifying a row. That will prevent sucessfull insertion of the
+        # same row twice, avoiding duplicates.
+        '''
+        CREATE UNIQUE INDEX IF NOT EXISTS swap_entries_index
+        ON swap_entries
+            (trace_state, kind, desc_key, data_version);
+        ''',
+
+        '''
+        CREATE TABLE IF NOT EXISTS scan_pushdowns_n_rows (
+            uuid TEXT NOT NULL REFERENCES swap_entries(uuid) ON DELETE CASCADE,
+            candidate_key TEXT NOT NULL,
+            n_rows INT
+                CHECK (n_rows >= 0),
+
+            PRIMARY KEY (candidate_key, n_rows, uuid)
+        ) STRICT, WITHOUT ROWID;
+        ''',
+
+        '''
+        CREATE TABLE IF NOT EXISTS scan_pushdowns_dnf_predicate (
+            uuid TEXT NOT NULL REFERENCES swap_entries(uuid) ON DELETE CASCADE,
+            dnf_clause_mask INT NOT NULL,
+
+            PRIMARY KEY (uuid, dnf_clause_mask)
+        ) STRICT, WITHOUT ROWID;
+        ''',
+
+        '''
+        CREATE TABLE IF NOT EXISTS scan_pushdowns_columns (
+            uuid TEXT NOT NULL REFERENCES swap_entries(uuid) ON DELETE CASCADE,
+            column TEXT NOT NULL,
+
+            PRIMARY KEY (uuid, column)
+        ) STRICT, WITHOUT ROWID;
+        ''',
+
+        # This will run ANALYZE automatically whenever appropriate, so we don't
+        # need to run it manually.
+        'PRAGMA optimize;',
+    )
+
+    _DB_SETUP_CHECKSUM = _json_checksum(_INIT_DB, method='sha256')
+
+    def _init_db(self, trace_id):
         with self.ensure('rw', typ='ddl') as trans:
-            trans.execute(
-                '''
-                CREATE TABLE IF NOT EXISTS swap_entries (
-                    uuid TEXT PRIMARY KEY NOT NULL,
+            for statement in self._INIT_DB:
+                trans.execute(statement)
 
-                    kind TEXT NOT NULL,
-                    trace_state TEXT NOT NULL,
-                    version TEXT NOT NULL,
-                    desc_key TEXT NOT NULL,
-
-                    fmt TEXT NOT NULL,
-                    data_size INTEGER NOT NULL
-                        CHECK (data_size >= 0)
-                ) STRICT;
-                '''
-            )
-
-            # WARNING: This index must match what lookup_cache_desc() uses.
-            #
-            # The unique constraint means the index must be uniquely
-            # identifying a row. That will prevent sucessfull insertion of the
-            # same row twice, avoiding duplicates.
-            trans.execute(
-                '''
-                CREATE UNIQUE INDEX IF NOT EXISTS swap_entries_index
-                ON swap_entries
-                    (kind, trace_state, version, desc_key);
-                '''
-            )
-
-            trans.execute('PRAGMA optimize;')
+            if trace_id is not None:
+                cursor = trans.execute(
+                    '''
+                    SELECT value
+                    FROM swap_meta
+                    WHERE key = 'trace-id'
+                    LIMIT 1
+                    ''',
+                )
+                try:
+                    row, = cursor
+                except ValueError:
+                    cursor = trans.execute(
+                        '''
+                        INSERT INTO swap_meta(key, value)
+                        VALUES ('trace-id', ?)
+                        ''',
+                        [trace_id]
+                    )
+                else:
+                    trace_id_db = row['value']
+                    if trace_id != trace_id_db:
+                        raise _TraceCacheSwapReloadError(
+                            'Mismatching trace-id: {trace_id} != {trace_id_db}'
+                        )
 
     @staticmethod
-    def _make_swap_entry(row, check_version=True):
+    def _make_swap_entry(row, check_data_version=True):
         row = dict(row)
-        current_version = _CacheDataSwapEntry._VERSION_TOKEN
-        version = row.get('version', current_version)
-        if check_version and version != current_version:
-            raise _TraceCacheSwapReloadError('Version token differ')
 
         kind = row['kind']
+        data_version = row['data_version']
         uuid = row['uuid']
         desc_key = row['desc_key']
         data_size = row['data_size']
-        fmt = row['fmt']
+        data_fmt = row['data_fmt']
         trace_state = row['trace_state']
+        json_data = row['json_data']
 
         _cls = _CacheDataDesc._cls_from_kind(kind)
         cache_desc = _cls._from_json(
             {
                 'desc_key': desc_key,
-                'fmt': fmt,
+                'data_fmt': data_fmt,
                 'trace_state': trace_state,
+                'json_data': json_data,
             }
         )
 
-        return _CacheDataSwapEntry(
-            uuid=uuid,
-            cache_desc=cache_desc,
-            data_size=data_size,
-            version=version,
-        )
+        if check_data_version and data_version != _cls._DATA_VERSION:
+            raise _TraceCacheSwapReloadError(
+                f'Swap entry was created with a data version not matching the current one: {cache_desc}'
+            )
+        else:
+            return _CacheDataSwapEntry(
+                uuid=uuid,
+                cache_desc=cache_desc,
+                data_size=data_size,
+            )
 
     def lookup_cache_desc(self, cache_desc, on_found, on_not_found=None):
         if on_not_found is None:
             def on_not_found(trans):
-                raise KeyError(f'Could not find cache desc: {cache_desc}')
+                raise _TraceCacheSwapEntryNotFoundError(f'Could not find cache desc: {cache_desc}')
 
-        with self.ensure('r') as trans:
-            # WARNING: when updating this query, ensure the swap_table's index
-            # created in _init_db() is matching the columns used here.
-            cursor = trans.execute(
-                f'''
-                SELECT *
-                FROM swap_entries
-                WHERE
-                    kind = :kind
-                    AND fmt = :fmt
-                    AND trace_state = :trace_state
-                    AND version = :version
-                    AND desc_key = :desc_key
-                ''',
-                {
-                    'fmt': cache_desc.fmt,
-                    'kind': cache_desc.KIND,
-                    'trace_state': cache_desc.trace_state,
-                    'version': _CacheDataSwapEntry._VERSION_TOKEN,
-                    'desc_key': cache_desc.desc_key,
-                }
-            )
-            row = cursor.fetchone()
-            if row is None:
-                return on_not_found(trans)
-            else:
-                swap_entry = trans._make_swap_entry(row)
-                # Run the function while still inside the transaction.
-                return on_found(trans, swap_entry)
-
-    def insert_cache_desc(self, cache_desc, uuid_, data_size, on_found=None):
-        row = {
-            'uuid': uuid_,
-            'kind': cache_desc.KIND,
-            'fmt': cache_desc.fmt,
-            'trace_state': cache_desc.trace_state,
-            'data_size': data_size,
-            'desc_key': cache_desc.desc_key,
-            'version': _CacheDataSwapEntry._VERSION_TOKEN,
-        }
-
-        def insert(trans):
-            columns, values = zip(*row.items())
-            sql_columns = ', '.join(columns)
-            sql_values = ', '.join(f':{col}' for col in columns)
-            with trans.ensure('rw'):
-                try:
-                    trans.execute(
-                        f'''
-                        INSERT INTO swap_entries ({sql_columns})
-                        VALUES ({sql_values})
-                        ''',
-                        row
-                    )
-                # This could fail if another process independenty tried to
-                # write the same swap entry.
-                except sqlite3.IntegrityError:
-                    raise _TraceCacheSwapEntryExistsError()
-
-        def _on_found(trans, swap_entry):
-            if on_found:
-                return on_found(
-                    trans,
-                    swap_entry,
-                    lambda: insert(trans),
-                )
-            else:
-                raise _TraceCacheSwapEntryExistsError()
-
-        def on_not_found(trans):
-            return insert(trans)
-
-        with self.ensure('rw') as trans:
-            return trans.lookup_cache_desc(
-                cache_desc,
-                on_found=_on_found,
-                on_not_found=on_not_found,
-            )
+        return cache_desc._db_lookup(
+            trans=self,
+            on_found=on_found,
+            on_not_found=on_not_found,
+        )
 
     def load_all_swap_entries(self):
         with self.ensure('r') as trans:
             yield from (
-                trans._make_swap_entry(
-                    row,
-                    check_version=False,
-                )
+                trans._make_swap_entry(row, check_data_version=False)
                 # Order so that the most recent rows are first.
                 for row in trans.execute(
                     'SELECT * FROM swap_entries ORDER BY rowid DESC'
@@ -5333,6 +5933,57 @@ class _SwapDBTransaction:
                 'SELECT SUM(data_size) FROM swap_entries',
             ).fetchone()
             return row[0] or 0
+
+
+class _InMemoryDBConnector:
+    def __init__(self, db_kwargs):
+        self._db_name = f'lisa-trace-cache-{uuid.uuid4().hex}'
+        self._db_kwargs = db_kwargs
+
+        # Keep a reference to the first in-memory database alive,
+        # then all subsequent connections will use that instance.
+        conn = self.connect(check_same_thread=False)
+        # Avoid a resource warning in Python 3.13, which makes
+        # pytest trip. Unfortunately, when the user is not using
+        # the Trace as a context manager, there is nothing else to
+        # rely on than destructors.
+        self._deallocator = _Deallocator(
+            f=conn.close,
+            on_del=True,
+            at_exit=True,
+        )
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, *args):
+        self._deallocator.run()
+
+    def connect(self, **kwargs):
+        return sqlite3.connect(
+            f'file:{self._db_name}?mode=memory&cache=shared',
+            uri=True,
+            **self._db_kwargs,
+            **kwargs,
+        )
+
+
+class _OnDiskDBConnector:
+    def __init__(self, path, db_kwargs):
+        self._path = path
+        self._db_kwargs = db_kwargs
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, *args):
+        pass
+
+    def connect(self):
+        return sqlite3.connect(
+            self._path,
+            **self._db_kwargs,
+        )
 
 
 class _TraceCache(Loggable):
@@ -5364,12 +6015,9 @@ class _TraceCache(Loggable):
     The cache manages both the in-memory store and the persistent on-disk swap.
     """
 
-    _SWAP_FORMAT_VERSION = '2'
-
-    TRACE_META_FILENAME = 'swap.json'
-    """
-    Name of the trace metadata file in the swap area.
-    """
+    # The swap format version is mainly related to the database schema, but it
+    # also includes how the data files are laid out.
+    _SWAP_FORMAT_VERSION = f'1-{_SwapDBTransaction._DB_SETUP_CHECKSUM}'
 
     TRACE_SWAP_DB_FILENAME = 'swap.sqlite3'
     """
@@ -5385,65 +6033,15 @@ class _TraceCache(Loggable):
         self.max_swap_size = max_swap_size if max_swap_size is not None else math.inf
         self.max_mem_size = max_mem_size if max_mem_size is not None else math.inf
 
-        self._trace_id = trace_id
         self._trace_state = trace_state
 
         db_kwargs = self._DB_KWARGS
         if swap_dir is None:
-            class InMemoryConnector:
-                def __init__(self, db_kwargs):
-                    self._db_name = f'lisa-trace-cache-{uuid.uuid4().hex}'
-                    self._db_kwargs = db_kwargs
-
-                    # Keep a reference to the first in-memory database alive,
-                    # then all subsequent connections will use that instance.
-                    conn = self.connect(check_same_thread=False)
-                    # Avoid a resource warning in Python 3.13, which makes
-                    # pytest trip. Unfortunately, when the user is not using
-                    # the Trace as a context manager, there is nothing else to
-                    # rely on than destructors.
-                    self._deallocator = _Deallocator(
-                        f=conn.close,
-                        on_del=True,
-                        at_exit=True,
-                    )
-
-                def __enter__(self):
-                    pass
-
-                def __exit__(self, *args):
-                    self._deallocator.run()
-
-                def connect(self, **kwargs):
-                    return sqlite3.connect(
-                        f'file:{self._db_name}?mode=memory&cache=shared',
-                        uri=True,
-                        **self._db_kwargs,
-                        **kwargs,
-                    )
-
-            db_connector = InMemoryConnector(db_kwargs)
+            db_connector = _InMemoryDBConnector(db_kwargs)
         else:
-            class OnDiskConnector:
-                def __init__(self, path, db_kwargs):
-                    self._path = path
-                    self._db_kwargs = db_kwargs
-
-                def __enter__(self):
-                    pass
-
-                def __exit__(self, *args):
-                    pass
-
-                def connect(self):
-                    return sqlite3.connect(
-                        self._path,
-                        **self._db_kwargs,
-                    )
-
             swap_dir = swap_dir.absolute()
-            swap_dir.mkdir(exist_ok=True)
-            db_connector = OnDiskConnector(
+            swap_dir.mkdir(parents=True, exist_ok=True)
+            db_connector = _OnDiskDBConnector(
                 path=swap_dir / self.TRACE_SWAP_DB_FILENAME,
                 db_kwargs=db_kwargs,
             )
@@ -5452,12 +6050,19 @@ class _TraceCache(Loggable):
         self._db_connector = db_connector
 
         with self._swap_db_transaction('rw', typ='ddl') as trans:
-            trans._init_db()
+            trans._init_db(trace_id)
 
         self._swap_size = self._get_swap_size()
 
     _DB_KWARGS = {
     }
+
+    @contextlib.contextmanager
+    def _connect_db(self):
+        with contextlib.closing(self._db_connector.connect()) as conn:
+            conn.row_factory = sqlite3.Row
+            conn.execute('PRAGMA foreign_keys = ON;')
+            yield conn
 
     @contextlib.contextmanager
     def _swap_db_transaction(self, mode, typ='dml', trans=None, retry=True):
@@ -5505,9 +6110,7 @@ class _TraceCache(Loggable):
                 conn.isolation_level = level
 
         # Reconnect every time, so we are sure to be thread-safe
-        with contextlib.closing(self._db_connector.connect()) as conn:
-            conn.row_factory = sqlite3.Row
-
+        with self._connect_db() as conn:
             if trans is None:
                 match (mode, typ):
                     case ('r', _):
@@ -5589,10 +6192,10 @@ class _TraceCache(Loggable):
         return _MetadataCacheDataDesc(
             key=key,
             trace_state=self._trace_state,
-            fmt='json',
+            data_fmt='json',
         )
 
-    def update_metadata(self, metadata):
+    def update_metadata(self, metadata, replace=True):
         """
         Update the metadata mapping with the given ``metadata`` mapping and
         write it back to the swap area.
@@ -5603,7 +6206,7 @@ class _TraceCache(Loggable):
                 cache_desc=cache_desc,
                 data=value,
                 write_swap=True,
-                replace=True,
+                replace=replace,
             )
 
     def get_metadata(self, key):
@@ -5618,74 +6221,37 @@ class _TraceCache(Loggable):
         else:
             return copy.copy(value)
 
-    def to_json_map(self):
-        """
-        Returns a dictionary suitable for JSON serialization.
-        """
-        return {
-            'version-token': VERSION_TOKEN,
-            'trace-id': self._trace_id,
-        }
-
     @classmethod
-    def _from_swap_dir(cls, swap_dir, trace_id, **kwargs):
-        swap_dir = Path(swap_dir)
-        metapath = swap_dir / cls.TRACE_META_FILENAME
-
-        with open(metapath) as f:
-            mapping = json.load(f)
-
-        if mapping['version-token'] != VERSION_TOKEN:
-            raise _TraceCacheSwapReloadError('Version token differ')
-
-        if mapping['trace-id'] == trace_id:
-            return cls(
-                swap_dir=swap_dir,
-                trace_id=trace_id,
-                **kwargs
-            )
-        else:
-            raise _TraceCacheSwapReloadError('trace-id differ')
-
-    def to_swap_dir(self):
-        """
-        Write the persistent state to the swap area if any, no-op otherwise.
-        """
-        try:
-            swap_dir = self.swap_dir
-        except ValueError:
-            pass
-        else:
-            path = swap_dir / self.TRACE_META_FILENAME
-            mapping = self.to_json_map()
-            with open(path, 'w') as f:
-                json.dump(mapping, f)
-                f.write('\n')
-
-    @classmethod
-    def from_swap_dir(cls, swap_dir, **kwargs):
+    def from_swap_dir(cls, swap_dir, trace_id, **kwargs):
         """
         Reload the persistent state from the given ``swap_dir``.
 
         :Variable keyword arguments: Forwarded to :class:`_TraceCache`.
         """
+        def make_cache(swap_dir):
+            return cls(
+                swap_dir=swap_dir,
+                trace_id=trace_id,
+                **kwargs
+            )
+
         if swap_dir:
-            swap_dir = Path(swap_dir) / cls._SWAP_FORMAT_VERSION
+            swap_dir = Path(swap_dir)
 
-            try:
-                return cls._from_swap_dir(swap_dir=swap_dir, **kwargs)
-            except (FileNotFoundError, _TraceCacheSwapReloadError, json.decoder.JSONDecodeError):
-                # Remove the invalid swap and create a fresh directory
+            for i in itertools.count():
+                _swap_dir = swap_dir / cls._SWAP_FORMAT_VERSION / str(i)
                 try:
-                    shutil.rmtree(swap_dir)
-                except Exception:
-                    pass
-                swap_dir.mkdir(
-                    parents=True,
-                    exist_ok=True,
-                )
-
-        return cls(swap_dir=swap_dir, **kwargs)
+                    # Initializing the new cache only involves creating the
+                    # SQLite3 database, which is safe to do concurrently with
+                    # another process.
+                    return make_cache(_swap_dir)
+                # If there is a swap dir we cannot reload, we cannot just nuke
+                # it as it may be in used by another process somehow, so we
+                # just try the next one.
+                except _TraceCacheSwapReloadError:
+                    continue
+        else:
+            return make_cache(swap_dir)
 
     def _estimate_data_swap_size(self, data):
         return self._data_mem_usage(data)
@@ -5905,91 +6471,124 @@ class _TraceCache(Loggable):
             if self._estimate_data_swap_size(data) + self._swap_size > self.max_swap_size:
                 self.scrub_swap()
 
-            uuid_  = uuid.uuid4().hex
-
-            swap_entry = _CacheDataSwapEntry(
-                cache_desc=cache_desc,
-                uuid=uuid_,
-                data_size=0,
+            uuid_ = uuid.uuid4().hex
+            path = _CacheDataSwapEntry._uuid_data_folder(
+                uuid_=uuid_,
+                swap_dir=swap_dir,
             )
-            path = swap_entry.data_folder(swap_dir)
-            path.mkdir(parents=True, exist_ok=True)
+            path.mkdir(parents=True)
 
-            def cleanup_data():
-                shutil.rmtree(path, ignore_errors=True)
+            class EarlyReturn(Exception):
+                def __init__(self, value):
+                    self.value = value
 
-            try:
-                # Write the data to the swap before we insert the swap_entry
-                # inside the database for a few reasons:
-                #
-                # 1. Once the entry is committed to the database, other
-                # database users will expect the data to exist and be valid.
-                #
-                # 2. We don't want to write to the file while we are inside a
-                # database transaction. This leads to extra delay for other
-                # concurrent connections, but most importantly that can lead to
-                # deadlocks as writing the data may attempt to open a nested
-                # transaction, which will deadlock.
-                written_data = self._write_data(
-                    fmt=cache_desc.fmt,
-                    data=data,
-                    path=path,
-                    swap_dir=swap_dir,
-                )
-            except BaseException:
-                cleanup_data()
-                # Do not log the error, as it could happen under normal
-                # circumstances (e.g. we have an object column in a dataframe
-                # that cannot be converted to arrow, but we still attempt
-                # caching the function because in some dynamic circumstances it
-                # can succeed based on user input). However we still raise an
-                # exception so that the database transaction is rolled back.
-                if best_effort:
-                    return data
-                else:
-                    raise
-            else:
-                data_size = sum(
-                    _path.stat().st_size
-                    for _path in path.rglob('*')
-                )
-
-            def _insert():
-                with self._swap_db_transaction('rw') as trans:
-                    trans.insert_cache_desc(
-                        cache_desc=cache_desc,
-                        uuid_=uuid_,
-                        data_size=data_size,
+            def write_data():
+                try:
+                    # Write the data to the swap before we insert the
+                    # swap_entry inside the database for a few reasons:
+                    #
+                    # 1. Once the entry is committed to the database, other
+                    # database users will expect the data to exist and be
+                    # valid.
+                    #
+                    # 2. We don't want to write to the file while we are inside
+                    # a database transaction. This leads to extra delay for
+                    # other concurrent connections, but most importantly that
+                    # can lead to deadlocks as writing the data may attempt to
+                    # open a nested transaction, which will deadlock.
+                    written_data = self._write_data(
+                        fmt=cache_desc.data_fmt,
+                        data=data,
+                        path=path,
+                        swap_dir=swap_dir,
                     )
+                except Exception:
+                    # Do not log the error, as it could happen under normal
+                    # circumstances (e.g. we have an object column in a
+                    # dataframe that cannot be converted to arrow, but we still
+                    # attempt caching the function because in some dynamic
+                    # circumstances it can succeed based on user input).
+                    # However we still raise an exception so that the database
+                    # transaction is rolled back.
+                    if best_effort:
+                        raise EarlyReturn(data)
+                    else:
+                        raise
+                else:
+                    data_size = sum(
+                        _path.stat().st_size
+                        for _path in path.rglob('*')
+                    )
+                    priority = cache_desc.priority(path)
+                    return (written_data, data_size, priority)
 
             def insert():
+                if not replace:
+                    # Cheap pre-check before calling write_data(). We cannot
+                    # just call write_data() inside the rw transaction once we
+                    # confirmed there is no existing entry because that can
+                    # lead to deadlocks. write_data() can end up needing to
+                    # open its own rw transaction if it triggers writing to the
+                    # cache itself, which can happen with deferred work in
+                    # instrumented LazyFrame
+                    with self._swap_db_transaction('r') as trans:
+                        exists = trans.lookup_cache_desc(
+                            cache_desc,
+                            on_found=lambda *args: True,
+                            on_not_found=lambda *args: False,
+                        )
+
+                    if exists:
+                        raise _TraceCacheSwapEntryExistsError()
+
+                # This has to run outside of the transaction, as it may start a
+                # transaction of its own (when collecting the LazyFrame).
+                written_data, data_size, priority = write_data()
+
+                def _insert():
+                    def on_found(trans, swap_entry):
+                        raise _TraceCacheSwapEntryExistsError()
+
+                    def on_not_found(trans):
+                        cache_desc._db_insert(
+                            trans=trans,
+                            uuid_=uuid_,
+                            data_size=data_size,
+                            priority=priority,
+                        )
+
+                    with self._swap_db_transaction('rw') as trans:
+                        trans.lookup_cache_desc(
+                            cache_desc,
+                            on_found=on_found,
+                            on_not_found=on_not_found,
+                        )
+
                 try:
-                    return _insert()
+                    _insert()
                 except _TraceCacheSwapEntryExistsError as e:
                     if replace:
                         # Remove the cache_desc from the database, before
-                        # trying again. We don't really need to be in the same
-                        # transaction. In the worst case scenario, we lose a
-                        # race with another insert and we fail again at
-                        # inserting. We will then fetch() the data from the
-                        # swap anyway.
+                        # trying again. We don't really need to be in the
+                        # same transaction. In the worst case scenario, we
+                        # lose a race with another insert and we fail again
+                        # at inserting. We will then fetch() the data from
+                        # the swap anyway.
                         try:
                             self._clear_cache_descs_swap([cache_desc])
                         except Exception:
                             raise e
                         else:
-                            return _insert()
+                            _insert()
                     else:
                         raise e
+                return (written_data, data_size)
 
             try:
                 try:
-                    insert()
-                except BaseException:
-                    # Ensure no-one accesses data that may rely on some backing
-                    # file in the swap before we remove said backing files.
-                    del written_data
-                    cleanup_data()
+                    written_data, data_size = insert()
+                except Exception:
+                    shutil.rmtree(path, ignore_errors=True)
                     raise
             except _TraceCacheSwapEntryExistsError:
                 try:
@@ -5998,6 +6597,8 @@ class _TraceCache(Loggable):
                 # entry that existed a moment ago has been removed already.
                 except KeyError:
                     return data
+            except EarlyReturn as e:
+                return e.value
             else:
                 with self._lock:
                     self._swap_size += data_size
@@ -6017,8 +6618,6 @@ class _TraceCache(Loggable):
         except ValueError:
             pass
         else:
-            # TODO: Load the file information from __init__ by discovering the
-            # swap area's content to avoid doing it each time here
             if self._swap_size > self.max_swap_size:
                 self._scrub_swap(swap_dir)
 
@@ -6026,7 +6625,7 @@ class _TraceCache(Loggable):
         # load_all_swap_entries() returns swap_entries in inverse creation
         # order (first is the most recent).
         with self._swap_db_transaction('r') as trans:
-            swap_entries = trans.load_all_swap_entries()
+            swap_entries = list(trans.load_all_swap_entries())
 
         max_swap_size = self.max_swap_size
 
@@ -6092,7 +6691,7 @@ class _TraceCache(Loggable):
                             )
                         ) is not None
                     ]
-            except KeyError:
+            except _TraceCacheSwapEntryNotFoundError:
                 pass
             else:
                 # The removal of the entry is now committed to the DB, so we
@@ -6112,43 +6711,50 @@ class _TraceCache(Loggable):
         try:
             swap_dir = self.swap_dir
         except ValueError:
-            raise KeyError('Swap folder is not setup')
+            raise _TraceCacheSwapEntryNotFoundError('Swap folder is not setup')
         else:
             def load(trans, swap_entry):
-                return self._load_data(
-                    fmt=cache_desc.fmt,
+                cache_desc = swap_entry.cache_desc
+                data = self._load_data(
+                    fmt=cache_desc.data_fmt,
                     path=swap_entry.data_folder(swap_dir),
                     swap_dir=swap_dir,
                 )
+                return (cache_desc, data)
 
             try:
                 with self._swap_db_transaction('r') as trans:
-                    data = trans.lookup_cache_desc(
+                    loaded_cache_desc, data = trans.lookup_cache_desc(
                         cache_desc,
                         on_found=load,
                     )
+            except _TraceCacheSwapEntryNotFoundError:
+                raise
             except Exception as e:
                 # Rotten swap entry, we clear it. This may happen if the data
                 # could be written succesfully but the file cannot be reloaded
                 # for some reason.
                 self._clear_cache_descs_swap([cache_desc])
-                raise KeyError('Could not load swap entry content of cache_desc')
+                raise _TraceCacheSwapEntryNotFoundError('Could not load swap entry content of cache_desc')
             else:
                 if insert:
-                    return self.insert(
-                        cache_desc,
+                    data = self.insert(
+                        loaded_cache_desc,
                         data=data,
                         write_swap=False,
-                        # We have no idea of the cost of something coming from
-                        # the cache. Even if we recorded it, it could have been
-                        # generated under different circumstances (or even
-                        # another machine) that would make the value
-                        # meaningless.
-                        compute_cost=None,
                     )
-                else:
-                    return data
 
+                    # With predicate pushdown, we may end up loading the data
+                    # of another cache_desc. If that is the case, we re-dump
+                    # that data under the cache_desc we initially asked for, so
+                    # that the next lookup will be a direct database hit.
+                    if cache_desc.desc_key != loaded_cache_desc.desc_key:
+                        data = self.insert(
+                            cache_desc,
+                            data=data,
+                            write_swap=True,
+                        )
+                return data
 
     def fetch(self, cache_desc, insert=True):
         """
@@ -6235,7 +6841,7 @@ class _TraceCache(Loggable):
             else:
                 if in_mem:
                     return data
-                elif cache_desc.fmt == 'parquet':
+                elif cache_desc.data_fmt == 'parquet':
                     # If the data was not in memory (e.g. polars LazyFrame), we
                     # reload it from the swap. Most computations reduce the
                     # amount of data compared to the source, so it is
@@ -6281,23 +6887,45 @@ class _TraceCache(Loggable):
                 def retention_score(cache_desc_and_data):
                     cache_desc, data = cache_desc_and_data
 
-                    # If we don't know the computation cost, assume it can be evicted cheaply
+                    # If we don't know the computation cost, assume it can be
+                    # evicted cheaply
                     compute_cost = self._data_cost.get(cache_desc, 0)
 
                     # Assume that more references to an object implies it will
-                    # stay around for longer. Therefore, it's less interesting to
-                    # remove it from this cache and pay the cost of reading/writing it to
-                    # swap, since the memory will not be freed anyway.
+                    # stay around for longer. Therefore, it's less interesting
+                    # to remove it from this cache and pay the cost of
+                    # reading/writing it to swap, since the memory will not be
+                    # freed anyway.
                     #
-                    # Normalize to the minimum refcount, so that the _cache and other
-                    # structures where references are stored are discounted for sure.
+                    # Normalize to the minimum refcount, so that the _cache and
+                    # other structures where references are stored are
+                    # discounted for sure.
                     return (refcounts[cache_desc] - min_refcount + 1) * compute_cost
 
-                new_mem_usage = 0
-                for cache_desc, data in sorted(self._cache.items(), key=retention_score):
-                    new_mem_usage += self._data_mem_usage(data)
-                    if new_mem_usage > self.max_mem_size:
-                        self.evict(cache_desc)
+                items = sorted(
+                    self._cache.items(),
+                    key=retention_score,
+                    # We will get the items to preserve first (high score).
+                    reverse=True,
+                )
+
+                to_evict = (
+                    cache_desc
+                    for (cache_desc, data), size_acc in zip(
+                        items,
+                        itertools.accumulate(
+                            map(
+                                lambda item: self._data_mem_usage(item[1]),
+                                items,
+                            ),
+                            operator.add,
+                        )
+                    )
+                    if size_acc > self.max_mem_size
+                )
+
+                for cache_desc in to_evict:
+                    self.evict(cache_desc)
 
     def evict(self, cache_desc):
         """
@@ -6591,22 +7219,26 @@ class _Trace(Loggable, _InternalTraceBase):
             cm_stack.enter_context(new_cache)
 
             with cache._lock:
-                new_cache.update_metadata(
-                    {'trace-id': trace_id}
-                    if swap_dir else
-                    {
-                        desc.metadata_key: data
-                        for desc, data in cache._cache.items()
-                        if isinstance(desc, _MetadataCacheDataDesc)
-                    }
-                )
+                meta = {
+                    desc.metadata_key: data
+                    for desc, data in cache._cache.items()
+                    if isinstance(desc, _MetadataCacheDataDesc)
+                }
+                meta = {
+                    **meta,
+                    **{'trace-id': trace_id}
+                }
+                # Do not replace metadata entries that may already exist in the
+                # existing swap. This avoids writing the data file ahead of the
+                # database transaction, so we will only write those files if
+                # they are needed.
+                new_cache.update_metadata(meta, replace=False)
 
         self._cache = new_cache
 
         # Initial scrub of the swap to discard unwanted data, honoring the
         # max_swap_size right from the beginning
         self._cache.scrub_swap()
-        self._cache.to_swap_dir()
 
         # Preload metadata from the cache, to trigger any side effect when
         # processing them. For example, this can help avoiding spinning the
@@ -7275,20 +7907,10 @@ class _Trace(Loggable, _InternalTraceBase):
             )
             return id_
 
-    def _make_raw_cache_desc(self, event, pushdowns=None):
-        pushdowns = FrozenDict({
-            k: v
-            for k, v in (pushdowns or {}).items()
-            if v is not None
-        })
-
-        return self._do_make_raw_cache_desc(
-            event,
-            pushdowns=pushdowns,
-        )
-
     @memoized
-    def _do_make_raw_cache_desc(self, event, pushdowns):
+    def _make_raw_cache_desc(self, event, pushdowns):
+        # Make sure all raw descriptors are made the same way, to avoid missed
+        # sharing opportunities
         return _EventCacheDataDesc(
             event=event,
             trace_state=self.trace_state,
@@ -7341,18 +7963,26 @@ class _Trace(Loggable, _InternalTraceBase):
             df = _df_to(df.df, fmt='polars-lazyframe')
 
             if _record_pushdowns:
+                schema = df.collect_schema()
+
                 def record_pushdowns(with_columns, predicate, n_rows):
                     self._activity_log.log(
                         'df-collect-with-pushdowns',
                         {
                             'event': event,
-                            'compatible': True,
-                            'parser-pushdowns': {},
-                            'collect-pushdowns': _make_pushdowns(
-                                with_columns=with_columns,
+                            'parser-subsumes-collect': True,
+                            'parser-pushdowns': _ScanPushdowns(
+                                schema=schema,
+                                columns=None,
+                                predicate=None,
+                                n_rows=None,
+                            ),
+                            'collect-pushdowns': _ScanPushdowns(
+                                schema=schema,
+                                columns=with_columns,
                                 predicate=predicate,
                                 n_rows=n_rows,
-                            ),
+                            )
                         }
                     )
                 df = _polars_record_pushdowns(df, record_pushdowns)
@@ -7364,9 +7994,6 @@ class _Trace(Loggable, _InternalTraceBase):
             return df, meta
 
     def _fetch_cache_raw_df(self, event, pushdowns=None):
-        # Make sure all raw descriptors are made the same way, to avoid
-        # missed sharing opportunities
-
         def fetch(cache_desc):
             df = self._cache.fetch(cache_desc, insert=True)
             return _ParsedDataFrame.from_df(df)
@@ -7385,6 +8012,7 @@ class _Trace(Loggable, _InternalTraceBase):
 
         return fetch(self._make_raw_cache_desc(
             event,
+            pushdowns=None,
         ))
 
     def _load_cache_raw_df(
@@ -7444,59 +8072,27 @@ class _Trace(Loggable, _InternalTraceBase):
                 ) from e
 
         def _polars_dispatch_pushdowns(event, pushdowns, df):
-            def make_df(with_columns, predicate, n_rows, batch_size):
-                predicate_expr = predicate
+            schema = df.collect_schema()
 
-                # Normalize the format
-                _pushdowns = _make_pushdowns(
-                    with_columns=with_columns,
+            def make_df(with_columns, predicate, n_rows, batch_size):
+                _pushdowns = _ScanPushdowns(
+                    schema=schema,
+                    columns=with_columns,
                     predicate=predicate,
                     n_rows=n_rows,
                 )
-                with_columns = _pushdowns['with-columns']
-                n_rows = _pushdowns['n-rows']
-                predicate = _pushdowns['predicate']
-
-                compatible = True
-
-                # No selection of specific columns, we want all columns to be
-                # available.
-                if with_columns is None:
-                    if pushdowns.get('with-columns') is not None:
-                        compatible = False
-                else:
-                    if set(
-                        pushdowns.get('with-columns', with_columns)
-                    ) < set(with_columns):
-                        compatible = False
-
-                # FIXME: implement proper predicate overlap detection
-                if pushdowns.get('predicate', predicate) != predicate:
-                    compatible = False
-
-                # No limit on number of rows, so we want all rows
-                if n_rows is None:
-                    if pushdowns.get('n-rows') != n_rows:
-                        compatible = False
-                else:
-                    if n_rows > pushdowns.get('n-rows', math.inf):
-                        compatible = False
-
+                subsumes = pushdowns.subsumes(_pushdowns)
                 self._activity_log.log(
                     'df-collect-with-pushdowns',
                     {
                         'event': event,
-                        'compatible': compatible,
+                        'parser-subsumes-collect': subsumes,
                         'parser-pushdowns': pushdowns,
-                        'collect-pushdowns': _make_pushdowns(
-                            with_columns=with_columns,
-                            predicate=predicate_expr,
-                            n_rows=n_rows,
-                        ),
+                        'collect-pushdowns': _pushdowns,
                     }
                 )
 
-                if compatible:
+                if subsumes:
                     _df = df
                 else:
                     # If the pushdowns are not compatible with the ones we
@@ -7514,22 +8110,12 @@ class _Trace(Loggable, _InternalTraceBase):
                     _df = _df.df
                     assert isinstance(_df, pl.LazyFrame)
 
-                if predicate_expr is not None:
-                    _df = _df.filter(predicate_expr)
-
-                # This has to be applied after the predicate (both for
-                # correctness and to allow predicate pushdown to work)
-                if n_rows is not None:
-                    _df = _df.head(n_rows)
-
-                if with_columns is not None:
-                    _df = _df.select(with_columns)
-
+                _df = _pushdowns.apply(_df)
                 return _df.collect_batches(chunk_size=batch_size)
 
             return register_io_source(
                 make_df,
-                schema=df.collect_schema(),
+                schema=schema,
                 is_pure=True,
             )
 
@@ -8244,9 +8830,6 @@ class Trace(
         :type traces: collections.abc.Iterable(lisa.trace.TraceBase)
         """
         def process_many(traces):
-            # FIXME: is there a way to know before-hand what trace will be the
-            # cheapest to process without pushdowns ? Maybe we could sort by
-            # file size.
             first, *others = traces
 
             # We do not try to apply any sort of pushdown immediately, as a
@@ -8284,52 +8867,11 @@ class Trace(
                     )
                 log = list(log)
 
-            def merge_pushdowns(group):
-                per_key = dict(groupby(
-                    (
-                        (k, v)
-                        for spec in group
-                        for k, v in spec['collect-pushdowns'].items()
-                        if v is not None
-                    ),
-                    key=itemgetter(0)
-                ))
-                per_key = {
-                    k: [
-                        v
-                        for _, v in group
-                    ]
-                    for k, group in per_key.items()
-                }
-
-                if (n_rows := per_key.get('n-rows')):
-                    merged_n_rows = max(n_rows)
-                else:
-                    merged_n_rows = None
-
-                if (columns := per_key.get('with-columns')):
-                    merged_with_columns = tuple(sorted(set(
-                        itertools.chain.from_iterable(columns)
-                    )))
-                else:
-                    merged_with_columns = None
-
-                if (predicates := per_key.get('predicate')):
-                    merged_predicate = functools.reduce(
-                        operator.or_,
-                        predicates,
-                    )
-                else:
-                    merged_predicate = None
-
-                return _make_pushdowns(
-                    with_columns=merged_with_columns,
-                    predicate=merged_predicate,
-                    n_rows=merged_n_rows,
-                )
-
             pushdowns = {
-                event: merge_pushdowns(group)
+                event: _ScanPushdowns.union(
+                    spec['collect-pushdowns']
+                    for spec in group
+                )
                 for event, group in groupby(
                     (
                         item['data']
@@ -8376,7 +8918,7 @@ class Trace(
                             for item in log
                             if (
                                 item['type'] == 'df-collect-with-pushdowns'
-                                and not item['data']['compatible']
+                                and not item['data']['parser-subsumes-collect']
                             )
                         )
 

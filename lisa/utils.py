@@ -67,6 +67,7 @@ import multiprocessing
 import urllib.request
 import builtins
 import typing
+import json
 
 import ruamel.yaml
 import ruamel.yaml.nodes
@@ -4720,5 +4721,56 @@ def ffill(iterator, select=lambda x: x is not None, init=None):
             curr = x
 
         yield curr
+
+
+class _JsonEncodable(abc.ABC):
+    """
+    Inheriting from this class allows encoding a value in JSON for a cache
+    desc.
+    """
+
+    @abc.abstractmethod
+    def json_encode(self):
+        """
+        Returns a more basic object that can readily be encoded by an
+        unmodified json serializer.
+        """
+        pass
+
+    @classmethod
+    def json_dumps(cls, x, **kwargs):
+        class Encoder(json.JSONEncoder):
+            def default(self, o):
+                if isinstance(o, cls):
+                    _cls = o.__class__
+                    return {
+                        'module': _cls.__module__,
+                        'cls': _cls.__qualname__,
+                        'value': o.json_encode(),
+                    }
+                else:
+                   return super().default(o)
+
+        return Encoder(**kwargs).encode(x)
+
+
+def _json_checksum(value, method):
+    def dump(value):
+        try:
+            return _JsonEncodable.json_dumps(
+                value,
+                # Normalized JSON
+                sort_keys=True,
+                # Make it as compact as possible
+                separators=(',', ':'),
+            )
+        except TypeError as e:
+            raise ValueError(str(e))
+
+    data = dump(value)
+    data = data.encode('utf-8')
+    data = io.BytesIO(data)
+    return checksum(data, method=method)
+
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

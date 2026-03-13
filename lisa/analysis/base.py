@@ -1274,7 +1274,7 @@ class TraceAnalysisBase(AnalysisHelpers):
 
             try:
                 cache_desc = _AnalysisCacheDataDesc(
-                    fmt=fmt,
+                    data_fmt=fmt,
                     trace_state=trace.trace_state,
                     bound_class=self.__class__,
                     func=f,
@@ -1301,6 +1301,10 @@ class TraceAnalysisBase(AnalysisHelpers):
                     # reloaded most likely as a polars LazyFrame.
                     return cache.fetch(cache_desc)
                 except KeyError:
+                    # FIXME: should we systematically write the file to the
+                    # cache ? Doing so force materialization of columns we may
+                    # never need, in particular when one analysis method relies
+                    # on another one.
                     compute_cost, data = call_f()
                     return cache.insert(
                         cache_desc=cache_desc,

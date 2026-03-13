@@ -35,7 +35,7 @@ import queue
 import sys
 import json
 import io
-
+import abc
 
 import polars as pl
 import polars.selectors as cs
@@ -47,7 +47,7 @@ import scipy.integrate
 import scipy.signal
 import pyarrow
 
-from lisa.utils import TASK_COMM_MAX_LEN, groupby, deprecate, order_as, FrozenDict
+from lisa.utils import TASK_COMM_MAX_LEN, groupby, deprecate, order_as, FrozenDict, _json_checksum, memoized
 
 
 class Timestamp(float):
@@ -2788,13 +2788,7 @@ def _polars_record_pushdowns(df, callback):
     )
 
 
-# FIXME: write unit tests as serialize(format='json') is unstable
 def _polars_parse_predicate(expr, schema, binop, unaryop, column, literal):
-    if isinstance(expr, pl.Expr):
-        expr = expr.meta.serialize(format='json')
-    if isinstance(expr, str):
-        expr = json.loads(expr)
-
     def deserialize(expr):
         return pl.Expr.deserialize(
             io.BytesIO(json.dumps(expr).encode('utf-8')),
@@ -2808,131 +2802,520 @@ def _polars_parse_predicate(expr, schema, binop, unaryop, column, literal):
         return df.collect_schema()['expr']
 
     def parse(expr):
+        def not_(expr):
+            return unaryop('!', expr)
+
+        def or_(left, right):
+            return binop(left, '||', right)
+
+        def xor_(left, right):
+            return and_(
+                or_(left, right),
+                not_(and_(left, right)),
+            )
+
+        def and_(left, right):
+            return binop(left, '&&', right)
+
+        def bitnot_(expr):
+            return unaryop('~', expr)
+
+        def bitor_(left, right):
+            return binop(left, '|', right)
+
+        def bitxor_(left, right):
+            return bitand_(
+                bitor_(left, right),
+                bitnot_(bitand_(left, right)),
+            )
+
+        def bitand_(left, right):
+            return bitnot_(bitor_(bitnot_(left), bitnot_(right)))
+
+        def eq(left, right):
+            return binop(left, '==', right)
+
+        def lt(left, right):
+            return binop(left, '<', right)
+
+        def le(left, right):
+            return or_(
+                eq(left, right),
+                lt(left, right),
+            )
+
+        def gt(left, right):
+            return not_(le(left, right))
+
+        def ge(left, right):
+            return or_(
+                eq(left, right),
+                gt(left, right),
+            )
+
+        def isnull(expr):
+            return unaryop('isnull', expr)
+
         match expr:
             case {'BinaryExpr': {'left': left, 'op': op, 'right': right}}:
-                def parse_op(left, op, right):
-                    match op:
-                        case 'Eq':
-                            return '=='
-                        case 'NotEq':
-                            return '!='
-                        case 'Gt':
-                            return '>'
-                        case 'Lt':
-                            return '<'
-                        case 'GtEq':
-                            return '>='
-                        case 'LtEq':
-                            return '<='
-                        case 'And' | 'Or':
-                            left_dtype = get_dtype(left)
-                            right_dtype = get_dtype(right)
-                            if (
-                                left_dtype.is_(right_dtype)
-                                or (left_dtype.is_integer() and right_dtype.is_integer())
-                                or (left_dtype.is_float() and right_dtype.is_float())
-                            ):
-                                # Boolean version of the operators when dtypes
-                                # are boolean
-                                if left_dtype == pl.Boolean:
-                                    return {
-                                        'Or': '||',
-                                        'And': '&&',
-                                    }[op]
-                                # Otherwise, it is the bitwise variant of the
-                                # operator as defined by polars.
-                                else:
-                                    return {
-                                        'Or': '|',
-                                        'And': '&',
-                                    }[op]
+                match op:
+                    case 'Eq':
+                        return eq(parse(left), parse(right))
+                    case 'NotEq':
+                        return not_(eq(parse(left), parse(right)))
+                    case 'Gt':
+                        return gt(parse(left), parse(right))
+                    case 'Lt':
+                        return lt(parse(left), parse(right))
+                    case 'GtEq':
+                        return ge(parse(left), parse(right))
+                    case 'LtEq':
+                        return le(parse(left), parse(right))
+                    case 'And' | 'Or' | "Xor":
+                        left_dtype = get_dtype(left)
+                        right_dtype = get_dtype(right)
+                        if (
+                            left_dtype.is_(right_dtype)
+                            or (left_dtype.is_numeric() and right_dtype.is_numeric())
+                            or left_dtype.is_(pl.Null)
+                            or right_dtype.is_(pl.Null)
+                        ):
+                            # Boolean version of the operators when dtypes
+                            # are boolean
+                            if left_dtype == pl.Boolean:
+                                match op:
+                                    case 'Or':
+                                        return or_(parse(left), parse(right))
+                                    case 'Xor':
+                                        return xor_(parse(left), parse(right))
+                                    case 'And':
+                                        return and_(parse(left), parse(right))
+                                    case op:
+                                        raise ValueError(f'Boolean operator "{op}" is not supported')
+
+                            # Otherwise, it is the bitwise variant of the
+                            # operator as defined by polars.
                             else:
-                                raise ValueError(f'Operator "{op}" is not supported for mixed operand dtypes: left={left_dtype} and right={right_dtype}')
+                                match op:
+                                    case 'Or':
+                                        return bitor_(parse(left), parse(right))
+                                    case 'Xor':
+                                        return bitxor_(parse(left), parse(right))
+                                    case 'And':
+                                        return bitand_(parse(left), parse(right))
+                                    case op:
+                                        raise ValueError(f'Bitwise operator "{op}" is not supported')
+                        else:
+                            raise ValueError(f'Operator "{op}" is not supported for mixed operand dtypes: left={left_dtype} and right={right_dtype}')
 
-                return binop(
-                    parse(left),
-                    parse_op(left, op, right),
-                    parse(right),
-                )
             case {'Function': {'function': {'Boolean': op}, 'input': [x]}}:
-                def parse_op(op, x):
-                    match op:
-                        case 'Not':
-                            match get_dtype(x):
-                                case pl.Boolean:
-                                    return '!'
-                                case _:
-                                    return '~'
-                        case _:
-                            raise ValueError(f'Unary operator "{op}" is not handled')
-
-                return unaryop(
-                    parse_op(op, x),
-                    parse(x),
-                )
+                match op:
+                    case 'IsNull':
+                        return isnull(parse(x))
+                    case 'Not':
+                        match get_dtype(x):
+                            case pl.Boolean:
+                                return not_(parse(x))
+                            case _:
+                                return bitnot_(parse(x))
+                    case 'IsNotNull':
+                        return not_(isnull(parse(x)))
+                    case op:
+                        raise ValueError(f'Unary operator "{op}" is not handled')
             case {'Column': col}:
                 return column(col)
             case {'Literal': lit}:
                 match lit:
                     case {'Scalar': scalar} | {'Dyn': scalar}:
-                        match list(scalar.values()):
-                            case [x]:
+                        match scalar:
+                            # All dtypes have a null value. In addition, there
+                            # is a Null dtype that only has a single value
+                            # which is "Null".
+                            case {"Null": _dtype}:
+                                return literal(None)
+                            case (
+                                  {"String": x}
+                                | {"Boolean": x}
+                                | {"Int": x}
+                                | {"UInt": x}
+                                | {"Int8": x}
+                                | {"UInt8": x}
+                                | {"Int16": x}
+                                | {"UInt16": x}
+                                | {"Int32": x}
+                                | {"UInt32": x}
+                                | {"Int64": x}
+                                | {"UInt64": x}
+                            ):
                                 return literal(x)
-                            case _:
+                            case {"Float": x}:
+                                match x:
+                                    case None:
+                                        # None seems to be used both for NaN
+                                        # and Infinity values so we can't
+                                        # decide which one it should be here.
+                                        raise ValueError('Float non-numeric values are not handled')
+                                    case x:
+                                        return literal(x)
+                            case {"Binary": x}:
+                                # Binary blobs are encoded as a list of
+                                # integers (one for each byte).
+                                return literal(bytes(x))
+                            case scalar:
                                 raise ValueError(f'Scalar value not handled: {scalar}')
-                    case _:
+                    case lit:
                         raise ValueError(f'Literal value not handled: {lit}')
-            case _:
-                raise ValueError(f'Expression not handled: {lit}')
+            case expr:
+                raise ValueError(f'Expression not handled: {expr}')
 
-    return parse(expr)
+    def raise_(expr):
+        raise ValueError(f'The provided polars expression does not round-trip correctly via JSON, so it cannot be processed: {expr}')
+
+    # Ensure a roundtrip to JSON is lossless, as this may not be guaranteed,
+    # e.g.:
+    # https://github.com/pola-rs/polars/issues/26929
+    try:
+        json_expr = json.loads(
+            expr.meta.serialize(format='json')
+        )
+        deser = deserialize(json_expr)
+    except Exception:
+        return raise_(expr)
+    else:
+        if deser.meta.eq(expr):
+            return parse(json_expr)
+        else:
+            return raise_(expr)
 
 
-# FIXME: remove if unused. It may be useful to write unit tests.
-def _polars_predicate_to_ir(expr, schema):
+def _polars_predicate_dnf_clauses_hash(expr, schema):
 
-    def binop(left, op, right):
-        return {
-            'type': 'binop',
-            'data': {
-                'left': left,
-                'op': op,
-                'right': right,
-            }
-        }
+    class Node(abc.ABC):
+        """
+        Base class for a Kleene K3 logic, which is a 3-valued logic where each
+        atom can be True, False or Unknown. It is the logic that both
+        :mod:`polars` and SQL implement.
+        """
+        __slots__ = ['structure']
+
+        def __init__(self, structure):
+            self.structure = structure
+
+        def __hash__(self):
+            return hash(self.structure)
+
+        def __eq__(self, other):
+            return self.structure == other.structure
+
+        def __lt__(self, other):
+            return self.structure < other.structure
+
+        def checksum(self):
+            return _json_checksum(
+                self.structure,
+                method='sha256',
+            )
+
+
+    class AndOr(Node):
+        __slots__ = ['operands']
+
+        def __init__(self, operands):
+            operands = frozenset(operands)
+            self.operands = operands
+            super().__init__(
+                structure=(
+                    self.OP,
+                    *(
+                        expr.structure
+                        for expr in sorted(operands)
+                    )
+                )
+            )
+
+    class Or(AndOr):
+        __slots__ = []
+        OP = 'OR'
+
+    class And(AndOr):
+        __slots__ = []
+        OP = 'AND'
+
+    class Atom(Node):
+        __slots__ = ['kind', 'negative']
+        def __init__(self, kind, negative, structure):
+            self.kind = kind
+            self.negative = negative
+            super().__init__(
+                structure=(
+                    'atom',
+                    self.kind,
+                    self.negative,
+                    structure,
+                )
+            )
+
+    _atom_cache = {}
+    def make_atom(kind, structure):
+        def _atom(negative):
+            atom = Atom(
+                kind=kind,
+                negative=negative,
+                structure=structure,
+            )
+            key = atom
+            try:
+                return _atom_cache[key]
+            except KeyError:
+                _atom_cache[key] = atom
+                return atom
+
+        return _atom
+
+    def make_literal(value):
+        typ = type(value)
+        return make_atom(
+            'literal',
+            (
+                # We encode the type name here, as otherwise Atom equality
+                # becomes dodgy since 1 == True.
+                typ.__module__,
+                typ.__qualname__,
+                value,
+            )
+        )
+
+    TRUE_ATOM = make_literal(True)(False)
+    FALSE_ATOM = make_literal(True)(True)
+    NULL_ATOM = make_literal(None)(False)
 
     def unaryop(op, expr):
-        return {
-            'type': 'unaryop',
-            'data': {
-                'op': op,
-                'expr': expr,
-            }
-        }
+        def fallback(op, expr):
+            # Polars has a lot of unary operators, we just hide them inside
+            # an atom.
+            return make_atom(
+                kind='unaryop',
+                structure=(
+                    op,
+                    # The atom itself encodes whether it is the negative
+                    # version of itself already, so it does not matter what we
+                    # call expr() with
+                    expr(False).structure,
+                ),
+            )
+
+        match op:
+            case '!':
+                # Under Kleene K3, the involution law holds: (NOT (NOT x)) = x.
+                # So we can apply that simplification rewrite here. That allows
+                # us to push negation down the tree as much as possible.
+                return lambda negative: expr(not negative)
+            case '~':
+                def _neg(negative):
+                    if expr(negative) == NULL_ATOM:
+                        return NULL_ATOM
+                    else:
+                        return fallback('~', expr)(negative)
+                return _neg
+            case op:
+                return fallback(op, expr)
 
     def column(col):
-        return {
-            'type': 'column',
-            'data': {
-                'column': col,
+        return make_atom(kind='col', structure=col)
+
+    def binop(left, op, right):
+
+        def make_andor(cls, neutral, absorbing, process_operands, operands):
+            operands = expand(cls, operands)
+
+            if absorbing in operands:
+                return absorbing
+            else:
+                operands = process_operands(
+                    frozenset(
+                        expr
+                        for expr in operands
+                        if expr != neutral
+                    )
+                )
+                if operands:
+                    try:
+                        expr, = operands
+                    except ValueError:
+                        return cls(operands)
+                    else:
+                        return expr
+                else:
+                    return neutral
+
+        def make_and(operands):
+            return make_andor(
+                cls=And,
+                neutral=TRUE_ATOM,
+                absorbing=FALSE_ATOM,
+                process_operands=lambda operands: operands,
+                operands=operands,
+            )
+
+        def make_or(operands):
+            return make_andor(
+                cls=Or,
+                neutral=FALSE_ATOM,
+                absorbing=TRUE_ATOM,
+                process_operands=absorb_or,
+                operands=operands,
+            )
+
+        def expand(cls, operands):
+            return frozenset(
+                itertools.chain.from_iterable(
+                    (
+                        expr.operands
+                        if isinstance(expr, cls) else
+                        (expr,)
+                    )
+                    for expr in operands
+                )
+            )
+
+        def absorb_or(operands):
+            """
+            Absorption rule holds in Kleene K3 logic:
+            (A AND B) OR (A AND B AND C) = A AND B
+            """
+            def as_and_operands(expr):
+                return expand(And, (expr,))
+
+            possibly_removed = [
+                (expr, as_and_operands(expr))
+                for expr in operands
+                if isinstance(expr, And)
+            ]
+
+            with_operands = [
+                (expr, as_and_operands(expr))
+                for expr in operands
+            ]
+
+            to_remove = {
+                e1
+                for e1, e1_as_and_operands in possibly_removed
+                for e2, e2_as_and_operands in with_operands
+                if e1 is not e2 and e2_as_and_operands <= e1_as_and_operands
             }
-        }
+
+            return {
+                expr
+                for expr in operands
+                if expr not in to_remove
+            }
+
+        def distribute_and(operands):
+            and_operands = expand(And, operands)
+            operands = {
+                frozenset(expand(Or, (expr,)))
+                for expr in and_operands
+            }
+
+            def bailout(operands):
+                operands_n = 1
+                for s in operands:
+                    operands_n *= len(s)
+                    if operands_n > 64:
+                        return True
+                return False
+
+            # Cap the number of operands we return to avoid exponential blowup
+            if bailout(operands):
+                return Atom(
+                    kind='nondistributed_and',
+                    structure=make_and(and_operands).checksum(),
+                    negative=False,
+                )
+            else:
+                return make_or(
+                    map(
+                        make_and,
+                        itertools.product(*operands),
+                    )
+                )
+
+        # De Morgan's law holds in Kleene K3, which allows us to turn the
+        # expression to Disjunctive Normal Form with a single-pass tree
+        # rewrite.
+        match op:
+            case '||':
+                return lambda negative: (
+                    distribute_and(
+                        (left(True), right(True))
+                    )
+                    if negative else
+                    make_or(
+                        (left(False), right(False)),
+                    )
+                )
+            case '&&':
+                return lambda negative: (
+                    make_or(
+                        (left(True), right(True)),
+                    )
+                    if negative else
+                    distribute_and(
+                        (left(False), right(False)),
+                    )
+                )
+            case op:
+                return make_atom(
+                    kind='binop',
+                    structure=(
+                        left(False).checksum(),
+                        op,
+                        right(False).checksum(),
+                    ),
+                )
 
     def literal(lit):
-        return {
-            'type': 'literal',
-            'data': {
-                'literal': lit,
-            }
-        }
+        match lit:
+            case False:
+                return lambda negative: make_literal(True)(not negative)
+            case None:
+                return lambda negative: NULL_ATOM
+            case lit:
+                return make_literal(lit)
 
-    return _polars_parse_predicate(
+    def split(op, process_inner, expr):
+        if isinstance(expr, op):
+            return sorted(
+                process_inner(_expr)
+                for _expr in expr.operands
+            )
+        else:
+            return [
+                process_inner(expr)
+            ]
+
+    expr = _polars_parse_predicate(
         expr=expr,
         schema=schema,
         binop=binop,
         unaryop=unaryop,
         column=column,
         literal=literal
+    )
+    expr = expr(False)
+
+    # Disjunctive Normal Form (DNF) will restructure the expression in to this
+    # shape: ((atom1 AND atom2 AND ... ) OR (atom3 AND atom4 AND ...) OR ...)
+    # where each atom_i is either a symbol or (NOT sym). In degenerate case,
+    # there will be a missing OR or AND level if there is less than 2 clauses.
+    return split(
+        Or,
+        lambda expr: split(
+            And,
+            lambda expr: expr.checksum(),
+            expr,
+        ),
+        expr,
     )
 
 
@@ -3001,6 +3384,13 @@ def _polars_json_deserialize(plan):
     with warnings.catch_warnings():
         warnings.simplefilter(action='ignore')
         return pl.LazyFrame.deserialize(plan, format='json')
+
+
+def _parquet_nr_rows(path):
+    path = str(path)
+    # This is supposed to be a fast operation:
+    # https://github.com/pola-rs/polars/issues/11404
+    return pl.scan_parquet(path).select(pl.len()).collect().item()
 
 
 # Defined outside SignalDesc as it references SignalDesc itself
