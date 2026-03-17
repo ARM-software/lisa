@@ -634,7 +634,7 @@ texinfo_documents = [
 
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
-    'pandas': ('https://pandas.pydata.org/pandas-docs/stable/', None),
+    'pandas': ('https://pandas.pydata.org/docs/', None),
     'matplotlib': ('https://matplotlib.org/stable/', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
     'holoviews': ('https://holoviews.org/', None),
