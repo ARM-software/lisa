@@ -7860,7 +7860,7 @@ class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
     def __contains__(self, event):
         return event in self.get_all_events()
 
-    def __len__(self, event):
+    def __len__(self):
         return len(self.get_all_events())
 
     def __and__(self, other):
