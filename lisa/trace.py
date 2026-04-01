@@ -2333,21 +2333,25 @@ class TxtTraceParserBase(TraceParserBase):
         super().__init__(events, needed_metadata=needed_metadata, **kwargs)
 
         self._pre_filled_metadata = pre_filled_metadata or {}
-        events = set(events or [])
 
-        if events or needed_metadata - {'trace-id'}:
+        if events or events is _ALL_EVENTS or needed_metadata - {'trace-id'}:
             default_event_parser_cls, event_parsers = self._resolve_event_parsers(event_parsers, default_event_parser_cls)
 
-            # Remove all the parsers that are unnecessary
-            event_parsers = {
-                event: parser
-                for event, parser in event_parsers.items()
-                if event in events
-            }
+            events_set = set(events or [])
+            if events is not _ALL_EVENTS:
+                # Remove all the parsers that are unnecessary
+                event_parsers = {
+                    event: parser
+                    for event, parser in event_parsers.items()
+                    if event in events_set
+                }
 
-            # If we don't need the fields in the skeleton df, avoid collecting them
-            # to save memory and speed things up
-            need_fields = (events != event_parsers.keys())
+            # If we don't need the fields in the skeleton df, avoid collecting
+            # them to save memory and speed things up
+            need_fields = (
+                events is _ALL_EVENTS
+                or (events_set != event_parsers.keys())
+            )
 
             skeleton_df = self._make_skeleton_df(
                 lines=lines,
@@ -2365,7 +2369,11 @@ class TxtTraceParserBase(TraceParserBase):
             )
             self._skeleton_df_path = skeleton_df_path
             skeleton_df = pl.scan_parquet(skeleton_df_path)
-            inferred_event_descs = self._get_event_descs(skeleton_df, events, event_parsers)
+            inferred_event_descs = self._get_event_descs(
+                skeleton_df,
+                events,
+                event_parsers,
+            )
 
             event_parsers = {
                 **{
@@ -2596,7 +2604,7 @@ class TxtTraceParserBase(TraceParserBase):
     @staticmethod
     def _get_event_descs(df, events, event_parsers):
         user_supplied = event_parsers.keys()
-        all_events = events is None
+        all_events = events is _ALL_EVENTS
 
         if not all_events and set(events) == user_supplied:
             return {}
@@ -3264,7 +3272,7 @@ class TxtTraceParser(TxtTraceParserBase):
             ).splitlines()
             if not event.startswith('version =')
         }
-        events = kernel_events if events is None else set(events)
+        events = kernel_events if events in (None, _ALL_EVENTS) else set(events)
         events &= kernel_events
 
         filter_events &= (events != kernel_events)
