@@ -3207,11 +3207,17 @@ class TxtTraceParser(TxtTraceParserBase):
                 stderr=subprocess.DEVNULL,
             ) as p:
                 try:
-                    match, _ = take(1, itertools.filterfalse(None, map(regex.search, p.stdout)))
+                    match, _ = take(
+                        1,
+                        itertools.filterfalse(
+                            None,
+                            map(regex.search, p.stdout)
+                        )
+                    )
                 except ValueError:
                     pass
                 else:
-                    pre_filled_metadata['cpus-count'] = match.group('cpus')
+                    pre_filled_metadata['cpus-count'] = int(match.group('cpus'))
 
         kwargs.update(
             events=events,
