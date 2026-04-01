@@ -99,12 +99,18 @@ def __getattr__(name):
 
 def _file_cleanup(paths):
     paths = [
-        path
+        Path(path)
         for path in paths
         if path is not None
     ]
     for path in paths:
-        shutil.rmtree(path, ignore_errors=True)
+        try:
+            try:
+                shutil.rmtree(path)
+            except NotADirectoryError:
+                path.unlink(missing_ok=True)
+        except Exception:
+            pass
 
 
 def _identity(x):
