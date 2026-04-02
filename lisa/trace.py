@@ -524,7 +524,7 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
     def __init__(self, events, temp_dir, needed_metadata=None, path=None, pushdowns=None):
         # pylint: disable=unused-argument
         self._requested_metadata = set(needed_metadata or [])
-        self._requested_events = events if events is _ALL_EVENTS else set(events)
+        self._requested_events = events if events is _ALL_EVENTS else set(events or [])
         self._temp_dir = Path(temp_dir)
         self._pushdowns = pushdowns
 
@@ -2715,6 +2715,23 @@ class TxtTraceParserBase(TraceParserBase):
     def _postprocess_df(cls, event, parser, df):
         assert isinstance(df, pl.LazyFrame)
 
+        dtype_mapping = {
+            'string': pl.String,
+            'bytes': pl.Binary,
+            'bool': pl.Boolean,
+            'float': pl.Float32,
+            'float32': pl.Float32,
+            'float64': pl.Float64,
+            'int8': pl.Int8,
+            'uint8': pl.UInt8,
+            'int16': pl.Int16,
+            'uint16': pl.UInt16,
+            'int32': pl.Int32,
+            'uint32': pl.UInt32,
+            'int64': pl.Int64,
+            'uint64': pl.UInt64,
+        }
+
         def get_representative(df, col):
             df = (
                 df
@@ -2733,10 +2750,12 @@ class TxtTraceParserBase(TraceParserBase):
         def infer_schema(df):
             # Select a subset of the dataframe that has no null value in it, so
             # we can accurately infer the dtype.
-            df = pl.DataFrame({
-                col: [get_representative(df, col)]
-                for col in df.collect_schema().names()
-            })
+            df = pl.DataFrame(
+                {
+                    col: [get_representative(df, col)]
+                    for col in df.collect_schema().names()
+                },
+            )
 
             # Ugly hack: dump the first row to CSV to infer the schema of the
             # dataframe based on text data, since that's what we have.
@@ -2744,16 +2763,8 @@ class TxtTraceParserBase(TraceParserBase):
             df.write_csv(bytes_io)
             df = pl.read_csv(bytes_io)
             schema = df.schema
-
             schema = {
-                # Cast all strings as categorical since they are typically very
-                # repetitive
-                col: pl.Categorical if isinstance(dtype, (pl.String, pl.Binary)) else dtype
-                for col, dtype in schema.items()
-            }
-
-            schema = {
-                **schema,
+                **df.schema,
                 '__timestamp': pl.UInt64,
             }
 
@@ -2767,6 +2778,30 @@ class TxtTraceParserBase(TraceParserBase):
             pl.col(name).cast(dtype)
             for name, dtype in infer_schema(df).items()
         )
+
+        schema_overrides = {
+            field: dtype
+            for field, _dtype in parser.fields.items()
+            if (dtype := dtype_mapping.get(_dtype)) is not None
+        }
+        schema_overrides = {
+            # Cast all strings as categorical since they are typically very
+            # repetitive
+            col: (
+                pl.Categorical
+                if isinstance(dtype, (pl.String, pl.Binary)) else
+                dtype
+            )
+            for col, dtype in schema_overrides.items()
+        }
+        # We apply the parser-supplied schema after the ones we got from polars
+        # itself. This way we ensure the inferred dtypes can be built from the
+        # source string, and we later convert it to what the user wants.
+        df = df.with_columns(
+            pl.col(name).cast(dtype)
+            for name, dtype in schema_overrides.items()
+        )
+
         df = (
             df
             .drop('Time', strict=False)
