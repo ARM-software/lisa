@@ -61,6 +61,7 @@ import sqlite3
 import logging
 import hashlib
 import base64
+import datetime
 
 import numpy as np
 import pandas as pd
@@ -1312,7 +1313,7 @@ class PerfettoTraceParser(TraceParserBase):
     @classmethod
     def _download_trace_processor(cls, url):
         def populate(key, path):
-            url, = key
+            _, url = key
             dst = path / 'trace_processor'
             cls.get_logger().info(f"Downloading Perfetto's trace_processor at {dst}")
             urllib.request.urlretrieve(url, dst)
@@ -1321,13 +1322,19 @@ class PerfettoTraceParser(TraceParserBase):
         dir_cache = DirCache(
             category='perfetto_trace_processor',
             populate=populate,
-            # FIXME: is that really what we want ? The URL does not have any
-            # version number in it, so we will never invalidate the cache as it
-            # is.
-            fmt_version='1',
+            fmt_version='2',
         )
 
-        cache_path = dir_cache.get_entry([url])
+        # The URL has no version number in it, but it is quite cheap to
+        # download as it is a shim Python script that then downloads the
+        # appropriate binary in its own cache. So we re-download the shim every
+        # day to pick up update at a reasonable pace.
+        day_id = (
+            datetime.datetime.now(datetime.timezone.utc)
+            - datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+        ).days
+        key = (day_id, url)
+        cache_path = dir_cache.get_entry(key)
         return cache_path / 'trace_processor'
 
     @property
