@@ -4187,6 +4187,66 @@ class TraceBase(_InternalTraceBase):
     def df_events(self, *args, **kwargs):
         return self.df_event(*args, **kwargs)
 
+    def iter_rows(self, events=None):
+        """
+        Iterator that yields a tuple ``(event, fields)`` with ``event`` the
+        name of the event and ``fields`` a dictionary of the fields.
+
+        :param events: List of events to parse. If ``None``, all events will be
+            parsed.
+        :type events: list(str) or None
+
+        .. warning:: This will be extremely slow in comparison to the regular
+            dataframe API, but it can be convenient and "good enough" for small
+            traces and does not require learning any dataframe API.
+
+        .. note:: If you wish to modify the way field values are converted to
+            Python values, use :meth:`~lisa.trace.Trace.get_view` with the
+            ``process_df`` parameter. This can be needed to get
+            nanosecond-precision timestamps, as Python's
+            :class:`datetime.timedelta` only has microsecond precision..
+        """
+        trace = self.get_view(df_fmt='polars-lazyframe')
+
+        def process(event):
+            df = trace.df_event(event)
+            df = df.select(
+                pl.col('Time'),
+                pl.lit(event).alias('event'),
+                pl.struct(pl.all()).map_elements(
+                    lambda d: d,
+                    return_dtype=pl.Object,
+                ).alias('row')
+            )
+            return df
+
+        # FIXME: this implementation based on LazyFrame.merge_sorted() hits a
+        # merge_sorted() bug.
+        def merge(dfs):
+            # FIXME: use polars.merge_sorted() rather than
+            # LazyFrame.merge_sorted()
+            def f(merged, df):
+                return merged.merge_sorted(df, key='Time')
+
+            return functools.reduce(merge, dfs)
+
+        def merge(dfs):
+            df = pl.concat(dfs, how='vertical')
+            return df.sort('Time')
+
+        if events in (None, 'all', _ALL_EVENTS):
+            self._parse_all(best_effort=False)
+            events = set(self.available_events)
+        else:
+            events = set(events)
+
+        events = sorted(events)
+        df = merge(map(process, events))
+        for batch in df.collect_batches():
+            for ts, event, row in batch.iter_rows():
+                yield event, row
+
+
     @property
     @abc.abstractmethod
     def ana(self):
@@ -7341,10 +7401,10 @@ class _Trace(Loggable, _InternalTraceBase):
     def _preload_all_events(self):
         self._activity_log.log('preload-all-events', None)
 
-        meta, df_map = self._parse_all()
+        meta, df_map = self._parse_all(best_effort=True)
         return set(df_map.keys())
 
-    def _parse_all(self):
+    def _parse_all(self, best_effort=False):
         self._activity_log.log('parse-all', None)
 
         def finalize(preloaded_df_map, preloaded_meta, parser, df_map):
@@ -7402,8 +7462,12 @@ class _Trace(Loggable, _InternalTraceBase):
                             try:
                                 events = parser.get_metadata('available-events')
                             except MissingMetadataError:
-                                self.logger.debug('Could not parse all events: {e}')
-                                return _finalize(parser=parser, df_map={})
+                                msg = f'Could not parse all events: {e}'
+                                if best_effort:
+                                    self.logger.debug(msg)
+                                    return _finalize(parser=parser, df_map={})
+                                else:
+                                    raise ValueError(e)
 
                 with self._get_parser(events=events, needed_metadata=needed_metadata) as parser:
 

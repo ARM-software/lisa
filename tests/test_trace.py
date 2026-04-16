@@ -26,6 +26,7 @@ import tempfile
 import contextlib
 import itertools
 import abc
+import datetime
 
 import pytest
 import numpy as np
@@ -575,6 +576,43 @@ class TraceTestCase(TraceTestCaseBase):
                 )
             )
             assert paths == [str(path)]
+
+
+    def test_iter_rows(self):
+        trace = self.get_trace('doc')
+        trace = trace[:470.783675]
+        rows = list(trace.iter_rows())
+        events = {event for event, fields in rows}
+
+        assert len(rows) == 15
+        assert events == {
+            'sched_process_exit',
+            'sched_waking',
+            'sched_pelt_se',
+            'sched_pelt_irq',
+            'sched_util_est_cfs',
+            'sched_pelt_cfs',
+            'cpu_idle',
+            'sched_wakeup',
+            'cpu_idle',
+        }
+
+        assert rows[0] == (
+            'sched_process_exit',
+            {
+                'Time': datetime.timedelta(
+                    seconds=470,
+                    microseconds=783168,
+                ),
+                '__cpu': 5,
+                '__pid': 5715,
+                '__comm': 'trace-cmd',
+                'comm': 'trace-cmd',
+                'pid': 5715,
+                'prio': 120,
+            }
+        )
+
 
 
 class TestTrace(TraceTestCase):
