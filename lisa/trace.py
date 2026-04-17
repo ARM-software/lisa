@@ -7588,12 +7588,14 @@ class _Trace(Loggable, _InternalTraceBase):
                     2,
                     # Turn to a list to allow JSON caching, since JSON cannot
                     # have non-string keys
-                    dict(value).items()
+                    (
+                        (
+                            addr,
+                            [name] if isinstance(name, str) else name
+                        )
+                        for addr, name in dict(value).items()
+                    )
                 ))
-                names = [
-                    [name] if isinstance(name, str) else name
-                    for name in names
-                ]
                 value = (addrs, names)
 
             return value
@@ -7660,33 +7662,28 @@ class _Trace(Loggable, _InternalTraceBase):
             elif key == 'symbols-address':
                 # The parsers can provide a list of names for each address, but
                 # our API only exposes a single name, so we pick the best one
-                def pick(names):
-                    names = sorted(
-                        names,
-                        key=lambda name: (len(name), name),
-                    )
-                    # If we can, we choose from the names that are valid
-                    # identifiers. This will weed-out strange symbols like arm
-                    # mapping symbols and the likes.
-                    best_names = (
-                        name
-                        # Return the longest name, as it's less likely to be a
-                        # less descriptive section name or something like that.
-                        for name in reversed(names)
-                        if name.isidentifier()
-                    )
-                    try:
-                        return next(best_names)
-                    except StopIteration:
-                        return names[0]
-
-                value = {
-                    addr: pick(names)
-                    for addr, names in sorted(
-                        value.items(),
-                        key=itemgetter(0),
-                    )
-                }
+                value = dict(sorted(
+                    (
+                        (
+                            addr,
+                            # Return the longest name, as it's less likely to be a
+                            # less descriptive section name or something like that.
+                            max(
+                                # If we can, we choose from the names that are valid
+                                # identifiers. This will weed-out strange symbols like
+                                # arm mapping symbols and the likes.
+                                filter(
+                                    lambda name: name.isidentifier(),
+                                    names,
+                                ),
+                                default=names[0],
+                                key=lambda name: (len(name), name),
+                            )
+                        )
+                        for addr, names in value.items()
+                    ),
+                    key=itemgetter(0),
+                ))
 
             return value
 
