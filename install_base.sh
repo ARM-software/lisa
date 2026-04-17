@@ -115,6 +115,7 @@ apt_packages=(
     python3-tk
     python3-setuptools
     qemu-user-static
+    moreutils
 )
 
 # pacman-based distributions like Archlinux or its derivatives
@@ -128,6 +129,7 @@ pacman_packages=(
     python-pip
     python-setuptools
     qemu-user-static
+    moreutils
 )
 
 HOST_ARCH="$(uname -m)"
