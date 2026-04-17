@@ -69,9 +69,10 @@ Test:
     - sudo apt-get -y install python3.${PYVERSION}-full
     - sudo chmod o+rx /sys/kernel/debug
   script:
+    - export TZ=UTC
     - export LISA_PYTHON=python3.${PYVERSION}
-    - sudo ./install_base.sh --install-all
-    - bash ./tools/tests.sh
+    - sudo ./install_base.sh --install-all |& ts '[%H:%M:%.S]'
+    - bash ./tools/tests.sh |& ts '[%H:%M:%.S]'
 
 Autobranch:
   needs: ['Test']
