@@ -71,7 +71,7 @@ Test:
   script:
     - export TZ=UTC
     - export LISA_PYTHON=python3.${PYVERSION}
-    - sudo ./install_base.sh --install-all |& ts '[%H:%M:%.S]'
+    - sudo ./install_base.sh --install-all
     - bash ./tools/tests.sh |& ts '[%H:%M:%.S]'
 
 Autobranch:
