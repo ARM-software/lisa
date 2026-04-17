@@ -1960,11 +1960,23 @@ def unzip_into(n, iterator):
     .. note:: ``n`` is needed in order to handle properly the case where an
         empty iterator is passed.
     """
-    xs = list(iterator)
-    if xs:
-        return zip(*xs)
-    else:
-        return [tuple()] * n
+    try:
+        len_hint = len(iterator)
+    except (TypeError, ValueError):
+        try:
+            len_hint = iterator.__length_hint__()
+        except (TypeError, ValueError, AttributeError):
+            len_hint = 1
+
+    outs = [
+        [] * len_hint
+        for _ in range(n)
+    ]
+    for row in iterator:
+        for item, out in zip(row, outs):
+            out.append(item)
+
+    return outs
 
 
 def get_nested_key(mapping, key_path, getitem=operator.getitem):
