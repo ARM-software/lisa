@@ -626,8 +626,10 @@ def _hv_link_dataframes(fig, dfs):
                         table.selection = [int(i)]
             # It is vital to return something, otherwise the plot will
             # disappear, which is much worse than the selection not working
-            finally:
-                return hv.Points([])
+            except Exception:
+                pass
+
+            return hv.Points([])
 
         tap = hv.streams.SingleTap(transient=True)
         dmap = hv.DynamicMap(record_taps, streams=[tap])
