@@ -56,7 +56,7 @@ Test:
     matrix:
       # Skip Python 3.12 as Ubuntu 22.04 does not ship a version containing the fix for:
       # https://github.com/python/cpython/issues/122695
-      - PYVERSION: [10, 11, 13]
+      - PYVERSION: [10, 11, 13, 14]
   before_script:
     # Make the test a no-op so we can run any step depending on successful tests
     - if [[ "$CI_PIPELINE_SOURCE" == "web" && "$WEB_SKIP_TEST" == "True" ]]; then exit 0; fi
