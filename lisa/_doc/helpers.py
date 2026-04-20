@@ -1112,6 +1112,22 @@ class SphinxDocObject:
                         )
                     )
                 }
+
+                hidden = {
+                    # These names can appear in Python 3.14 but are not always
+                    # available based on some runtime shenanigans, so they are
+                    # best hidden. They bring no value to the documentation
+                    # anyway as they are a private implementation detail of how
+                    # annotations work Python >= 3.14
+                    '__annotate_func__',
+                    '__annotations_cache__'
+                }
+
+                members = {
+                    membername: docobj
+                    for membername, docobj in members.items()
+                    if membername not in hidden
+                }
                 return members
 
             def _filter(membername, docobj):
@@ -1333,15 +1349,15 @@ class ModuleListingDirective(RecursiveDirective):
         def make_grouped(app, members, make_group):
             def make_pretty(name):
                 return {
-                    'method': 'methods',
-                    'attribute': 'attributes',
-                    'exception': 'exceptions',
-                    'class': 'classes',
-                    'module': 'modules',
-                    'function': 'functions',
-                    'property': 'properties',
-                    'data': 'globals',
-                }[name].title()
+                    'method': 'Methods',
+                    'attribute': 'Attributes',
+                    'exception': 'Exceptions',
+                    'class': 'Classes',
+                    'module': 'Modules',
+                    'function': 'Functions',
+                    'property': 'Properties',
+                    'data': 'Globals',
+                }[name]
 
             grouped = group_members(app, members)
             return '\n'.join(
