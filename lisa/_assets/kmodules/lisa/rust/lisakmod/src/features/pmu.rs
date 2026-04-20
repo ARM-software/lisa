@@ -452,6 +452,7 @@ impl<'a> PerfEventEnableGuard<'a> {
         // from a context that could have interrupted an on-going pmu->read() call.
         let _guard = local_irq_save();
 
+        // FIXME: should we be using perf_event_read_local() ? It's not exported though.
         if self.event.cpu == smp_processor_id() {
             // The approach taken is a *semi*-safe one as:
             // - the execution context is one as of the caller

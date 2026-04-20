@@ -54,7 +54,9 @@ Test:
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   parallel:
     matrix:
-      - PYVERSION: [10, 11, 12, 13]
+      # Skip Python 3.12 as Ubuntu 22.04 does not ship a version containing the fix for:
+      # https://github.com/python/cpython/issues/122695
+      - PYVERSION: [10, 11, 13, 14]
   before_script:
     # Make the test a no-op so we can run any step depending on successful tests
     - if [[ "$CI_PIPELINE_SOURCE" == "web" && "$WEB_SKIP_TEST" == "True" ]]; then exit 0; fi
@@ -69,9 +71,10 @@ Test:
     - sudo apt-get -y install python3.${PYVERSION}-full
     - sudo chmod o+rx /sys/kernel/debug
   script:
+    - export TZ=UTC
     - export LISA_PYTHON=python3.${PYVERSION}
     - sudo ./install_base.sh --install-all
-    - bash ./tools/tests.sh
+    - bash ./tools/tests.sh |& ts '[%H:%M:%.S]'
 
 Autobranch:
   needs: ['Test']
