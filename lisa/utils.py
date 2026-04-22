@@ -68,6 +68,7 @@ import urllib.request
 import builtins
 import typing
 import json
+import datetime
 
 import ruamel.yaml
 import ruamel.yaml.nodes
@@ -3140,16 +3141,42 @@ def get_doc_url(obj):
 # `obj_name` values
 @functools.lru_cache(maxsize=4096)
 def _get_doc_url(obj_name):
-    doc_base_url = 'https://tooling.sites.arm.com/lisa/latest/'
+    DOC_BASE_URL = 'https://tooling.sites.arm.com/lisa/latest/'
+    FILENAME = 'objects.inv'
+
+    def populate(key, path):
+        url, _ = key
+
+        with urllib.request.urlopen(url, timeout=30) as r:
+            with open(path / FILENAME, "wb") as f:
+                shutil.copyfileobj(r, f)
+
+    dir_cache = DirCache(
+        category='sphinx_inventory',
+        populate=populate,
+        fmt_version='1',
+    )
+
+    tdelta = (
+        datetime.datetime.now(datetime.timezone.utc)
+        - datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+    )
     # Use the inventory built by Sphinx
-    inv_url = urllib.parse.urljoin(doc_base_url, 'objects.inv')
+    inv_url = urllib.parse.urljoin(DOC_BASE_URL, FILENAME)
+    key = (
+        inv_url,
+        (
+            tdelta.days,
+            tdelta.total_seconds() // 3600,
+        )
+    )
+    path = dir_cache.get_entry(key) / FILENAME
 
-    inv = sphobjinv.Inventory(url=inv_url)
-
+    inv = sphobjinv.Inventory(path)
     for inv_obj in inv.objects:
         if inv_obj.name == obj_name and inv_obj.domain == "py":
             doc_page = inv_obj.uri.replace('$', inv_obj.name)
-            doc_url = urllib.parse.urljoin(doc_base_url, doc_page)
+            doc_url = urllib.parse.urljoin(DOC_BASE_URL, doc_page)
             return doc_url
 
     raise ValueError(f'Could not find the doc of: {obj_name}')
