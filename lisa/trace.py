@@ -166,6 +166,9 @@ class _LazyFrameOnDelete(_Deallocator):
             cls(f),
             streamable=True,
             validate_output_schema=False,
+            predicate_pushdown=True,
+            projection_pushdown=True,
+            slice_pushdown=True,
         )
 
     @classmethod
