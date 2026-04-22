@@ -38,12 +38,12 @@ export LISA_EXTRA_ASSERTS=1
 timeout -s INT 1h python3 -m pytest -vv
 
 echo "Starting exekall self tests"
-exekall run "$LISA_HOME/tools/exekall/src/exekall/_tests"
+timeout -s INT 1h exekall run "$LISA_HOME/tools/exekall/src/exekall/_tests"
 
 echo "Starting documentation pedantic build ..."
 # Disable llms-full.txt and llms.txt generation as this takes a _long_ time and
 # all non-markdown-related issues will show up on a normal build anyway.
-LISA_DOC_BUILD_LLMS_TXT=0 lisa-doc-build
+LISA_DOC_BUILD_LLMS_TXT=0 timeout -s INT 1h lisa-doc-build
 
 MANPAGE_PYTHON_VERSION="3.11"
 
