@@ -716,8 +716,13 @@ def _make_alpine_chroot(version, packages=None, abi=None, bind_paths=None, overl
             'armv7': 'arm',
         }.get(abi, abi)
         binfmt_path = Path('/proc/sys/fs/binfmt_misc/', f'qemu-{qemu_arch}')
-        if not binfmt_path.exists():
+        try:
+            binfmt_content = binfmt_path.read_text()
+        except FileNotFoundError:
             raise ValueError(f'Alpine chroot is setup for {qemu_arch} architecture but QEMU userspace emulation is not installed on the host (missing {binfmt_path})')
+        else:
+            if not re.search('flags:.*F', binfmt_content):
+                raise ValueError(f'Alpine chroot is setup for {qemu_arch} architecture but QEMU userspace emulation will not be usable inside the chroot due to missing F flags in {binfmt_path}. Consider installing the a static build of QEMU that registers a binfmt_misc format with the F flag.')
 
     dir_cache = DirCache(
         category='alpine_chroot',
