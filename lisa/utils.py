@@ -67,6 +67,8 @@ import multiprocessing
 import urllib.request
 import builtins
 import typing
+import json
+import datetime
 
 import ruamel.yaml
 import ruamel.yaml.nodes
@@ -1959,11 +1961,23 @@ def unzip_into(n, iterator):
     .. note:: ``n`` is needed in order to handle properly the case where an
         empty iterator is passed.
     """
-    xs = list(iterator)
-    if xs:
-        return zip(*xs)
-    else:
-        return [tuple()] * n
+    try:
+        len_hint = len(iterator)
+    except (TypeError, ValueError):
+        try:
+            len_hint = iterator.__length_hint__()
+        except (TypeError, ValueError, AttributeError):
+            len_hint = 1
+
+    outs = [
+        [] * len_hint
+        for _ in range(n)
+    ]
+    for row in iterator:
+        for item, out in zip(row, outs):
+            out.append(item)
+
+    return outs
 
 
 def get_nested_key(mapping, key_path, getitem=operator.getitem):
@@ -3127,16 +3141,42 @@ def get_doc_url(obj):
 # `obj_name` values
 @functools.lru_cache(maxsize=4096)
 def _get_doc_url(obj_name):
-    doc_base_url = 'https://tooling.sites.arm.com/lisa/latest/'
+    DOC_BASE_URL = 'https://tooling.sites.arm.com/lisa/latest/'
+    FILENAME = 'objects.inv'
+
+    def populate(key, path):
+        url, _ = key
+
+        with urllib.request.urlopen(url, timeout=30) as r:
+            with open(path / FILENAME, "wb") as f:
+                shutil.copyfileobj(r, f)
+
+    dir_cache = DirCache(
+        category='sphinx_inventory',
+        populate=populate,
+        fmt_version='1',
+    )
+
+    tdelta = (
+        datetime.datetime.now(datetime.timezone.utc)
+        - datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+    )
     # Use the inventory built by Sphinx
-    inv_url = urllib.parse.urljoin(doc_base_url, 'objects.inv')
+    inv_url = urllib.parse.urljoin(DOC_BASE_URL, FILENAME)
+    key = (
+        inv_url,
+        (
+            tdelta.days,
+            tdelta.total_seconds() // 3600,
+        )
+    )
+    path = dir_cache.get_entry(key) / FILENAME
 
-    inv = sphobjinv.Inventory(url=inv_url)
-
+    inv = sphobjinv.Inventory(path)
     for inv_obj in inv.objects:
         if inv_obj.name == obj_name and inv_obj.domain == "py":
             doc_page = inv_obj.uri.replace('$', inv_obj.name)
-            doc_url = urllib.parse.urljoin(doc_base_url, doc_page)
+            doc_url = urllib.parse.urljoin(DOC_BASE_URL, doc_page)
             return doc_url
 
     raise ValueError(f'Could not find the doc of: {obj_name}')
@@ -3677,11 +3717,11 @@ class FrozenDict(Mapping):
     def __init__(self, x, deepcopy=True, type_=dict):
         dct = type_(x)
         if deepcopy:
-            dct = copy.deepcopy(x)
+            dct = copy.deepcopy(dct)
 
         self._dct = dct
         # We cannot use memoized() since it would create an infinite loop
-        self._hash = hash(tuple(self._dct.items()))
+        self._hash = hash(tuple(sorted(self._dct.items())))
 
     def __getitem__(self, key):
         return self._dct[key]
@@ -4720,5 +4760,56 @@ def ffill(iterator, select=lambda x: x is not None, init=None):
             curr = x
 
         yield curr
+
+
+class _JsonEncodable(abc.ABC):
+    """
+    Inheriting from this class allows encoding a value in JSON for a cache
+    desc.
+    """
+
+    @abc.abstractmethod
+    def json_encode(self):
+        """
+        Returns a more basic object that can readily be encoded by an
+        unmodified json serializer.
+        """
+        pass
+
+    @classmethod
+    def json_dumps(cls, x, **kwargs):
+        class Encoder(json.JSONEncoder):
+            def default(self, o):
+                if isinstance(o, cls):
+                    _cls = o.__class__
+                    return {
+                        'module': _cls.__module__,
+                        'cls': _cls.__qualname__,
+                        'value': o.json_encode(),
+                    }
+                else:
+                   return super().default(o)
+
+        return Encoder(**kwargs).encode(x)
+
+
+def _json_checksum(value, method):
+    def dump(value):
+        try:
+            return _JsonEncodable.json_dumps(
+                value,
+                # Normalized JSON
+                sort_keys=True,
+                # Make it as compact as possible
+                separators=(',', ':'),
+            )
+        except TypeError as e:
+            raise ValueError(str(e))
+
+    data = dump(value)
+    data = data.encode('utf-8')
+    data = io.BytesIO(data)
+    return checksum(data, method=method)
+
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

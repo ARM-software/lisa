@@ -195,8 +195,6 @@ class TaskState(StateInt, Enum):
     # Used to differenciate runnable (R) vs running (A)
     TASK_ACTIVE = 0x2000, "A", "Active"
     TASK_RENAMED = 0x2001, "N", "Renamed"
-    # Used when the task state is unknown
-    TASK_UNKNOWN = -1, "U", "Unknown"
 
     @classmethod
     def list_reported_states(cls):
@@ -233,7 +231,7 @@ class TaskState(StateInt, Enum):
         # Flag the presence of unreportable states with a "+"
         unreportable_states = [
             state for state in cls
-            if state.value >= 0 and state not in reported_states
+            if state not in reported_states
         ]
         if find_states(value, unreportable_states):
             res += '+'
@@ -740,12 +738,9 @@ class TasksAnalysis(TraceAnalysisBase):
             )
             all_sw_df = pl.concat([all_sw_df, rename_df], how='diagonal_relaxed')
 
-        # Integer values are prefered here, otherwise the whole column
-        # is converted to float64
-        # FIXME: should we just use null here ?
         all_sw_df = all_sw_df.with_columns(
             target_cpu=pl.lit(
-                -1,
+                None,
                 # Ensure we use the exact same dtype so that there is no
                 # mismatch when concatenating
                 dtype=wk_df.collect_schema()['target_cpu']
@@ -781,7 +776,7 @@ class TasksAnalysis(TraceAnalysisBase):
         df = df.with_columns(
             next_state=pl.col('curr_state').shift(
                 -1,
-                fill_value=state(TaskState.TASK_UNKNOWN)
+                fill_value=state(None),
             ).over(pl.col('pid')),
             duration_delta=pl.col('Time').diff().shift(-1).over(pl.col('pid')),
         )
@@ -870,8 +865,11 @@ class TasksAnalysis(TraceAnalysisBase):
             df["state_str"] = stringify_task_state_series(df["state"])
         """
         def stringify_state(state):
+            if state is None:
+                # Unknown state
+                return 'U'
             # Same logic as in sched_switch format string
-            if state & 0xff:
+            elif state & 0xff:
                 try:
                     return TaskState(state).char
                 except ValueError:
