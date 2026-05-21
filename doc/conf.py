@@ -32,6 +32,7 @@ import shutil
 import shlex
 from urllib.parse import urlparse
 import itertools
+import faulthandler
 
 from sphinx.domains.python import PythonDomain
 
@@ -62,6 +63,12 @@ from lisa.analysis.base import TraceAnalysisBase
 
 import devlib
 
+
+if (timeout := os.environ.get('LISA_DOC_BUILD_TIMEOUT')) is not None:
+    faulthandler.dump_traceback_later(
+        int(timeout),
+        exit=True,
+    )
 
 RTD = (os.environ.get('READTHEDOCS', False) == 'True')
 

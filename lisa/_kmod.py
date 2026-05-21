@@ -3463,11 +3463,12 @@ class LISADynamicKmod(FtraceDynamicKmod):
 
         logger = cls.get_logger()
         if logger.isEnabledFor(logging.DEBUG):
+            method = 'sha256'
             extra_checksum = ', '.join(
-                f'{name}={checksum(io.BytesIO(content), method="md5")}'
+                f'{name}={checksum(io.BytesIO(content), method=method)}'
                 for name, content in sorted(extra.items())
             )
-            logger.debug(f'Variable sources checksum of the {cls.__qualname__} module: {extra_checksum}')
+            logger.debug(f'Variable sources {method} checksum of the {cls.__qualname__} module: {extra_checksum}')
 
         src = _LISADynamicKmodSrc.from_path(path, extra=extra, name=mod_name)
         return cls(

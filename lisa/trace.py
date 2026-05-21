@@ -34,7 +34,8 @@ import shlex
 import contextlib
 import tempfile
 from functools import wraps
-from collections.abc import Set, Mapping, Sequence, Iterable
+from collections.abc import Set, Mapping, Sequence, Iterable, Iterator
+import operator
 from operator import itemgetter, attrgetter
 from numbers import Number, Integral, Real
 import multiprocessing
@@ -58,9 +59,13 @@ import urllib.request
 import urllib.parse
 import sqlite3
 import logging
+import hashlib
+import base64
+import datetime
 
 import numpy as np
 import pandas as pd
+import pyarrow
 import pyarrow.lib
 import pyarrow.parquet
 import polars as pl
@@ -70,9 +75,9 @@ from polars.io.plugins import register_io_source
 
 import devlib
 
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, set_nested_key, unzip_into, order_as, DirCache, DelegateToAttr, _EXTRA_ASSERTS
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key, set_nested_key, unzip_into, order_as, DirCache, DelegateToAttr, _EXTRA_ASSERTS, FrozenDict, get_subclasses, _json_checksum, _JsonEncodable
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
-from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df, _polars_fast_collect, _polars_fast_collect_all, _df_in_memory
+from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert, df_update_duplicates, _polars_duration_expr, _df_to, _polars_df_in_memory, Timestamp, _pandas_cleanup_df, _polars_fast_collect, _polars_fast_collect_all, _df_in_memory, _polars_declare_in_memory, _polars_record_pushdowns, _polars_parse_predicate, _polars_iter_to_lazyframe, _polars_json_serialize, _polars_json_deserialize, _polars_predicate_dnf_clauses_hash, _parquet_nr_rows
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString
 from lisa._kmod import LISADynamicKmod
@@ -80,7 +85,6 @@ from lisa._assets import get_bin
 
 
 _DEFAULT_PARQUET_COMPRESSION = 'lz4'
-_NO_DEFAULT = object()
 
 
 def _deprecated_warn(msg, **kwargs):
@@ -96,24 +100,18 @@ def __getattr__(name):
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-_DEALLOCATORS = weakref.WeakSet()
-_DEALLOCATORS_LOCK = threading.RLock()
-
-def _dealloc_all():
-    with _DEALLOCATORS_LOCK:
-        for deallocator in _DEALLOCATORS:
-            deallocator.run()
-atexit.register(_dealloc_all)
-
 def _file_cleanup(paths):
     paths = [
-        path
+        Path(path)
         for path in paths
         if path is not None
     ]
     for path in paths:
         try:
-            shutil.rmtree(path)
+            try:
+                shutil.rmtree(path)
+            except NotADirectoryError:
+                path.unlink(missing_ok=True)
         except Exception:
             pass
 
@@ -123,6 +121,15 @@ def _identity(x):
 def _make_identity():
     return _identity
 
+
+_DEALLOCATORS = weakref.WeakSet()
+_DEALLOCATORS_LOCK = threading.RLock()
+
+def _dealloc_all():
+    with _DEALLOCATORS_LOCK:
+        for deallocator in _DEALLOCATORS:
+            deallocator.run()
+atexit.register(_dealloc_all)
 
 class _Deallocator:
     def __init__(self, f, on_del=True, at_exit=True):
@@ -159,6 +166,9 @@ class _LazyFrameOnDelete(_Deallocator):
             cls(f),
             streamable=True,
             validate_output_schema=False,
+            predicate_pushdown=True,
+            projection_pushdown=True,
+            slice_pushdown=True,
         )
 
     @classmethod
@@ -168,7 +178,7 @@ class _LazyFrameOnDelete(_Deallocator):
             if nr_rows is None:
                 def get_nr_rows(path):
                     try:
-                        return pyarrow.parquet.read_metadata(path).num_rows
+                        return _parquet_nr_rows(path)
                     except Exception:
                         return 0
 
@@ -210,32 +220,43 @@ class _LazyFrameOnDelete(_Deallocator):
         return (_make_identity, tuple())
 
 
-def _make_hardlink(src, dst):
-    try:
-        os.link(src, dst)
-    except FileExistsError:
-        pass
+def _df_hardlink_data(df, swap_dir, src_base=None):
+    src_base = src_base or swap_dir
+    dst_base = swap_dir / 'hardlinks' / uuid.uuid4().hex
+
+    def update_plan(plan):
+        return _logical_plan_rehome_paths(
+            src_base=src_base,
+            dst_base=dst_base,
+            plan=plan,
+            make_links=True,
+        )
+
+    df = _lazyframe_rewrite(
+        df,
+        update_plan=update_plan,
+    )
+    return _LazyFrameOnDelete.attach_file_cleanup(df, [dst_base])
 
 
-def _df_json_serialize(df):
-    # TODO: revisit based on the outcome of:
-    # https://github.com/pola-rs/polars/issues/18284
-    with warnings.catch_warnings():
-        warnings.simplefilter(action='ignore')
-        return df.serialize(format='json')
+def _logical_plan_rehome_paths(plan, src_base, dst_base, make_links=False):
+    def update_path(path):
+        try:
+            relpath = path.relative_to(src_base)
+        except ValueError:
+            # This path comes from somewhere else on the system so do
+            # not rewrite it
+            return path
+        else:
+            dst = dst_base / relpath
+            if make_links:
+                dst.parent.mkdir(exist_ok=True, parents=True)
+                dst.hardlink_to(path)
+            return dst
+    return _logical_plan_update_paths(plan, update_path=update_path)
 
 
-def _df_json_deserialize(plan):
-    # TODO: revisit based on the outcome of:
-    # https://github.com/pola-rs/polars/issues/18284
-    with warnings.catch_warnings():
-        warnings.simplefilter(action='ignore')
-        return pl.LazyFrame.deserialize(plan, format='json')
-
-
-def _logical_plan_resolve_paths(cache, plan, kind):
-    swap_dir = Path(cache.swap_dir).resolve()
-
+def _logical_plan_update_paths(plan, update_path):
     def normalize(url):
         url = str(url)
         _url = urlparse(url)
@@ -245,59 +266,14 @@ def _logical_plan_resolve_paths(cache, plan, kind):
 
         return (scheme, url)
 
-    hardlinks_base = Path(uuid.uuid4().hex)
-    hardlinks = set()
-    def update_path(path):
-        if kind == 'dump':
-            scheme, path = normalize(path)
-            if scheme == 'file':
-                path = Path(path)
-                try:
-                    path = path.relative_to(swap_dir)
-                except ValueError:
-                    return path
-                else:
-                    # Remove the "hardlinks" part of the path so we point at the file
-                    # in the cache
-                    if path.parts[0] == 'hardlinks':
-                        path = Path(path.name)
-
-                    assert not path.is_absolute()
-                    path = 'PATH_IN_LISA_CACHE' / path
-                    hardlinks.add(path)
-                    return path
-            else:
-                return path
-        elif kind == 'load':
-            scheme, path = normalize(path)
-            if scheme == 'file':
-                path = Path(path)
-                if path.parent.name == 'PATH_IN_LISA_CACHE':
-                    path = Path(path.name)
-
-                    # Create a hardlink to the data so that the data backing the
-                    # LazyFrame we are reloading is guaranteed to stay around long
-                    # enough and will not be scrubbed away.
-                    hardlink_base, hardlink_path = cache._hardlink_path(
-                        hardlinks_base,
-                        path.name,
-                    )
-                    _make_hardlink(swap_dir / path, hardlink_path)
-                    hardlinks.add(hardlink_base)
-                    return hardlink_path
-                # This path comes from somewhere else on the system so do not
-                # rewrite it
-                else:
-                    return path
-            else:
-                return path
+    @functools.lru_cache(maxsize=None)
+    def _update_path(path):
+        scheme, path = normalize(path)
+        if scheme == 'file':
+            return str(update_path(Path(path)))
         else:
-            raise ValueError(f'Unknown kind {kind}')
-    plan = _logical_plan_update_paths(plan, update_path=update_path)
-    return (plan, hardlinks)
+            return path
 
-
-def _logical_plan_update_paths(plan, update_path):
     def fixup_scans(obj):
         if isinstance(obj, Mapping):
             try:
@@ -311,7 +287,7 @@ def _logical_plan_update_paths(plan, update_path):
                 def dispatch_update(paths):
                     if isinstance(paths, str):
                         path = paths
-                        return str(update_path(path))
+                        return str(_update_path(path))
                     elif isinstance(paths, Mapping):
                         return {
                             key: dispatch_update(path)
@@ -359,7 +335,7 @@ def _logical_plan_update_paths(plan, update_path):
             for value in obj:
                 fixup_scans(value)
 
-    plan = plan.copy()
+    plan = copy.deepcopy(plan)
     fixup_scans(plan)
     return plan
 
@@ -372,79 +348,48 @@ def _convert_df_from_parser(df, parser, cache):
         df = _df_to(df, index=index, fmt='polars-lazyframe')
         return df
 
-    def move_to_cache(df, cache):
+    def move_to_swap_dir(df):
         """
         Move data files backing a :class:`polars.LazyFrame` into the trace
         cache, so that freeing the temporary storage used by the trace parser
         does not break the returned objects.
         """
-        def update_path(path, hardlinks_base, hardlinks):
-            cache_path = cache.insert_disk_only(
-                spec=dict(
-                    # This unique key ensures we will never accidentally re-use
-                    # that path for anything else.
-                    key=uuid.uuid4().hex,
-                ),
-                compute_cost=None,
-            )
-            hardlink_base, hardlink_path = cache._hardlink_path(hardlinks_base, cache_path.name)
-
-            # Move the original file under the hardlinks/ folder
-            shutil.move(path, hardlink_path)
-
-            # Hardlink the new path to a normal swap entry
-            _make_hardlink(hardlink_path, cache_path)
-
-            # Use the path under hardlinks/ so that if the swap entry gets
-            # scrubed away, the existing LazyFrame will not break as they
-            # will refer to the ones maintained by the trace.
-            hardlinks.add(hardlink_base)
-            return hardlink_path
-
-        def fixup(df):
-            if isinstance(df.df, pl.LazyFrame) and df.meta['steal_files']:
-                # We can only steal files if we have a swap to put it into
-                try:
-                    cache.swap_dir
-                except (AttributeError, ValueError):
-                    # If we cannot move the backing data to the swap folder, we
-                    # are forced to just load the data eagerly as backing
-                    # storage (e.g.  tmp folder) will probably disappear
-                    _df = _polars_fast_collect(df.df).lazy()
-                else:
-                    hardlinks = set()
-                    _df = _lazyframe_rewrite(
-                        df=df.df,
-                        update_plan=functools.partial(
-                            _logical_plan_update_paths,
-                            update_path=functools.partial(
-                                update_path,
-                                hardlinks_base=uuid.uuid4().hex,
-                                hardlinks=hardlinks
-                            )
-                        )
-                    )
-
-                    # TODO: Ideally we should only attach that to the LazyFrame
-                    # right before leaking it in df_event, otherwise we end up
-                    # serializing in the cache the deallocator as well. This is
-                    # not a huge problem though, but it does mean that we will
-                    # end up with 2 layers of "map_batches(identity)" on
-                    # LazyFrames reloaded from the cache.
-                    _df = _LazyFrameOnDelete.attach_file_cleanup(
-                        _df,
-                        hardlinks,
-                        nr_rows=df.meta.get('nr_rows')
-                    )
+        if isinstance(df.df, pl.LazyFrame) and df.meta['steal_files']:
+            # We can only steal files if we have a swap to put it into
+            try:
+                swap_dir = cache.swap_dir
+            except ValueError:
+                # If we cannot move the backing data to the swap folder, we
+                # are forced to just load the data eagerly as backing
+                # storage (e.g. tmp folder) will probably disappear
+                return _polars_fast_collect(df.df).lazy()
             else:
-                _df = df.df
+                dst_base = swap_dir / 'temp'
 
-            return to_polars(_df)
-        return fixup(df)
+                def update_path(path):
+                    dst = dst_base / f'{uuid.uuid4().hex}{path.suffix}'
+
+                    dst.parent.mkdir(exist_ok=True, parents=True)
+                    shutil.move(path, dst)
+                    return dst
+
+                # Move the files backing the LazyFrame to the swap, thereby
+                # "stealing" them.
+                return _lazyframe_rewrite(
+                    df=df.df,
+                    update_plan=lambda plan: _logical_plan_update_paths(
+                        plan,
+                        update_path=update_path,
+                    ),
+                )
+        else:
+            return df.df
 
     df = _ParsedDataFrame.from_df(df)
     return df.with_df(
-        move_to_cache(df, cache=cache)
+        to_polars(
+            move_to_swap_dir(df)
+        )
     )
 
 
@@ -454,28 +399,247 @@ def _lazyframe_rewrite(df, update_plan):
     # TODO: once this is solved, we can just inspect the plan rather than
     # serialize()/deserialize() in JSON
     # https://github.com/pola-rs/polars/issues/9771
-    plan = _df_json_serialize(df)
-    plan = json.loads(plan)
+    plan = _polars_json_serialize(df)
     plan = update_plan(plan)
-    plan = json.dumps(plan)
-    plan = io.StringIO(plan)
-    df = _df_json_deserialize(plan)
+    df = _polars_json_deserialize(plan)
     return df
 
+def _sql_quote(value):
+    with contextlib.closing(sqlite3.connect(':memory:')) as conn:
+        dummy_sql_cursor = conn.cursor()
+        (escaped,) = dummy_sql_cursor.execute("SELECT quote(?)", (value,)).fetchone()
+        return escaped
 
-class _CacheDataDescEncodable(abc.ABC):
-    """
-    Inheriting from this class allows encoding a value in JSON for a cache
-    desc.
-    """
 
-    @abc.abstractmethod
-    def json_encode(self):
+class _ScanPushdowns:
+    _NEUTRAL_PREDICATE = pl.lit(True)
+
+    def __init__(self, schema, columns=None, n_rows=None, predicate=None):
+        self.schema = (
+            dict(schema)
+            if isinstance(schema, pl.Schema) else
+            schema
+        )
+        self._columns = columns
+        self.n_rows = n_rows
+        self.predicate = predicate
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return (
+                all(
+                    self.schema.get(key) == other.schema.get(key)
+                    for key in self.schema.keys() | other.schema.keys()
+                )
+                and self.columns == other.columns
+                and self.n_rows == other.n_rows
+                and self._predicate_expr.meta.eq(other._predicate_expr)
+            )
+        else:
+            return NotImplemented
+
+    def __hash__(self):
+        return hash(self.checksum)
+
+    def __str__(self):
+        return f'{self.__class__.__name__}(schema={self.schema}, columns={self.columns}, n_rows={self.n_rows}, predicate={self.predicate})'
+
+    def __repr__(self):
+        return str(self)
+
+    def to_json(self):
+        def encode_bytes(b):
+            return base64.b64encode(b).decode("ascii")
+
+        return {
+            'columns': self.columns,
+            'n-rows': self.n_rows,
+            'predicate': encode_bytes(
+                self._predicate_expr.meta.serialize(format='binary'),
+            ),
+            'schema': encode_bytes(
+                pl.LazyFrame(
+                    dict(),
+                    # We can't convert a schema to JSON directly, so we use a
+                    # LazyFrame as a vehicle.
+                    schema=self.schema,
+                ).serialize(format='binary'),
+            ),
+        }
+
+    @classmethod
+    def from_json(cls, mapping):
+        def decode_bytes(s):
+            return base64.b64decode(s)
+
+        return cls(
+            columns=mapping['columns'],
+            n_rows=mapping['n-rows'],
+            predicate=pl.Expr.deserialize(
+                decode_bytes(mapping['predicate']),
+                format='binary',
+            ),
+            schema=pl.LazyFrame.deserialize(
+                decode_bytes(mapping['schema']),
+                format='binary',
+            ).collect_schema(),
+        )
+
+    @property
+    def checksum(self):
+        return _json_checksum(
+            self.to_json(),
+            method='sha256',
+        )
+
+    @property
+    def _dnf_clauses_hash(self):
+        true = frozenset([
+            _polars_predicate_dnf_clauses_hash(
+                expr=self._NEUTRAL_PREDICATE,
+                schema={}
+            )[0][0]
+        ])
+
+        return {
+            frozenset(hashes) | true
+            for hashes in _polars_predicate_dnf_clauses_hash(
+                expr=self._predicate_expr,
+                schema=self.schema,
+            )
+        }
+
+    @property
+    def _dnf_bloom_masks(self):
+        return sorted(
+            _bloom_mask(clause_hash, k=4)
+            for clause_hash in self._dnf_clauses_hash
+        )
+
+    @property
+    def _predicate_expr(self):
+        if (predicate := self.predicate) is None:
+            predicate = self._NEUTRAL_PREDICATE
+        return predicate
+
+    @property
+    def columns(self):
+        return tuple(sorted(
+            self.schema.keys()
+            if (cols := self._columns) is None else
+            cols
+        ))
+
+    def _union(self, other):
+        def combine(f, x, y):
+            # If there is no restriction in one of the sides, we don't want
+            # restrictions in the output either as we want the union of the
+            # data sets described by the scan pushdowns.
+            if x is None or y is None:
+                return None
+            else:
+                return f(x, y)
+
+        schema = self.schema | other.schema
+
+        n_rows = combine(max, self.n_rows, other.n_rows)
+
+        columns = combine(
+            lambda cols1, cols2: sorted(set(cols1) | set(cols2)),
+            self.columns,
+            other.columns,
+        )
+
+        predicate = combine(
+            operator.or_,
+            self.predicate,
+            other.predicate,
+        )
+
+        return self.__class__(
+            schema=schema,
+            n_rows=n_rows,
+            columns=columns,
+            predicate=predicate,
+        )
+
+    @classmethod
+    def union(cls, pushdowns):
+        return functools.reduce(
+            cls._union,
+            pushdowns,
+        )
+
+    def apply(self, df):
+        df = df.lazy()
+
+        schema = df.collect_schema()
+        assert all(
+            schema[col] == dtype
+            for col, dtype in self.schema.items()
+        )
+
+        if (predicate := self.predicate) is not None:
+            df = df.filter(predicate)
+
+        # This has to be applied after the predicate (both for
+        # correctness and to allow predicate pushdown to work)
+        if (n_rows := self.n_rows) is not None:
+            df = df.head(n_rows)
+
+        # Make sure the selected columns are in the same order as the schema,
+        # as this may be important to the caller.
+        df = df.select(order_as(
+            self.columns,
+            self.schema.keys()
+        ))
+
+        return df
+
+    def subsumes(self, other):
         """
-        Returns a more basic object that can readily be encoded by an
-        unmodified json serializer.
+        This function computes whether the rows and columns selected by
+        ``self`` are a superset of the ones selected by ``other`` on an
+        arbitrary dataframe..
+
+        .. note:: Since computing that property is NP-hard in general, this
+            function is allowed false negatives, i.e. it is allowed to return
+            ``False`` even if in practice ``self`` could be a superset of
+            ``other``. However, this implementation will never return ``True``
+            unless it is able to prove so.
         """
-        pass
+        if self.n_rows is not None:
+            if other.n_rows is None:
+                return False
+            elif self.n_rows < other.n_rows:
+                return False
+
+        # Be careful here for sets (not (s1 >= s2))
+        # is not the same as (s1 < s2)
+        if not (set(self.columns) >= set(other.columns)):
+            return False
+
+        other_dnf_clauses_hash = other._dnf_clauses_hash
+        self_dnf_clauses_hash = self._dnf_clauses_hash
+
+        # This is an approximation. The predicate is encoded as a disjunction
+        # of AND-groups (e.g. (atom1 AND atom2 AND atom3) OR (atom4 AND atom5)
+        # OR ...). For each of these AND-group (e.g. (atom4 AND atom5)), we
+        # check that there is a matching group in the other predicate that has
+        # at least the same atoms in it, plus some more. If this is true, then
+        # our predicate matches more rows than the other ones.
+        predicate_subsumes = all(
+            any(
+                self_clause_hash <= other_clause_hash
+                for self_clause_hash in self_dnf_clauses_hash
+            )
+            for other_clause_hash in other_dnf_clauses_hash
+        )
+
+        if not predicate_subsumes:
+            return False
+
+        return True
 
 
 CPU = newtype(int, 'CPU', doc='Alias to ``int`` used for CPU IDs')
@@ -536,6 +700,8 @@ class _ParsedDataFrame:
         return cls(df, **meta)
 
 
+# TODO: make this class private and cleanup the API:
+# * Make _ALL_EVENTS non-iterable.
 class TraceParserBase(abc.ABC, Loggable, PartialInit):
     """
     Abstract Base Class for trace parsers.
@@ -548,6 +714,11 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
 
     :param needed_metadata: Set of metadata name to gather in the parser.
     :type needed_metadata: collections.abc.Iterable(str)
+
+    :param pushdowns: Dictionary of event pushdowns (such as projection
+        pushdowns and predicate pushdowns from :mod:`polars`). Pushdowns are
+        provided as an optimization hint but can safely be ignored.
+    :type pushdowns: dict(str, dict(str, object))
 
     The parser will be used as a context manager whenever it is queried for
     either events dataframes. Querying for metadata could happen immediately
@@ -575,11 +746,12 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
     Possible metadata keys
     """
 
-    def __init__(self, events, temp_dir, needed_metadata=None, path=None):
+    def __init__(self, events, temp_dir, needed_metadata=None, path=None, pushdowns=None):
         # pylint: disable=unused-argument
         self._requested_metadata = set(needed_metadata or [])
-        self._requested_events = events if events is _ALL_EVENTS else set(events)
+        self._requested_events = events if events is _ALL_EVENTS else set(events or [])
         self._temp_dir = Path(temp_dir)
+        self._pushdowns = pushdowns
 
     def get_parser_id(self):
         """
@@ -592,13 +764,11 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
         assert isinstance(self, PartialInit)
 
         cls = type(self)
-        id_ = '+'.join(
-            f'{attr}={val!r}'
+        id_ = {
+            attr: repr(val)
             for attr, val in sorted(self.__dict__['_kwargs'].items())
-        )
-
-        id_ = id_.encode('utf-8')
-        id_ = checksum(io.BytesIO(id_), 'md5')
+        }
+        id_ = _json_checksum(id_, method='sha256')
         return f'{cls.__module__}.{cls.__qualname__}-{id_}'
 
     def get_metadata(self, key):
@@ -887,10 +1057,19 @@ class _PerfettoTraceProcessorWrapper(Loggable):
         self._executor = executor
         return self
 
+    def _close_tps(self, tps):
+        tps = set(tps)
+        self._tp = {
+            _key: _tp
+            for _key, _tp in self._tp.items()
+            if _tp not in tps
+        }
+
+        for tp in tps:
+            tp.close()
+
     def _cleanup(self):
-        tp = self._tp
-        self._tp = {}
-        del tp
+        self._close_tps(self._tp.values())
 
     def __exit__(self, *args, **kwargs):
         executor = self._executor
@@ -930,8 +1109,17 @@ class _PerfettoTraceProcessorWrapper(Loggable):
             try:
                 tp, *_ = ok
             except ValueError as e:
-                from perfetto.trace_processor import TraceProcessor, TraceProcessorConfig
+                self._close_tps(
+                    _tp
+                    for _key, _tp in self._tp.items()
+                    # If one were to request a given key and the TraceProcessor
+                    # we are about to make would satisfy that query, it means
+                    # the one we are about to make is more generic and we can
+                    # just close the other one to free some memory.
+                    if compat_key(_key, key)
+                )
 
+                from perfetto.trace_processor import TraceProcessor, TraceProcessorConfig
                 config = TraceProcessorConfig(
                     # Without that, perfetto will disallow querying for most events in
                     # the ftrace_event table
@@ -944,14 +1132,6 @@ class _PerfettoTraceProcessorWrapper(Loggable):
                         config=config,
                     )
                 logger.debug(f'Loaded Perfetto trace in trace_processor in {m.delta:.2f}s')
-
-                # Purge existing TraceProcessor instances that overlap with the
-                # one we just made to free memory.
-                self._tp = {
-                    _key: _tp
-                    for _key, _tp in self._tp.items()
-                    if not compat_key(key, _key)
-                }
                 self._tp[key] = tp
 
             return tp
@@ -1099,7 +1279,6 @@ class PerfettoTraceParser(TraceParserBase):
         #    costly.
         # 2. A full scan of the ingested events, which is costly as well.
         if must_compute('available-events'):
-            config = row.str_value
             meta['available-events'] = set(
                 row.name
                 for row in metadata_query("SELECT DISTINCT name FROM ftrace_event")
@@ -1137,7 +1316,7 @@ class PerfettoTraceParser(TraceParserBase):
     @classmethod
     def _download_trace_processor(cls, url):
         def populate(key, path):
-            url, = key
+            _, url = key
             dst = path / 'trace_processor'
             cls.get_logger().info(f"Downloading Perfetto's trace_processor at {dst}")
             urllib.request.urlretrieve(url, dst)
@@ -1146,13 +1325,19 @@ class PerfettoTraceParser(TraceParserBase):
         dir_cache = DirCache(
             category='perfetto_trace_processor',
             populate=populate,
-            # FIXME: is that really what we want ? The URL does not have any
-            # version number in it, so we will never invalidate the cache as it
-            # is.
-            fmt_version='1',
+            fmt_version='2',
         )
 
-        cache_path = dir_cache.get_entry([url])
+        # The URL has no version number in it, but it is quite cheap to
+        # download as it is a shim Python script that then downloads the
+        # appropriate binary in its own cache. So we re-download the shim every
+        # day to pick up update at a reasonable pace.
+        day_id = (
+            datetime.datetime.now(datetime.timezone.utc)
+            - datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+        ).days
+        key = (day_id, url)
+        cache_path = dir_cache.get_entry(key)
         return cache_path / 'trace_processor'
 
     @property
@@ -1203,8 +1388,7 @@ class PerfettoTraceParser(TraceParserBase):
 
         # Make sure the file is unique as we may be asked to create more than
         # one in the temp dir.
-        parquet_id = uuid.uuid4().hex
-        path = self._temp_dir / f'{parquet_id}.parquet'
+        path = self._temp_dir / f'{uuid.uuid4().hex}.parquet'
 
         # We immediately dump to a parquet file so that the Perfetto
         # TraceProcessor instance does not live for longer than necessary.
@@ -1223,11 +1407,6 @@ class PerfettoTraceParser(TraceParserBase):
         )
 
     def _parse_ftrace_event(self, event):
-        def sql_quote(value):
-            dummy_sql_cursor = sqlite3.connect(":memory:").cursor()
-            (escaped,) = dummy_sql_cursor.execute("SELECT quote(?)", (value,)).fetchone()
-            return escaped
-
         def event_query(query, *args, **kwargs):
             return self._query(
                 query,
@@ -1240,7 +1419,7 @@ class PerfettoTraceParser(TraceParserBase):
         query = f"""
         SELECT id, arg_set_id
         FROM ftrace_event
-        WHERE name = {sql_quote(event)}
+        WHERE name = {_sql_quote(event)}
         ORDER BY id
         LIMIT 1
         """
@@ -1278,11 +1457,13 @@ class PerfettoTraceParser(TraceParserBase):
             uuid_ = uuid.uuid4().hex
             table = f'__lisa_field_table_{uuid_}'
             col = f'__lisa_field_col_{uuid_}'
+            selected = f"{table}.{pick_col(field.value_type)}"
             return {
                 'column': col,
                 'flat_key': field.flat_key,
-                'select': f"{table}.{pick_col(field.value_type)} AS {col}",
-                'join': f"JOIN args AS {table} ON {table}.arg_set_id = ftrace_event.arg_set_id AND {table}.key = {sql_quote(field.key)}"
+                'selected': selected,
+                'select': f"{selected} AS {col}",
+                'join': f"JOIN args AS {table} ON {table}.arg_set_id = ftrace_event.arg_set_id AND {table}.key = {_sql_quote(field.key)}"
             }
 
         def translate_type(typ):
@@ -1305,9 +1486,10 @@ class PerfettoTraceParser(TraceParserBase):
             f"""
             SELECT key, flat_key, value_type
             FROM args
-            WHERE arg_set_id = {sql_quote(arg_set_id)}
+            WHERE arg_set_id = {_sql_quote(arg_set_id)}
             """
         )
+
         schema = {
             'Time': pl.UInt64,
             # We use 64 bit ints here otherwise we would have a different type
@@ -1331,18 +1513,25 @@ class PerfettoTraceParser(TraceParserBase):
 
         common_fragments = [
             {
+                'flat_key': '__lisa_perfetto_event_id',
+                'selected': 'ftrace_event.id',
                 'select': 'ftrace_event.id AS __lisa_perfetto_event_id',
+                'preserve': True,
             },
             {
                 'flat_key': 'Time',
+                'selected': 'ftrace_event.ts',
                 'select': 'ftrace_event.ts AS Time',
+                'preserve': True,
             },
             {
                 'flat_key': '__cpu',
+                'selected': 'ftrace_event.cpu',
                 'select': 'ftrace_event.cpu AS __cpu',
             },
             {
                 'flat_key': '__pid',
+                'selected': 'thread.tid',
                 'select': 'thread.tid AS __pid',
                 # Ideally we would use LEFT JOIN to cope with a missing thread
                 # info (it shouldn't happen, but who knows). However, LEFT JOIN
@@ -1354,6 +1543,7 @@ class PerfettoTraceParser(TraceParserBase):
             },
             {
                 'flat_key': '__comm',
+                'selected': 'thread.name',
                 'select': 'thread.name AS __comm',
                 'join': 'JOIN thread ON thread.utid = ftrace_event.utid',
             },
@@ -1363,6 +1553,103 @@ class PerfettoTraceParser(TraceParserBase):
             common_fragments,
             arg_fragments,
         ))
+
+        fragments_per_flat_key = {
+            flat_key: frag
+            for frag in fragments
+            if (flat_key := frag.get('flat_key')) is not None
+        }
+
+        predicate_used_selected = set()
+        try:
+            pushdowns = self._pushdowns[event]
+        except KeyError:
+            n_rows = None
+            predicate = None
+            def select_fragment(frag):
+                return True
+        else:
+            columns = pushdowns.columns
+            self.logger.debug(f'Applying projection pushdown: {columns}')
+
+            def select_fragment(frag):
+                if frag.get('preserve'):
+                    return True
+                else:
+                    try:
+                        return frag['flat_key'] in columns
+                    except KeyError:
+                        return True
+
+            if (n_rows := pushdowns.n_rows) is not None:
+                self.logger.debug(f'Applying slice pushdown: {n_rows}')
+
+            if (predicate := pushdowns.predicate) is not None:
+                def binop(left, op, right):
+                    op = {
+                        '||': 'OR',
+                        '&&': 'AND',
+                        '==': '=',
+                        '<': '<',
+                        '|': '|',
+                    }[op]
+                    return f'({left} {op} {right})'
+
+                def unaryop(op, x):
+                    match op:
+                        case '~':
+                            return f'(~ {x})'
+                        case '!':
+                            return f'(NOT {x})'
+                        case 'isnull':
+                            return f'({x} IS NULL)'
+                        case op:
+                            raise ValueError(f'Unary operator not handled: {op}')
+
+                def column(col):
+                    try:
+                        frag = fragments_per_flat_key[col]
+                    except KeyError:
+                        raise ValueError(f'No fragment found with flat_key: {col}')
+                    else:
+                        selected = frag['selected']
+                        predicate_used_selected.add(selected)
+                        return selected
+
+                def literal(x):
+                    if isinstance(x, (str, bytes, type(None))):
+                        return _sql_quote(x)
+                    elif isinstance(x, bool):
+                        return int(x)
+                    elif isinstance(x, (int, float)):
+                        return x
+                    else:
+                        raise ValueError(f'Literal type not handled: {x} ({type(x)})')
+
+                try:
+                    predicate = _polars_parse_predicate(
+                        predicate,
+                        schema=schema,
+                        binop=binop,
+                        unaryop=unaryop,
+                        column=column,
+                        literal=literal,
+                    )
+                except (ValueError, KeyError) as e:
+                    self.logger.debug(f'Could not apply predicate pushdown: {e}')
+                    predicate = None
+                else:
+                    self.logger.debug(f'Applying predicate pushdown: {predicate}')
+
+                    _select = select_fragment
+                    def select_fragment(frag):
+                        return (
+                            _select(frag)
+                            or (
+                                frag['selected'] in predicate_used_selected
+                            )
+                        )
+
 
         renames = {
             col: flat_key
@@ -1374,44 +1661,52 @@ class PerfettoTraceParser(TraceParserBase):
             new: old
             for old, new in renames.items()
         }
+
         pre_rename_schema = {
             inverse_renames.get(col, col): dtype
             for col, dtype in schema.items()
         }
 
+        schema = {
+            col: dtype
+            for col, dtype in schema.items()
+            if select_fragment(fragments_per_flat_key[col])
+        }
+
         joins = '\n'.join(sorted(set(
             join
             for frag in fragments
-            if (join := frag.get('join'))
+            if (
+                select_fragment(frag)
+                and (join := frag.get('join'))
+            )
         )))
 
-        def get_chunk(from_, to_, columns):
+        def get_chunk(from_, to_, n, columns):
             projections = ',\n    '.join(
                 frag['select']
                 for frag in fragments
-                if (
-                    columns is None
-                    or (flat_key := frag.get('flat_key')) is None
-                    or flat_key in columns
-                    or flat_key in ('Time', '__lisa_perfetto_event_id')
-                )
+                # We ignore the local "columns" here as we need to strictly
+                # match what was made available in "joins". Otherwise we will
+                # be referencing columns that do not exist.
+                if select_fragment(frag)
             )
+            assert n
+
+            _predicate = f'AND {predicate}' if predicate else ''
+
             # SQL's BETWEEN operator is inclusive on the right bound, so we
             # readjust.
             to_ = max(to_ - 1, 0)
-
-            # Limit the amount of data we get in the window as we may request a
-            # very large window if there is very few of this event per section
-            # of IDs. If we suddenly get a window with lots of events, we could
-            # end up with a giant batch.
-            n = abs(to_ - from_)
             query = f"""
 SELECT\n    {projections}
 FROM ftrace_event
 {joins}
 WHERE
     ftrace_event.id BETWEEN {from_} AND {to_} AND
-    ftrace_event.name = {sql_quote(event)}
+    ftrace_event.name = {_sql_quote(event)}
+    {_predicate}
+ORDER BY ftrace_event.id
 LIMIT {n}
 """
 
@@ -1432,13 +1727,6 @@ LIMIT {n}
             ))
 
             last_id = df.select(pl.col('__lisa_perfetto_event_id').max()).collect().item()
-
-            # Sort each small chunk on its own to be streaming-friendly. We
-            # don't want to use ORDER BY in the query as this triggers the
-            # creation of an ephemeral index (USE TEMP B-TREE FOR ORDER BY in
-            # EXPLAIN QUERY PLAN). That consumes large amounts of memory and
-            # massively slows down the query.
-            df = df.sort('__lisa_perfetto_event_id', 'Time')
             df = df.drop('__lisa_perfetto_event_id')
             return (last_id, df)
 
@@ -1447,31 +1735,42 @@ LIMIT {n}
             remaining_rows = n_rows
             last_id = first_id
             sql_n_rows = 100_000
-            while (
-                last_id <= max_id and
-                (remaining_rows is None or remaining_rows > 0)
-            ):
-                n = (
-                    sql_n_rows
-                    if remaining_rows is None else
-                    min(remaining_rows, sql_n_rows)
-                )
-                to_ = last_id + n
+            while True:
+                if remaining_rows is None:
+                    if last_id > max_id:
+                        break
+                    n = sql_n_rows
+                else:
+                    if remaining_rows <= 0:
+                        break
+                    n = min(sql_n_rows, remaining_rows)
+
+                assert sql_n_rows
+                assert n
+
+                # Make sure we scan a large-enough block so that we still make
+                # progress even if the event is very sparse.
+                to_ = last_id + sql_n_rows
+
                 _last_id, df = get_chunk(
                     columns=with_columns,
                     from_=last_id,
                     to_=to_,
+                    # Limit the amount of data we get in the window as we may
+                    # request a very large window if there is very few of this
+                    # event per section of IDs. If we suddenly get a window
+                    # with lots of events, we could end up with a giant batch.
+                    n=n,
                 )
 
-                if with_columns is not None:
-                    df = df.select(with_columns)
+                pushdowns = _ScanPushdowns(
+                    schema=schema,
+                    predicate=predicate,
+                    n_rows=remaining_rows,
+                    columns=with_columns,
+                )
 
-                if predicate is not None:
-                    df = df.filter(predicate)
-
-                if remaining_rows is not None:
-                    df = df.head(remaining_rows)
-
+                df = pushdowns.apply(df)
                 df = df.collect()
 
                 if remaining_rows is not None:
@@ -1514,19 +1813,24 @@ LIMIT {n}
             is_pure=True,
         )
 
-        # Each chunk is sorted on Time, so the concatenation is also sorted on
-        # Time
-        df = df.set_sorted('Time')
+        # Sort in polars. We don't want to use ORDER BY in the query as this
+        # triggers the creation of an ephemeral index (USE TEMP B-TREE FOR
+        # ORDER BY in EXPLAIN QUERY PLAN). That consumes large amounts of
+        # memory and massively slows down the query. Polars can be much more
+        # efficient for a taks like that.
+        df = df.sort('Time')
 
         df = df.select(order_as(
             sorted(df.collect_schema().names()),
             ['Time', '__cpu', '__pid', '__comm']
         ))
 
+        if n_rows is not None:
+            df = df.head(n_rows)
+
         # Make sure the file is unique as we may be asked to create more than
         # one in the temp dir.
-        parquet_id = uuid.uuid4().hex
-        path = self._temp_dir / f'{parquet_id}.parquet'
+        path = self._temp_dir / f'{uuid.uuid4().hex}.parquet'
 
         # We immediately dump to a parquet file so that the Perfetto
         # TraceProcessor instance does not live for longer than necessary.
@@ -1610,7 +1914,7 @@ class TraceDumpTraceParser(TraceParserBase):
         meta = {}
 
         # time-range will not be available in the basic metadata, this requires
-        # a full parse
+        # a full scan
         if events or events is _ALL_EVENTS:
             meta = self._make_parquets(
                 path=path,
@@ -1954,25 +2258,14 @@ class TxtEventParser(EventParserBase):
             event=event,
             fields=fields,
         )
-        regex = self._get_regex(event, fields, positional_field, greedy_field)
-        self.regex = re.compile(regex, flags=re.ASCII)
+        self.pattern = self._get_regex(event, fields, positional_field, greedy_field)
         self.raw = raw
-
-    @property
-    def bytes_regex(self):
-        """
-        Same as ``regex`` but acting on :class:`bytes` instead of :class:`str`.
-        """
-        regex = self.regex
-        return re.compile(
-            self.regex.pattern.encode('ascii'),
-            flags=regex.flags,
-        )
 
     @classmethod
     def _get_fields_regex(cls, event, fields, positional_field, greedy_field):
         """
-        Returns the regex to parse the fields part of the event line.
+        Returns the :mod:`polars` regex to parse the fields part of the event
+        line.
 
         :param event: name of the event
         :type event: str
@@ -2068,12 +2361,12 @@ class TxtEventParser(EventParserBase):
             if field in ('__timestamp', '__event')
         )
 
-        regex = r'(?:(?:^.*?:)|^){blank}{__comm}-{__pid}{blank}\[{__cpu}\]{blank}{__timestamp}:{blank}{__event}:'.format(**compos, blank=blank)
+        regex = r'(?:^|{blank}){__comm}-{__pid}{blank}\[{__cpu}\]{blank}{__timestamp}:{blank}{__event}:'.format(**compos, blank=blank)
         return regex
 
     def _get_regex(self, event, fields, positional_field, greedy_field):
         """
-        Return the full regex to parse the event line.
+        Return the full :mod:`polars` regex to parse the event line.
 
         This includes both the header and the fields part.
         """
@@ -2162,8 +2455,11 @@ class TxtTraceParserBase(TraceParserBase):
     """
     Text trace parser base class.
 
-    :param lines: Iterable of text lines as :class:`bytes`.
-    :type lines: collections.abc.Iterable(bytes)
+    :param lines: Iterable, iterator, or function returning an iterator of text
+        lines as :class:`bytes`. If possible, avoid iterators as they will have
+        to be consumed fully so that the internals of the class can restart
+        iteration if necessary.
+    :type lines: collections.abc.Iterable(bytes) or collections.abc.Iterator(bytes) or collections.abc.Callable[[], collections.abc.Iterator(bytes)]
 
     :param events: List of events that will be available using
         :meth:`parse_event`. If not provided, all events will be considered.
@@ -2184,6 +2480,14 @@ class TxtTraceParserBase(TraceParserBase):
     :param pre_filled_metadata: Metadata pre-filled by the caller of the
         constructor.
     :type pre_filled_metadata: dict(str, object) or None
+
+    :param time: Timestamps matching ``lines``. The same input types are
+        accepted as for ``lines``.
+    :type time: collections.abc.Iterable(float) or collections.abc.Iterator(float) or collections.abc.Callable[[], collections.abc.Iterator(float)]
+
+    :param time_unit: Unit of the time used both for ``time`` and processed
+        trace data. Passed to :class:`lisa.datautils.Timestamp`.
+    :param time_unit: str
     """
 
     _KERNEL_DTYPE = {
@@ -2240,8 +2544,6 @@ class TxtTraceParserBase(TraceParserBase):
     will be used as is.
     """
 
-    _RE_MATCH_CLS = re.Match
-
     @kwargs_forwarded_to(TraceParserBase.__init__)
     def __init__(self,
         lines,
@@ -2250,46 +2552,55 @@ class TxtTraceParserBase(TraceParserBase):
         event_parsers=None,
         default_event_parser_cls=None,
         pre_filled_metadata=None,
+        time=None,
+        time_unit='s',
         **kwargs,
     ):
         needed_metadata = set(needed_metadata or [])
         super().__init__(events, needed_metadata=needed_metadata, **kwargs)
-        self._pre_filled_metadata = pre_filled_metadata or {}
-        events = set(events or [])
 
-        if events or needed_metadata - {'trace-id'}:
+        self._pre_filled_metadata = pre_filled_metadata or {}
+
+        if events or events is _ALL_EVENTS or needed_metadata - {'trace-id'}:
             default_event_parser_cls, event_parsers = self._resolve_event_parsers(event_parsers, default_event_parser_cls)
 
-            # Remove all the parsers that are unnecessary
-            event_parsers = {
-                event: parser
-                for event, parser in event_parsers.items()
-                if event in events
-            }
+            events_set = set(events or [])
+            if events is not _ALL_EVENTS:
+                # Remove all the parsers that are unnecessary
+                event_parsers = {
+                    event: parser
+                    for event, parser in event_parsers.items()
+                    if event in events_set
+                }
 
-            # If we don't need the fields in the skeleton df, avoid collecting them
-            # to save memory and speed things up
-            need_fields = (events != event_parsers.keys())
-            skeleton_regex = self._get_skeleton_regex(need_fields)
-
-            self.logger.debug(f'Scanning the trace for metadata {needed_metadata} and events: {events}')
-
-            events_df, skeleton_df, time_range, available_events = self._eagerly_parse_lines(
-                lines=lines,
-                skeleton_regex=skeleton_regex,
-                event_parsers=event_parsers,
-                events=events,
+            # If we don't need the fields in the skeleton df, avoid collecting
+            # them to save memory and speed things up
+            need_fields = (
+                events is _ALL_EVENTS
+                or (events_set != event_parsers.keys())
             )
-            self._events_df = events_df
-            self._time_range = time_range
-            self._skeleton_df = skeleton_df
-            self._available_events = available_events
 
-            inferred_event_descs = self._get_event_descs(skeleton_df, events, event_parsers)
-            # We only needed the fields to infer the descriptors, so let's drop
-            # them to lower peak memory usage
-            with contextlib.suppress(KeyError):
-                self._skeleton_df = self._skeleton_df.drop(['__fields'], strict=False)
+            skeleton_df = self._make_skeleton_df(
+                lines=lines,
+                time=time,
+                time_unit=time_unit,
+                skeleton_regex=self._get_skeleton_regex(need_fields),
+            )
+            skeleton_df_path = self._temp_dir / f'skeleton.parquet'
+            # Dump to a parquet file as the LazyFrame references an IO plugin,
+            # which cannot be serialized to JSON. Using a parquet files avoids
+            # keeping everything in memory.
+            skeleton_df.sink_parquet(
+                skeleton_df_path,
+                compression=_DEFAULT_PARQUET_COMPRESSION,
+            )
+            self._skeleton_df_path = skeleton_df_path
+            skeleton_df = pl.scan_parquet(skeleton_df_path)
+            inferred_event_descs = self._get_event_descs(
+                skeleton_df,
+                events,
+                event_parsers,
+            )
 
             event_parsers = {
                 **{
@@ -2304,10 +2615,31 @@ class TxtTraceParserBase(TraceParserBase):
                 **event_parsers,
             }
             self._event_parsers = event_parsers
+
+            stat_df = skeleton_df.select(
+                pl.col('__timestamp').min().alias('min_ts'),
+                pl.col('__timestamp').max().alias('max_ts'),
+                (
+                    pl.col('__timestamp').is_null()
+                    & pl.col("line").str.contains('EVENTS DROPPED')
+                ).any().alias('dropped_events'),
+                pl.col('__event').unique().drop_nulls().implode().alias('available_events'),
+            )
+
+            stat_df = stat_df.collect()
+            stat = stat_df.row(0, named=True)
+
+            if stat['dropped_events']:
+                raise DroppedTraceEventError('The trace buffer got overridden by new data, increase the buffer size to ensure all events are recorded')
+
+            self._time_range = (
+                Timestamp(stat['min_ts'], unit='ns', rounding='down'),
+                Timestamp(stat['max_ts'], unit='ns', rounding='up'),
+            )
+            self._available_events = set(stat['available_events'])
         else:
-            self._events_df = {}
             self._time_range = None
-            self._skeleton_df = None
+            self._skeleton_df_path = None
             self._available_events = None
             self._event_parsers = {}
 
@@ -2371,13 +2703,17 @@ class TxtTraceParserBase(TraceParserBase):
 
         :Variable keyword arguments: Forwarded to ``__init__``
         """
-        with open(path, 'rb') as f:
-            return cls(lines=f, **kwargs)
+        def file_lines():
+            with open(path, 'rb') as f:
+                yield from f
+
+        return cls(lines=file_lines, **kwargs)
 
     @abc.abstractmethod
     def _get_skeleton_regex(self, need_fields):
         """
-        Return a :class:`bytes` regex that provides the following groups:
+        Return a :class:`bytes` :mod:`polars` regex pattern that provides the
+        following groups:
 
             * ``__event``: name of the event
             * ``__timestamp``: timestamp of event occurence
@@ -2388,252 +2724,118 @@ class TxtTraceParserBase(TraceParserBase):
             scan the whole trace.
         """
 
-    @staticmethod
-    def _make_df_from_data(regex, data, extra_cols=None):
-        extra_cols = extra_cols or []
-        columns = sorted(
-            regex.groupindex.keys(),
-            # Order columns so that we can directly append the
-            # groups() tuple of the regex match
-            key=lambda field: regex.groupindex[field]
+    def _make_skeleton_df(self, skeleton_regex, lines, time, time_unit):
+        def to_callable(xs):
+            if callable(xs):
+                _xs = xs
+            elif isinstance(xs, Iterator):
+                # Iterators have to be reified into an iterable, so that we can
+                # restart iteration if needed.
+                xs = list(xs)
+                def _xs():
+                    yield from xs
+            elif isinstance(xs, Iterable):
+                def _xs():
+                    yield from iter(xs)
+            else:
+                raise TypeError(f'Data source type not handled: {type(xs)}')
+
+            return _xs
+
+        time = None if time is None else to_callable(time)
+        lines = to_callable(lines)
+
+        # Actually stream from the data source if possible.
+        if time is None:
+            df = _polars_iter_to_lazyframe(
+                lambda: (
+                    {'line': line}
+                    for line in lines()
+                ),
+                schema={'line': pl.Binary},
+            )
+        else:
+            df = _polars_iter_to_lazyframe(
+                lambda: (
+                    {
+                        '__timestamp': ts,
+                        'line': line,
+                    }
+                    for ts, line in zip(time(), lines())
+                ),
+                schema={
+                    '__timestamp': pl.UInt64,
+                    'line': pl.Binary,
+                },
+            )
+
+        df = df.with_columns(
+            pl.col('line').cast(pl.String)
         )
-        # Rename regex columns to avoid clashes that were explicitly added as
-        # extra
-        columns = [
-            f'__parsed_{col}' if col in extra_cols else col
-            for col in columns
-        ]
-        columns += extra_cols
 
-        df = pl.DataFrame(
-            data,
-            orient='row',
-            schema=columns,
-            # Scan the entire dataset to figure out the best dtype
-            infer_schema_length=None,
-        ).lazy()
+        df = df.with_columns(
+            __match=(
+                pl.col('line')
+                .str.strip_chars()
+                .str.extract_groups(
+                    skeleton_regex
+                )
+            )
+        )
 
-        df = df.with_columns(cs.binary().cast(pl.String))
+        if time is not None:
+            df = (
+                df
+                .with_columns(
+                    pl.col('__match').struct.with_fields(
+                        __timestamp=pl.col('__timestamp'),
+                    )
+                )
+                .drop('__timestamp')
+            )
 
-        # Put the timestamp first so it's recognized as the index
-        df = df.select(
-            order_as(columns, ['__timestamp'])
+        df = df.unnest('__match')
+
+        try:
+            mul_power = {
+                's': 9,
+                'ms': 6,
+                'us': 3,
+                'ns': 0,
+            }[time_unit]
+        except KeyError:
+            raise ValueError(f'Unsupported time unit: {time_unit}')
+
+        if isinstance(df.collect_schema()['__timestamp'], pl.String):
+            def type_convert(col):
+                # Preserve enough digits after the comma for the subsequent
+                # multiplication
+                return col.str.to_decimal(scale=mul_power)
+        else:
+            def type_convert(col):
+                return col
+
+        df = df.with_columns(
+            __timestamp=(
+                type_convert(pl.col('__timestamp'))
+                # Normalize the unit to ns
+                * (10 ** mul_power)
+            ).cast(pl.UInt64)
+        )
+
+        df = df.with_columns(
+            pl.col('__event').cast(pl.Categorical),
         )
         return df
-
-    def _eagerly_parse_lines(self, lines, skeleton_regex, event_parsers, events, time=None, time_unit='s'):
-        """
-        Filter the lines to select the ones with events.
-
-        Also eagerly parse events from them to avoid the extra memory
-        consumption from line storage, and to speed up parsing by acting as a
-        pipeline on lazy lines stream.
-        """
-
-        # Recompile all regex so that they work on bytes rather than strings.
-        # This simplifies the rest of the code while allowing the raw output
-        # from a process to be fed
-        def encode(string):
-            return string.encode('ascii')
-
-        events = list(map(encode, events))
-        event_parsers = {
-            encode(event): parser
-            for event, parser in event_parsers.items()
-        }
-
-        # Only add an extra iterator and tuple unpacking if that is strictly
-        # necessary, as it comes with a performance cost
-        time_is_provided = time is not None
-        skel_search = skeleton_regex.search
-        if time_is_provided:
-            lines = zip(time, lines)
-            drop_filter = lambda line: not skel_search(line[1])
-        else:
-            drop_filter = lambda line: not skel_search(line)
-
-        # First, get rid of all the lines coming before the trace
-        lines = itertools.dropwhile(drop_filter, lines)
-
-        # Appending to lists is amortized O(1). Inside the list, we store
-        # tuples since they are:
-        # 1) the most compact Python representation of a product type
-        # 2) output directly by regex.search()
-        skeleton_data = []
-        events_data = {
-            **{event: (None, None) for event in events},
-            **{
-                event: (parser.bytes_regex.search, [])
-                for event, parser in event_parsers.items()
-            },
-        }
-        available_events = set()
-
-        begin_time = None
-        end_time = None
-
-        # THE FOLLOWING LOOP IS A THE MOST PERFORMANCE-SENSITIVE PART OF THAT
-        # CLASS, APPLY EXTREME CARE AND BENCHMARK WHEN MODIFYING
-        # Best practices:
-        # - resolve all dotted names ahead of time
-        # - minimize the amount of local variables. Prefer anonymous
-        #   expressions
-        # - Catch exceptions for exceptional cases rather than explicit check
-
-        # Pre-lookup methods out of the loop to speed it up
-        append = list.append
-        group = self._RE_MATCH_CLS.group
-        groups = self._RE_MATCH_CLS.groups
-        inf = math.inf
-        prev_time = Timestamp(0, unit='ns')
-        parse_time = '__timestamp' in skeleton_regex.groupindex.keys()
-
-        for line in lines:
-            if time_is_provided:
-                line_time, line = line
-
-            match = skel_search(line)
-            # Stop at the first non-matching line
-            try:
-                event = group(match, '__event')
-            # The line did not match the skeleton regex, so skip it
-            except TypeError:
-                if b'EVENTS DROPPED' in line:
-                    raise DroppedTraceEventError('The trace buffer got overridden by new data, increase the buffer size to ensure all events are recorded')
-                # Unknown line, could be coming e.g. from stderr
-                else:
-                    continue
-            else:
-                if not time_is_provided:
-                    line_time = Timestamp(
-                        group(match, '__timestamp').decode('utf-8')
-                    )
-                    # Do a global deduplication of timestamps, across all
-                    # events regardless of the one we will parse. This ensures
-                    # stable results and joinable dataframes from multiple
-                    # parser instance.
-                    line_time = line_time.as_nanoseconds
-                    if line_time <= prev_time:
-                        line_time += prev_time - line_time + 2
-                    prev_time = line_time
-
-            if begin_time is None:
-                begin_time = line_time
-
-            # If we can parse it right away, let's do it now
-            try:
-                search, data = events_data[event]
-                append(
-                    data,
-                    # Add the fixedup time
-                    groups(search(line)) + (line_time,)
-                )
-            # If we don't have a parser for it yet (search == None),
-            # just store the line so we can infer its parser later
-            except TypeError:
-                # Add the fixedup time and the full line for later
-                # parsing as well
-                append(
-                    skeleton_data,
-                    groups(match) + (line_time, line)
-                )
-            # We are not interested in that event, but we still remember the
-            # pareseable events
-            except KeyError:
-                available_events.add(event)
-
-        # This should have been set on the first line.
-        # Note: we don't raise the exception if no events were asked for, to
-        # allow creating dummy parsers without any line
-        if begin_time is None and events:
-            raise ValueError('No lines containing events have been found')
-
-        available_events = {
-            event.decode('ascii')
-            for event in available_events
-        }
-
-        end_time = line_time
-        available_events.update(
-            event.decode('ascii')
-            for event, (search, data) in events_data.items()
-            if data
-        )
-
-        events_df = {}
-        for event, parser in event_parsers.items():
-            try:
-                # Remove the tuple data from the dict as we go, to free memory
-                # before proceeding to the next event to smooth the peak memory
-                # consumption
-                _, data = events_data.pop(event)
-            except KeyError:
-                pass
-            else:
-                decoded_event = event.decode('ascii')
-                df = self._make_df_from_data(parser.regex, data, ['__timestamp'])
-                # Post-process immediately to shorten the memory consumption
-                # peak
-                df = self._postprocess_df(
-                    decoded_event,
-                    parser,
-                    df,
-                )
-                events_df[decoded_event] = df
-
-        # Compute the skeleton dataframe for the events that have not been
-        # parsed already. It contains the event name, the time, and potentially
-        # the fields if they are needed
-        skeleton_df = self._make_df_from_data(skeleton_regex, skeleton_data, ['__timestamp', 'line'])
-        skeleton_df = skeleton_df.with_columns(
-            pl.col('__event').cast(pl.Categorical)
-        )
-
-        # Drop unnecessary columns that might have been parsed by the regex
-        to_keep = {'__timestamp', '__event', '__fields', 'line'}
-        skeleton_df = skeleton_df.select(sorted(to_keep & set(skeleton_df.collect_schema().names())))
-        # This is very fast on a category dtype
-        available_events.update(
-            skeleton_df.select(
-                pl.col('__event').unique()
-            ).collect()['__event']
-        )
-
-        if time_is_provided:
-            begin_time = Timestamp(begin_time, unit=time_unit)
-            end_time = Timestamp(end_time, unit=time_unit)
-        else:
-            begin_time = Timestamp(begin_time, unit='ns')
-            end_time = Timestamp(end_time, unit='ns')
-
-        return (events_df, skeleton_df, (begin_time, end_time), available_events)
-
-    def _lazily_parse_event(self, event, parser, df):
-        # Only parse the lines that have a chance to match
-        df = df.filter(
-            pl.col('__event') == event
-        )
-
-        pattern = parser.bytes_regex.pattern.decode('utf-8')
-
-        new_df = df.select((
-            pl.col('__timestamp'),
-            pl.col('line').str.strip_chars().str.extract_groups(pattern),
-        )).unnest('line')
-        new_df = self._postprocess_df(event, parser, new_df)
-        return new_df
 
     @staticmethod
     def _get_event_descs(df, events, event_parsers):
         user_supplied = event_parsers.keys()
-        all_events = events is None
+        all_events = events is _ALL_EVENTS
 
-        if not all_events and set(events) == user_supplied:
+        if set(events) == user_supplied and not all_events:
             return {}
         else:
-            def encode(string):
-                return string.encode('ascii')
-
             # Find the field names only for the events we don't already know about,
             # since the inference is relatively expensive
             if all_events:
@@ -2685,34 +2887,77 @@ class TxtTraceParserBase(TraceParserBase):
             }
             return dct
 
+    def _parse_event(self, event, skeleton_df, parser):
+        df = skeleton_df.filter(
+            pl.col('__event') == event
+        )
+        df = df.select(
+            pl.col('__timestamp'),
+            (
+                pl.col('line')
+                .str.strip_chars()
+                .str.extract_groups(parser.pattern)
+                .struct.unnest()
+            ),
+        )
+
+        df = self._postprocess_df(event, parser, df)
+        return df
+
     def parse_event(self, event):
         try:
             parser = self._event_parsers[event]
         except KeyError as e:
             raise MissingTraceEventError([event])
-
-        # Maybe it was eagerly parsed
-        try:
-            df = self._events_df[event]
-        except KeyError:
-            df = self._lazily_parse_event(event, parser, self._skeleton_df)
-
-        # Everything resides in memory anyway, so make that clear to the _Trace
-        # infrastructure so it does not accidentally tries to serialize a
-        # LazyFrame as a huge JSON.
-        df = df.collect()
-
-        # Since there is no way to distinguish between no event entry and
-        # non-collected events in text traces, map empty dataframe to missing
-        # event
-        if len(df):
-            return df
         else:
-            raise MissingTraceEventError([event])
+            if (skeleton_df_path := self._skeleton_df_path) is None:
+                raise MissingTraceEventError([event])
+            else:
+                # Make a "copy" of the parquet file, so it can be stolen by
+                # the the Trace
+                _path = self._temp_dir / f'{uuid.uuid4().hex}.parquet'
+                _path.hardlink_to(skeleton_df_path)
+                skeleton_df = pl.scan_parquet(_path)
+
+                df = self._parse_event(
+                    event,
+                    skeleton_df=skeleton_df,
+                    parser=parser,
+                )
+
+                # Since there is no way to distinguish between no event entry and
+                # non-collected events in text traces, map empty dataframe to
+                # missing event
+                if len(df.head(1).collect()):
+                    return _ParsedDataFrame.from_df(
+                        df=df,
+                        swap_cacheable=True,
+                        mem_cacheable=True,
+                        steal_files=True,
+                    )
+                else:
+                    raise MissingTraceEventError([event])
 
     @classmethod
     def _postprocess_df(cls, event, parser, df):
         assert isinstance(df, pl.LazyFrame)
+
+        dtype_mapping = {
+            'string': pl.String,
+            'bytes': pl.Binary,
+            'bool': pl.Boolean,
+            'float': pl.Float32,
+            'float32': pl.Float32,
+            'float64': pl.Float64,
+            'int8': pl.Int8,
+            'uint8': pl.UInt8,
+            'int16': pl.Int16,
+            'uint16': pl.UInt16,
+            'int32': pl.Int32,
+            'uint32': pl.UInt32,
+            'int64': pl.Int64,
+            'uint64': pl.UInt64,
+        }
 
         def get_representative(df, col):
             df = (
@@ -2732,10 +2977,12 @@ class TxtTraceParserBase(TraceParserBase):
         def infer_schema(df):
             # Select a subset of the dataframe that has no null value in it, so
             # we can accurately infer the dtype.
-            df = pl.DataFrame({
-                col: [get_representative(df, col)]
-                for col in df.collect_schema().names()
-            })
+            df = pl.DataFrame(
+                {
+                    col: [get_representative(df, col)]
+                    for col in df.collect_schema().names()
+                },
+            )
 
             # Ugly hack: dump the first row to CSV to infer the schema of the
             # dataframe based on text data, since that's what we have.
@@ -2743,12 +2990,9 @@ class TxtTraceParserBase(TraceParserBase):
             df.write_csv(bytes_io)
             df = pl.read_csv(bytes_io)
             schema = df.schema
-
             schema = {
-                # Cast all strings as categorical since they are typically very
-                # repetitive
-                col: pl.Categorical if isinstance(dtype, (pl.String, pl.Binary)) else dtype
-                for col, dtype in schema.items()
+                **df.schema,
+                '__timestamp': pl.UInt64,
             }
 
             return schema
@@ -2761,6 +3005,30 @@ class TxtTraceParserBase(TraceParserBase):
             pl.col(name).cast(dtype)
             for name, dtype in infer_schema(df).items()
         )
+
+        schema_overrides = {
+            field: dtype
+            for field, _dtype in parser.fields.items()
+            if (dtype := dtype_mapping.get(_dtype)) is not None
+        }
+        schema_overrides = {
+            # Cast all strings as categorical since they are typically very
+            # repetitive
+            col: (
+                pl.Categorical
+                if isinstance(dtype, (pl.String, pl.Binary)) else
+                dtype
+            )
+            for col, dtype in schema_overrides.items()
+        }
+        # We apply the parser-supplied schema after the ones we got from polars
+        # itself. This way we ensure the inferred dtypes can be built from the
+        # source string, and we later convert it to what the user wants.
+        df = df.with_columns(
+            pl.col(name).cast(dtype)
+            for name, dtype in schema_overrides.items()
+        )
+
         df = (
             df
             .drop('Time', strict=False)
@@ -2853,6 +3121,7 @@ class TxtTraceParserBase(TraceParserBase):
             return self._pre_filled_metadata[key]
         except KeyError:
             return super().get_metadata(key)
+
 
 class TxtTraceParser(TxtTraceParserBase):
     """
@@ -3207,11 +3476,17 @@ class TxtTraceParser(TxtTraceParserBase):
                 stderr=subprocess.DEVNULL,
             ) as p:
                 try:
-                    match, _ = take(1, itertools.filterfalse(None, map(regex.search, p.stdout)))
+                    match, _ = take(
+                        1,
+                        itertools.filterfalse(
+                            None,
+                            map(regex.search, p.stdout)
+                        )
+                    )
                 except ValueError:
                     pass
                 else:
-                    pre_filled_metadata['cpus-count'] = match.group('cpus')
+                    pre_filled_metadata['cpus-count'] = int(match.group('cpus'))
 
         kwargs.update(
             events=events,
@@ -3259,7 +3534,7 @@ class TxtTraceParser(TxtTraceParserBase):
             ).splitlines()
             if not event.startswith('version =')
         }
-        events = kernel_events if events is None else set(events)
+        events = kernel_events if events is _ALL_EVENTS else set(events)
         events &= kernel_events
 
         filter_events &= (events != kernel_events)
@@ -3307,8 +3582,7 @@ class TxtTraceParser(TxtTraceParserBase):
         regex = r'\] +(?P<__timestamp>{floating}): *(?P<__event>{identifier}):'.format(**TxtEventParser.PARSER_REGEX_TERMINALS)
         if need_fields:
             regex += r' *(?P<__fields>.*)'
-
-        return re.compile(regex.encode('ascii'), flags=re.ASCII)
+        return regex
 
 
 class SimpleTxtTraceParser(TxtTraceParserBase):
@@ -3362,7 +3636,7 @@ class SimpleTxtTraceParser(TxtTraceParserBase):
 
     HEADER_REGEX = None
     """
-    Default regex to use to parse event header.
+    Default :mod:`polars` regex to use to parse event header.
     It must parse the following groups:
 
     * ``__timestamp``: the timestamp of the event
@@ -3410,9 +3684,11 @@ class SimpleTxtTraceParser(TxtTraceParserBase):
         )
 
     def _get_skeleton_regex(self, need_fields):
+        regex = self.header_regex
         # Parse the whole header, which is wasteful but provides a simpler interface
-        regex = self.header_regex + r' *(?P<__fields>.*)'
-        return re.compile(regex.encode('ascii'), flags=re.ASCII)
+        if need_fields:
+            regex += r' *(?P<__fields>.*)'
+        return regex
 
 
 class MetaTxtTraceParser(SimpleTxtTraceParser):
@@ -3481,18 +3757,6 @@ class MetaTxtTraceParser(SimpleTxtTraceParser):
         ),
     }
 
-    @kwargs_forwarded_to(SimpleTxtTraceParser.__init__)
-    def __init__(self, *args, time, time_unit='s', **kwargs):
-        self._time = time
-        self._time_unit = time_unit
-        super().__init__(*args, **kwargs)
-
-    def _eagerly_parse_lines(self, *args, **kwargs):
-        # Use the iloc as "time", and we fix it up manually afterwards
-        return super()._eagerly_parse_lines(
-            *args, **kwargs, time=self._time, time_unit=self._time_unit,
-        )
-
 
 class HRTxtTraceParser(SimpleTxtTraceParser):
     """
@@ -3533,7 +3797,7 @@ class HRTxtTraceParser(SimpleTxtTraceParser):
         ),
     }
 
-    HEADER_REGEX = r'\s*(?P<__comm>.+)-(?P<__pid>\d+)[^[]*\[(?P<__cpu>\d*)\][^\d]+(?P<__timestamp>\d+\.\d+): +(?P<__event>\w+):'
+    HEADER_REGEX = r'\s*(?P<__comm>.+)-(?P<__pid>\d+)[^\[]*\[(?P<__cpu>\d*)\][^\d]+(?P<__timestamp>\d+\.\d+): +(?P<__event>\w+):'
 
 
 class SysTraceParser(HRTxtTraceParser):
@@ -3598,7 +3862,7 @@ class _InternalTraceBase(abc.ABC):
         '''
 
     @property
-    def trace_state(self):
+    def _trace_state(self):
         """
         State of the trace object that might impact the output of dataframe
         getter functions like :meth:`lisa.trace.TraceBase.df_event`.
@@ -3607,6 +3871,17 @@ class _InternalTraceBase(abc.ABC):
         recorded when analysis methods results are cached to the swap.
         """
         return None
+
+    @property
+    def trace_state(self):
+        """
+        State of the trace object that might impact the output of dataframe
+        getter functions like :meth:`lisa.trace.TraceBase.df_event`.
+        """
+        return _json_checksum(
+            self._trace_state,
+            method='sha256',
+        )
 
     @property
     def time_range(self):
@@ -3753,6 +4028,10 @@ class _InternalTraceBase(abc.ABC):
         events = self._expand_events(events)
         events = events.get_all_events()
         self._preload_raw_events(events)
+
+    @abc.abstractmethod
+    def _preload_raw_events(self, *args, **kwargs):
+        pass
 
     def _is_event_delayed(self, event):
         return (
@@ -3910,6 +4189,66 @@ class TraceBase(_InternalTraceBase):
     )
     def df_events(self, *args, **kwargs):
         return self.df_event(*args, **kwargs)
+
+    def iter_rows(self, events=None):
+        """
+        Iterator that yields a tuple ``(event, fields)`` with ``event`` the
+        name of the event and ``fields`` a dictionary of the fields.
+
+        :param events: List of events to parse. If ``None``, all events will be
+            parsed.
+        :type events: list(str) or None
+
+        .. warning:: This will be extremely slow in comparison to the regular
+            dataframe API, but it can be convenient and "good enough" for small
+            traces and does not require learning any dataframe API.
+
+        .. note:: If you wish to modify the way field values are converted to
+            Python values, use :meth:`~lisa.trace.Trace.get_view` with the
+            ``process_df`` parameter. This can be needed to get
+            nanosecond-precision timestamps, as Python's
+            :class:`datetime.timedelta` only has microsecond precision..
+        """
+        trace = self.get_view(df_fmt='polars-lazyframe')
+
+        def process(event):
+            df = trace.df_event(event)
+            df = df.select(
+                pl.col('Time'),
+                pl.lit(event).alias('event'),
+                pl.struct(pl.all()).map_elements(
+                    lambda d: d,
+                    return_dtype=pl.Object,
+                ).alias('row')
+            )
+            return df
+
+        # FIXME: this implementation based on LazyFrame.merge_sorted() hits a
+        # merge_sorted() bug.
+        def merge(dfs):
+            # FIXME: use polars.merge_sorted() rather than
+            # LazyFrame.merge_sorted()
+            def f(merged, df):
+                return merged.merge_sorted(df, key='Time')
+
+            return functools.reduce(merge, dfs)
+
+        def merge(dfs):
+            df = pl.concat(dfs, how='vertical')
+            return df.sort('Time')
+
+        if events in (None, 'all', _ALL_EVENTS):
+            self._parse_all(best_effort=False)
+            events = set(self.available_events)
+        else:
+            events = set(events)
+
+        events = sorted(events)
+        df = merge(map(process, events))
+        for batch in df.collect_batches():
+            for ts, event, row in batch.iter_rows():
+                yield event, row
+
 
     @property
     @abc.abstractmethod
@@ -4069,7 +4408,23 @@ class _TraceViewBase(
         return self.base_trace.__exit__(*args)
 
     @classmethod
-    def _make_view(cls, trace, *, window=None, signals=None, compress_signals_init=None, normalize_time=False, events_namespaces=None, events=None, strict_events=False, process_df=None, df_fmt=None, clear_base_cache=None):
+    def _make_view(
+        cls,
+        trace,
+        *,
+        window=None,
+        signals=None,
+        compress_signals_init=None,
+        normalize_time=False,
+        events_namespaces=None,
+        events=None,
+        strict_events=False,
+        process_df=None,
+        df_fmt=None,
+        clear_base_cache=None,
+        _record_pushdowns=False,
+        _pushdowns=None,
+    ):
         if clear_base_cache is not None:
             _deprecated_warn(f'"clear_base_cache" parameter has no effect anymore')
 
@@ -4114,15 +4469,17 @@ class _TraceViewBase(
             view,
             events=events,
             strict_events=strict_events,
+            _record_pushdowns=_record_pushdowns,
+            _pushdowns=_pushdowns,
         )
 
         return view
 
     @property
-    def trace_state(self):
+    def _trace_state(self):
         return (
             self.__class__.__qualname__,
-            self.base_trace.trace_state,
+            self.base_trace._trace_state,
         )
 
     def _expand_events(self, *args, **kwargs):
@@ -4130,6 +4487,9 @@ class _TraceViewBase(
 
     def _internal_df_event(self, *args, **kwargs):
         return self.base_trace._internal_df_event(*args, **kwargs)
+
+    def _preload_raw_events(self, *args, **kwargs):
+        return self.base_trace._preload_raw_events(*args, **kwargs)
 
     @property
     def basetime(self):
@@ -4305,11 +4665,14 @@ class _WindowTraceView(_WindowTraceViewBase):
         return window
 
     @property
-    def trace_state(self):
+    def _trace_state(self):
         return (
-            super().trace_state,
+            super()._trace_state,
             self.window,
-            self._signals,
+            [
+                sig._to_json()
+                for sig in self._signals
+            ],
             self._compress_signals_init,
         )
 
@@ -4425,11 +4788,11 @@ class _ProcessTraceView(_TraceViewBase):
         self._process_df = process_df
 
     @property
-    def trace_state(self):
+    def _trace_state(self):
         f = self._process_df
 
         return (
-            super().trace_state,
+            super()._trace_state,
             # This likely will be a value that cannot be serialized to JSON if
             # it was user-provided. This will prevent caching as it should.
             f,
@@ -4445,8 +4808,10 @@ class _ProcessTraceView(_TraceViewBase):
 
 
 class _PreloadEventsTraceView(_TraceViewBase):
-    def __init__(self, trace, events=None, strict_events=False):
+    def __init__(self, trace, events=None, strict_events=False, _record_pushdowns=False, _pushdowns=None):
         super().__init__(trace)
+        self._record_pushdowns = _record_pushdowns
+        self._pushdowns = _pushdowns or {}
 
         if events == 'all':
             events = _ALL_EVENTS
@@ -4475,6 +4840,34 @@ class _PreloadEventsTraceView(_TraceViewBase):
                 events.check_events(available_events)
 
         self._events = events
+
+    def _internal_df_event(
+        self,
+        event,
+        *,
+        _record_pushdowns=False,
+        _pushdowns=None,
+        **kwargs,
+    ):
+        return self.base_trace._internal_df_event(
+            event,
+            _record_pushdowns=self._record_pushdowns or _record_pushdowns,
+            _pushdowns={
+                **self._pushdowns,
+                **(_pushdowns or {}),
+            },
+            **kwargs,
+        )
+
+    def _preload_raw_events(self, *args, pushdowns=None, **kwargs):
+        return super()._preload_raw_events(
+            *args,
+            pushdowns={
+                **self._pushdowns,
+                **(pushdowns or {}),
+            },
+            **kwargs,
+        )
 
     @property
     def events(self):
@@ -4512,9 +4905,9 @@ class _NamespaceTraceView(_TraceViewBase):
         return super()._expand_events(events)
 
     @property
-    def trace_state(self):
+    def _trace_state(self):
         return (
-            super().trace_state,
+            super()._trace_state,
             self._events_namespaces,
         )
 
@@ -4602,7 +4995,7 @@ class _NamespaceTraceView(_TraceViewBase):
             return super()._internal_df_event(event, **kwargs)
 
 
-class _TimeOffsetter(_CacheDataDescEncodable):
+class _TimeOffsetter(_JsonEncodable):
     def __init__(self, offset):
         assert isinstance(offset, Timestamp)
         offset_ns = offset.as_nanoseconds
@@ -4663,10 +5056,10 @@ class _NormalizedTimeTraceView(_WindowTraceViewBase):
         return self.base_trace.end - self._offset
 
     @property
-    def trace_state(self):
+    def _trace_state(self):
         return (
-            super().trace_state,
-            self._offset,
+            super()._trace_state,
+            self._offset.as_nanoseconds,
         )
 
     @property
@@ -4785,7 +5178,7 @@ class _AvailableTraceEventsSet:
         return str(self._available_events)
 
 
-class _CacheDataDesc(Mapping):
+class _CacheDataDesc:
     """
     Cached data descriptor.
 
@@ -4795,111 +5188,471 @@ class _CacheDataDesc(Mapping):
     :class:`pandas.DataFrame` or :class:`pandas.Series` or
     :class:`polars.LazyFrame` or :class:`polars.DataFrame`. It is used to
     manage the cache and swap.
-
-    It implements the :class:`collections.abc.Mapping` interface, so
-    specification keys can be accessed directly like from a dict.
-
-    .. note:: Once introduced in a container, instances must not be modified,
-        directly or indirectly.
     """
+    _DATA_VERSION = None
 
-    def __init__(self, spec, fmt):
-        if fmt == 'polars-lazyframe':
-            spec = {
-                'polars-version': pl.__version__,
-                **spec
-            }
+    KIND = None
+    _KINDS = {}
 
-        self.fmt = fmt
-        self.spec = spec
-        self.normal_form = _CacheDataDescNF.from_spec(self.spec, fmt)
-        """
-        Normal form of the descriptor. Equality is implemented by comparing
-        this attribute.
-        """
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if (kind := cls.KIND) is not None:
+            cls._KINDS[cls.KIND] = cls
 
-    def __getitem__(self, key):
-        return self.spec[key]
+    @classmethod
+    def _cls_from_kind(cls, kind):
+        return cls._KINDS[kind]
 
-    def __iter__(self):
-        return iter(self.spec)
+    def __init__(self, data_fmt, trace_state, desc_key=None, data=None):
+        data = json.dumps(
+            data,
+            # Normalized JSON.
+            sort_keys=True,
+            # Make it as compact as possible
+            separators=(',', ':'),
+        )
+        desc_key = (
+            _json_checksum(data, method='sha256')
+            if desc_key is None else
+            desc_key
+        )
 
-    def __len__(self):
-        return len(self.spec)
+        self.data_fmt = data_fmt
+        self.trace_state = trace_state
+        self.desc_key = desc_key
+        self.json_data = data
+
+    @property
+    def data(self):
+        return json.loads(self.json_data)
 
     def __repr__(self):
         return '{}({})'.format(
             self.__class__.__name__,
             ', '.join(
                 f'{key}={val!r}'
-                for key, val in self.__dict__.items()
+                for key, val in sorted(self.__dict__.items())
             )
         )
 
     def __eq__(self, other):
-        if isinstance(other, self.__class__):
-            return self.normal_form == other.normal_form
+        if isinstance(other, _CacheDataDesc):
+            return (
+                self.__class__ == other.__class__
+                and self.data_fmt == other.data_fmt
+                and self.trace_state == other.trace_state
+                and self.desc_key == other.desc_key
+                # We purposefuly do not check self.json_data, as it may not be
+                # in a normalized format. self.desc_key equality is supposed to
+                # imply json_data equality where relevant.
+            )
         else:
-            return False
+            return NotImplemented
 
     def __hash__(self):
-        return hash(self.normal_form)
+        return hash(tuple(sorted(self.__dict__.items())))
 
-
-class _CacheDataDescNF:
-    """
-    Normal form of :class:`_CacheDataDesc`.
-
-    The normal form of the descriptor allows removing any possible differences
-    in shape of values, and is serializable to JSON. The serialization is
-    allowed to destroy some information (type mainly), as long as it does make
-    two descriptors wrongly equal.
-    """
-    def __init__(self, nf, fmt):
-        assert fmt != _CacheDataSwapEntry.META_EXTENSION
-        self._fmt = fmt
-        self._nf = nf
-        # Since it's going to be inserted in dict for sure, precompute the hash
-        # once and for all.
-        self._hash = hash(self._nf)
+    def priority(self, path):
+        return 0
 
     @classmethod
-    def from_spec(cls, spec, fmt):
-        """
-        Build from a spec that can include any kind of Python objects.
-        """
-        nf = tuple(sorted(
-            (key, cls._coerce(val))
-            for key, val in spec.items()
-        ))
-        return cls(nf=nf, fmt=fmt)
+    def _from_json(cls, mapping):
+        x = cls.__new__(cls)
+        x.__dict__.update(mapping)
+        return x
+
+    def _db_insert(self, trans, uuid_, data_size, priority):
+        row = {
+            'uuid': uuid_,
+            'kind': self.KIND,
+            'data_version': self._DATA_VERSION,
+            'data_fmt': self.data_fmt,
+            'trace_state': self.trace_state,
+            'data_size': data_size,
+            'priority': priority,
+            'desc_key': self.desc_key,
+            'json_data': self.json_data,
+        }
+
+        columns, values = zip(*row.items())
+        sql_columns = ', '.join(columns)
+        sql_values = ', '.join(f':{col}' for col in columns)
+        with trans.ensure('rw'):
+            try:
+                trans.execute(
+                    f'''
+                    INSERT INTO swap_entries ({sql_columns})
+                    VALUES ({sql_values})
+                    ''',
+                    row
+                )
+            # This could fail if another process independenty tried to
+            # write the same swap entry.
+            except sqlite3.IntegrityError:
+                raise _TraceCacheSwapEntryExistsError()
+
+    def _db_lookup(self, trans, on_found, on_not_found):
+        with trans.ensure('r') as trans:
+            # WARNING: when updating this query, ensure the swap_table's index
+            # created in _init_db() is matching the columns used here.
+            cursor = trans.execute(
+                f'''
+                SELECT *
+                FROM swap_entries
+                WHERE
+                    kind = :kind
+                    AND data_version = :data_version
+                    AND data_fmt = :data_fmt
+                    AND trace_state = :trace_state
+                    AND desc_key = :desc_key
+                ''',
+                {
+                    'data_fmt': self.data_fmt,
+                    'kind': self.KIND,
+                    'data_version': self._DATA_VERSION,
+                    'trace_state': self.trace_state,
+                    'desc_key': self.desc_key,
+                }
+            )
+            row = cursor.fetchone()
+            if row is None:
+                return on_not_found(trans)
+            else:
+                swap_entry = trans._make_swap_entry(row)
+                # Run the function while still inside the transaction.
+                return on_found(trans, swap_entry)
+
+
+def _bloom_mask(items, k):
+    def mask(data, k):
+        assert isinstance(data, str)
+        data = data.encode('utf-8')
+
+        m_bytes = 8
+        max_k = m_bytes * 8
+
+        if k >= max_k:
+            raise ValueError(f'Maximum value for "k" is {max_k}, passed k={k}')
+        else:
+            h = hashlib.blake2b(
+                data,
+                digest_size=m_bytes * 2,
+            )
+            h = h.digest()
+
+            h1 = int.from_bytes(h[:m_bytes], byteorder='little')
+            h2 = int.from_bytes(h[m_bytes:], byteorder='little')
+
+            # Avoid degenerate case h2 == 0
+            h2 |= 1
+
+            res = 0
+            for i in range(k):
+                bit = (h1 + i * h2) % (m_bytes * 8)
+                res |= (1 << bit)
+            return res
+
+    res = 0
+    for item in items:
+        res |= mask(item, k)
+
+    return res
+
+
+_PARQUET_DATA_VERSION = _json_checksum(
+    {
+        'lisa': VERSION_TOKEN,
+        'pandas': pd.__version__,
+        'polars': pl.__version__,
+        'pyarrow': pyarrow.__version__,
+    },
+    method='sha256',
+)
+
+
+class _EventCacheDataDesc(_CacheDataDesc):
+    KIND = 'event'
+    _DATA_VERSION = _PARQUET_DATA_VERSION
+
+    def __init__(self, event, trace_state, pushdowns):
+        assert isinstance(event, str)
+        super().__init__(
+            data_fmt='polars-lazyframe',
+            trace_state=trace_state,
+            data={
+                'event': event,
+                'pushdowns': (
+                    None
+                    if pushdowns is None else
+                    pushdowns.to_json()
+                )
+            },
+        )
+
+    def priority(self, path):
+        def get_nr_rows(path):
+            try:
+                return _parquet_nr_rows(path)
+            except Exception:
+                return 0
+
+        return sum(
+            # We are interested in the number of rows rather than the file
+            # size, as adding more columns to a parquet file does not make it
+            # more expensive to reload. Unneeded columns data are just skipped
+            # over by the reader anyway. What really costs is row-level
+            # filtering.
+            get_nr_rows(_path)
+            for _path in path.rglob('*')
+        )
+
+    def _without_pushdowns(self):
+        return self.__class__(
+            event=self.event,
+            trace_state=self.trace_state,
+            pushdowns=None,
+        )
+
+    @property
+    def _pushdowns_candidate_key(self):
+        return _json_checksum(
+            (
+                self.event,
+                self._DATA_VERSION,
+                self.trace_state,
+            ),
+            method='sha256',
+        )
+
+    @property
+    def event(self):
+        return self.data['event']
+
+    @property
+    def pushdowns(self):
+        if (pushdowns := self.data.get('pushdowns')) is None:
+            return None
+        else:
+            return _ScanPushdowns.from_json(pushdowns)
+
+    def _db_insert(self, trans, uuid_, data_size, priority):
+        super()._db_insert(
+            trans=trans,
+            uuid_=uuid_,
+            data_size=data_size,
+            priority=priority,
+        )
+
+        if (pushdowns := self.pushdowns) is not None:
+            dnf_clause_masks = pushdowns._dnf_bloom_masks
+            candidate_key = self._pushdowns_candidate_key
+
+            with trans.ensure('rw'):
+                try:
+                    trans.execute(
+                        '''
+                        INSERT OR IGNORE INTO scan_pushdowns_n_rows (uuid, candidate_key, n_rows)
+                        VALUES (?, ?, ?)
+                        ''',
+                        (uuid_, candidate_key, pushdowns.n_rows)
+                    )
+
+                    trans.executemany(
+                        '''
+                        INSERT OR IGNORE INTO scan_pushdowns_dnf_predicate (uuid, dnf_clause_mask)
+                        VALUES (?, ?)
+                        ''',
+                        [
+                            (uuid_, dnf_clause_mask)
+                            for dnf_clause_mask in dnf_clause_masks
+                        ]
+                    )
+
+                    trans.executemany(
+                        '''
+                        INSERT OR IGNORE INTO scan_pushdowns_columns (uuid, column)
+                        VALUES (?, ?)
+                        ''',
+                        [
+                            (uuid_, column)
+                            for column in pushdowns.columns
+                        ]
+                    )
+                # This could fail if another process independenty removed the uuid
+                # from the swap_entries table, thereby violating the foreign key
+                # constraint.
+                except sqlite3.IntegrityError:
+                    raise _TraceCacheSwapEntryExistsError()
+
+    def _db_lookup(self, trans, on_found, on_not_found):
+        def not64(x):
+            return hex((~x) & 0xFF_FF_FF_FF_FF_FF_FF_FF)
+
+        def lookup_pushdowns(candidate_key, pushdowns, trans, on_found, on_not_found):
+            def check_col_order(col):
+                # Common column names should be checked last, as they are the
+                # least specific ones.
+                if col.startswith('__'):
+                    return 1
+                elif col == 'Time':
+                    return 2
+                else:
+                    return 0
+
+            def check_mask_order(mask):
+                # The more bits are cleared in the mask, the more bits set
+                # there is in ~mask and therefore the more selective is the
+                # filter "x & ~mask = 0"
+                return mask.bit_count()
+
+            exists = '\n'.join(itertools.chain(
+                (
+                    f'''
+                    AND EXISTS (
+                        SELECT 1
+                        FROM scan_pushdowns_columns
+                        WHERE (
+                            scan_pushdowns_columns.uuid = scan_pushdowns_n_rows.uuid
+                            AND
+                            scan_pushdowns_columns.column = {_sql_quote(column)}
+                        )
+                    )
+                    '''
+                    for column in sorted(
+                        pushdowns.columns,
+                        key=check_col_order,
+                    )
+                ),
+                (
+                    f'''
+                    AND EXISTS (
+                        SELECT 1
+                        FROM scan_pushdowns_dnf_predicate
+                        WHERE
+                            scan_pushdowns_dnf_predicate.uuid = scan_pushdowns_n_rows.uuid
+                            AND
+                            (scan_pushdowns_dnf_predicate.dnf_clause_mask & {not64(mask)}) = 0
+                    )
+                    '''
+                    for mask in sorted(
+                        pushdowns._dnf_bloom_masks,
+                        key=check_mask_order,
+                    )
+                ),
+            ))
+
+            if (n_rows := pushdowns.n_rows) is None:
+                min_n_rows = '1'
+            else:
+                min_n_rows = f'scan_pushdowns_n_rows.n_rows >= {n_rows}'
+
+            with trans.ensure('r') as trans:
+                # We drive the scan by looking at scan_pushdowns_n_rows first,
+                # as the >= check can be done by directly looking at the index.
+                # We then filter the UUIDs based on the other characteristics
+                # we are looking for.
+                cursor = trans.execute(
+                    f'''
+                    SELECT swap_entries.*
+                    FROM scan_pushdowns_n_rows
+                    JOIN swap_entries ON swap_entries.uuid = scan_pushdowns_n_rows.uuid
+
+                    WHERE
+                        scan_pushdowns_n_rows.candidate_key = :candidate_key
+                        AND {min_n_rows}
+                        {exists}
+                    ''',
+                    {
+                        'candidate_key': candidate_key,
+                    }
+                )
+                for row in cursor:
+                    swap_entry = trans._make_swap_entry(row)
+                    cache_desc = swap_entry.cache_desc
+                    assert isinstance(cache_desc, _EventCacheDataDesc)
+                    if cache_desc.pushdowns.subsumes(pushdowns):
+                        # Run the function while still inside the transaction.
+                        return on_found(trans, swap_entry)
+
+                return on_not_found(trans)
+
+        _SENTINEL = object()
+        res = super()._db_lookup(
+            trans=trans,
+            on_found=on_found,
+            on_not_found=lambda trans: _SENTINEL,
+        )
+        if res is _SENTINEL:
+            if (pushdowns := self.pushdowns) is None:
+                return on_not_found(trans)
+            else:
+                res = self._without_pushdowns()._db_lookup(
+                    trans=trans,
+                    on_found=on_found,
+                    on_not_found=lambda trans: _SENTINEL,
+                )
+                if res is _SENTINEL:
+                    return lookup_pushdowns(
+                        candidate_key=self._pushdowns_candidate_key,
+                        pushdowns=pushdowns,
+                        trans=trans,
+                        on_found=on_found,
+                        on_not_found=on_not_found,
+                    )
+                else:
+                    return res
+        else:
+            return res
+
+
+class _AnalysisCacheDataDesc(_CacheDataDesc):
+    KIND = 'analysis'
+    _DATA_VERSION = _PARQUET_DATA_VERSION
+
+    def __init__(
+        self,
+        data_fmt,
+        trace_state,
+        bound_class,
+        func,
+        kwargs,
+    ):
+
+        super().__init__(
+            data_fmt=data_fmt,
+            trace_state=trace_state,
+            data={
+                'bound_class_module': bound_class.__module__,
+                'bound_class_qualname': bound_class.__qualname__,
+                'func_module': func.__module__,
+                'func_qualname': func.__qualname__,
+                'kwargs': self._coerce_kwargs(kwargs),
+            },
+        )
 
     @classmethod
-    def _coerce(cls, val):
+    def _coerce_kwargs(cls, val):
         "Coerce data to a normal form that must be hashable"
-        if isinstance(val, _CacheDataDescEncodable):
-            type_name = f'{val.__class__.__module__}.{val.__class__.__qualname__}'
-            val = ('json_encoded', type_name, cls._coerce(val.json_encode()))
-        elif isinstance(val, Integral):
+        if isinstance(val, Integral):
             val = int(val)
         elif isinstance(val, Real):
             # Use a lossless representation of the float.
             val = ('float', float(val).hex())
         elif isinstance(val, bytes):
-            val = ('bytes', str(bytes))
+            val = ('bytes', str(val))
         elif isinstance(val, (type(None), str, Number)):
             pass
         elif isinstance(val, Mapping):
             val = tuple(
-                (cls._coerce(key), cls._coerce(val))
+                (cls._coerce_kwargs(key), cls._coerce_kwargs(val))
                 for key, val in sorted(val.items())
             )
             val = ('mapping', val)
         elif isinstance(val, Set):
-            val = tuple(map(cls._coerce, sorted(val)))
+            val = tuple(map(cls._coerce_kwargs, sorted(val)))
             val = ('set', val)
         elif isinstance(val, Sequence):
-            val = tuple(map(cls._coerce, val))
+            val = tuple(map(cls._coerce_kwargs, val))
             val = ('sequence', val)
         # In other cases save the name of the type along the value to make
         # sure we are not going to compare apple and oranges in the future
@@ -4909,170 +5662,398 @@ class _CacheDataDescNF:
 
         return val
 
-    def __str__(self):
-        return str(self._nf)
 
-    def __eq__(self, other):
-        if isinstance(other, self.__class__):
-            return self._fmt == other._fmt and self._nf == other._nf
-        else:
-            return False
+class _MetadataCacheDataDesc(_CacheDataDesc):
+    KIND = 'metadata'
+    _DATA_VERSION = _json_checksum(
+        {
+            'lisa': VERSION_TOKEN,
+        },
+        method='sha256',
+    )
 
-    def __hash__(self):
-        return self._hash
-
-    def to_json_map(self):
-        dct = dict(
-            fmt=self._fmt,
-            data=self._nf,
+    def __init__(self, key, data_fmt, trace_state):
+        super().__init__(
+            data_fmt=data_fmt,
+            trace_state=trace_state,
+            data={
+                'key': key,
+            },
         )
-        if _EXTRA_ASSERTS:
-            assert self == self.from_json_map(
-                json.loads(
-                    json.dumps(
-                        dct
-                    )
-                )
-            )
-        return dct
 
-    @classmethod
-    def _coerce_json(cls, x):
-        """
-        JSON converts the original tuples into lists, so we need to convert it
-        back.
-        """
-        if isinstance(x, str):
-            return x
-        elif isinstance(x, Sequence):
-            return tuple(map(cls._coerce_json, x))
-        else:
-            return x
-
-    @classmethod
-    def from_json_map(cls, mapping):
-        """
-        Build from a mapping that was created using :meth:`to_json_map`.
-
-        JSON does not preserve tuples for example, so they need to be converted
-        back.
-        """
-        fmt = mapping['fmt']
-        data = dict(mapping['data'])
-        nf = tuple(sorted(
-            (key, cls._coerce_json(val))
-            for key, val in data.items()
-        ))
-        return cls(nf=nf, fmt=fmt)
-
-
-class _CannotWriteSwapEntry(Exception):
-    pass
+    @property
+    def metadata_key(self):
+        return self.data['key']
 
 
 class _CacheDataSwapEntry:
     """
     Entry in the data swap area of :class:`Trace`.
 
-    :param cache_desc_nf: Normal form descriptor describing what the entry
-        contains.
-    :type cache_desc_nf: _CacheDataDescNF
+    :param cache_desc: Cache descriptor describing what the entry contains.
+    :type cache_desc: _CacheDataDesc
 
-    :param name: Name of the entry. If ``None``, a random UUID will be
-        generated.
-    :type name: str or None
+    :param data_size: Size in bytes of the data written to the data file.
+    :type data_size: int
 
-    :param written: ``True`` if the swap entry is already written on-disk.
-    :type written: bool
+    :param id_: ID of the entry.
+    :type id_: int
     """
 
-    META_EXTENSION = 'meta'
-    """
-    Extension used by the metadata file of the swap entry in the swap.
-    """
+    def __init__(self, cache_desc, uuid, data_size):
+        self.cache_desc = cache_desc
+        self.uuid = uuid
+        self.data_size = data_size
 
-    def __init__(self, cache_desc_nf, name=None, written=False):
-        self.cache_desc_nf = cache_desc_nf
-        self.name = name or uuid.uuid4().hex
-        self.written = written
+    @classmethod
+    def _uuid_data_folder(cls, uuid_, swap_dir):
+        return swap_dir / 'data' / uuid_
+
+    def data_folder(self, swap_dir):
+        return self._uuid_data_folder(
+            uuid_=self.uuid,
+            swap_dir=swap_dir,
+        )
 
     @property
-    def meta_filename(self):
-        """
-        Filename of the metadata file in the swap.
-        """
-        return f'{self.name}.{self.META_EXTENSION}'
-
-    @property
-    def fmt(self):
+    def data_fmt(self):
         """
         Format of the swap entry.
         """
-        return self.cache_desc_nf._fmt
+        return self.cache_desc.data_fmt
 
-    @property
-    def data_filename(self):
-        """
-        Filename of the data file in the swap.
-        """
-        return f'{self.name}.{self.fmt}'
 
-    def to_json_map(self):
-        """
-        Return a mapping suitable for JSON serialization.
-        """
-        desc = self.cache_desc_nf.to_json_map()
-        try:
-            # Use json.dumps() here to fail early if the descriptor cannot be
-            # dumped to JSON
-            desc = json.dumps(desc)
-        except TypeError as e:
-            raise _CannotWriteSwapEntry(e)
+class _TraceCacheSwapReloadError(ValueError):
+    """
+    Exception raised when the swap could not be reloaded, e.g. because was
+    created by another version of LISA than the one loading it.
+    """
 
-        return {
-            'version-token': VERSION_TOKEN,
-            'name': self.name,
-            'encoded_desc': desc,
+
+class _TraceCacheSwapEntryExistsError(Exception):
+    pass
+
+
+class _TraceCacheSwapEntryNotFoundError(KeyError):
+    pass
+
+
+class _SwapDBTransaction(Loggable):
+    def __init__(self, conn, mode, typ):
+        self._conn = conn
+        self._mode = mode
+        self._typ = typ
+
+    @contextlib.contextmanager
+    def ensure(self, mode, typ='dml'):
+        compatible_mode = {
+            'r': ['r', 'rw'],
+            'rw': ['rw'],
         }
 
-    @classmethod
-    def from_json_map(cls, mapping, written=False):
-        """
-        Create an instance with a mapping created using :meth:`to_json_map`.
-        """
-        if mapping['version-token'] != VERSION_TOKEN:
-            raise _TraceCacheSwapVersionError('Version token differ')
+        compatible_typ = {
+            'dml': ['ddl', 'dml'],
+            'ddl': ['ddl'],
+        }
 
-        desc = json.loads(mapping['encoded_desc'])
-        cache_desc_nf = _CacheDataDescNF.from_json_map(desc)
-        name = mapping['name']
-        return cls(cache_desc_nf=cache_desc_nf, name=name, written=written)
+        if self._mode not in compatible_mode[mode]:
+            raise RuntimeError(f'Expected a "{mode}" transaction but active transaction is "{self._mode}"')
 
-    def to_path(self, path):
-        """
-        Save the swap entry metadata to the given ``path``.
-        """
-        data = self.to_json_map()
-        with open(path, 'w') as f:
-            json.dump(data, f)
-            f.write('\n')
+        if self._typ not in compatible_typ[typ]:
+            raise RuntimeError(f'Expected a {typ} transaction but active transaction is a {self._typ} one')
 
-    @classmethod
-    def from_path(cls, path):
-        """
-        Load the swap entry metadata from the given ``path``.
-        """
-        with open(path) as f:
-            mapping = json.load(f)
+        yield self
 
-        return cls.from_json_map(mapping, written=True)
+    def execute(self, *args, **kwargs):
+        with self._explain_query(self._conn.execute, *args, **kwargs):
+            return self._conn.execute(*args, **kwargs)
+
+    def executemany(self, *args, **kwargs):
+        with self._explain_query(self._conn.executemany, *args, **kwargs):
+            return self._conn.executemany(*args, **kwargs)
+
+    @contextlib.contextmanager
+    def _explain_query(self, execute, query, *args, **kwargs):
+        logger = self.logger
+        query = f'EXPLAIN QUERY PLAN {query}'
+        rows = execute(query, *args, **kwargs)
+        rows = list(map(dict, rows))
+
+        parents = {
+            row['id']: row['parent']
+            for row in rows
+        }
+        parents[0] = 0
+        def parent_of(id_):
+            return parents[id_]
+
+        @functools.lru_cache
+        def depth_of(id_):
+            if id_ == 0:
+                return 0
+            else:
+                return depth_of(parent_of(id_)) + 1
+
+        def get_idt(row):
+            return depth_of(row['id']) * 2 * ' '
+
+        plan = '\n'.join(
+            get_idt(row) + row['detail']
+            for row in rows
+        )
+
+        logger.debug(f'Query plan for: {query}\n\n{plan}')
+        with measure_time() as m:
+            yield
+        logger.debug(f'Ran query in {m.delta} seconds:\n{query}')
+
+    _INIT_DB = (
+        '''
+        CREATE TABLE IF NOT EXISTS swap_meta (
+            key TEXT PRIMARY KEY NOT NULL,
+            value TEXT NOT NULL
+        ) STRICT, WITHOUT ROWID;
+        ''',
+
+        '''
+        CREATE TABLE IF NOT EXISTS swap_entries (
+            -- UUID of the swap entry. It is also used to build the path to the
+            -- associated data file.
+            uuid TEXT PRIMARY KEY NOT NULL,
+
+            -- Kind of the swap entry (event, metadata, etc.), which acts as a
+            -- namespace for data_version as well.
+            kind TEXT NOT NULL,
+
+            -- Version of the data file. This allows avoiding to reload a
+            -- parquet file created with an old version of polars for example,
+            -- to avoid old bugs from carrying over silently to newer version.
+            -- The overall layout of the swap is not conditional on that
+            -- version. Any LISA version must be able to reload and cleanup all
+            -- entries in a given SQLite3 database.
+            data_version TEXT NOT NULL,
+
+            -- This encodes things like the parser used for that trace
+            -- instance. This way, we don't accidentally mix different datasets if
+            -- the same file can be used with different parsers (or the same
+            -- parser configured differently).
+            trace_state TEXT NOT NULL,
+
+            -- This is the descriptor key, which should identify uniquely the
+            -- resource to lookup within a given kind.
+            desc_key TEXT NOT NULL,
+
+            -- Extra data as a JSON string. This allows roundtripping
+            -- _CacheDataDesc instances and provides an easy way to store small
+            -- pieces of extra data.
+            json_data TEXT,
+
+            -- Format of the associated data file.
+            data_fmt TEXT NOT NULL,
+
+            -- Size of the associated data file
+            data_size INTEGER NOT NULL
+                CHECK (data_size >= 0),
+
+            -- If more than one row matches a query, the one with lowest
+            -- priority will be picked.
+            priority INTEGER NOT NULL
+                CHECK (priority >= 0)
+        ) STRICT;
+        ''',
+
+        # WARNING: This index must match what lookup_cache_desc() uses.  The
+        # only exception is for the "data_fmt" column, as we don't want to allow 2
+        # rows or more to only differ by their data format.
+        #
+        # The unique constraint means the index must be uniquely
+        # identifying a row. That will prevent sucessfull insertion of the
+        # same row twice, avoiding duplicates.
+        '''
+        CREATE UNIQUE INDEX IF NOT EXISTS swap_entries_index
+        ON swap_entries
+            (trace_state, kind, desc_key, data_version);
+        ''',
+
+        '''
+        CREATE TABLE IF NOT EXISTS scan_pushdowns_n_rows (
+            uuid TEXT NOT NULL REFERENCES swap_entries(uuid) ON DELETE CASCADE,
+            candidate_key TEXT NOT NULL,
+            n_rows INT
+                CHECK (n_rows >= 0),
+
+            PRIMARY KEY (candidate_key, n_rows, uuid)
+        ) STRICT, WITHOUT ROWID;
+        ''',
+
+        '''
+        CREATE TABLE IF NOT EXISTS scan_pushdowns_dnf_predicate (
+            uuid TEXT NOT NULL REFERENCES swap_entries(uuid) ON DELETE CASCADE,
+            dnf_clause_mask INT NOT NULL,
+
+            PRIMARY KEY (uuid, dnf_clause_mask)
+        ) STRICT, WITHOUT ROWID;
+        ''',
+
+        '''
+        CREATE TABLE IF NOT EXISTS scan_pushdowns_columns (
+            uuid TEXT NOT NULL REFERENCES swap_entries(uuid) ON DELETE CASCADE,
+            column TEXT NOT NULL,
+
+            PRIMARY KEY (uuid, column)
+        ) STRICT, WITHOUT ROWID;
+        ''',
+
+        # This will run ANALYZE automatically whenever appropriate, so we don't
+        # need to run it manually.
+        'PRAGMA optimize;',
+    )
+
+    _DB_SETUP_CHECKSUM = _json_checksum(_INIT_DB, method='sha256')
+
+    def _init_db(self, trace_id):
+        with self.ensure('rw', typ='ddl') as trans:
+            for statement in self._INIT_DB:
+                trans.execute(statement)
+
+            if trace_id is not None:
+                cursor = trans.execute(
+                    '''
+                    SELECT value
+                    FROM swap_meta
+                    WHERE key = 'trace-id'
+                    LIMIT 1
+                    ''',
+                )
+                try:
+                    row, = cursor
+                except ValueError:
+                    cursor = trans.execute(
+                        '''
+                        INSERT INTO swap_meta(key, value)
+                        VALUES ('trace-id', ?)
+                        ''',
+                        [trace_id]
+                    )
+                else:
+                    trace_id_db = row['value']
+                    if trace_id != trace_id_db:
+                        raise _TraceCacheSwapReloadError(
+                            'Mismatching trace-id: {trace_id} != {trace_id_db}'
+                        )
+
+    @staticmethod
+    def _make_swap_entry(row, check_data_version=True):
+        row = dict(row)
+
+        kind = row['kind']
+        data_version = row['data_version']
+        uuid = row['uuid']
+        desc_key = row['desc_key']
+        data_size = row['data_size']
+        data_fmt = row['data_fmt']
+        trace_state = row['trace_state']
+        json_data = row['json_data']
+
+        _cls = _CacheDataDesc._cls_from_kind(kind)
+        cache_desc = _cls._from_json(
+            {
+                'desc_key': desc_key,
+                'data_fmt': data_fmt,
+                'trace_state': trace_state,
+                'json_data': json_data,
+            }
+        )
+
+        if check_data_version and data_version != _cls._DATA_VERSION:
+            raise _TraceCacheSwapReloadError(
+                f'Swap entry was created with a data version not matching the current one: {cache_desc}'
+            )
+        else:
+            return _CacheDataSwapEntry(
+                uuid=uuid,
+                cache_desc=cache_desc,
+                data_size=data_size,
+            )
+
+    def lookup_cache_desc(self, cache_desc, on_found, on_not_found=None):
+        if on_not_found is None:
+            def on_not_found(trans):
+                raise _TraceCacheSwapEntryNotFoundError(f'Could not find cache desc: {cache_desc}')
+
+        return cache_desc._db_lookup(
+            trans=self,
+            on_found=on_found,
+            on_not_found=on_not_found,
+        )
+
+    def load_all_swap_entries(self):
+        with self.ensure('r') as trans:
+            yield from (
+                trans._make_swap_entry(row, check_data_version=False)
+                # Order so that the most recent rows are first.
+                for row in trans.execute(
+                    'SELECT * FROM swap_entries ORDER BY rowid DESC'
+                )
+            )
+
+    def get_swap_size(self):
+        with self.ensure('r') as trans:
+            row = trans.execute(
+                'SELECT SUM(data_size) FROM swap_entries',
+            ).fetchone()
+            return row[0] or 0
 
 
-class _TraceCacheSwapVersionError(ValueError):
-    """
-    Exception raised when the swap entry was created by another version of LISA
-    than the one loading it.
-    """
+class _InMemoryDBConnector:
+    def __init__(self, db_kwargs):
+        self._db_name = f'lisa-trace-cache-{uuid.uuid4().hex}'
+        self._db_kwargs = db_kwargs
+
+        # Keep a reference to the first in-memory database alive,
+        # then all subsequent connections will use that instance.
+        conn = self.connect(check_same_thread=False)
+        # Avoid a resource warning in Python 3.13, which makes
+        # pytest trip. Unfortunately, when the user is not using
+        # the Trace as a context manager, there is nothing else to
+        # rely on than destructors.
+        self._deallocator = _Deallocator(
+            f=conn.close,
+            on_del=True,
+            at_exit=True,
+        )
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, *args):
+        self._deallocator.run()
+
+    def connect(self, **kwargs):
+        return sqlite3.connect(
+            f'file:{self._db_name}?mode=memory&cache=shared',
+            uri=True,
+            **self._db_kwargs,
+            **kwargs,
+        )
+
+
+class _OnDiskDBConnector:
+    def __init__(self, path, db_kwargs):
+        self._path = path
+        self._db_kwargs = db_kwargs
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, *args):
+        pass
+
+    def connect(self):
+        return sqlite3.connect(
+            self._path,
+            **self._db_kwargs,
+        )
 
 
 class _TraceCache(Loggable):
@@ -5093,71 +6074,151 @@ class _TraceCache(Loggable):
     :param swap_dir: Folder to use as swap area.
     :type swap_dir: str or None
 
-    :param trace_path: Absolute path of the trace file.
-    :type trace_path: str or None
-
     :param trace_id: Unique id of the trace file, to invalidate the cache
         if the file changed.
     :type trace_id: str or None
 
-    :param metadata: Metadata mapping to store in the swap area.
-    :type metadata: dict or None
+    :param trace_state: Trace state, which typically includes information about
+        the parser.
+    :type trace_state: str or None
 
-    :param swap_content: Initial content of the swap area.
-    :type swap_content: dict(_CacheDataDescNF, _CacheDataSwapEntry) or None
-
-    The cache manages both the :class:`pandas.DataFrame` and
-    :class:`pandas.Series` generated in memory and a swap area used to evict
-    them, and to reload them quickly. Some other data (typically JSON) can also
-    be stored in the cache by analysis method.
+    The cache manages both the in-memory store and the persistent on-disk swap.
     """
 
-    TRACE_META_FILENAME = 'trace.meta'
+    # The swap format version is mainly related to the database schema, but it
+    # also includes how the data files are laid out.
+    _SWAP_FORMAT_VERSION = f'1-{_SwapDBTransaction._DB_SETUP_CHECKSUM}'
+
+    TRACE_SWAP_DB_FILENAME = 'swap.sqlite3'
     """
     Name of the trace metadata file in the swap area.
     """
 
-    DATAFRAME_SWAP_FORMAT = 'polars-lazyframe'
-    """
-    Data storage format used to swap.
-    """
-
-    def __init__(self, max_mem_size=None, trace_path=None, trace_id=None, swap_dir=None, max_swap_size=None, swap_content=None, metadata=None):
+    def __init__(self, max_mem_size=None, trace_id=None, trace_state=None, swap_dir=None, max_swap_size=None):
         self._lock = threading.RLock()
         self._cache = {}
         self._swappable = {}
         self._data_cost = {}
-        self._swap_content = swap_content or {}
-        self._cache_desc_swap_filename = {}
-        self._swap_dir = swap_dir
+
         self.max_swap_size = max_swap_size if max_swap_size is not None else math.inf
+        self.max_mem_size = max_mem_size if max_mem_size is not None else math.inf
+
+        self._trace_state = trace_state
+
+        db_kwargs = self._DB_KWARGS
+        if swap_dir is None:
+            db_connector = _InMemoryDBConnector(db_kwargs)
+        else:
+            swap_dir = swap_dir.absolute()
+            swap_dir.mkdir(parents=True, exist_ok=True)
+            db_connector = _OnDiskDBConnector(
+                path=swap_dir / self.TRACE_SWAP_DB_FILENAME,
+                db_kwargs=db_kwargs,
+            )
+
+        self._swap_dir = swap_dir
+        self._db_connector = db_connector
+
+        with self._swap_db_transaction('rw', typ='ddl') as trans:
+            trans._init_db(trace_id)
+
         self._swap_size = self._get_swap_size()
 
-        self.max_mem_size = max_mem_size if max_mem_size is not None else math.inf
-        self._metadata = metadata or {}
+    _DB_KWARGS = {
+    }
 
-        self.trace_path = os.path.abspath(trace_path) if trace_path else trace_path
-        self._trace_id = trace_id
-        self._unique_id = uuid.uuid4().hex
+    @contextlib.contextmanager
+    def _connect_db(self):
+        with contextlib.closing(self._db_connector.connect()) as conn:
+            conn.row_factory = sqlite3.Row
+            conn.execute('PRAGMA foreign_keys = ON;')
+            yield conn
 
-        # Limit to one worker, as we will likely take the self._lock anyway
-        self._thread_executor = ThreadPoolExecutor(max_workers=1)
+    @contextlib.contextmanager
+    def _swap_db_transaction(self, mode, typ='dml', trans=None, retry=True):
 
-        self.__deallocator_callbacks = [
-            # Ensure we block until all workers are finished. Otherwise, e.g.
-            # removing the swap area might fail because an worker is still creating
-            # the metadata file in there.
-            lambda: self._thread_executor.shutdown(
-                # We cannot wait here, as this may execute inside one of the
-                # executor's thread. When this happens, it results in an
-                # exception (Python prevents waiting on the current thread as
-                # this would deadlock).
-                # Not waiting means the executor will not accept any new work,
-                # and it will tear itself down when all threads are finished
-                # with their current jobs.
-                wait=False,
-            )
-        ]
+        def with_retry(f):
+            while True:
+                try:
+                    return f()
+                except sqlite3.OperationalError as e:
+                    if retry:
+                        continue
+                    else:
+                        raise
+
+        @contextlib.contextmanager
+        def new_transaction(conn, mode, sql_mode, typ):
+            # We set isolation_level=None so that SQLite3 enters the autocommit
+            # mode. In that mode, there is no implicit transaction and each
+            # statement will be committed when it is finished.  However, we
+            # create an explicit transaction which overrides the autocommit
+            # behavior.
+            level = conn.isolation_level
+            try:
+                conn.isolation_level = None
+                with_retry(lambda: conn.execute(f'BEGIN {sql_mode}'))
+                yield _SwapDBTransaction(
+                    conn=conn,
+                    mode=mode,
+                    typ=typ,
+                )
+            except BaseException:
+                # If BEGIN failed, we are not in a transaction and there is
+                # nothing to rollback.
+                #
+                # If however BEGIN succeeded and we are in a transaction and we
+                # got an exception for any other reason, then we rollback the
+                # transaction.
+                if conn.in_transaction:
+                    conn.rollback()
+                raise
+            else:
+                assert conn.in_transaction
+                with_retry(lambda: conn.commit())
+            finally:
+                conn.isolation_level = level
+
+        # Reconnect every time, so we are sure to be thread-safe
+        with self._connect_db() as conn:
+            if trans is None:
+                match (mode, typ):
+                    case ('r', _):
+                        sql_mode = 'DEFERRED'
+                    # When we will write to the DB, we do not want DEFERRED mode
+                    # for write transactions as that mode may start with a read
+                    # lock, and then later try to promote it to a write lock.
+                    # Unfortunately, that promotion will instantly fail if there is
+                    # another writer, there will be no timeout:
+                    # https://berthub.eu/articles/posts/a-brief-post-on-sqlite3-database-locked-despite-timeout/
+                    case ('rw', 'ddl'):
+                        # EXCLUSIVE is not strictly needed for DDL commands, but
+                        # some other commands like VACUUM need it (so that no other
+                        # connection touches the file).
+                        sql_mode = 'EXCLUSIVE'
+                    case ('rw', 'dml'):
+                        sql_mode = 'IMMEDIATE'
+                    case _:
+                        raise ValueError(f'Unknown mode: ({mode}, {typ})')
+
+                # SQLite3 does not support nested transactions. We also need to know
+                # the initial state so we can know whether BEGIN succeeded or not,
+                # independenty of any exception that may be flying around.
+                assert not conn.in_transaction
+                cm = new_transaction(
+                    conn=conn,
+                    mode=mode,
+                    sql_mode=sql_mode,
+                    typ=typ,
+                )
+            else:
+                cm = trans.ensure(
+                    mode=mode,
+                    typ=typ,
+                )
+
+            with cm as trans:
+                yield trans
 
     @property
     def enabled(self):
@@ -5179,37 +6240,12 @@ class _TraceCache(Loggable):
         else:
             return swap_dir
 
-    @property
-    @memoized
-    def _hardlinks_base(self):
-        path = Path(self.swap_dir) / 'hardlinks' / str(self._unique_id)
-        path = path.resolve()
-        def cleanup():
-            # Only try with rmdir first, so that we don't sabbotage existing
-            # LazyFrame that might still be alive.
-            try:
-                os.rmdir(path)
-            except Exception:
-                pass
-        with self._lock:
-            self.__deallocator_callbacks.append(cleanup)
-        return path
-
-    def _hardlink_path(self, base, name):
-        path = self._hardlinks_base / base
-        path.mkdir(parents=True, exist_ok=True)
-
-        return (
-            path,
-            path / name,
-        )
-
     def __enter__(self):
+        self._db_connector.__enter__()
         return self
 
     def __exit__(self, *args):
-        for cb in self.__deallocator_callbacks:
-            cb()
+        self._db_connector.__exit__(*args)
 
     def _parser_temp_path(self):
         try:
@@ -5217,167 +6253,75 @@ class _TraceCache(Loggable):
         except ValueError:
             path = None
         else:
-            path = Path(swap_dir) / 'temp'
+            path = swap_dir / 'temp'
             path.mkdir(parents=True, exist_ok=True)
 
         return tempfile.TemporaryDirectory(dir=path)
 
-    def update_metadata(self, metadata, blocking=True):
+    def _make_metadata_cache_desc(self, key):
+        return _MetadataCacheDataDesc(
+            key=key,
+            trace_state=self._trace_state,
+            data_fmt='json',
+        )
+
+    def update_metadata(self, metadata, replace=True):
         """
         Update the metadata mapping with the given ``metadata`` mapping and
         write it back to the swap area.
         """
-        if metadata:
-            with self._lock:
-                # It is critical here that we don't modify existing values of
-                # the keys here, otherwise we cannot safely use a shallow copy
-                # of the metadata when sending them to a thread for
-                # non-blocking serialization.
-                self._metadata.update(metadata)
-            self.to_swap_dir(blocking=blocking)
+        for key, value in metadata.items():
+            cache_desc = self._make_metadata_cache_desc(key)
+            self.insert(
+                cache_desc=cache_desc,
+                data=value,
+                write_swap=True,
+                replace=replace,
+            )
 
-    def get_metadata(self, key, default=_NO_DEFAULT):
+    def get_metadata(self, key):
         """
         Get the value of the given metadata ``key``.
         """
-        with self._lock:
-            try:
-                value = self._metadata[key]
-            except KeyError as e:
-                if default is _NO_DEFAULT:
-                    raise MissingMetadataError(key) from e
-                else:
-                    value = default
-                    self.update_metadata(
-                        {key: value},
-                        blocking=True,
-                    )
+        cache_desc = self._make_metadata_cache_desc(key)
+        try:
+            value = self.fetch(cache_desc)
+        except KeyError:
+            raise MissingMetadataError(key)
+        else:
             return copy.copy(value)
 
-    def to_json_map(self):
-        """
-        Returns a dictionary suitable for JSON serialization.
-        """
-        with self._lock:
-            trace_path = self.trace_path
-
-            if trace_path:
-                try:
-                    swap_dir = self.swap_dir
-                except ValueError:
-                    trace_path = os.path.abspath(trace_path)
-                else:
-                    trace_path = os.path.relpath(trace_path, swap_dir)
-
-            return {
-                'version-token': VERSION_TOKEN,
-                'metadata': self._metadata,
-                'trace-path': trace_path,
-                'trace-id': self._trace_id,
-            }
-
-    def to_path(self, path, blocking=True):
-        """
-        Write the persistent state to the given ``path``.
-        """
-        def f(mapping):
-            try:
-                with open(path, 'w') as f:
-                    json.dump(mapping, f)
-                    f.write('\n')
-            except Exception as e:
-                if not blocking:
-                    self.logger.error(f'Failed to write trace metadata to {path}: {e}')
-                raise
-
-        with measure_time() as m, self._lock:
-            mapping = self.to_json_map()
-            if blocking:
-                f(mapping)
-            else:
-                # Ensure abscence of race when the executor thread reads the
-                # data to dump.
-                mapping['metadata'] = copy.copy(mapping['metadata'])
-                self._thread_executor.submit(f, mapping)
-
     @classmethod
-    def _from_swap_dir(cls, swap_dir, trace_id, trace_path=None, metadata=None, **kwargs):
-        metapath = os.path.join(swap_dir, cls.TRACE_META_FILENAME)
-
-        with open(metapath) as f:
-            mapping = json.load(f)
-
-        if mapping['version-token'] != VERSION_TOKEN:
-            raise _TraceCacheSwapVersionError('Version token differ')
-
-        swap_trace_path = mapping['trace-path']
-        swap_trace_path = os.path.join(swap_dir, swap_trace_path) if swap_trace_path else None
-
-        metadata = metadata or {}
-
-        if trace_path and not os.path.samefile(swap_trace_path, trace_path):
-            invalid_swap = True
-        else:
-            old_trace_id = mapping['trace-id']
-            invalid_swap = (old_trace_id != trace_id)
-
-        if invalid_swap:
-            # Remove the invalid swap and create a fresh directory
-            shutil.rmtree(swap_dir)
-            os.makedirs(swap_dir)
-            swap_content = None
-        else:
-            def load_swap_content(swap_dir):
-                swap_entry_filenames = {
-                    filename
-                    for filename in os.listdir(swap_dir)
-                    if filename.endswith(f'.{_CacheDataSwapEntry.META_EXTENSION}')
-                }
-
-                for filename in swap_entry_filenames:
-                    path = os.path.join(swap_dir, filename)
-                    try:
-                        swap_entry = _CacheDataSwapEntry.from_path(path)
-                    # If there is any issue with that entry, just ignore it
-                    # pylint: disable=broad-except
-                    except Exception:
-                        continue
-                    else:
-                        yield (swap_entry.cache_desc_nf, swap_entry)
-
-            swap_content = dict(load_swap_content(swap_dir))
-
-            metadata_ = mapping['metadata']
-            metadata = {**metadata_, **metadata}
-
-        return cls(swap_content=swap_content, swap_dir=swap_dir, metadata=metadata, trace_path=trace_path, trace_id=trace_id, **kwargs)
-
-    def to_swap_dir(self, blocking=True):
-        """
-        Write the persistent state to the swap area if any, no-op otherwise.
-        """
-        try:
-            swap_dir = self.swap_dir
-        except ValueError:
-            pass
-        else:
-            path = os.path.join(swap_dir, self.TRACE_META_FILENAME)
-            self.to_path(path, blocking=blocking)
-
-    @classmethod
-    def from_swap_dir(cls, swap_dir, **kwargs):
+    def from_swap_dir(cls, swap_dir, trace_id, **kwargs):
         """
         Reload the persistent state from the given ``swap_dir``.
 
         :Variable keyword arguments: Forwarded to :class:`_TraceCache`.
         """
-        if swap_dir:
-            try:
-                return cls._from_swap_dir(swap_dir=swap_dir, **kwargs)
-            except (FileNotFoundError, _TraceCacheSwapVersionError, json.decoder.JSONDecodeError):
-                pass
+        def make_cache(swap_dir):
+            return cls(
+                swap_dir=swap_dir,
+                trace_id=trace_id,
+                **kwargs
+            )
 
-        return cls(swap_dir=swap_dir, **kwargs)
+        if swap_dir:
+            swap_dir = Path(swap_dir)
+
+            for i in itertools.count():
+                _swap_dir = swap_dir / cls._SWAP_FORMAT_VERSION / str(i)
+                try:
+                    # Initializing the new cache only involves creating the
+                    # SQLite3 database, which is safe to do concurrently with
+                    # another process.
+                    return make_cache(_swap_dir)
+                # If there is a swap dir we cannot reload, we cannot just nuke
+                # it as it may be in used by another process somehow, so we
+                # just try the next one.
+                except _TraceCacheSwapReloadError:
+                    continue
+        else:
+            return make_cache(swap_dir)
 
     def _estimate_data_swap_size(self, data):
         return self._data_mem_usage(data)
@@ -5405,43 +6349,8 @@ class _TraceCache(Loggable):
             )
             return compute_cost >= 100e-6
 
-    def _path_of_swap_entry(self, swap_entry):
-        return os.path.join(self.swap_dir, swap_entry.meta_filename)
-
-    def _cache_desc_swap_path(self, cache_desc, create=False):
-        cache_desc_nf = cache_desc.normal_form
-
-        if create and not self._is_written_to_swap(cache_desc):
-            self.insert(
-                cache_desc,
-                data=None,
-                compute_cost=None,
-                write_swap=True,
-                ignore_cost=True,
-                # We do not write the swap_entry meta file, so that the
-                # user can write the data file before the swap entry is
-                # added. This way, another process will not be tricked into
-                # believing the data is available whereas in fact it's in
-                # the process of being populated.
-                write_meta=False,
-            )
-
-        with self._lock:
-            swap_entry = self._swap_content[cache_desc_nf]
-        filename = swap_entry.data_filename
-        return os.path.join(self.swap_dir, filename)
-
-    def _is_written_to_swap(self, cache_desc):
-        try:
-            with self._lock:
-                swap_entry = self._swap_content[cache_desc.normal_form]
-        except KeyError:
-            return False
-        else:
-            return swap_entry.written
-
-    @staticmethod
-    def _data_to_parquet(data, path, compression=_DEFAULT_PARQUET_COMPRESSION, **kwargs):
+    @classmethod
+    def _data_to_parquet(cls, data, path, compression=_DEFAULT_PARQUET_COMPRESSION, **kwargs):
         kwargs['compression'] = compression
         if isinstance(data, pd.DataFrame):
             data = _pandas_cleanup_df(data)
@@ -5467,213 +6376,308 @@ class _TraceCache(Loggable):
                         data.sink_parquet(path, **kwargs)
                 # The streaming engine may have issues with some LazyFrames, so
                 # fall back on collecting.
-                except Exception:
+                except Exception as e:
+                    cls.get_logger().debug(f'Could not use sink_parquet(): {e}')
                     path.unlink(missing_ok=True)
                     data = _polars_fast_collect(data)
                     data.write_parquet(path, **kwargs)
         else:
             data.to_parquet(path, **kwargs)
 
-    def _write_data(self, fmt, data, path):
-        if fmt == 'disk-only':
-            return
-        elif fmt == 'parquet':
-            self._data_to_parquet(data, path)
+    def _write_data(self, fmt, data, path, swap_dir):
+        if fmt == 'parquet':
+            self._data_to_parquet(data, path / 'data.parquet')
+            return data
         elif fmt == 'polars-lazyframe':
             assert isinstance(data, pl.LazyFrame)
 
-            def to_parquet():
-                self._data_to_parquet(data, path)
+            def to_parquet(data):
+                self._data_to_parquet(data, path / 'data.parquet')
+                return data
 
             def to_json(plan):
-                plan = json.loads(plan)
-                plan, _ = _logical_plan_resolve_paths(
-                    self,
-                    plan=plan,
-                    kind='dump',
-                )
-                with open(path, 'wt') as f:
+                def move_to_swap_entry(plan):
+                    def update_path(_path):
+                        if _path.is_relative_to(swap_dir):
+                            # Move the backing file to the swap entry area and
+                            # record it in the LazyFrame plan.
+                            new = path / f'{uuid.uuid4().hex}{_path.suffix}'
+                            shutil.move(_path, new)
+                            return new
+                        else:
+                            # This path comes from somewhere else on the system
+                            # so do not rewrite it
+                            return _path
+
+                    return _logical_plan_update_paths(
+                        plan,
+                        update_path=update_path,
+                    )
+
+                def add_placeholder(plan):
+                    return _logical_plan_rehome_paths(
+                        plan=plan,
+                        src_base=path,
+                        dst_base=Path('/LISA_SWAP_ENTRY'),
+                    )
+
+                # Move the files backing the LazyFrame to the swap entry if
+                # they were in the swap_dir (i.e. if they had been stolen from
+                # the parser).
+                plan = move_to_swap_entry(plan)
+                data = _polars_json_deserialize(plan)
+
+                # Replace the absolute paths by a placeholder so the swap dir
+                # can be moved around when LISA is not running.
+                plan = add_placeholder(plan)
+                with open(path / 'lazyframe.json', 'wt') as f:
                     json.dump(plan, f)
+
+                return data
 
             # If the LazyFrame is actually backed by an in-memory DataFrame, we
             # just execute it and dump it to parquet. Otherwise, that would
             # force rendering the entire dataframe to JSON first which would
             # not scale well at all.
             if _polars_df_in_memory(data):
-                to_parquet()
+                return to_parquet(data)
             else:
                 try:
-                    plan = _df_json_serialize(data)
+                    plan = _polars_json_serialize(data)
                 # We failed to serialize the logical plan. This could happen
                 # because it contains references to UDF (e.g. a lambda passed
                 # to Expr.map_elements())
                 except ValueError:
-                    to_parquet()
+                    data = to_parquet(data)
                 else:
-                    to_json(plan)
+                    data = to_json(plan)
 
+                # Once a LazyFrame has been insert in the swap database, it
+                # becomes visible to the rest of the world, who may attempt to
+                # remove it when scrubbing the database. Therefore, we need to
+                # ensure the LazyFrame does not reference directly any file
+                # that is part of the swap entry that may get delete, but
+                # instead reference owned hardlinks to those files.
+                return _df_hardlink_data(
+                    data,
+                    swap_dir=swap_dir,
+                )
         elif fmt == 'json':
-            with open(path, 'wt') as f:
+            with open(path / 'data.json', 'wt') as f:
                 try:
                     json.dump(data, f, separators=(',', ':'))
                 except Exception as e:
                     raise ValueError(f'Does not know how to write data type {data.__class__} to the cache: {e}') from e
+                else:
+                    return data
         else:
             raise ValueError(f'Does not know how to dump to disk format: {fmt}')
 
-    def _load_data(self, fmt, path):
+    def _load_data(self, fmt, path, swap_dir):
         def load_parquet(path):
             path = Path(path)
-            hardlink_base, hardlink_path = self._hardlink_path(
-                uuid.uuid4().hex,
-                path.name
-            )
-            # We make a hardlink to the cache entry that will not be
-            # subject to scrubbing. This way we ensure that we can keep the
-            # LazyFrame working even if another process decides to scrub
-            # the swap area.
-            _make_hardlink(path, hardlink_path)
+            df = pl.scan_parquet(path)
+            # Ensure we actually trigger a file read, in case we are trying
+            # to interpret as parquet something that is not parquet
+            df.clear().collect()
+
+            parquet_meta = pyarrow.parquet.read_metadata(path)
+
             try:
-                df = pl.scan_parquet(hardlink_path)
-                # Ensure we actually trigger a file read, in case we are trying
-                # to interpret as parquet something that is not parquet
-                df.clear().collect()
+                pandas_meta = parquet_meta.metadata[b'pandas']
+            except KeyError:
+                pass
+            else:
+                # Load the pandas metadata and put the index column
+                # first, so that _polars_index_col() detects the index
+                # correctly.
+                pandas_meta = json.loads(pandas_meta.decode('utf-8'))
+                index_cols = pandas_meta['index_columns']
+                df = df.select(order_as(df.collect_schema().names(), index_cols))
 
-                parquet_meta = pyarrow.parquet.read_metadata(hardlink_path)
+            df = _df_hardlink_data(
+                df,
+                swap_dir=swap_dir,
+                src_base=path.parent,
+            )
 
-                try:
-                    pandas_meta = parquet_meta.metadata[b'pandas']
-                except KeyError:
-                    pass
-                else:
-                    # Load the pandas metadata and put the index column
-                    # first, so that _polars_index_col() detects the index
-                    # correctly.
-                    pandas_meta = json.loads(pandas_meta.decode('utf-8'))
-                    index_cols = pandas_meta['index_columns']
-                    df = df.select(order_as(df.collect_schema().names(), index_cols))
+            return df
 
-                df = _LazyFrameOnDelete.attach_file_cleanup(
-                    df,
-                    [hardlink_base],
-                    nr_rows=parquet_meta.num_rows,
-                )
-
-                return df
-            except BaseException:
-                try:
-                    shutil.rmtree(hardlink_base)
-                except Exception:
-                    pass
-                raise
-
-        if fmt == 'disk-only':
-            data = None
-        elif fmt == 'parquet':
-            data = load_parquet(path)
+        if fmt == 'parquet':
+            data = load_parquet(path / 'data.parquet')
         elif fmt == 'json':
-            with open(path, 'rt') as f:
+            with open(path / 'data.json', 'rt') as f:
                 data = json.load(f)
         elif fmt == 'polars-lazyframe':
             try:
-                data = load_parquet(path)
-            except polars.exceptions.ComputeError:
-                with open(path, 'r') as f:
+                with open(path / 'lazyframe.json', 'r') as f:
                     plan = json.load(f)
-
-                plan, hardlinks = _logical_plan_resolve_paths(
-                    self,
+            except FileNotFoundError:
+                data = load_parquet(path / 'data.parquet')
+            else:
+                plan = _logical_plan_rehome_paths(
                     plan=plan,
-                    kind='load',
+                    src_base=Path('/LISA_SWAP_ENTRY'),
+                    dst_base=path,
                 )
-                plan = json.dumps(plan)
-                plan = io.StringIO(plan)
-                data = _df_json_deserialize(plan)
-                data = _LazyFrameOnDelete.attach_file_cleanup(data, hardlinks)
+                data = _polars_json_deserialize(plan)
+                data = _df_hardlink_data(
+                    data,
+                    swap_dir=swap_dir,
+                )
         else:
             raise ValueError(f'File format not supported "{fmt}" at path: {path}')
 
         return data
 
-    def _write_swap(self, cache_desc, data, write_meta=True, best_effort=False):
+    def _write_swap(self, cache_desc, data, best_effort=False, replace=False):
         try:
             swap_dir = self.swap_dir
         except ValueError:
-            pass
+            return data
         else:
-            if self._is_written_to_swap(cache_desc):
-                return
-
-            cache_desc_nf = cache_desc.normal_form
-            # We may already have a swap entry if we used the None data
-            # placeholder. This would have allowed the user to reserve the swap
-            # data file in advance so they can write to it directly, instead of
-            # managing the data in the memory cache.
-            try:
-                with self._lock:
-                    swap_entry = self._swap_content[cache_desc_nf]
-            except KeyError:
-                swap_entry = _CacheDataSwapEntry(cache_desc_nf)
-
-            data_path = Path(swap_dir, swap_entry.data_filename)
-
-            # If that would make the swap dir too large, try to do some cleanup
+            # If inserting would make the swap dir too large, try to do some
+            # cleanup
             if self._estimate_data_swap_size(data) + self._swap_size > self.max_swap_size:
                 self.scrub_swap()
 
-            # Write the Parquet file and update the write speed
-            try:
-                self._write_data(cache_desc.fmt, data, data_path)
-            except Exception as e:
-                if best_effort:
-                    # Do not log the error, as it could be an expected one
-                    # (e.g. we have an object column in a dataframe that cannot
-                    # be converted to arrow.
-                    pass
-                else:
-                    raise e
-            else:
-                # Update the swap entry on disk
-                if write_meta:
-                    try:
-                        swap_entry.to_path(
-                            self._path_of_swap_entry(swap_entry)
-                        )
-                    # We have a swap entry that cannot be written to the swap,
-                    # probably because the descriptor includes something that
-                    # cannot be serialized to JSON. This may happen under
-                    # normal operations, e.g. with a user-defined process_df
-                    # function passed to _ProcessTraceView.
-                    except _CannotWriteSwapEntry as e:
-                        self.logger.debug(f'Could not write {cache_desc} to swap: {e}')
-                        swap_entry.written = False
-                        return
-                    else:
-                        swap_entry.written = True
+            uuid_ = uuid.uuid4().hex
+            path = _CacheDataSwapEntry._uuid_data_folder(
+                uuid_=uuid_,
+                swap_dir=swap_dir,
+            )
+            path.mkdir(parents=True)
 
-                with self._lock:
-                    self._swap_content[swap_entry.cache_desc_nf] = swap_entry
+            class EarlyReturn(Exception):
+                def __init__(self, value):
+                    self.value = value
+
+            def write_data():
+                try:
+                    # Write the data to the swap before we insert the
+                    # swap_entry inside the database for a few reasons:
+                    #
+                    # 1. Once the entry is committed to the database, other
+                    # database users will expect the data to exist and be
+                    # valid.
+                    #
+                    # 2. We don't want to write to the file while we are inside
+                    # a database transaction. This leads to extra delay for
+                    # other concurrent connections, but most importantly that
+                    # can lead to deadlocks as writing the data may attempt to
+                    # open a nested transaction, which will deadlock.
+                    written_data = self._write_data(
+                        fmt=cache_desc.data_fmt,
+                        data=data,
+                        path=path,
+                        swap_dir=swap_dir,
+                    )
+                except Exception:
+                    # Do not log the error, as it could happen under normal
+                    # circumstances (e.g. we have an object column in a
+                    # dataframe that cannot be converted to arrow, but we still
+                    # attempt caching the function because in some dynamic
+                    # circumstances it can succeed based on user input).
+                    # However we still raise an exception so that the database
+                    # transaction is rolled back.
+                    if best_effort:
+                        raise EarlyReturn(data)
+                    else:
+                        raise
+                else:
+                    data_size = sum(
+                        _path.stat().st_size
+                        for _path in path.rglob('*')
+                    )
+                    priority = cache_desc.priority(path)
+                    return (written_data, data_size, priority)
+
+            def insert():
+                if not replace:
+                    # Cheap pre-check before calling write_data(). We cannot
+                    # just call write_data() inside the rw transaction once we
+                    # confirmed there is no existing entry because that can
+                    # lead to deadlocks. write_data() can end up needing to
+                    # open its own rw transaction if it triggers writing to the
+                    # cache itself, which can happen with deferred work in
+                    # instrumented LazyFrame
+                    with self._swap_db_transaction('r') as trans:
+                        exists = trans.lookup_cache_desc(
+                            cache_desc,
+                            on_found=lambda *args: True,
+                            on_not_found=lambda *args: False,
+                        )
+
+                    if exists:
+                        raise _TraceCacheSwapEntryExistsError()
+
+                # This has to run outside of the transaction, as it may start a
+                # transaction of its own (when collecting the LazyFrame).
+                written_data, data_size, priority = write_data()
+
+                def _insert():
+                    def on_found(trans, swap_entry):
+                        raise _TraceCacheSwapEntryExistsError()
+
+                    def on_not_found(trans):
+                        cache_desc._db_insert(
+                            trans=trans,
+                            uuid_=uuid_,
+                            data_size=data_size,
+                            priority=priority,
+                        )
+
+                    with self._swap_db_transaction('rw') as trans:
+                        trans.lookup_cache_desc(
+                            cache_desc,
+                            on_found=on_found,
+                            on_not_found=on_not_found,
+                        )
 
                 try:
-                    data_swapped_size = data_path.stat().st_size
-                except FileNotFoundError:
-                    data_swapped_size = 0
+                    _insert()
+                except _TraceCacheSwapEntryExistsError as e:
+                    if replace:
+                        # Remove the cache_desc from the database, before
+                        # trying again. We don't really need to be in the
+                        # same transaction. In the worst case scenario, we
+                        # lose a race with another insert and we fail again
+                        # at inserting. We will then fetch() the data from
+                        # the swap anyway.
+                        try:
+                            self._clear_cache_descs_swap([cache_desc])
+                        except Exception:
+                            raise e
+                        else:
+                            _insert()
+                    else:
+                        raise e
+                return (written_data, data_size)
 
-                mem_usage = self._data_mem_usage(data)
+            try:
+                try:
+                    written_data, data_size = insert()
+                except Exception:
+                    shutil.rmtree(path, ignore_errors=True)
+                    raise
+            except _TraceCacheSwapEntryExistsError:
+                try:
+                    return self.fetch(cache_desc)
+                # There may be a racing scrub going on, in which case the swap
+                # entry that existed a moment ago has been removed already.
+                except KeyError:
+                    return data
+            except EarlyReturn as e:
+                return e.value
+            else:
                 with self._lock:
-                    self._swap_size += data_swapped_size
+                    self._swap_size += data_size
                 self.scrub_swap()
+                return written_data
 
     def _get_swap_size(self):
-        try:
-            swap_dir = self.swap_dir
-        except ValueError:
-            return 1
-        else:
-            return sum(
-                dir_entry.stat().st_size
-                for dir_entry in os.scandir(swap_dir)
-            )
+        with self._swap_db_transaction('r') as trans:
+            return trans.get_swap_size()
 
     def scrub_swap(self):
         """
@@ -5684,125 +6688,143 @@ class _TraceCache(Loggable):
         except ValueError:
             pass
         else:
-            # TODO: Load the file information from __init__ by discovering the
-            # swap area's content to avoid doing it each time here
             if self._swap_size > self.max_swap_size:
                 self._scrub_swap(swap_dir)
 
     def _scrub_swap(self, swap_dir):
-        with self._lock:
-            def get_stat(dir_entry):
-                try:
-                    return dir_entry.stat()
-                except FileNotFoundError:
-                    return None
+        # load_all_swap_entries() returns swap_entries in inverse creation
+        # order (first is the most recent).
+        with self._swap_db_transaction('r') as trans:
+            swap_entries = list(trans.load_all_swap_entries())
 
-            stats = {
-                dir_entry.name: stat
-                for dir_entry in os.scandir(swap_dir)
-                if (stat := get_stat(dir_entry)) is not None
-            }
+        max_swap_size = self.max_swap_size
 
-            swap_content = list(self._swap_content.values())
-
-        data_files = {
-            swap_entry.data_filename: swap_entry
-            for swap_entry in swap_content
-        }
-
-        # Get rid of stale files that are not referenced by any swap entry
-        metadata_files = {
-            swap_entry.meta_filename
-            for swap_entry in swap_content
-        }
-        metadata_files.add(self.TRACE_META_FILENAME)
-        non_stale_files = data_files.keys() | metadata_files | {'hardlinks', 'temp'}
-        stale_files = stats.keys() - non_stale_files
-        for filename in stale_files:
-            stats.pop(filename, None)
-            path = os.path.join(swap_dir, filename)
-            try:
-                os.unlink(path)
-            except Exception:
-                pass
-
-        def by_mtime(path_stat):
-            _, stat = path_stat
-            return stat.st_mtime
-
-        # Sort by modification time, so we discard the oldest caches
-        total_size = 0
-        discarded_swap_entries = set()
-        for filename, stat in sorted(stats.items(), key=by_mtime):
-            total_size += stat.st_size
-            if total_size > self.max_swap_size:
-                try:
-                    swap_entry = data_files[filename]
-                # That was not a data file
-                except KeyError:
-                    continue
-                else:
-                    discarded_swap_entries.add(swap_entry)
+        # Remove swap entries so that we don't end up with more than
+        # self.max_swap_size worth of data.
+        to_remove = map(
+            itemgetter(0),
+            itertools.dropwhile(
+                lambda item: item[1] <= max_swap_size,
+                zip(
+                    swap_entries,
+                    itertools.accumulate(
+                        swap_entry.data_size
+                        for swap_entry in swap_entries
+                    )
+                )
+            )
+         )
 
         # Update the swap content
-        for swap_entry in discarded_swap_entries:
-            stats.pop(swap_entry.data_filename, None)
-            self._clear_swap_entry(swap_entry)
+        self._clear_cache_descs_swap([
+            swap_entry.cache_desc
+            for swap_entry in to_remove
+        ])
 
-        with self._lock:
-            self._swap_size = sum(
-                stats[swap_entry.data_filename].st_size
-                for swap_entry in swap_content
-                if swap_entry.data_filename in stats
-            )
-
-    def _clear_cache_desc_swap(self, cache_desc):
-        with self._lock:
-            try:
-                swap_entry = self._swap_content[cache_desc.normal_form]
-            except KeyError:
-                pass
-            else:
-                self._clear_swap_entry(swap_entry)
-
-    def _clear_swap_entry(self, swap_entry):
+    def _clear_cache_descs_swap(self, cache_descs):
         try:
             swap_dir = self.swap_dir
         except ValueError:
             pass
         else:
-            with self._lock:
-                self._swap_content.pop(swap_entry.cache_desc_nf, None)
+            def clear(trans, swap_entry):
+                with trans.ensure('rw') as trans:
+                    success = trans.execute(
+                        '''
+                        DELETE FROM swap_entries
+                        WHERE uuid = ?
+                        ''',
+                        [swap_entry.uuid],
+                    ).rowcount > 0
+                return swap_entry if success else None
 
-            for filename in (swap_entry.meta_filename, swap_entry.data_filename):
-                path = os.path.join(swap_dir, filename)
-                try:
-                    os.unlink(path)
-                except Exception:
-                    pass
+            try:
+                # We don't need an exclusive transaction here as in non-WAL
+                # journal mode, we have the guarantee that once the write
+                # transaction has been committed, all the read transactions
+                # that used those rows have completed, and no further
+                # transaction will be able to see those rows.
+                #
+                # WARNING: The above does not stand when using WAL (Write Ahead
+                # Logging) mode, as each transaction sees a snapshot of the
+                # database, and a write commit can complete while a read
+                # transaction is still using an older snapshot that does
+                # contain the rows.
+                with self._swap_db_transaction('rw') as trans:
+                    swap_entries = [
+                        swap_entry
+                        for cache_desc in cache_descs
+                        if (
+                            swap_entry := trans.lookup_cache_desc(
+                                cache_desc,
+                                on_found=clear,
+                            )
+                        ) is not None
+                    ]
+            except _TraceCacheSwapEntryNotFoundError:
+                pass
+            else:
+                # The removal of the entry is now committed to the DB, so we
+                # can go ahead and remove the backing data folders.
+                data_size = 0
+                for swap_entry in swap_entries:
+                    path = swap_entry.data_folder(swap_dir)
+                    shutil.rmtree(path, ignore_errors=True)
+                    data_size += swap_entry.data_size
+
+                with self._lock:
+                    swap_size = self._swap_size - data_size
+                    assert swap_size >= 0
+                    self._swap_size = swap_size
 
     def _fetch_from_swap(self, cache_desc, insert):
         try:
-            path = self._cache_desc_swap_path(cache_desc)
-        # If there is no swap, bail out
-        except (ValueError, KeyError):
-            raise KeyError('Could not find swap entry for cache_desc')
+            swap_dir = self.swap_dir
+        except ValueError:
+            raise _TraceCacheSwapEntryNotFoundError('Swap folder is not setup')
         else:
+            def load(trans, swap_entry):
+                cache_desc = swap_entry.cache_desc
+                data = self._load_data(
+                    fmt=cache_desc.data_fmt,
+                    path=swap_entry.data_folder(swap_dir),
+                    swap_dir=swap_dir,
+                )
+                return (cache_desc, data)
+
             try:
-                data = self._load_data(cache_desc.fmt, path)
+                with self._swap_db_transaction('r') as trans:
+                    loaded_cache_desc, data = trans.lookup_cache_desc(
+                        cache_desc,
+                        on_found=load,
+                    )
+            except _TraceCacheSwapEntryNotFoundError:
+                raise
             except Exception as e:
-                # Rotten swap entry, we clear it. This may happen e.g. when
-                # reloading a LazyFrame that depended on another cache
-                # entry that has been scrubbed
-                self._clear_cache_desc_swap(cache_desc)
-                raise KeyError('Could not load swap entry content of cache_desc')
+                # Rotten swap entry, we clear it. This may happen if the data
+                # could be written succesfully but the file cannot be reloaded
+                # for some reason.
+                self._clear_cache_descs_swap([cache_desc])
+                raise _TraceCacheSwapEntryNotFoundError('Could not load swap entry content of cache_desc')
             else:
                 if insert:
-                    # We have no idea of the cost of something coming from
-                    # the cache
-                    return self.insert(cache_desc, data, write_swap=False, compute_cost=None)
-                else:
-                    return data
+                    data = self.insert(
+                        loaded_cache_desc,
+                        data=data,
+                        write_swap=False,
+                    )
+
+                    # With predicate pushdown, we may end up loading the data
+                    # of another cache_desc. If that is the case, we re-dump
+                    # that data under the cache_desc we initially asked for, so
+                    # that the next lookup will be a direct database hit.
+                    if cache_desc.desc_key != loaded_cache_desc.desc_key:
+                        data = self.insert(
+                            cache_desc,
+                            data=data,
+                            write_swap=True,
+                        )
+                return data
 
     def fetch(self, cache_desc, insert=True):
         """
@@ -5821,7 +6843,7 @@ class _TraceCache(Loggable):
         except KeyError as e:
             return self._fetch_from_swap(cache_desc, insert=insert)
 
-    def insert(self, cache_desc, data, compute_cost=None, write_swap=True, ignore_cost=False, write_meta=True, swappable=None):
+    def insert(self, cache_desc, data, compute_cost=None, write_swap=True, ignore_cost=False, swappable=None, best_effort=False, replace=False):
         """
         Insert an entry in the cache.
 
@@ -5835,41 +6857,49 @@ class _TraceCache(Loggable):
         :type compute_cost: float or None
 
         :param write_swap: If ``True``, the data will be written to the swap as
-            well so it can be quickly reloaded. Note that it will be subject to
+            well so it can be later reloaded. Note that it will be subject to
             cost evaluation, so it might not result in anything actually
-            written. If ``"best-effort"`` is passed, writing will be attempted
-            and any exception suppressed.
-        :type write_swap: bool or str
+            written.
+        :type write_swap: bool
+
+        :param best_effort: If ``True``, writing will be attempted based on
+            ``write_swap`` but any exception suppressed.
+        :type best_effort: bool
 
         :param ignore_cost: If ``True``, bypass the computation vs swap
             cost comparison.
         :type ignore_cost: bool
-
-        :param write_meta: If ``True``, the swap entry metadata will be written
-            on disk if the data are. Otherwise, no swap entry is written to disk.
-        :type write_meta: bool
 
         :param swappable: If ``False``, the data will never be written to the
             swap and will only be kept in memory. If ``None``, the swappability
             will not change if it was already set, otherwise it will be set to
             ``True``.
         :type swappable: bool or None
+
+        :param replace: If ``True`` and if the data is written to the swap, any
+            existing swap entry matching the ``cache_desc`` will be overriden.
+            Otherwise, the existing entry will be preserved and reloaded for
+            the data to be returned.
+        :param replace: bool
         """
+
         with self._lock:
-            self._cache[cache_desc] = data
             if swappable is not None:
                 self._swappable[cache_desc] = swappable
             if compute_cost is not None:
                 self._data_cost[cache_desc] = compute_cost
 
         if write_swap:
-            best_effort = (write_swap == 'best-effort')
-            self.write_swap(
+            data = self.write_swap(
                 cache_desc,
+                data=data,
                 ignore_cost=ignore_cost,
-                write_meta=write_meta,
                 best_effort=best_effort,
+                replace=replace,
             )
+
+        with self._lock:
+            self._cache[cache_desc] = data
 
         self._scrub_mem()
 
@@ -5881,7 +6911,7 @@ class _TraceCache(Loggable):
             else:
                 if in_mem:
                     return data
-                elif cache_desc.fmt == 'parquet':
+                elif cache_desc.data_fmt == 'parquet':
                     # If the data was not in memory (e.g. polars LazyFrame), we
                     # reload it from the swap. Most computations reduce the
                     # amount of data compared to the source, so it is
@@ -5894,7 +6924,7 @@ class _TraceCache(Loggable):
                             # We want to replace the cache slot by the new
                             # swap-backed piece of data we got, so that future
                             # calls to fetch() can also benefit from it.
-                            insert=True
+                            insert=True,
                         )
                     except KeyError:
                         return data
@@ -5902,12 +6932,6 @@ class _TraceCache(Loggable):
                     return data
         else:
             return data
-
-    def insert_disk_only(self, spec, compute_cost=None):
-        cache_desc = _CacheDataDesc(spec=spec, fmt='disk-only')
-        self.insert(cache_desc, data=None, compute_cost=compute_cost, write_swap=True)
-        path = self._cache_desc_swap_path(cache_desc, create=True)
-        return Path(path).resolve()
 
     def _scrub_mem(self):
         if self.max_mem_size == math.inf:
@@ -5933,23 +6957,45 @@ class _TraceCache(Loggable):
                 def retention_score(cache_desc_and_data):
                     cache_desc, data = cache_desc_and_data
 
-                    # If we don't know the computation cost, assume it can be evicted cheaply
+                    # If we don't know the computation cost, assume it can be
+                    # evicted cheaply
                     compute_cost = self._data_cost.get(cache_desc, 0)
 
                     # Assume that more references to an object implies it will
-                    # stay around for longer. Therefore, it's less interesting to
-                    # remove it from this cache and pay the cost of reading/writing it to
-                    # swap, since the memory will not be freed anyway.
+                    # stay around for longer. Therefore, it's less interesting
+                    # to remove it from this cache and pay the cost of
+                    # reading/writing it to swap, since the memory will not be
+                    # freed anyway.
                     #
-                    # Normalize to the minimum refcount, so that the _cache and other
-                    # structures where references are stored are discounted for sure.
+                    # Normalize to the minimum refcount, so that the _cache and
+                    # other structures where references are stored are
+                    # discounted for sure.
                     return (refcounts[cache_desc] - min_refcount + 1) * compute_cost
 
-                new_mem_usage = 0
-                for cache_desc, data in sorted(self._cache.items(), key=retention_score):
-                    new_mem_usage += self._data_mem_usage(data)
-                    if new_mem_usage > self.max_mem_size:
-                        self.evict(cache_desc)
+                items = sorted(
+                    self._cache.items(),
+                    key=retention_score,
+                    # We will get the items to preserve first (high score).
+                    reverse=True,
+                )
+
+                to_evict = (
+                    cache_desc
+                    for (cache_desc, data), size_acc in zip(
+                        items,
+                        itertools.accumulate(
+                            map(
+                                lambda item: self._data_mem_usage(item[1]),
+                                items,
+                            ),
+                            operator.add,
+                        )
+                    )
+                    if size_acc > self.max_mem_size
+                )
+
+                for cache_desc in to_evict:
+                    self.evict(cache_desc)
 
     def evict(self, cache_desc):
         """
@@ -5961,15 +7007,22 @@ class _TraceCache(Loggable):
         If it would be cheaper to reload the data than to recompute them, they
         will be written to the swap area.
         """
-        self.write_swap(cache_desc, best_effort=True)
+        with self._lock:
+            try:
+                data = self._cache[cache_desc]
+            except KeyError:
+                pass
+            else:
+                self.write_swap(
+                    cache_desc,
+                    data=data,
+                    best_effort=True,
+                )
 
-        try:
-            with self._lock:
-                del self._cache[cache_desc]
-        except KeyError:
-            pass
+            for dct in (self._cache, self._swappable, self._data_cost):
+                dct.pop(cache_desc, None)
 
-    def write_swap(self, cache_desc, ignore_cost=False, write_meta=True, best_effort=False):
+    def write_swap(self, cache_desc, data, ignore_cost=False, best_effort=False, replace=False):
         """
         Write the given descriptor to the swap area if that would be faster to
         reload the data rather than recomputing it. If the descriptor is not in
@@ -5978,21 +7031,25 @@ class _TraceCache(Loggable):
         :param cache_desc: Descriptor of the data to write to swap.
         :type cache_desc: _CacheDataDesc
 
+        :param data: Data to write to the swap for the given ``cache_desc``.
+        :type data: object
+
         :param ignore_cost: If ``True``, bypass the compute vs swap cost comparison.
         :type ignore_cost: bool
-
-        :param write_meta: If ``True``, the swap entry metadata will be written
-            on disk if the data are. Otherwise, no swap entry is written to disk.
-        :type write_meta: bool
 
         :param best_effort: If ``True``, attempt to write to the swap and
             simply log an error rather than raising an exception in case of
             failure.
         :type best_effort: bool
+
+        :param replace: If ``True`` and if the data is written to the swap, any
+            existing swap entry matching the ``cache_desc`` will be overriden.
+            Otherwise, the existing entry will be preserved and reloaded for
+            the data to be returned.
+        :param replace: bool
         """
         try:
             with self._lock:
-                data = self._cache[cache_desc]
                 swappable = self._swappable.get(cache_desc, True)
         except KeyError:
             pass
@@ -6004,64 +7061,62 @@ class _TraceCache(Loggable):
                     self._should_evict_to_swap(cache_desc, data)
                 )
             ):
-                self._write_swap(
+                return self._write_swap(
                     cache_desc=cache_desc,
                     data=data,
-                    write_meta=write_meta,
                     best_effort=best_effort,
+                    replace=replace,
                 )
 
-    def write_swap_all(self, **kwargs):
-        """
-        Attempt to write all cached data to the swap.
-        """
+        return data
+
+
+class _ActivityLog(Iterable):
+    @abc.abstractmethod
+    def log(self, typ, data):
+        pass
+
+
+class _NestedActivityLog(_ActivityLog):
+    def __init__(self, outer, inner):
+        self._inner = inner
+        self._outer = outer
+
+    def log(self, *args, **kwargs):
+        self._outer.log(*args, **kwargs)
+        self._inner.log(*args, **kwargs)
+
+    def __iter__(self):
+        return iter(self._inner)
+
+
+class _NoopActivityLog(_ActivityLog):
+    def log(self, typ, data):
+        pass
+
+    def __iter__(self):
+        return iter([])
+
+
+class _RecordingActivityLog(_ActivityLog):
+    def __init__(self, trace):
+        self._log = []
+        self._trace = trace
+
+    @property
+    def _lock(self):
+        return self._trace._lock
+
+    def log(self, typ, data):
         with self._lock:
-            cache_descs = list(self._cache.keys())
+            self._log.append({
+                'type': typ,
+                'data': data,
+            })
 
-        for cache_desc in cache_descs:
-            self.write_swap(cache_desc, **kwargs)
-
-    def clear_event(self, event, raw=None):
-        """
-        Clear cache entries referencing a given event.
-
-        :param event: Event to clear.
-        :type event: str
-
-        :param raw: If ``True``, only clear entries that refer to raw data. If
-            ``False``, only clear entries that refer to non-raw data. If
-            ``None``, ignore whether the descriptor is about raw data or not.
-        :type raw: bool or None
-        """
+    def __iter__(self):
         with self._lock:
-            self._cache = {
-                cache_desc: data
-                for cache_desc, data in self._cache.items()
-                if not (
-                    cache_desc.get('event') == event
-                    and (
-                        raw is None
-                        or cache_desc.get('raw') == raw
-                    )
-                )
-            }
-
-    def clear_all_events(self, raw=None):
-        """
-        Same as :meth:`clear_event` but works on all events at once.
-        """
-        with self._lock:
-            self._cache = {
-                cache_desc: data
-                for cache_desc, data in self._cache.items()
-                if (
-                    # Cache entries can be associated to something else than events
-                    'event' not in cache_desc or
-                    # Either we care about raw and we check, or blanket clear
-                    raw is None or
-                    cache_desc.get('raw') == raw
-                )
-            }
+            return iter(list(self._log))
 
 
 class _Trace(Loggable, _InternalTraceBase):
@@ -6132,11 +7187,14 @@ class _Trace(Loggable, _InternalTraceBase):
         super().__init__()
         self._lock = threading.RLock()
         self._delayed_events = set()
+        # By default, we don't record anything as this is not generally useful
+        # and could lead to memory leak if someone were to e.g. call df_event()
+        # in a tight loop.
+        self._activity_log = _NoopActivityLog()
 
-        stack = contextlib.ExitStack()
-        self._cm_stack = stack
+        cm_stack = contextlib.ExitStack()
         self.__deallocator = _Deallocator(
-            f=lambda: self._cm_stack.__exit__(None, None, None),
+            f=lambda: cm_stack.__exit__(None, None, None),
             on_del=True,
             at_exit=True,
         )
@@ -6145,7 +7203,7 @@ class _Trace(Loggable, _InternalTraceBase):
         # manipulating a trace object. This prevents issues with LazyFrame
         # built out of a DataFrame containing Categorical data, in places where
         # the user does not control the creation of the DataFrame.
-        stack.enter_context(pl.StringCache())
+        cm_stack.enter_context(pl.StringCache())
 
         trace_path = str(trace_path) if trace_path else None
         self.trace_path = trace_path
@@ -6173,73 +7231,84 @@ class _Trace(Loggable, _InternalTraceBase):
 
         # No-op cache so that the cacheable metadata machinery does not fall
         # over when querying the trace-id.
-        self._cache = _TraceCache()
-        trace_id = self._get_trace_id()
+        with _TraceCache() as cache:
+            self._cache = cache
+            trace_id = self._get_trace_id()
 
-        if enable_swap:
-            if trace_path and os.path.exists(trace_path):
-                if swap_dir is None:
-                    basename = os.path.basename(trace_path)
-                    swap_dir = os.path.join(
-                        os.path.dirname(trace_path),
-                        f'.{basename}.lisa-swap'
-                    )
-                    try:
-                        os.makedirs(swap_dir, exist_ok=True)
-                    except OSError:
-                        dir_cache = DirCache(
-                            category='trace_swap',
-                            fmt_version='1',
-                        )
-                        swap_dir = str(dir_cache.get_entry(trace_id))
+            if enable_swap and trace_path:
+                _trace_path = Path(trace_path)
+                if _trace_path.exists():
+                    if swap_dir is None:
+                        swap_dir = _trace_path.parent / f'.{_trace_path.name}.lisa-swap'
+                        try:
+                            swap_dir.mkdir(parents=True, exist_ok=True)
+                        except OSError:
+                            dir_cache = DirCache(
+                                category='trace_swap',
+                                fmt_version=_TraceCache._SWAP_FORMAT_VERSION,
+                            )
+                            swap_dir = str(dir_cache.get_entry(trace_id))
 
-                if max_swap_size is None:
-                    trace_size = os.stat(trace_path).st_size
-                    # Use 10 times the size of the trace so that there is
-                    # enough room to store large artifacts like a JSON dump of
-                    # the trace
-                    max_swap_size = trace_size * 10
-        else:
-            swap_dir = None
-            max_swap_size = None
+                    else:
+                        swap_dir = Path(swap_dir)
 
-        # The platform information used to run the experiments
-        if plat_info is None:
-            # Delay import to avoid circular dependency
-            # pylint: disable=import-outside-toplevel
-            from lisa.platforms.platinfo import PlatformInfo
-            plat_info = PlatformInfo()
-        else:
-            # Make a shallow copy so we can update it
-            plat_info = copy.copy(plat_info)
+                    if max_swap_size is None:
+                        trace_size = _trace_path.stat().st_size
+                        # Use 10 times the size of the trace so that there is
+                        # enough room to store large artifacts.
+                        max_swap_size = trace_size * 10
+            else:
+                swap_dir = None
+                max_swap_size = None
 
-        self._source_events_known = False
+            # The platform information used to run the experiments
+            if plat_info is None:
+                # Delay import to avoid circular dependency
+                # pylint: disable=import-outside-toplevel
+                from lisa.platforms.platinfo import PlatformInfo
+                plat_info = PlatformInfo()
+            else:
+                # Make a shallow copy so we can update it
+                plat_info = copy.copy(plat_info)
 
-        if plots_dir:
-            _deprecated_warn('Trace(plots_dir=...) parameter is deprecated', stacklevel=2)
-        elif not plots_dir and trace_path:
-            plots_dir = os.path.dirname(trace_path)
-        self.plots_dir = plots_dir
+            self._source_events_known = False
 
-        cache = _TraceCache.from_swap_dir(
-            trace_path=trace_path,
-            swap_dir=swap_dir,
-            max_swap_size=max_swap_size,
-            max_mem_size=max_mem_size,
-            trace_id=trace_id,
-            metadata=(
-                {'trace-id': trace_id}
-                if swap_dir else
-                self._cache._metadata
-            ),
-        )
-        stack.enter_context(cache)
-        self._cache = cache
+            if plots_dir:
+                _deprecated_warn('Trace(plots_dir=...) parameter is deprecated', stacklevel=2)
+            elif not plots_dir and trace_path:
+                plots_dir = os.path.dirname(trace_path)
+            self.plots_dir = plots_dir
+
+            new_cache = _TraceCache.from_swap_dir(
+                swap_dir=swap_dir,
+                max_swap_size=max_swap_size,
+                max_mem_size=max_mem_size,
+                trace_id=trace_id,
+                trace_state=self.trace_state,
+            )
+            cm_stack.enter_context(new_cache)
+
+            with cache._lock:
+                meta = {
+                    desc.metadata_key: data
+                    for desc, data in cache._cache.items()
+                    if isinstance(desc, _MetadataCacheDataDesc)
+                }
+                meta = {
+                    **meta,
+                    **{'trace-id': trace_id}
+                }
+                # Do not replace metadata entries that may already exist in the
+                # existing swap. This avoids writing the data file ahead of the
+                # database transaction, so we will only write those files if
+                # they are needed.
+                new_cache.update_metadata(meta, replace=False)
+
+        self._cache = new_cache
 
         # Initial scrub of the swap to discard unwanted data, honoring the
         # max_swap_size right from the beginning
         self._cache.scrub_swap()
-        self._cache.to_swap_dir(blocking=False)
 
         # Preload metadata from the cache, to trigger any side effect when
         # processing them. For example, this can help avoiding spinning the
@@ -6257,6 +7326,21 @@ class _Trace(Loggable, _InternalTraceBase):
 
     def __exit__(self, *args):
         self.__deallocator.run()
+
+    @contextlib.contextmanager
+    def _with_activity_log(self):
+        with self._lock:
+            outer = self._activity_log
+            new = _NestedActivityLog(
+                outer=outer,
+                inner=_RecordingActivityLog(self),
+            )
+            self._activity_log = new
+        try:
+            yield new
+        finally:
+            with self._lock:
+                self._activity_log = outer
 
     def _preload_metadata_cache(self):
         def fail():
@@ -6288,7 +7372,7 @@ class _Trace(Loggable, _InternalTraceBase):
 
         return events.map(fixup)
 
-    def _preload_raw_events(self, events, force=False, _meta_is_raw=False):
+    def _preload_raw_events(self, events, force=False, _meta_is_raw=False, pushdowns=None):
         if self._cache.enabled:
             delayed = set()
             immediate = set()
@@ -6309,6 +7393,7 @@ class _Trace(Loggable, _InternalTraceBase):
                 events,
                 allow_missing_events=True,
                 _meta_is_raw=_meta_is_raw,
+                pushdowns=pushdowns,
             )
 
             return set(df_map.keys())
@@ -6317,28 +7402,24 @@ class _Trace(Loggable, _InternalTraceBase):
 
     @memoized
     def _preload_all_events(self):
-        meta, df_map = self._parse_all()
+        self._activity_log.log('preload-all-events', None)
+
+        meta, df_map = self._parse_all(best_effort=True)
         return set(df_map.keys())
 
-    def _parse_all(self):
+    def _parse_all(self, best_effort=False):
+        self._activity_log.log('parse-all', None)
 
-        def convert(parser, df_map):
-            return {
+        def finalize(preloaded_df_map, preloaded_meta, parser, df_map):
+            parsed_df_map = self._insert_events({
                 event: _convert_df_from_parser(
                     df,
                     parser=parser,
                     cache=self._cache,
                 )
                 for event, df in df_map.items()
-            }
+            })
 
-        def finalize(preloaded_df_map, preloaded_meta, parser, df_map):
-            parsed_df_map = convert(parser, df_map)
-            parsed_df_map.update(self._insert_events({
-                event: df
-                for event, df in parsed_df_map.items()
-                if event not in preloaded_df_map
-            }))
             df_map = {
                 **preloaded_df_map,
                 **parsed_df_map,
@@ -6384,8 +7465,12 @@ class _Trace(Loggable, _InternalTraceBase):
                             try:
                                 events = parser.get_metadata('available-events')
                             except MissingMetadataError:
-                                self.logger.debug('Could not parse all events: {e}')
-                                return _finalize(parser=parser, df_map={})
+                                msg = f'Could not parse all events: {e}'
+                                if best_effort:
+                                    self.logger.debug(msg)
+                                    return _finalize(parser=parser, df_map={})
+                                else:
+                                    raise ValueError(e)
 
                 with self._get_parser(events=events, needed_metadata=needed_metadata) as parser:
 
@@ -6448,6 +7533,13 @@ class _Trace(Loggable, _InternalTraceBase):
         return self._get_metadata(key=key)
 
     def _get_metadata(self, key, parser=None, try_hard=False):
+        self._activity_log.log(
+            'get-metadata',
+            {
+                'key': key,
+                'run-parser': (parser is None) or try_hard
+            }
+        )
         def get():
             if parser is None:
                 @contextlib.contextmanager
@@ -6499,12 +7591,14 @@ class _Trace(Loggable, _InternalTraceBase):
                     2,
                     # Turn to a list to allow JSON caching, since JSON cannot
                     # have non-string keys
-                    dict(value).items()
+                    (
+                        (
+                            addr,
+                            [name] if isinstance(name, str) else name
+                        )
+                        for addr, name in dict(value).items()
+                    )
                 ))
-                names = [
-                    [name] if isinstance(name, str) else name
-                    for name in names
-                ]
                 value = (addrs, names)
 
             return value
@@ -6571,29 +7665,28 @@ class _Trace(Loggable, _InternalTraceBase):
             elif key == 'symbols-address':
                 # The parsers can provide a list of names for each address, but
                 # our API only exposes a single name, so we pick the best one
-                def pick(names):
-                    # If we can, we choose from the names that are valid
-                    # identifiers. This will weed-out strange symbols like arm
-                    # mapping symbols and the likes.
-                    best_names = sorted(
+                value = dict(sorted(
+                    (
                         (
-                            name
-                            for name in names
-                            if name.isidentifier()
-                        ),
-                        key=len,
-                    )
-                    if best_names:
-                        # Return the longest name, as it's less likely to be a
-                        # less descriptive section name or something like that.
-                        return best_names[-1]
-                    else:
-                        return names[0]
-
-                value = {
-                    addr: pick(names)
-                    for addr, names in value.items()
-                }
+                            addr,
+                            # Return the longest name, as it's less likely to be a
+                            # less descriptive section name or something like that.
+                            max(
+                                # If we can, we choose from the names that are valid
+                                # identifiers. This will weed-out strange symbols like
+                                # arm mapping symbols and the likes.
+                                filter(
+                                    lambda name: name.isidentifier(),
+                                    names,
+                                ),
+                                default=names[0],
+                                key=lambda name: (len(name), name),
+                            )
+                        )
+                        for addr, names in value.items()
+                    ),
+                    key=itemgetter(0),
+                ))
 
             return value
 
@@ -6602,20 +7695,19 @@ class _Trace(Loggable, _InternalTraceBase):
             return self._meta_to_json({key: value})[key]
 
         def get_cacheable(key):
+            # It may be in the cache even if it is not parseable, as being
+            # parseable only tells the parser can give it. It is possible for
+            # another path in LISA to provide a computed value when the parser
+            # failed to provide one, and that value can be cached.
             try:
                 value = self._cache.get_metadata(key)
             except MissingMetadataError:
-                parseable_metadata = self._cache.get_metadata(
-                    'parseable-metadata',
-                    default=dict()
-                )
-                compute = parseable_metadata.get(key, True)
+                compute = self._parseable_metadata.get(key, True)
 
                 if compute:
                     value = _get(key)
                     self._cache.update_metadata(
                         {key: value},
-                        blocking=False,
                     )
                 else:
                     raise MissingMetadataError(key)
@@ -6676,7 +7768,7 @@ class _Trace(Loggable, _InternalTraceBase):
     # Memoization is necessary to ensure the parser always gets the same name
     # on a given Trace instance when the parser is not a type.
     @lru_memoized(first_param_maxsize=None, other_params_maxsize=None)
-    def trace_state(self):
+    def _trace_state(self):
         parser = self._parser
         # The parser type will potentially change the exact content in raw
         # dataframes
@@ -6716,7 +7808,7 @@ class _Trace(Loggable, _InternalTraceBase):
             return self.plat_info['cpus-count']
         except KeyError:
             try:
-                count = self.get_metadata('cpus-count')
+                return self.get_metadata('cpus-count')
             # If we don't know the number of CPUs, check the trace for the
             # highest-numbered CPU that traced an event.
             except MissingMetadataError:
@@ -6741,10 +7833,15 @@ class _Trace(Loggable, _InternalTraceBase):
                 )
                 count = max_cpu + 1
                 self.logger.debug(f"Estimated CPU count from trace: {count}")
+                self._cache.update_metadata({'cpus-count': count})
+                return count
 
-            return count
-
-    def _get_parser(self, events=tuple(), needed_metadata=None):
+    def _get_parser(
+        self,
+        events=tuple(),
+        needed_metadata=None,
+        pushdowns=None,
+    ):
         cache = self._cache
         path = self.trace_path
         events = events if events is _ALL_EVENTS else set(events)
@@ -6753,12 +7850,22 @@ class _Trace(Loggable, _InternalTraceBase):
         @contextlib.contextmanager
         def cm():
             with pl.StringCache(), self._cache._parser_temp_path() as temp_dir:
-                self.logger.debug(f'Spinning up trace parser {self._parser}: path={path}, events={events}, needed_metadata={needed_metadata}')
+                self._activity_log.log(
+                    'spinup-parser',
+                    {
+                        'path': path,
+                        'events': sorted(events),
+                        'metadata': sorted(needed_metadata),
+                        'pushdowns': pushdowns,
+                    }
+                )
+                self.logger.debug(f'Spinning up trace parser {self._parser}: path={path}, events={events}, needed_metadata={needed_metadata}, pushdowns={pushdowns}')
                 parser = self._parser(
                     path=path,
                     events=events,
                     needed_metadata=needed_metadata,
                     temp_dir=temp_dir,
+                    pushdowns=pushdowns or {},
                 )
 
                 try:
@@ -6773,10 +7880,7 @@ class _Trace(Loggable, _InternalTraceBase):
         return cm()
 
     def _update_metadata(self, parser, needed_metadata):
-        parseable_metadata = self._cache.get_metadata(
-            'parseable-metadata',
-            default=dict()
-        )
+        parseable_update = {}
 
         # Tentatively get the metadata value, in case they are available
         for key in TraceParserBase.METADATA_KEYS:
@@ -6786,23 +7890,36 @@ class _Trace(Loggable, _InternalTraceBase):
                 # Only register a key as being unparseable if we explicitly
                 # asked for it. Otherwise the error is inconclusive.
                 if key in needed_metadata:
-                    parseable_metadata[key] = False
+                    parseable_update[key] = False
             else:
-                parseable_metadata[key] = True
+                parseable_update[key] = True
 
-        self._cache.update_metadata(
-            {
-                'parseable-metadata': parseable_metadata,
-            },
-            blocking=False,
-        )
+        parseable_metadata = self._parseable_metadata
+        parseable_update = {
+            **parseable_metadata,
+            **parseable_update,
+        }
+
+        if parseable_update != parseable_metadata:
+            self._cache.update_metadata(
+                {
+                    'parseable-metadata': parseable_update,
+                },
+            )
+
+    @property
+    def _parseable_metadata(self):
+        try:
+            return self._cache.get_metadata('parseable-metadata')
+        except MissingMetadataError:
+            return dict()
 
     @property
     def _parseable_events(self):
-        return self._cache.get_metadata(
-            'parseable-events',
-            default=dict(),
-        )
+        try:
+            return self._cache.get_metadata('parseable-events')
+        except MissingMetadataError:
+            return dict()
 
     def _update_parseable_events(self, mapping):
         with self._lock:
@@ -6820,7 +7937,6 @@ class _Trace(Loggable, _InternalTraceBase):
                             **update,
                         },
                     },
-                    blocking=False,
                 )
 
     @property
@@ -6850,8 +7966,8 @@ class _Trace(Loggable, _InternalTraceBase):
         except MissingMetadataError:
             if (path := self.trace_path):
                 with open(path, 'rb') as f:
-                    md5 = checksum(f, 'md5')
-                id_ = f'md5sum-{md5}'
+                    sha256 = checksum(f, 'sha256')
+                id_ = f'sha256sum-{sha256}'
             else:
                 id_ = '<unknown>'
 
@@ -6859,20 +7975,18 @@ class _Trace(Loggable, _InternalTraceBase):
                 {
                     'trace-id': id_,
                 },
-                blocking=False,
             )
             return id_
 
     @memoized
-    def _make_raw_cache_desc(self, event):
-        spec = dict(
-            # This is used when clearing the cache to know if a given entry is
-            # related to a raw event or e.g. an analysis.
-            raw=True,
+    def _make_raw_cache_desc(self, event, pushdowns):
+        # Make sure all raw descriptors are made the same way, to avoid missed
+        # sharing opportunities
+        return _EventCacheDataDesc(
             event=event,
             trace_state=self.trace_state,
+            pushdowns=pushdowns,
         )
-        return _CacheDataDesc(spec=spec, fmt=_TraceCache.DATAFRAME_SWAP_FORMAT)
 
     def _internal_df_event(
             self,
@@ -6880,6 +7994,8 @@ class _Trace(Loggable, _InternalTraceBase):
             *,
             df_fmt=None,
             _meta_is_raw=False,
+            _record_pushdowns=False,
+            _pushdowns=None,
 
             # Deprecated
             write_swap=None,
@@ -6897,10 +8013,18 @@ class _Trace(Loggable, _InternalTraceBase):
         if raw:
             raise ValueError(f'raw=True is not supported anymore, dataframes are always post processed by parsers to be as close as possible to the ftrace event format')
 
+        self._activity_log.log(
+            'df-event-raw',
+            {
+                'event': event,
+            }
+        )
+
         try:
             df = self._load_cache_raw_df(
                 TraceEventChecker(event),
                 _meta_is_raw=_meta_is_raw,
+                pushdowns=_pushdowns or {},
             )[event]
         except MissingTraceEventError as e:
             e.available_events = self.available_events
@@ -6908,26 +8032,77 @@ class _Trace(Loggable, _InternalTraceBase):
         else:
             assert isinstance(df, _ParsedDataFrame)
             df = _df_to(df.df, fmt='polars-lazyframe')
+
+            if _record_pushdowns:
+                schema = df.collect_schema()
+
+                def record_pushdowns(with_columns, predicate, n_rows):
+                    self._activity_log.log(
+                        'df-collect-with-pushdowns',
+                        {
+                            'event': event,
+                            'parser-subsumes-collect': True,
+                            'parser-pushdowns': _ScanPushdowns(
+                                schema=schema,
+                                columns=None,
+                                predicate=None,
+                                n_rows=None,
+                            ),
+                            'collect-pushdowns': _ScanPushdowns(
+                                schema=schema,
+                                columns=with_columns,
+                                predicate=predicate,
+                                n_rows=n_rows,
+                            )
+                        }
+                    )
+                df = _polars_record_pushdowns(df, record_pushdowns)
+
             # TODO: If and when this is solved, attach the name of the event to
             # the LazyFrames:
             # https://github.com/pola-rs/polars/issues/5117
             meta = dict(event=event)
             return df, meta
 
-    def _fetch_cache_raw_df(self, event):
-        # Make sure all raw descriptors are made the same way, to avoid
-        # missed sharing opportunities
-        cache_desc = self._make_raw_cache_desc(event)
-        df = self._cache.fetch(cache_desc, insert=True)
-        return _ParsedDataFrame.from_df(df)
+    def _fetch_cache_raw_df(self, event, pushdowns=None):
+        def fetch(cache_desc):
+            df = self._cache.fetch(cache_desc, insert=True)
+            return _ParsedDataFrame.from_df(df)
 
-    def _load_cache_raw_df(self, event_checker, allow_missing_events=False, _meta_is_raw=False):
+        if pushdowns:
+            # First try the smallest data set we have. We still try the full
+            # dataset if we don't have any filtered data.
+            _cache_desc = self._make_raw_cache_desc(
+                event,
+                pushdowns=pushdowns,
+            )
+            try:
+                return fetch(_cache_desc)
+            except KeyError:
+                pass
+
+        return fetch(self._make_raw_cache_desc(
+            event,
+            pushdowns=None,
+        ))
+
+    def _load_cache_raw_df(
+        self,
+        event_checker,
+        allow_missing_events=False,
+        _meta_is_raw=False,
+        pushdowns=None,
+    ):
         events = event_checker.get_all_events()
+        pushdowns = pushdowns or {}
 
         # Get the raw dataframe from the cache if possible
         def try_from_cache(event):
             try:
-                return self._fetch_cache_raw_df(event)
+                return self._fetch_cache_raw_df(
+                    event,
+                    pushdowns=pushdowns.get(event),
+                )
             except KeyError:
                 return None
 
@@ -6955,9 +8130,8 @@ class _Trace(Loggable, _InternalTraceBase):
         df_from_trace = self._load_raw_df(
             events_to_load,
             _meta_is_raw=_meta_is_raw,
+            pushdowns=pushdowns,
         )
-        df_from_trace = self._insert_events(df_from_trace)
-
         df_map = {**from_cache, **df_from_trace}
         try:
             event_checker.check_events(df_map.keys())
@@ -6968,13 +8142,87 @@ class _Trace(Loggable, _InternalTraceBase):
                     msg='Events not found in the trace: {missing_events}{available}'
                 ) from e
 
+        def _polars_dispatch_pushdowns(event, pushdowns, df):
+            schema = df.collect_schema()
+
+            def make_df(with_columns, predicate, n_rows, batch_size):
+                _pushdowns = _ScanPushdowns(
+                    schema=schema,
+                    columns=with_columns,
+                    predicate=predicate,
+                    n_rows=n_rows,
+                )
+                subsumes = pushdowns.subsumes(_pushdowns)
+                self._activity_log.log(
+                    'df-collect-with-pushdowns',
+                    {
+                        'event': event,
+                        'parser-subsumes-collect': subsumes,
+                        'parser-pushdowns': pushdowns,
+                        'collect-pushdowns': _pushdowns,
+                    }
+                )
+
+                if subsumes:
+                    _df = df
+                else:
+                    # If the pushdowns are not compatible with the ones we
+                    # loaded already, we just get the un-filtered LazyFrame and
+                    # call it a day. We do not attempt to propagate the current
+                    # pushdowns further as we will likely need the same event
+                    # with different pushdowns again later (we were wrong once
+                    # already), so it's probably best to re-parse once and for
+                    # all.
+                    _df = self._load_cache_raw_df(
+                        TraceEventChecker(event),
+                        _meta_is_raw=_meta_is_raw,
+                        pushdowns={},
+                    )[event]
+                    _df = _df.df
+                    assert isinstance(_df, pl.LazyFrame)
+
+                _df = _pushdowns.apply(_df)
+                return _df.collect_batches(chunk_size=batch_size)
+
+            return register_io_source(
+                make_df,
+                schema=schema,
+                is_pure=True,
+            )
+
+        def _wrap_pushdowns(event, pushdowns, df):
+            assert isinstance(df, _ParsedDataFrame)
+            assert isinstance(df.df, pl.LazyFrame)
+
+            return _ParsedDataFrame.from_df(
+                _polars_dispatch_pushdowns(
+                    event=event,
+                    pushdowns=pushdowns,
+                    df=df.df,
+                ),
+                **df.meta,
+            )
+
+        df_map.update({
+            _event: _wrap_pushdowns(
+                event=_event,
+                pushdowns=_pushdowns,
+                df=_df,
+            )
+            for _event, _pushdowns in pushdowns.items()
+            if (_df := df_map.get(_event)) is not None
+        })
+
         return df_map
 
-    def _insert_events(self, df_map):
+    def _insert_events(self, df_map, pushdowns=None):
         def insert_event(event, df):
             assert isinstance(df, _ParsedDataFrame)
             if df.meta['mem_cacheable']:
-                cache_desc = self._make_raw_cache_desc(event)
+                cache_desc = self._make_raw_cache_desc(
+                    event,
+                    pushdowns=(pushdowns or {}).get(event),
+                )
                 df = self._cache.insert(
                     cache_desc,
                     df.df,
@@ -6984,43 +8232,12 @@ class _Trace(Loggable, _InternalTraceBase):
                     # since parsing cost is known to be high
                     ignore_cost=True,
                 )
-                df = _ParsedDataFrame.from_df(df)
-            return df
+            return _ParsedDataFrame.from_df(df)
 
         return {
             event: insert_event(event, df)
             for event, df in df_map.items()
         }
-
-    def _parse_raw_events(self, events):
-        if not events:
-            return {}
-
-        def parse(parser, event):
-            try:
-                return parser.parse_event(event)
-            # We only catch MissingTraceEventError, so that we know the parser
-            # made a voluntary decision to state the event was not available,
-            # rather than just crashing in an unintended way. However, we will
-            # display the exceptions's __cause__ later on, which the parser can
-            # set to inform the user of any actual problem it encountered while
-            # parsing the data.
-            except MissingTraceEventError as e:
-                return None
-
-
-        with self._get_parser(events) as parser:
-            df_map = {
-                event: _convert_df_from_parser(
-                    df=df,
-                    parser=parser,
-                    cache=self._cache,
-                )
-                for event in events
-                if (df := parse(parser, event)) is not None
-            }
-
-        return df_map
 
     def _parse_meta_events(self, meta_events):
         meta_events = set(meta_events)
@@ -7042,13 +8259,23 @@ class _Trace(Loggable, _InternalTraceBase):
             _meta_is_raw=True,
         )
 
+        def get_event(event, **kwargs):
+            return self._internal_df_event(
+                event,
+                # Pushdown recording interposes a polars IO plugin, which
+                # cannot be serialized. We need this LazyFrame to be
+                # serializable for the cache, so we disable that recording.
+                _record_pushdowns=False,
+                **kwargs,
+            )
+
         df_map = {}
 
         # On some parsers, meta events are treated as regular events so attempt
         # to load them from there as well
         for meta_event in meta_events:
             with contextlib.suppress(MissingTraceEventError):
-                df, meta = self._internal_df_event(
+                df, meta = get_event(
                     meta_event,
                     _meta_is_raw=True,
                 )
@@ -7069,7 +8296,7 @@ class _Trace(Loggable, _InternalTraceBase):
         # dataframes one by one
         for source_event, specs in groupby(meta_specs, key=itemgetter(2)):
             try:
-                df, meta = self._internal_df_event(source_event)
+                df, meta = get_event(source_event)
             except MissingTraceEventError:
                 pass
             else:
@@ -7136,6 +8363,7 @@ class _Trace(Loggable, _InternalTraceBase):
                                 )
                                 _df = _df.df
                                 assert isinstance(_df, pl.LazyFrame)
+                                in_mem = _df_in_memory(_df)
 
                                 _df = _df.join(
                                     extra_df,
@@ -7153,6 +8381,8 @@ class _Trace(Loggable, _InternalTraceBase):
                                         ['Time']
                                     )
                                 )
+                                if in_mem:
+                                    _polars_declare_in_memory(_df)
 
                                 df_list, _ = df_map.setdefault(meta_event, ([], meta))
                                 df_list.append(_df)
@@ -7176,7 +8406,7 @@ class _Trace(Loggable, _InternalTraceBase):
             for meta_event, (df_list, meta) in df_map.items()
         }
 
-    def _load_raw_df(self, events, _meta_is_raw):
+    def _load_raw_df(self, events, _meta_is_raw, pushdowns):
         events = set(events)
         meta_events = set(filter(self._is_meta_event, events))
 
@@ -7192,8 +8422,33 @@ class _Trace(Loggable, _InternalTraceBase):
             )
             normal_events = events - meta_events
 
-        df_map.update(
-            self._parse_raw_events(normal_events)
+        if normal_events:
+            def parse(parser, event):
+                try:
+                    return parser.parse_event(event)
+                # We only catch MissingTraceEventError, so that we know the parser
+                # made a voluntary decision to state the event was not available,
+                # rather than just crashing in an unintended way. However, we will
+                # display the exceptions's __cause__ later on, which the parser can
+                # set to inform the user of any actual problem it encountered while
+                # parsing the data.
+                except MissingTraceEventError as e:
+                    return None
+
+            with self._get_parser(normal_events, pushdowns=pushdowns) as parser:
+                df_map.update({
+                    event: _convert_df_from_parser(
+                        df=df,
+                        parser=parser,
+                        cache=self._cache,
+                    )
+                    for event in normal_events
+                    if (df := parse(parser, event)) is not None
+                })
+
+        df_map = self._insert_events(
+            df_map,
+            pushdowns=pushdowns,
         )
 
         # remember the events that we tried to parse and that turned out to not
@@ -7230,10 +8485,11 @@ class _Trace(Loggable, _InternalTraceBase):
 
 class Trace(
     DelegateToAttr(
-        '_Trace__view',
+        'base_trace',
         [_InternalTraceBase],
     ),
     TraceBase,
+    Loggable,
 ):
     """
     This class provides a way to access event dataframes and ties
@@ -7359,15 +8615,15 @@ class Trace(
     """
 
     def _init(self, view, df_fmt):
-        self.__view = view
+        self.base_trace = view
         self._df_fmt = df_fmt or 'pandas'
 
     def __enter__(self):
-        self.__view.__enter__()
+        self.base_trace.__enter__()
         return self
 
     def __exit__(self, *args):
-        return self.__view.__exit__(*args)
+        return self.base_trace.__exit__(*args)
 
     def __init__(self, *args, df_fmt=None, **kwargs):
         view = self._view_from_user_kwargs(
@@ -7388,6 +8644,8 @@ class Trace(
         events=None,
         events_namespaces=('lisa__', None),
         df_fmt=None,
+        _record_pushdowns=False,
+        _pushdowns=None,
 
         sanitization_functions=None,
         write_swap=None,
@@ -7417,6 +8675,8 @@ class Trace(
             strict_events=strict_events,
             events=events,
             df_fmt=df_fmt,
+            _record_pushdowns=_record_pushdowns,
+            _pushdowns=_pushdowns,
         )
 
         trace = _Trace(*args, **kwargs)
@@ -7468,7 +8728,7 @@ class Trace(
     def get_view(self, window=None, *, df_fmt=None, **kwargs):
         kwargs['window'] = window
         df_fmt = df_fmt or self._df_fmt
-        view = self.__view.get_view(
+        view = self.base_trace.get_view(
             df_fmt=df_fmt,
             **kwargs,
         )
@@ -7482,9 +8742,9 @@ class Trace(
         return new
 
     @property
-    def trace_state(self):
+    def _trace_state(self):
         return (
-            self.__view.trace_state,
+            self.base_trace._trace_state,
             self._df_fmt,
         )
 
@@ -7492,7 +8752,7 @@ class Trace(
         df_fmt = df_fmt or self._df_fmt
 
         def get_non_delayed(trace):
-            df, meta = self.__view._internal_df_event(
+            df, meta = self.base_trace._internal_df_event(
                 event,
                 # Provide the information to the stack so that we can apply the
                 # legacy signals in _WindowTraceView for pandas format
@@ -7514,12 +8774,21 @@ class Trace(
 
             # Preload using the low-leve function that uses non-namespaced
             # event names.
-            self._preload_raw_events(events, force=True)
+            self.base_trace._preload_raw_events(events, force=True)
             return get_non_delayed(self)
 
         delayed = (
             df_fmt == 'polars-lazyframe' and
             self._is_event_delayed(event)
+        )
+
+        self._activity_log.log(
+            'df-event',
+            {
+                'event': event,
+                'df-fmt': df_fmt,
+                'delayed': delayed,
+            }
         )
 
         if delayed:
@@ -7609,30 +8878,173 @@ class Trace(
         proxy._set_trace(trace)
 
     @classmethod
+    def map_traces(cls, f, traces):
+        """
+        Map the given ``f`` function on all ``traces`` in a similar fashion to
+        :func:`map`.
+
+        Execution of ``f`` on the first trace will be analyzed for usage
+        patterns and the resulting profile will be applied to other traces to
+        optimize data loading.
+
+        .. important::
+
+            Since data will be prefiltered according to what was required when
+            processing the first trace, the *processing must be the same* for
+            all traces. In particular, it is capital that the set of column
+            used for a given event is the same across all traces.
+
+        :param f: Function called on each trace.
+        :type f: typing.Callable[[lisa.trace.TraceBase], typing.Any]
+
+        :param traces: Iterable of traces to call ``f`` upon.
+        :type traces: collections.abc.Iterable(lisa.trace.TraceBase)
+        """
+        def process_many(traces):
+            first, *others = traces
+
+            # We do not try to apply any sort of pushdown immediately, as a
+            # given event dataframe may be used in more than one way in the
+            # processing. If we applied pushdowns then, we would end up
+            # re-parsing the same event multiple time which has a much worst
+            # "average bad case" than simply just loading the whole dataset as
+            # per usual.
+            first = first.get_view(_record_pushdowns=True)
+
+            with first._with_activity_log() as log:
+                first_res = f(first)
+
+                # Only collecting the lazyframe will trigger writing to the
+                # _activity_log, so if the user returns a LazyFrame from f(),
+                # we won't detect anything yet. By the time they collect it, it
+                # will be too late. To fix that, we trigger an early
+                # collection.
+                if isinstance(first_res, pl.LazyFrame):
+                    # Collect a single row, but do it without slicing (e.g.
+                    # head(1)) so that any pushed-down slice stays relevant.
+                    #
+                    # In polars 1.36.1, LazyFrame.collect_batches() is
+                    # afflicted by deadlocks:
+                    # https://github.com/pola-rs/polars/issues/25745
+                    # https://github.com/pola-rs/polars/issues/25754
+                    # So we use sink_batches() instead, which allows early
+                    # termination as a supported pattern.
+                    first_res.sink_batches(
+                        # Get one batch then return immediately.
+                        lambda _: True,
+                        # Each batch has only a single row in it, we want to
+                        # keep it as cheap as possible.
+                        chunk_size=1,
+                    )
+                log = list(log)
+
+            pushdowns = {
+                event: _ScanPushdowns.union(
+                    spec['collect-pushdowns']
+                    for spec in group
+                )
+                for event, group in groupby(
+                    (
+                        item['data']
+                        for item in log
+                        if item['type'] == 'df-collect-with-pushdowns'
+                    ),
+                    key=itemgetter('event'),
+                )
+            }
+
+            events = [
+                item['data']['event']
+                for item in log
+                if item['type'] == 'df-event-raw'
+            ]
+
+            assert set(events) >= set(pushdowns.keys())
+
+            disable_pushdowns = set()
+
+            def run(trace, f):
+                trace = trace.get_view(
+                    _pushdowns={
+                        _event: _pushdowns
+                        for _event, _pushdowns in pushdowns.items()
+                        if _event not in disable_pushdowns
+                    }
+                )
+                trace._preload_raw_events(events)
+
+                with trace._with_activity_log() as log:
+                    try:
+                        return f(trace)
+                    finally:
+                        # If at any point we find an event for which the parser
+                        # pushdowns were not compatible with the collect
+                        # pushdowns, we disable pushdowns for that event for
+                        # the traces that havent been processed yet, as there
+                        # is a very high risk the collect pushdown would also
+                        # not be compatible with the ones recorded while the
+                        # processing first trace.
+                        disable_pushdowns.update(
+                            item['data']['event']
+                            for item in log
+                            if (
+                                item['type'] == 'df-collect-with-pushdowns'
+                                and not item['data']['parser-subsumes-collect']
+                            )
+                        )
+
+            cls.get_logger().debug(f'map_traces() detected pushdowns: {pushdowns}')
+            return itertools.chain(
+                [first_res],
+                (
+                    run(trace, f)
+                    for trace in others
+                )
+            )
+
+        traces = list(traces)
+        if traces:
+            try:
+                trace, = traces
+            except ValueError:
+                xs = process_many(traces)
+            else:
+                # If there is only a single trace, there is no point in paying
+                # the profiling overhead, we just process it in the normal way.
+                xs = [f(trace)]
+        else:
+            xs = []
+
+        return iter(xs)
+
+    @classmethod
     def get_event_sources(cls, *args, **kwargs):
         return _Trace.get_event_sources(*args, **kwargs)
 
     def _internal_df_event(self, *args, **kwargs):
-        return self.__view._internal_df_event(*args, **kwargs)
+        return self.base_trace._internal_df_event(*args, **kwargs)
 
     def _expand_events(self, *args, **kwargs):
-        return self.__view._expand_events(*args, **kwargs)
+        return self.base_trace._expand_events(*args, **kwargs)
+
+    def _preload_raw_events(self, *args, **kwargs):
+        return self.base_trace._preload_raw_events(*args, **kwargs)
 
     @property
     def basetime(self):
-        return self.__view.basetime
+        return self.base_trace.basetime
 
     @property
     def endtime(self):
-        return self.__view.endtime
+        return self.base_trace.endtime
 
     @property
     def start(self):
-        return self.__view.start
+        return self.base_trace.start
 
     @property
     def end(self):
-        return self.__view.end
+        return self.base_trace.end
 
 
 class _TraceProxy(
@@ -7854,7 +9266,7 @@ class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
     def __contains__(self, event):
         return event in self.get_all_events()
 
-    def __len__(self, event):
+    def __len__(self):
         return len(self.get_all_events())
 
     def __and__(self, other):
