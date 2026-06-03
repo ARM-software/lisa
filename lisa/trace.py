@@ -6367,20 +6367,19 @@ class _TraceCache(Loggable):
         elif isinstance(data, pl.DataFrame):
             data.write_parquet(path, **kwargs)
         elif isinstance(data, pl.LazyFrame):
-            with pl.StringCache():
-                try:
-                    # TOOD: revisit when polars streaming engine is complete
-                    # and it does not raise a DeprecationWarning anymore.
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore", category=DeprecationWarning)
-                        data.sink_parquet(path, **kwargs)
-                # The streaming engine may have issues with some LazyFrames, so
-                # fall back on collecting.
-                except Exception as e:
-                    cls.get_logger().debug(f'Could not use sink_parquet(): {e}')
-                    path.unlink(missing_ok=True)
-                    data = _polars_fast_collect(data)
-                    data.write_parquet(path, **kwargs)
+            try:
+                # TOOD: revisit when polars streaming engine is complete
+                # and it does not raise a DeprecationWarning anymore.
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", category=DeprecationWarning)
+                    data.sink_parquet(path, **kwargs)
+            # The streaming engine may have issues with some LazyFrames, so
+            # fall back on collecting.
+            except Exception as e:
+                cls.get_logger().debug(f'Could not use sink_parquet(): {e}')
+                path.unlink(missing_ok=True)
+                data = _polars_fast_collect(data)
+                data.write_parquet(path, **kwargs)
         else:
             data.to_parquet(path, **kwargs)
 
@@ -7199,12 +7198,6 @@ class _Trace(Loggable, _InternalTraceBase):
             at_exit=True,
         )
 
-        # Make sure that we always operate with an active StringCache when
-        # manipulating a trace object. This prevents issues with LazyFrame
-        # built out of a DataFrame containing Categorical data, in places where
-        # the user does not control the creation of the DataFrame.
-        cm_stack.enter_context(pl.StringCache())
-
         trace_path = str(trace_path) if trace_path else None
         self.trace_path = trace_path
 
@@ -7849,7 +7842,7 @@ class _Trace(Loggable, _InternalTraceBase):
 
         @contextlib.contextmanager
         def cm():
-            with pl.StringCache(), self._cache._parser_temp_path() as temp_dir:
+            with self._cache._parser_temp_path() as temp_dir:
                 self._activity_log.log(
                     'spinup-parser',
                     {

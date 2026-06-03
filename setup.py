@@ -143,6 +143,7 @@ if __name__ == "__main__":
             # Require:
             # polars >= 1.15.0: https://github.com/pola-rs/polars/issues/19994
             # polars >= 1.16.0: https://github.com/pola-rs/polars/issues/20000
+            # polars >= 1.32.0: https://github.com/pola-rs/polars/pull/23016
             # polars >= 1.34.0: https://github.com/pola-rs/polars/pull/24531
             # polars != 1.35.1: https://github.com/pola-rs/polars/issues/25261
             # polars != 1.35.2: https://github.com/pola-rs/polars/issues/25261

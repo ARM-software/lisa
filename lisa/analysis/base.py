@@ -1199,28 +1199,23 @@ class TraceAnalysisBase(AnalysisHelpers):
         # can be changed using the AnalysisProxy(params=dict(...)) when the
         # AnalysisProxy is instanciated in lisa.trace
         def wrapper(self, *args, df_fmt=None, **kwargs):
-            # Ease working with LazyFrames coming from various sources. When
-            # they are collect()'ed in f(), they will be created using a common
-            # StringCache so Categorical columns can be concatenated and such.
-            with pl.StringCache():
+            # We might get different types based on whether the content
+            # comes from the function directly (could be a pandas object)
+            # or from the cache (polars LazyFrame).
+            df = cached_f(self, *args, **kwargs)
+            assert isinstance(df, (pd.DataFrame, pl.DataFrame, pl.LazyFrame))
 
-                # We might get different types based on whether the content
-                # comes from the function directly (could be a pandas object)
-                # or from the cache (polars LazyFrame).
-                df = cached_f(self, *args, **kwargs)
-                assert isinstance(df, (pd.DataFrame, pl.DataFrame, pl.LazyFrame))
-
-                df_fmt = df_fmt or 'pandas'
-                df = _df_to(
-                    df,
-                    fmt=df_fmt,
-                    index=(
-                        ('Time' if 'Time' in df.collect_schema().names() else None)
-                        if index is None and isinstance(df, (pl.LazyFrame, pl.DataFrame)) else
-                        index
-                    ),
-                )
-                return df
+            df_fmt = df_fmt or 'pandas'
+            df = _df_to(
+                df,
+                fmt=df_fmt,
+                index=(
+                    ('Time' if 'Time' in df.collect_schema().names() else None)
+                    if index is None and isinstance(df, (pl.LazyFrame, pl.DataFrame)) else
+                    index
+                ),
+            )
+            return df
 
         return wrapper
 
