@@ -317,9 +317,7 @@ class TasksAnalysis(TraceAnalysisBase):
             maintain_order=True,
         )
         df = df.select('name', 'pid')
-
-        with pl.StringCache():
-            df = _polars_fast_collect(df)
+        df = _polars_fast_collect(df)
 
         def finalize(df, key_col):
             assert len(df.columns) == 2
