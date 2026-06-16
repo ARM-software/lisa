@@ -109,16 +109,15 @@ class StatusAnalysis(TraceAnalysisBase):
         df = self.df_overutilized(df_fmt='polars-lazyframe')
 
         df = df.filter(pl.col('overutilized'))
-        df = df.select(
-            pl.col('Time'),
-            (pl.col('Time') + pl.col('len')).alias('width'),
+        df = df.with_columns(
+            Time=pl.col('Time').dt.total_nanoseconds() / 1e9,
+            width=(pl.col('Time') + pl.col('len')).dt.total_nanoseconds() / 1e9,
         )
-        df = _df_to(df, fmt='pandas')
-        df.reset_index(inplace=True)
+        df = df.select('Time', 'width').collect()
 
         # Compute intervals in which the system is reported to be overutilized
         return hv.VSpans(
-            (df['Time'], df['width']),
+            df,
             label='Overutilized'
         ).options(
             color='red',

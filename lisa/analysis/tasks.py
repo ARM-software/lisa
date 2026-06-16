@@ -36,6 +36,8 @@ import bokeh.models
 import polars as pl
 from colorcet import glasbey_hv
 
+from devlib.utils.misc import list_to_ranges
+
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized, kwargs_forwarded_to, deprecate, order_as, is_running_ipython
 from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates, SignalDesc, _df_to, NO_INDEX, _polars_fast_collect, _polars_fast_collect_all
@@ -1163,8 +1165,8 @@ class TasksAnalysis(TraceAnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    def _plot_markers(self, df, label):
-        return hv.Scatter(df, label=label).options(marker='+').options(
+    def _plot_markers(self, df, **kwargs):
+        return hv.Scatter(df, **kwargs).options(marker='+').options(
             backend='bokeh',
             size=5,
         )
@@ -1184,36 +1186,60 @@ class TasksAnalysis(TraceAnalysisBase):
         :param task: Task to track
         :type task: int or str or tuple(int, str)
         """
+        def plot_residency(task_id):
+            trace = self.trace.get_view(df_fmt='polars-lazyframe')
+            sw_df = trace.df_event("sched_switch")
+
+            sw_df = df_filter_task_ids(
+                sw_df,
+                [task_id],
+                pid_col='next_pid',
+                comm_col='next_comm',
+            )
+            domains = trace.plat_info.get("freq-domains", [])
+            domains = {
+                tuple(cpus): list_to_ranges(cpus)
+                for cpus in domains
+            }
+            sw_df = sw_df.with_columns(
+                domain=pl.col('__cpu').replace_strict(
+                    {
+                        cpu: domain
+                        for cpus, domain in domains.items()
+                        for cpu in cpus
+                    },
+                    default=None,
+                ),
+                cpu=pl.col('__cpu'),
+            )
+            sw_df = df_refit_index(sw_df, window=trace.window)
+            sw_df = sw_df.with_columns(
+                Time=pl.col('Time').dt.total_nanoseconds() / 1e9,
+            )
+            sw_df = sw_df.select('Time', 'cpu', 'domain')
+
+            # The None entry is used for the null value, which will be used if
+            # the frequency domain is not known.
+            legend_labels = {None: str(task_id)}
+            legend_labels.update({
+                domain: f'{task_id} (freq domain {domain})'
+                for domain in domains.values()
+            })
+
+            return self._plot_markers(
+                sw_df.collect(),
+            ).options(
+                color='domain',
+                cmap='glasbey_hv',
+                legend_labels=legend_labels,
+            )
+
         task_id = self.get_task_id(task, update=False)
-
-        sw_df = self.trace.df_event("sched_switch")
-        sw_df = df_filter_task_ids(sw_df, [task_id], pid_col='next_pid', comm_col='next_comm')
-
-        def plot_residency():
-            if "freq-domains" in self.trace.plat_info:
-                # If we are aware of frequency domains, use one color per domain
-                for domain in self.trace.plat_info["freq-domains"]:
-                    series = sw_df[sw_df["__cpu"].isin(domain)]["__cpu"]
-                    series = series_refit_index(series, window=self.trace.window)
-
-                    if series.empty:
-                        return _hv_neutral()
-                    else:
-                        return self._plot_markers(
-                            series,
-                            label=f"Task running in domain {domain}"
-                        )
-            else:
-                return self._plot_markers(
-                    series_refit_index(sw_df['__cpu'], window=self.trace.window),
-                    label=str(task),
-                )
-
         return (
-            plot_residency().options(ylabel='cpu') *
+            plot_residency(task_id).options(ylabel='cpu') *
             self._plot_overutilized()
         ).options(
-            title=f'CPU residency of task {task}'
+            title=f'CPU residency of task {task_id}'
         )
 
     @TraceAnalysisBase.plot_method
