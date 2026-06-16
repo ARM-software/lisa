@@ -129,13 +129,15 @@ if __name__ == "__main__":
         python_requires=python_requires,
         install_requires=[
             "psutil >= 4.4.2",
-            "bokeh",
+            # bokeh >= 3.8: timedelta axis support
+            "bokeh >= 3.8",
             # For bokeh static image exports
             "selenium",
             "phantomjs",
             "pillow",
-            # For twin axes support: https://holoviews.org/user_guide/Customizing_Plots.html#twin-axes
-            "holoviews >= 1.17",
+            # holoviews >= 1.17: Twin axes support: https://holoviews.org/user_guide/Customizing_Plots.html#twin-axes
+            # holoviews >= 1.22.1: Bokeh timedelta axis support: https://holoviews.org/releases.html#version-1-22-1
+            "holoviews >= 1.22.1",
             "panel",
             "colorcet",
             # Avoid:
