@@ -1,0 +1,50 @@
+# 
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copyright (C) 2026, Arm Limited and contributors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+default:
+  tags:
+    - cesw-shared-amd64
+  # cancel a job if a new pipeline is triggered on the same branch
+  interruptible: true
+
+# Required for Manual runs through UI
+variables:
+  WEB_SKIP_BLACKDUCK:
+    value: "False"
+    options:
+      - "True"
+      - "False"
+    description: True to skip blackduck job when triggered via Web UI.
+
+
+Blackduck:
+  environment:
+    # This grants the BLACKDUCK_* environment variables
+    name: blackduck
+  rules:
+      - if: $CI_PIPELINE_SOURCE == "web"
+      - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    # Make the test a no-op so we can run any step depending on successful tests
+    - if [[ "$CI_PIPELINE_SOURCE" == "web" && "$WEB_SKIP_BLACKDUCK" == "True" ]]; then exit 0; fi
+    - curl -vfL -o patchscan "https://artifactory.arm.com/artifactory/blackduck.patch-snippet-checker/latest/linux/arm64/patchscan"
+    - chmod +x ./patchscan
+    - ./patchscan --detect.project.name "$BLACKDUCK_PROJECT_NAME" --ignore-components 'ARM-Software_Lisa' "$CI_MERGE_REQUEST_DIFF_BASE_SHA..$CI_COMMIT_SHA"
+
+
