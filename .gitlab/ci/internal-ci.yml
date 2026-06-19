@@ -40,11 +40,23 @@ Blackduck:
       - if: $CI_PIPELINE_SOURCE == "web"
       - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-  script:
+
+  before_script:
     # Make the test a no-op so we can run any step depending on successful tests
     - if [[ "$CI_PIPELINE_SOURCE" == "web" && "$WEB_SKIP_BLACKDUCK" == "True" ]]; then exit 0; fi
-    - curl -vfL -o patchscan "https://artifactory.arm.com/artifactory/blackduck.patch-snippet-checker/latest/linux/arm64/patchscan"
-    - chmod +x ./patchscan
-    - ./patchscan --detect.project.name "$BLACKDUCK_PROJECT_NAME" --ignore-components 'ARM-Software_Lisa' "$CI_MERGE_REQUEST_DIFF_BASE_SHA..$CI_COMMIT_SHA"
+    - sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
+    - export DEBIAN_FRONTEND=noninteractive
+    - apt-get update -y
+    - apt-get upgrade -y
+    - apt-get install software-properties-common -y
+    - apt-get install curl file git default-jre -y
 
+  script:
+    - curl -vfL -o patchscan "https://artifactory.arm.com/artifactory/blackduck.patch-snippet-checker/latest/linux/amd64/patchscan"
+    - chmod +x ./patchscan
+    - file ./patchscan
+    - |
+      rev_range="$CI_MERGE_REQUEST_DIFF_BASE_SHA..$CI_COMMIT_SHA"
+      git fetch --unshallow origin
+      ./patchscan "$rev_range" --detect.project.name "$BLACKDUCK_PROJECT_NAME" --ignore-components 'ARM-Software_Lisa'
 
