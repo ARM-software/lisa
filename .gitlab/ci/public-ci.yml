@@ -25,42 +25,46 @@ default:
 # Required for Manual runs through UI
 variables:
   PYVERSION:
-    value: 11
-    description: Default version of Python to use for non-test jobs
+    value: "11"
+    description: Default version of Python to use for non-test jobs.
 
-  WEB_SKIP_TEST:
-    value: "False"
+  ENABLE_TEST:
+    value: "True"
     options:
       - "True"
       - "False"
-    description: True to skip test job when triggered via Web UI.
-  WEB_SKIP_AUTOBRANCH:
-    value: "False"
+    description: True to enable the test job.
+
+  ENABLE_AUTOBRANCH:
+    value: "True"
     options:
       - "True"
       - "False"
-    description: True to skip autobranch job when triggered via Web UI.
-  WEB_SKIP_PAGES:
-    value: "False"
+    description: True to enable autobranch job.
+
+  ENABLE_PAGES:
+    value: "True"
     options:
       - "True"
       - "False"
-    description: True to skip pages job when triggered via Web UI.
+    description: True to enable gitlab pages build and deploy job. 
 
 Test:
   rules:
+      - if: $ENABLE_TEST != "True"
+        when: never
+
       - if: $CI_PIPELINE_SOURCE == "web"
       - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
   parallel:
     matrix:
       # Skip Python 3.12 as Ubuntu 22.04 does not ship a version containing the fix for:
       # https://github.com/python/cpython/issues/122695
-      - PYVERSION: [10, 11, 13, 14]
-  before_script:
-    # Make the test a no-op so we can run any step depending on successful tests
-    - if [[ "$CI_PIPELINE_SOURCE" == "web" && "$WEB_SKIP_TEST" == "True" ]]; then exit 0; fi
+      - PYVERSION: ["10", "11", "13", "14"]
 
+  before_script:
     - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
     - export DEBIAN_FRONTEND=noninteractive
     - sudo apt-get update -y
@@ -70,6 +74,7 @@ Test:
     - sudo apt-get update -y
     - sudo apt-get -y install python3.${PYVERSION}-full
     - sudo chmod o+rx /sys/kernel/debug
+
   script:
     - export TZ=UTC
     - export LISA_PYTHON=python3.${PYVERSION}
@@ -77,7 +82,15 @@ Test:
     - bash ./tools/tests.sh |& ts '[%H:%M:%.S]'
 
 Autobranch:
-  needs: ['Test']
+  resource_group: autobranch
+  interruptible: false
+
+  needs: 
+    - job: Test 
+      # If the job was not present (e.g. was manually disabled), we still run.
+      # But if it was present and failed, we fail.
+      optional: true 
+
   environment:
     # This grants the GITLAB_REPO_TOKEN variable allowing to push to the repo
     name: repo_write_access
@@ -87,15 +100,16 @@ Autobranch:
     # runs with the code from the default branch (main) rather than the merge
     # request branch for safety reasons.
     GIT_STRATEGY: none
+
   rules:
-      - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      - if: $ENABLE_AUTOBRANCH != "True"
+        when: never
+
+      - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH 
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /(^|,)autobranch($|,)/ 
-  resource_group: autobranch
-  before_script:
-    # Make the test a no-op so we can run any step depending on successful tests
-    - if [[ "$CI_PIPELINE_SOURCE" == "web" && "$WEB_SKIP_AUTOBRANCH" == "True" ]]; then exit 0; fi
 
+  before_script:
     - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
     - export DEBIAN_FRONTEND=noninteractive
     - sudo apt-get update -y
@@ -149,8 +163,11 @@ Autobranch:
           local branch=$2
           local force_branch=$3
 
-          local worktree=$(mktemp -d --suffix "-${branch}-repo")
-          local patch=$(mktemp --suffix "-$branch.patch")
+          local worktree
+          worktree=$(mktemp -d --suffix "-${branch}-repo")
+
+          local patch
+          patch=$(mktemp --suffix "-$branch.patch")
 
           lisa-combine-gitlab-mr --server "$CI_SERVER_HOST" --repo "$CI_PROJECT_PATH" --project-id "$CI_PROJECT_ID" --api-url "$CI_API_V4_URL" --api-token "$GITLAB_REPO_TOKEN" --mr-label "$label" --branch "$force_branch" &&
 
@@ -165,11 +182,13 @@ Autobranch:
           if [[ -s "$patch" ]]; then
               # Apply the patch to the index as well, so that any file created
               # is automatically added to the commit we are about to create.
-              git -C "$worktree" apply --index "$patch" &&
-              git -C "$worktree" commit --all -m "Autocommit to $branch branch on $(date) tracking $force_branch"
+              git -C "$worktree" apply --index "$patch" || return 1
+              git -C "$worktree" commit --all -m "Autocommit to $branch branch on $(date) tracking $force_branch" || return 1
 
-              git push --force origin "$force_branch"
-              git push origin "$branch"
+              local ret=0
+              git push --force origin "$force_branch" || ret=1
+              git push origin "$branch" || ret=1
+              return $ret
           else
               echo "Empty patch, $branch and $force_branch branches are up to date."
           fi
@@ -186,24 +205,26 @@ Autobranch:
       exit $ret
 
 
-pages:
+Pages:
   resource_group: pages
+  interruptible: false
+
+  stage: deploy
+  pages: true
 
   artifacts:
     paths:
         - public
 
   rules:
-      - if: $CI_PIPELINE_SOURCE == "web" && $WEB_SKIP_PAGES == "False"
-        needs: ['Autobranch']
-      - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"
-        needs: ['Autobranch']
-      - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "preview"
-        needs: []
-      - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "master"
-        needs: []
-      - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "release"
-        needs: []
+      - if: $ENABLE_PAGES != "True"
+        when: never
+
+      - if: ($CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "web") && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+        needs: 
+          - job: Autobranch
+            optional: true
+      - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(preview|master|release)$/
 
   before_script:
     - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
@@ -262,21 +283,24 @@ pages:
       function build_branch() {
           local ref=$1
           local publish_as=$2
-          local worktree=$(mktemp -d --suffix "-worktree")
-          git fetch origin "$ref"
-          git worktree add "$worktree" --checkout "$ref"
+          local worktree
+          worktree=$(mktemp -d --suffix "-worktree") || return 1
+          git fetch origin "$ref" || return 1
+          git worktree add "$worktree" --checkout "$ref" || return 1
           (
-            cd "$worktree"
-            sudo ./install_base.sh --install-doc-extras
+            cd "$worktree" || return 1
+            sudo ./install_base.sh --install-doc-extras || return 1
 
             set +e
             source ./init_env || return 1
             set -e
-            audit
+
+            audit || return 1
 
             export LISA_DOC_VERSION="$publish_as"
             export LC_ALL=C
-            local doctree=$(mktemp -d --suffix "-doctree")
+            local doctree
+            doctree=$(mktemp -d --suffix "-doctree") || return 1
             cd ./doc && sphinx-build -b html -n --no-color -W --keep-going -T -j auto -d "$doctree" . "$out/$publish_as"
           )
       }
