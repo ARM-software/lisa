@@ -22,9 +22,21 @@ default:
   # cancel a job if a new pipeline is triggered on the same branch
   interruptible: true
 
+  before_script:
+    - export TZ=UTC
+    - export DEBIAN_FRONTEND=noninteractive
+    - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
+    - sudo apt-get update -y
+    - sudo apt-get upgrade -y
+    - sudo apt-get install software-properties-common -y
+    - sudo add-apt-repository ppa:deadsnakes/ppa -y
+    - sudo apt-get update -y
+    - sudo apt-get -y install python3-pip python3.${PYTHON_VERSION}-full
+    - export LISA_PYTHON=python3.${PYTHON_VERSION}
+
 # Required for Manual runs through UI
 variables:
-  PYVERSION:
+  PYTHON_VERSION:
     value: "11"
     description: Default version of Python to use for non-test jobs.
 
@@ -62,22 +74,10 @@ Test:
     matrix:
       # Skip Python 3.12 as Ubuntu 22.04 does not ship a version containing the fix for:
       # https://github.com/python/cpython/issues/122695
-      - PYVERSION: ["10", "11", "13", "14"]
-
-  before_script:
-    - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
-    - export DEBIAN_FRONTEND=noninteractive
-    - sudo apt-get update -y
-    - sudo apt-get upgrade -y
-    - sudo apt-get install software-properties-common -y
-    - sudo add-apt-repository ppa:deadsnakes/ppa -y
-    - sudo apt-get update -y
-    - sudo apt-get -y install python3.${PYVERSION}-full
-    - sudo chmod o+rx /sys/kernel/debug
+      - PYTHON_VERSION: ["10", "11", "13", "14"]
 
   script:
-    - export TZ=UTC
-    - export LISA_PYTHON=python3.${PYVERSION}
+    - sudo chmod o+rx /sys/kernel/debug
     - sudo ./install_base.sh --install-all
     - bash ./tools/tests.sh |& ts '[%H:%M:%.S]'
 
@@ -109,17 +109,7 @@ Autobranch:
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /(^|,)autobranch($|,)/ 
 
-  before_script:
-    - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
-    - export DEBIAN_FRONTEND=noninteractive
-    - sudo apt-get update -y
-    - sudo apt-get upgrade -y
-    - sudo apt-get install software-properties-common -y
-    - sudo add-apt-repository ppa:deadsnakes/ppa -y
-    - sudo apt-get update -y
-    - sudo apt-get -y install python3.${PYVERSION}-full
-    - export LISA_PYTHON=python3.${PYVERSION}
-
+  script: 
     - |
       # Avoid using /tmp since it's probably in tmpfs and would consume RAM
       export TMPDIR=$(readlink -f .)/tmp
@@ -140,7 +130,6 @@ Autobranch:
       git config --global user.name 'project_10402_bot_63a504c3fe43f0e42f1c4ebe6263c37b'
       git config --global user.email 'project_10402_bot_63a504c3fe43f0e42f1c4ebe6263c37b@noreply.gitlab.arm.com'
 
-  script: 
     - |
       function lisa_python() {
         "$LISA_PYTHON" "$@"
@@ -226,23 +215,11 @@ Pages:
             optional: true
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(preview|master|release)$/
 
-  before_script:
-    - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
-    - export DEBIAN_FRONTEND=noninteractive
-    - sudo apt-get update -y
-    - sudo apt-get upgrade -y
-    - sudo apt-get install software-properties-common symlinks rdfind -y
-    - sudo add-apt-repository ppa:deadsnakes/ppa -y
-    - sudo apt-get update -y
-    - sudo apt-get -y install python3-pip python3.${PYVERSION}-full
-    - export LISA_PYTHON=python3.${PYVERSION}
-
+  script:
     # This avoids the error: Missing gitlab-runner. Uploading artifacts is disabled.
     # https://docs.gitlab.com/runner/install/linux-repository.html
     - curl -L "https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.deb.sh" | sudo bash
-    - sudo apt-get -y install gitlab-runner
-
-  script:
+    - sudo apt-get -y install symlinks rdfind gitlab-runner
     - |
       function lisa_python() {
           "$LISA_PYTHON" "$@"
