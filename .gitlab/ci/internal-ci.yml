@@ -22,41 +22,86 @@ default:
   # cancel a job if a new pipeline is triggered on the same branch
   interruptible: true
 
+  before_script:
+    - export TZ=UTC
+    - export DEBIAN_FRONTEND=noninteractive
+    - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
+    - sudo apt-get update -y
+    - sudo apt-get upgrade -y
+
+include:
+    # If running from gitlab.geo.arm.com then you can reference the project
+    # directly like shown below. If using a different Gitlab instance, then
+    # reference the project using the full URL like below:
+    #- remote: 'https://gitlab.geo.arm.com/mirrors/gitlab/blackduck/black-duck-security-scan/-/raw/v2/templates/security_scan.yml'
+  - project: mirrors/gitlab/blackduck/black-duck-security-scan
+    ref: v2
+    file: templates/security_scan.yml
+
 # Required for Manual runs through UI
 variables:
-  WEB_SKIP_BLACKDUCK:
-    value: "False"
+  ENABLE_BLACKDUCK_SNIPPET_SCAN:
+    value: "True"
     options:
       - "True"
       - "False"
-    description: True to skip blackduck job when triggered via Web UI.
+    description: True to enable blackduck snippet scan job.
+
+  ENABLE_BLACKDUCK_SCA_SCAN:
+    value: "True"
+    options:
+      - "True"
+      - "False"
+    description: True to enable blackduck SCA job.
 
 
-Blackduck:
+Blackduck-Snippet-Scan:
+  resource_group: blackduck
+
   environment:
     # This grants the BLACKDUCK_* environment variables
     name: blackduck
+
   rules:
+      - if: $ENABLE_BLACKDUCK_SNIPPET_SCAN != "True"
+        when: never
+
       - if: $CI_PIPELINE_SOURCE == "web"
       - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-  before_script:
-    # Make the test a no-op so we can run any step depending on successful tests
-    - if [[ "$CI_PIPELINE_SOURCE" == "web" && "$WEB_SKIP_BLACKDUCK" == "True" ]]; then exit 0; fi
-    - sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
-    - export DEBIAN_FRONTEND=noninteractive
-    - apt-get update -y
-    - apt-get upgrade -y
-    - apt-get install software-properties-common -y
-    - apt-get install curl file git default-jre -y
-
   script:
+    - apt-get install -y curl file git default-jre
+    - git fetch --unshallow origin
     - curl -vfL -o patchscan "https://artifactory.arm.com/artifactory/blackduck.patch-snippet-checker/latest/linux/amd64/patchscan"
-    - chmod +x ./patchscan
     - file ./patchscan
+    - chmod +x ./patchscan
     - |
       rev_range="$CI_MERGE_REQUEST_DIFF_BASE_SHA..$CI_COMMIT_SHA"
-      git fetch --unshallow origin
       ./patchscan "$rev_range" --detect.project.name "$BLACKDUCK_PROJECT_NAME" --ignore-components 'ARM-Software_Lisa'
 
+
+Blackduck-SCA-scan:
+  resource_group: blackduck
+
+  environment:
+    # This grants the BLACKDUCK_* environment variables
+    name: blackduck
+
+  extends: .run-black-duck-tools
+
+  rules:
+      - if: $ENABLE_BLACKDUCK_SCA_SCAN != "True"
+        when: never
+
+      - if: $CI_PIPELINE_SOURCE == "web"
+      - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+  script:
+    - apt-get install -y curl unzip ca-certificates
+    - !reference [.run-black-duck-tools, script]
+
+  variables:
+    BRIDGE_BLACKDUCKSCA_SCAN_FULL: "true"
+    BRIDGE_BLACKDUCKSCA_REPORTS_GITLAB_CREATE: "false"
