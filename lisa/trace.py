@@ -2867,7 +2867,7 @@ class TxtTraceParserBase(TraceParserBase):
 
             df = df.group_by('__event').agg(
                 pl.col('__fields')
-                .list.explode()
+                .list.explode(empty_as_null=False)
                 .unique()
             )
 
