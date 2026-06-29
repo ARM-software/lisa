@@ -127,7 +127,6 @@ export _DOC_LISA_UPGRADE_VENV="1 to make lisa-install upgrade the venv specified
 LISA_VENV_PATH. If 0, lisa-install will destroy the venv and re-create anew"
 export LISA_UPGRADE_VENV=${LISA_UPGRADE_VENV:-0}
 
-
 # Force the shell to rescan the folders listed in $PATH
 function _lisa-reload-PATH {
     # that should work for most shells (at least bash and zsh)
@@ -273,19 +272,20 @@ function lisa-install {
         [[ -e "$f" ]] && pip_options+=(-r "$f")
     done
 
-    if [[ "$LISA_UPGRADE_VENV" == 1 ]]; then
-        pip_options+=(--upgrade --upgrade-strategy eager)
-    fi
-
     echo
     echo "Installing LISA packages ..."
     echo
+
+    if [[ "$LISA_UPGRADE_VENV" == 1 ]]; then
+        pip_options+=(--upgrade --upgrade-strategy eager)
+    fi
 
     # Make sure we install all packages, even if they are satisfied by the
     # system's site-packages location. This ensures we use up to date packages,
     # and that the installation process will give the same result on all
     # machines at a given point in time.
-    (cd "$LISA_HOME" && _lisa-python -m pip install --no-cache-dir "${pip_options[@]}" "$@")
+    (cd "$LISA_HOME" && _lisa-python -m pip install "${pip_options[@]}" "$@")
+
     local pip_ret=$?
 
     # With the new scheme introduced in polars 1.34, several runtimes can
