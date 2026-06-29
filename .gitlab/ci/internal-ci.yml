@@ -14,20 +14,6 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-
-default:
-  tags:
-    - cesw-shared-amd64
-  # cancel a job if a new pipeline is triggered on the same branch
-  interruptible: true
-
-  before_script:
-    - export TZ=UTC
-    - export DEBIAN_FRONTEND=noninteractive
-    - sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
-    - apt-get update -y
-    - apt-get upgrade -y
 
 include:
     # If running from gitlab.geo.arm.com then you can reference the project
@@ -38,8 +24,31 @@ include:
     ref: v2
     file: templates/security_scan.yml
 
-# Required for Manual runs through UI
+
 variables:
+  PYTHON_VERSION:
+    value: "11"
+    description: Default version of Python to use for non-test jobs.
+
+  CACHE_POLICY:
+    value: "pull"
+    options:
+      - "pull"
+      - "push"
+      - "pull-push"
+    description: Default gitlab cache policy.
+
+  PACKAGE_CACHE_KEY:
+    value: "default"
+    description: Key used to separate package caches for jobs that don't use the typical setup.
+
+  ENABLE_REFRESH_CACHES:
+    value: "True"
+    options:
+      - "True"
+      - "False"
+    description: True to enable the cache refresh job.
+
   ENABLE_BLACKDUCK_SNIPPET_SCAN:
     value: "True"
     options:
@@ -53,6 +62,97 @@ variables:
       - "True"
       - "False"
     description: True to enable blackduck SCA job.
+
+
+.package-caches:
+  cache:
+    - key: "pip-${PACKAGE_CACHE_KEY}-${PYTHON_VERSION}-${CI_COMMIT_REF_SLUG}"
+      fallback_keys:
+        - "pip-${PACKAGE_CACHE_KEY}-${PYTHON_VERSION}-${CI_DEFAULT_BRANCH_SLUG}"
+      paths:
+        - "$PIP_CACHE_DIR"
+      policy: "$CACHE_POLICY"
+
+    - key: "apt-${PACKAGE_CACHE_KEY}-${PYTHON_VERSION}-${CI_COMMIT_REF_SLUG}"
+      fallback_keys:
+        - "apt-${PACKAGE_CACHE_KEY}-${PYTHON_VERSION}-${CI_DEFAULT_BRANCH_SLUG}"
+      paths:
+        - .cache/apt/archives
+        - .cache/apt/lists
+      policy: "$CACHE_POLICY"
+
+
+.test-parallel:
+  parallel:
+    matrix:
+      # Skip Python 3.12 as Ubuntu 22.04 does not ship a version containing the
+      # fix for: https://github.com/python/cpython/issues/122695
+      - PYTHON_VERSION: ["10", "11", "13", "14"]
+
+.refresh-caches:
+  resource_group: write-cache
+  variables:
+    # We rebuild the cache from scratch and push it. We don't want to pull it
+    # as doing so will keep the previous cache content and therefore only ever
+    # increase its size.
+    CACHE_POLICY: "push"
+
+  rules:
+      - if: $ENABLE_REFRESH_CACHES != "True"
+        when: never
+
+  script:
+    - ./install_base.sh --install-all
+    - source ./init_env
+
+
+default:
+  tags:
+    - cesw-shared-amd64
+  # cancel a job if a new pipeline is triggered on the same branch
+  interruptible: true
+
+  before_script:
+    - export TZ=UTC
+    - export DEBIAN_FRONTEND=noninteractive
+    - export PIP_CACHE_DIR=$(realpath -m .cache/pip)
+    - export LISA_PYTHON=python3.${PYTHON_VERSION}
+    - mkdir -p "$CI_PROJECT_DIR/.cache/apt/archives/partial"
+    - mkdir -p "$CI_PROJECT_DIR/.cache/apt/lists/partial"
+    # Docker containers may be setup with a hook that deletes cached packages
+    # to keep the images small. We obviously don't want that as we are trying
+    # to populate a reusable cache.
+    - rm -f /etc/apt/apt.conf.d/docker-clean || true
+    - |
+      cat >/tmp/99gitlab-cache <<EOF
+      Dir::Cache::archives "$CI_PROJECT_DIR/.cache/apt/archives";
+      Dir::State::lists "$CI_PROJECT_DIR/.cache/apt/lists";
+      Acquire::Retries "3";
+      EOF
+    - mv /tmp/99gitlab-cache /etc/apt/apt.conf.d/99gitlab-cache
+    - apt-get update -y
+    - apt-get upgrade -y
+    - apt-get install software-properties-common -y
+    - add-apt-repository ppa:deadsnakes/ppa -y
+    - apt-get update -y
+    - apt-get -y install python3-pip python3.${PYTHON_VERSION}-full
+    - mkdir -p "$PIP_CACHE_DIR"
+
+
+Refresh-Caches:
+  extends: .refresh-caches
+
+
+Refresh-Caches-Matrix:
+  extends: .refresh-caches
+  parallel: !reference [.test-parallel, parallel]
+
+  rules:
+      - if: $ENABLE_REFRESH_CACHES != "True"
+        when: never
+
+      - if: $CI_PIPELINE_SOURCE == "web"
+      - if: $CI_PIPELINE_SOURCE == "schedule"
 
 
 Blackduck-Snippet-Scan:
@@ -90,6 +190,10 @@ Blackduck-SCA-scan:
 
   extends: .run-black-duck-tools
 
+  needs:
+    - job: Refresh-Caches
+      optional: true
+
   rules:
       - if: $ENABLE_BLACKDUCK_SCA_SCAN != "True"
         when: never
@@ -98,10 +202,18 @@ Blackduck-SCA-scan:
       - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-  script:
-    - apt-get install -y default-jre unzip ca-certificates curl
-    - !reference [.run-black-duck-tools, script]
-
   variables:
+    DETECT_PROJECT_NAME: "$BLACKDUCK_PROJECT_NAME"
+    DETECT_PROJECT_VERSION_NAME: "$CI_COMMIT_REF_NAME"
+
+    BRIDGE_BLACKDUCKSCA_TOKEN: "$BLACKDUCK_API_TOKEN"
+    BRIDGE_BLACKDUCKSCA_URL: "https://arm.app.blackduck.com"
     BRIDGE_BLACKDUCKSCA_SCAN_FULL: "true"
     BRIDGE_BLACKDUCKSCA_REPORTS_GITLAB_CREATE: "false"
+
+  script:
+    - ./install_base.sh --install-all
+    - source ./init_env
+
+    - apt-get install -y curl git default-jre unzip ca-certificates
+    - !reference [.run-black-duck-tools, script]
