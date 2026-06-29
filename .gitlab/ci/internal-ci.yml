@@ -25,9 +25,9 @@ default:
   before_script:
     - export TZ=UTC
     - export DEBIAN_FRONTEND=noninteractive
-    - sudo sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
-    - sudo apt-get update -y
-    - sudo apt-get upgrade -y
+    - sh -c 'echo "APT::Acquire::Retries=3;" >> /etc/apt/apt.conf.d/99retry-downloads'
+    - apt-get update -y
+    - apt-get upgrade -y
 
 include:
     # If running from gitlab.geo.arm.com then you can reference the project
