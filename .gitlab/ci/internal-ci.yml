@@ -98,10 +98,16 @@ Blackduck-SCA-scan:
       - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-  script:
-    - apt-get install -y default-jre unzip ca-certificates curl
-    - !reference [.run-black-duck-tools, script]
-
   variables:
+    DETECT_PROJECT_NAME: "$BLACKDUCK_PROJECT_NAME"
+    DETECT_PROJECT_VERSION_NAME: "$CI_COMMIT_REF_NAME"
+    DETECT_ACCURACY_REQUIRED: "NONE"
+
+    BRIDGE_BLACKDUCKSCA_TOKEN: "$BLACKDUCK_API_TOKEN"
+    BRIDGE_BLACKDUCKSCA_URL: "https://arm.app.blackduck.com"
     BRIDGE_BLACKDUCKSCA_SCAN_FULL: "true"
     BRIDGE_BLACKDUCKSCA_REPORTS_GITLAB_CREATE: "false"
+
+  script:
+    - apt-get install -y curl git default-jre unzip ca-certificates
+    - !reference [.run-black-duck-tools, script]
