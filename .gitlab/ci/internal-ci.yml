@@ -99,7 +99,7 @@ Blackduck-SCA-scan:
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
   script:
-    - apt-get install -y curl unzip ca-certificates
+    - apt-get install -y default-jre unzip ca-certificates curl
     - !reference [.run-black-duck-tools, script]
 
   variables:
