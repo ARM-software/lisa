@@ -28,8 +28,8 @@
       fallback_keys:
         - "apt-${PACKAGE_CACHE_KEY}-${PYTHON_VERSION}-${CI_DEFAULT_BRANCH_SLUG}"
       paths:
-        - .cache/apt/archives
-        - .cache/apt/lists
+        - "$APT_CACHE_DIR/archives"
+        - "$APT_CACHE_DIR/lists"
       policy: "$CACHE_POLICY"
 
 
@@ -68,17 +68,18 @@ default:
     - export TZ=UTC
     - export DEBIAN_FRONTEND=noninteractive
     - export PIP_CACHE_DIR=$(realpath -m .cache/pip)
+    - export APT_CACHE_DIR=$(realpath -m .cache/apt)
     - export LISA_PYTHON=python3.${PYTHON_VERSION}
-    - mkdir -p "$CI_PROJECT_DIR/.cache/apt/archives/partial"
-    - mkdir -p "$CI_PROJECT_DIR/.cache/apt/lists/partial"
+    - mkdir -p "$APT_CACHE_DIR/archives/partial"
+    - mkdir -p "$APT_CACHE_DIR/lists/partial"
     # Docker containers may be setup with a hook that deletes cached packages
     # to keep the images small. We obviously don't want that as we are trying
     # to populate a reusable cache.
     - sudo rm -f /etc/apt/apt.conf.d/docker-clean || true
     - |
       cat >/tmp/99gitlab-cache <<EOF
-      Dir::Cache::archives "$CI_PROJECT_DIR/.cache/apt/archives";
-      Dir::State::lists "$CI_PROJECT_DIR/.cache/apt/lists";
+      Dir::Cache::archives "$APT_CACHE_DIR/archives";
+      Dir::State::lists "$APT_CACHE_DIR/lists";
       Acquire::Retries "3";
       EOF
     - sudo mv /tmp/99gitlab-cache /etc/apt/apt.conf.d/99gitlab-cache
