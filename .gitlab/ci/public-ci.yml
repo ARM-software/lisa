@@ -66,12 +66,13 @@ default:
 
   before_script:
     - export TZ=UTC
-    - export DEBIAN_FRONTEND=noninteractive
-    - export PIP_CACHE_DIR=$(realpath -m .cache/pip)
-    - export APT_CACHE_DIR=$(realpath -m .cache/apt)
     - export LISA_PYTHON=python3.${PYTHON_VERSION}
+    - export DEBIAN_FRONTEND=noninteractive
+    - export PIP_CACHE_DIR=$(realpath -m "$PIP_CACHE_DIR")
+    - export APT_CACHE_DIR=$(realpath -m "$APT_CACHE_DIR")
     - mkdir -p "$APT_CACHE_DIR/archives/partial"
     - mkdir -p "$APT_CACHE_DIR/lists/partial"
+    - mkdir -p "$PIP_CACHE_DIR"
     # Docker containers may be setup with a hook that deletes cached packages
     # to keep the images small. We obviously don't want that as we are trying
     # to populate a reusable cache.
@@ -89,7 +90,6 @@ default:
     - sudo add-apt-repository ppa:deadsnakes/ppa -y
     - sudo apt-get update -y
     - sudo apt-get -y install python3-pip python3.${PYTHON_VERSION}-full
-    - mkdir -p "$PIP_CACHE_DIR"
 
   cache:
     - !reference [.package-caches, cache]
@@ -100,6 +100,12 @@ variables:
   PYTHON_VERSION:
     value: "11"
     description: Default version of Python to use for non-test jobs.
+
+  PIP_CACHE_DIR:
+    value: ".cache/pip"
+
+  APT_CACHE_DIR:
+    value: ".cache/apt"
 
   CACHE_POLICY:
     value: "pull"
