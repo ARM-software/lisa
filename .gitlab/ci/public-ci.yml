@@ -97,10 +97,10 @@ default:
 
 # Required for Manual runs through UI
 variables:
-  PYTHON_VERSION:
-    value: "11"
-    description: Default version of Python to use for non-test jobs.
-
+  # Some variables must not have a description, so that:
+  # 1. They do not appear in the configuration when running a pipeline manually
+  # 2. If they do not appear in the manual pipeline config, they will therefore
+  #    not override the values set per-job.
   PIP_CACHE_DIR:
     value: ".cache/pip"
 
@@ -113,7 +113,10 @@ variables:
       - "pull"
       - "push"
       - "pull-push"
-    description: Default gitlab cache policy.
+
+  PYTHON_VERSION:
+    value: "11"
+    description: Default version of Python to use for non-test jobs.
 
   PACKAGE_CACHE_KEY:
     value: "default"
