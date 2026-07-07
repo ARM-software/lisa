@@ -24,9 +24,9 @@
         - "$PIP_CACHE_DIR"
       policy: "$CACHE_POLICY"
 
-    - key: "apt-${PACKAGE_CACHE_KEY}-${PYTHON_VERSION}-${CI_COMMIT_REF_SLUG}"
+    - key: "apt-${PACKAGE_CACHE_KEY}-{$CI_RUNNER_TAGS}-${PYTHON_VERSION}-${CI_COMMIT_REF_SLUG}"
       fallback_keys:
-        - "apt-${PACKAGE_CACHE_KEY}-${PYTHON_VERSION}-${CI_DEFAULT_BRANCH_SLUG}"
+        - "apt-${PACKAGE_CACHE_KEY}-${CI_RUNNER_TAGS}-${PYTHON_VERSION}-${CI_DEFAULT_BRANCH_SLUG}"
       paths:
         - "$APT_CACHE_DIR/archives"
         - "$APT_CACHE_DIR/lists"
