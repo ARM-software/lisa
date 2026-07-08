@@ -82,6 +82,7 @@ default:
       Dir::Cache::archives "$APT_CACHE_DIR/archives";
       Dir::State::lists "$APT_CACHE_DIR/lists";
       Acquire::Retries "3";
+      APT::Sandbox::User=root;
       EOF
     - sudo mv /tmp/99gitlab-cache /etc/apt/apt.conf.d/99gitlab-cache
     - sudo apt-get update -y
