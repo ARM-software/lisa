@@ -57,6 +57,17 @@
     - sudo ./install_base.sh --install-all
     - source ./init_env
 
+  after_script:
+    # Do not cache apt runtime state.
+    - sudo rm -f "$APT_CACHE_DIR/*/lock"
+    - sudo rm -f "$APT_CACHE_DIR/pkgcache.bin"
+    - sudo rm -f "$APT_CACHE_DIR/srcpkgcache.bin"
+    - sudo rm -f "$APT_CACHE_DIR/*/partial"
+
+    # Make remaining .deb/list files readable by the runner cache archiver.
+    - sudo chown -R "$(id -u):$(id -g)" "$APT_CACHE_DIR"
+    - sudo chmod -R 755 "$APT_CACHE_DIR"
+
 
 default:
   tags:
@@ -82,6 +93,7 @@ default:
       Dir::Cache::archives "$APT_CACHE_DIR/archives";
       Dir::State::lists "$APT_CACHE_DIR/lists";
       Acquire::Retries "3";
+      APT::Sandbox::User=root;
       EOF
     - sudo mv /tmp/99gitlab-cache /etc/apt/apt.conf.d/99gitlab-cache
     - sudo apt-get update -y
