@@ -57,6 +57,17 @@
     - sudo ./install_base.sh --install-all
     - source ./init_env
 
+  after_script:
+    # Do not cache apt runtime state.
+    - sudo rm -f "$APT_CACHE_DIR/*/lock"
+    - sudo rm -f "$APT_CACHE_DIR/pkgcache.bin"
+    - sudo rm -f "$APT_CACHE_DIR/srcpkgcache.bin"
+    - sudo rm -f "$APT_CACHE_DIR/*/partial"
+
+    # Make remaining .deb/list files readable by the runner cache archiver.
+    - sudo chown -R "$(id -u):$(id -g)" "$APT_CACHE_DIR"
+    - sudo chmod -R 755 "$APT_CACHE_DIR"
+
 
 default:
   tags:
