@@ -1179,7 +1179,7 @@ class _SubLevelMap(dict):
 
         if isinstance(key_desc, LevelKeyDesc):
             # Build the tree of objects for nested configuration mappings,
-            # lazily so that we can accomodate VariadicLevelKeyDesc
+            # lazily so that we can accommodate VariadicLevelKeyDesc
             new = conf._nested_new(
                 key_desc_path=key_desc.path,
                 src_prio=conf._src_prio,
