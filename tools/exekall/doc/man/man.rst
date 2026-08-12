@@ -159,6 +159,10 @@ Exploiting artifacts
 ``exekall run`` produces an artifact folder. The location can be set using
 ``--artifact-dir`` and other options.
 
+.. warning:: Only load Pickle databases from a trusted source, as loading them
+   can lead to arbitrary code execution. See the `Python pickle documentation
+   <https://docs.python.org/3/library/pickle.html>`_ for more information.
+
 Folder hierarchy
 ----------------
 

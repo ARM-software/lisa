@@ -14,6 +14,10 @@ steps, and saves a report file containing the result of each step. This step
 sequence is run for a number of iterations, or for a given duration. That
 allows tracking fluctuating bugs by repeating a test process many times.
 
+.. warning:: Only load Pickle reports from a trusted source, as loading them
+   can lead to arbitrary code execution. See the `Python pickle documentation
+   <https://docs.python.org/3/library/pickle.html>`_ for more information.
+
 The steps class can implement any run or report behavior, with the ability to
 take parameters. They also decide what data is saved into the report, and
 their contribution to the overall ``git bisect`` result:
