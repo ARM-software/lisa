@@ -38,6 +38,12 @@ import exekall.utils as utils
 from exekall.utils import NoValue, error, warn, debug, info, out, add_argument, OrderedSet, FrozenOrderedSet
 import exekall.engine as engine
 
+PICKLE_LOAD_WARNING = (
+    'WARNING: Only load Pickle files from a trusted source, as loading them '
+    'can lead to arbitrary code execution. See '
+    'https://docs.python.org/3/library/pickle.html for more information.'
+)
+
 # Create an operator for all callables that have been detected in a given
 # set of modules
 
@@ -260,7 +266,9 @@ please run ``exekall run YOUR_SOURCES_OR_MODULES --help``.
 
     add_argument(run_parser, '--load-db', action='append',
         default=[],
-        help="""Reload a database to use some of its objects. The DB and its artifact directory will be merged in the produced DB at the end of the execution, to form a self-contained artifact directory.""")
+        help=f"""Reload a database to use some of its objects. The DB and its artifact directory will be merged in the produced DB at the end of the execution, to form a self-contained artifact directory.
+
+{PICKLE_LOAD_WARNING}""")
 
     add_argument(run_parser, '--load-type', action='append',
         metavar='TYPE_PATTERN',
@@ -382,7 +390,9 @@ directories should be treated as read-only.
     formatter_class=argparse.RawTextHelpFormatter)
 
     add_argument(merge_parser, 'artifact_dirs', nargs='+',
-        help="""Artifact directories created using "exekall run", or value databases to merge.""")
+        help=f"""Artifact directories created using "exekall run", or value databases to merge.
+
+{PICKLE_LOAD_WARNING}""")
 
     add_argument(merge_parser, '-o', '--output', required=True,
         help="""
@@ -410,7 +420,9 @@ arguments.
     formatter_class=argparse.RawTextHelpFormatter)
 
     add_argument(compare_parser, 'db', nargs=2,
-        help="""DBs created using exekall run to compare.""")
+        help=f"""DBs created using exekall run to compare.
+
+{PICKLE_LOAD_WARNING}""")
 
     show_parser = subparsers.add_parser('show',
     description="""
@@ -426,7 +438,9 @@ arguments.
     formatter_class=argparse.RawTextHelpFormatter)
 
     add_argument(show_parser, 'db',
-        help="""DB created using exekall run to show.""")
+        help=f"""DB created using exekall run to show.
+
+{PICKLE_LOAD_WARNING}""")
 
     # Avoid showing help message on the incomplete parser. Instead, we carry on
     # and the help will be displayed after the parser customization of run

@@ -2176,7 +2176,7 @@ class TraceDumpTraceParser(TraceParserBase):
 
         # Turn all string columns into categorical columns, since strings are
         # typically extremely repetitive
-        df = df.with_columns((cs.string() | cs.binary()).cast(pl.Categorical))
+        df = df.with_columns(cs.string().cast(pl.Categorical))
 
         return df
 
@@ -3006,27 +3006,29 @@ class TxtTraceParserBase(TraceParserBase):
             for name, dtype in infer_schema(df).items()
         )
 
+        def make_cast(dtype):
+            def f(expr):
+                expr = expr.cast(dtype)
+                if issubclass(dtype, pl.String):
+                    # Cast all strings as categorical since they are typically
+                    # very repetitive. But we still need to cast to String
+                    # rist, in case the dtype from the input data was
+                    # different.
+                    expr = expr.cast(pl.Categorical)
+                return expr
+            return f
+
         schema_overrides = {
-            field: dtype
+            field: make_cast(dtype)
             for field, _dtype in parser.fields.items()
             if (dtype := dtype_mapping.get(_dtype)) is not None
-        }
-        schema_overrides = {
-            # Cast all strings as categorical since they are typically very
-            # repetitive
-            col: (
-                pl.Categorical
-                if isinstance(dtype, (pl.String, pl.Binary)) else
-                dtype
-            )
-            for col, dtype in schema_overrides.items()
         }
         # We apply the parser-supplied schema after the ones we got from polars
         # itself. This way we ensure the inferred dtypes can be built from the
         # source string, and we later convert it to what the user wants.
         df = df.with_columns(
-            pl.col(name).cast(dtype)
-            for name, dtype in schema_overrides.items()
+            apply_cast(pl.col(name))
+            for name, apply_cast in schema_overrides.items()
         )
 
         df = (

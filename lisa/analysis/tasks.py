@@ -289,7 +289,7 @@ class TasksAnalysis(TraceAnalysisBase):
                 # Ensure we have a Categorical dtype, otherwise we might not be
                 # able to successfully concatenate a String and Categorical
                 # column
-                name=pl.col(name_col).cast(pl.Categorical),
+                name=pl.col(name_col).cast(pl.String).cast(pl.Categorical),
             )
             mapping_df_list.append(mapping_df)
 
