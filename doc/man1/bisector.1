@@ -43,6 +43,14 @@ steps, and saves a report file containing the result of each step. This step
 sequence is run for a number of iterations, or for a given duration. That
 allows tracking fluctuating bugs by repeating a test process many times.
 .sp
+\fBWarning:\fP
+.INDENT 0.0
+.INDENT 3.5
+Only load Pickle reports from a trusted source, as loading them
+can lead to arbitrary code execution. See the Python pickle documentation \%<https://\:docs\:.python\:.org/\:3/\:library/\:pickle\:.html> for more information.
+.UNINDENT
+.UNINDENT
+.sp
 The steps class can implement any run or report behavior, with the ability to
 take parameters. They also decide what data is saved into the report, and
 their contribution to the overall \fBgit bisect\fP result:
@@ -180,7 +188,11 @@ options:
                         \-\-report. The steps will be extracted from the report
                         instead of from the command line. The number of
                         completed iterations will be deducted from the
-                        specified number of iterations.
+                        specified number of iterations. WARNING: Only load
+                        Pickle files from a trusted source, as loading them
+                        can lead to arbitrary code execution. See
+                        https://docs.python.org/3/library/pickle.html for more
+                        information.
   \-\-desc DESC           Report description. Can use {commit} and {date}
                         placeholders.
   \-\-early\-bailout       Restart a new iteration if a step marked the commit as
@@ -216,7 +228,11 @@ parts of the data before computing the overall bisect result.
 
 positional arguments:
   report                Read back a previous session saved using \-\-report
-                        option of run subcommand.
+                        option of run subcommand. WARNING: Only load Pickle
+                        files from a trusted source, as loading them can lead
+                        to arbitrary code execution. See
+                        https://docs.python.org/3/library/pickle.html for more
+                        information.
 
 options:
   \-h, \-\-help            show this help message and exit
@@ -253,7 +269,11 @@ options:
                         \(dq{report_filename}.cache.pickle\(dq using the fastest
                         format available. It is the reused until the original
                         file is modified. This is mostly useful when working
-                        with big YAML files that are long to load.
+                        with big YAML files that are long to load. WARNING:
+                        Only load Pickle files from a trusted source, as
+                        loading them can lead to arbitrary code execution. See
+                        https://docs.python.org/3/library/pickle.html for more
+                        information.
 
 .EE
 .UNINDENT
@@ -820,7 +840,11 @@ options:
   \-\-kill                Kill the given instance.
   \-\-log                 Show log in $PAGER.
   \-\-report ...          Equivalent to running bisector report, all remaining
-                        options being passed to it.
+                        options being passed to it. WARNING: Only load Pickle
+                        files from a trusted source, as loading them can lead
+                        to arbitrary code execution. See
+                        https://docs.python.org/3/library/pickle.html for more
+                        information.
   \-\-notif enable/disable PROPERTY
                         Enable and disable desktop notifications when the
                         given property changes. \(aqall\(aq will select all
@@ -868,7 +892,11 @@ usage: bisector edit [\-h] [\-o OPTION] [\-\-debug] [\-\-steps STEPS] report
 Modify the properties of the steps in an existing report.
 
 positional arguments:
-  report                Report to edit.
+  report                Report to edit. WARNING: Only load Pickle files from a
+                        trusted source, as loading them can lead to arbitrary
+                        code execution. See
+                        https://docs.python.org/3/library/pickle.html for more
+                        information.
 
 options:
   \-h, \-\-help            show this help message and exit

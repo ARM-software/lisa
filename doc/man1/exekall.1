@@ -110,6 +110,10 @@ options:
   \-\-load\-db LOAD_DB     Reload a database to use some of its objects. The DB and its artifact
                         directory will be merged in the produced DB at the end of the
                         execution, to form a self\-contained artifact directory.
+                        
+                        WARNING: Only load Pickle files from a trusted source, as loading them
+                        can lead to arbitrary code execution. See
+                        https://docs.python.org/3/library/pickle.html for more information.
   \-\-load\-type TYPE_PATTERN
                         Load the (indirect) instances of the given class from the database
                         instead of the root objects.
@@ -200,6 +204,10 @@ arguments.
 
 positional arguments:
   db          DBs created using exekall run to compare.
+              
+              WARNING: Only load Pickle files from a trusted source, as loading them
+              can lead to arbitrary code execution. See
+              https://docs.python.org/3/library/pickle.html for more information.
 
 options:
   \-h, \-\-help  show this help message and exit
@@ -226,6 +234,10 @@ arguments.
 
 positional arguments:
   db          DB created using exekall run to show.
+              
+              WARNING: Only load Pickle files from a trusted source, as loading them
+              can lead to arbitrary code execution. See
+              https://docs.python.org/3/library/pickle.html for more information.
 
 options:
   \-h, \-\-help  show this help message and exit
@@ -250,6 +262,10 @@ directories should be treated as read\-only.
 positional arguments:
   artifact_dirs         Artifact directories created using \(dqexekall run\(dq, or value databases
                         to merge.
+                        
+                        WARNING: Only load Pickle files from a trusted source, as loading them
+                        can lead to arbitrary code execution. See
+                        https://docs.python.org/3/library/pickle.html for more information.
 
 options:
   \-h, \-\-help            show this help message and exit
@@ -371,6 +387,14 @@ be used to uniquely refer to it, and track where it was used in the logs.
 .sp
 \fBexekall run\fP produces an artifact folder. The location can be set using
 \fB\-\-artifact\-dir\fP and other options.
+.sp
+\fBWarning:\fP
+.INDENT 0.0
+.INDENT 3.5
+Only load Pickle databases from a trusted source, as loading them
+can lead to arbitrary code execution. See the Python pickle documentation \%<https://\:docs\:.python\:.org/\:3/\:library/\:pickle\:.html> for more information.
+.UNINDENT
+.UNINDENT
 .SS Folder hierarchy
 .sp
 The artifact folder contains the following files:

@@ -65,6 +65,12 @@ import uuid
 import requests
 import ruamel.yaml
 
+PICKLE_LOAD_WARNING = (
+    'WARNING: Only load Pickle files from a trusted source, as loading them '
+    'can lead to arbitrary code execution. See '
+    'https://docs.python.org/3/library/pickle.html for more information.'
+)
+
 # If these modules are not available, DBus features will not be used.
 try:
     import pydbus
@@ -5071,7 +5077,9 @@ command line""")
 
     # Options for edit subcommand
     edit_parser.add_argument('report',
-        help="Report to edit.")
+        help=f"""Report to edit.
+
+        {PICKLE_LOAD_WARNING}""")
 
     edit_parser.add_argument('--steps',
         help="""YAML configuration of steps used to find new paths of
@@ -5126,7 +5134,9 @@ command line""")
         help="""Resume execution from the report specified with --report. The
         steps will be extracted from the report instead of from the command
         line. The number of completed iterations will be deducted from the
-        specified number of iterations.""")
+        specified number of iterations.
+
+        {warning}""".format(warning=PICKLE_LOAD_WARNING))
 
     run_parser.add_argument('--desc',
         default='Executed from ' + os.getcwd() + ' ({commit}, {date})',
@@ -5155,7 +5165,10 @@ command line""")
 
     # Options for report subcommand
     report_parser.add_argument('report',
-        help="Read back a previous session saved using --report option of run subcommand.")
+        help=f"""Read back a previous session saved using --report option of
+        run subcommand.
+
+        {PICKLE_LOAD_WARNING}""")
 
     report_parser.add_argument('--export',
         help="""Export the report as a Pickle or YAML file. File format is
@@ -5166,8 +5179,11 @@ command line""")
         help="""When loading a report, create a cache file named "{template}"
         using the fastest format available. It is the reused until the original
         file is modified. This is mostly useful when working with big YAML
-        files that are long to load.""".format(
-            template=Report.REPORT_CACHE_TEMPLATE
+        files that are long to load.
+
+        {warning}""".format(
+            template=Report.REPORT_CACHE_TEMPLATE,
+            warning=PICKLE_LOAD_WARNING,
         )
     )
 
@@ -5214,7 +5230,8 @@ command line""")
     cmd_group.add_argument('--report', nargs=argparse.REMAINDER,
         help="""Equivalent to running bisector report, all remaining options
         being passed to it.
-        """)
+
+        {warning}""".format(warning=PICKLE_LOAD_WARNING))
 
     for group in (cmd_group, dbus_service_parser):
         group.add_argument('--notif', nargs=2,

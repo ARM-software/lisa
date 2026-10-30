@@ -15,58 +15,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.package-caches:
-  cache:
-    - key: "pip-${PACKAGE_CACHE_KEY}-${PYTHON_VERSION}-${CI_COMMIT_REF_SLUG}"
-      fallback_keys:
-        - "pip-${PACKAGE_CACHE_KEY}-${PYTHON_VERSION}-${CI_DEFAULT_BRANCH_SLUG}"
-      paths:
-        - "$PIP_CACHE_DIR"
-      policy: "$CACHE_POLICY"
-
-    - key: "apt-${PACKAGE_CACHE_KEY}-{$CI_RUNNER_TAGS}-${PYTHON_VERSION}-${CI_COMMIT_REF_SLUG}"
-      fallback_keys:
-        - "apt-${PACKAGE_CACHE_KEY}-${CI_RUNNER_TAGS}-${PYTHON_VERSION}-${CI_DEFAULT_BRANCH_SLUG}"
-      paths:
-        - "$APT_CACHE_DIR/archives"
-        - "$APT_CACHE_DIR/lists"
-      policy: "$CACHE_POLICY"
-
-
 .test-parallel:
   parallel:
     matrix:
       # Skip Python 3.12 as Ubuntu 22.04 does not ship a version containing the
       # fix for: https://github.com/python/cpython/issues/122695
       - PYTHON_VERSION: ["10", "11", "13", "14"]
-
-
-.refresh-caches:
-  resource_group: write-cache
-  variables:
-    # We rebuild the cache from scratch and push it. We don't want to pull it
-    # as doing so will keep the previous cache content and therefore only ever
-    # increase its size.
-    CACHE_POLICY: "push"
-
-  rules:
-      - if: $ENABLE_REFRESH_CACHES != "True"
-        when: never
-
-  script:
-    - sudo ./install_base.sh --install-all
-    - source ./init_env
-
-  after_script:
-    # Do not cache apt runtime state.
-    - sudo rm -f "$APT_CACHE_DIR/*/lock"
-    - sudo rm -f "$APT_CACHE_DIR/pkgcache.bin"
-    - sudo rm -f "$APT_CACHE_DIR/srcpkgcache.bin"
-    - sudo rm -f "$APT_CACHE_DIR/*/partial"
-
-    # Make remaining .deb/list files readable by the runner cache archiver.
-    - sudo chown -R "$(id -u):$(id -g)" "$APT_CACHE_DIR"
-    - sudo chmod -R 755 "$APT_CACHE_DIR"
 
 
 default:
@@ -79,32 +33,18 @@ default:
     - export TZ=UTC
     - export LISA_PYTHON=python3.${PYTHON_VERSION}
     - export DEBIAN_FRONTEND=noninteractive
-    - export PIP_CACHE_DIR=$(realpath -m "$PIP_CACHE_DIR")
-    - export APT_CACHE_DIR=$(realpath -m "$APT_CACHE_DIR")
-    - mkdir -p "$APT_CACHE_DIR/archives/partial"
-    - mkdir -p "$APT_CACHE_DIR/lists/partial"
-    - mkdir -p "$PIP_CACHE_DIR"
-    # Docker containers may be setup with a hook that deletes cached packages
-    # to keep the images small. We obviously don't want that as we are trying
-    # to populate a reusable cache.
-    - sudo rm -f /etc/apt/apt.conf.d/docker-clean || true
     - |
-      cat >/tmp/99gitlab-cache <<EOF
-      Dir::Cache::archives "$APT_CACHE_DIR/archives";
-      Dir::State::lists "$APT_CACHE_DIR/lists";
+      cat >/tmp/99gitlab-ci <<EOF
       Acquire::Retries "3";
       APT::Sandbox::User=root;
       EOF
-    - sudo mv /tmp/99gitlab-cache /etc/apt/apt.conf.d/99gitlab-cache
+    - sudo mv /tmp/99gitlab-ci /etc/apt/apt.conf.d/99gitlab-ci
     - sudo apt-get update -y
     - sudo apt-get upgrade -y
     - sudo apt-get install software-properties-common -y
     - sudo add-apt-repository ppa:deadsnakes/ppa -y
     - sudo apt-get update -y
     - sudo apt-get -y install python3-pip python3.${PYTHON_VERSION}-full
-
-  cache:
-    - !reference [.package-caches, cache]
 
 
 # Required for Manual runs through UI
@@ -113,26 +53,9 @@ variables:
   # 1. They do not appear in the configuration when running a pipeline manually
   # 2. If they do not appear in the manual pipeline config, they will therefore
   #    not override the values set per-job.
-  PIP_CACHE_DIR:
-    value: ".cache/pip"
-
-  APT_CACHE_DIR:
-    value: ".cache/apt"
-
-  CACHE_POLICY:
-    value: "pull"
-    options:
-      - "pull"
-      - "push"
-      - "pull-push"
-
   PYTHON_VERSION:
     value: "11"
     description: Default version of Python to use for non-test jobs.
-
-  PACKAGE_CACHE_KEY:
-    value: "default"
-    description: Key used to separate package caches for jobs that don't use the typical setup.
 
   ENABLE_TEST:
     value: "True"
@@ -155,29 +78,6 @@ variables:
       - "False"
     description: True to enable gitlab pages build and deploy job. 
 
-  ENABLE_REFRESH_CACHES:
-    value: "True"
-    options:
-      - "True"
-      - "False"
-    description: True to enable the cache refresh job.
-
-
-Refresh-Caches:
-  extends: .refresh-caches
-
-
-Refresh-Caches-Matrix:
-  extends: .refresh-caches
-  parallel: !reference [.test-parallel, parallel]
-
-  rules:
-      - if: $ENABLE_REFRESH_CACHES != "True"
-        when: never
-
-      - if: $CI_PIPELINE_SOURCE == "web"
-      - if: $CI_PIPELINE_SOURCE == "schedule"
-
 
 Test:
   rules:
@@ -189,10 +89,6 @@ Test:
       - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
   parallel: !reference [.test-parallel, parallel]
-
-  needs:
-    - job: Refresh-Caches-Matrix
-      optional: true
 
   script:
     - sudo chmod o+rx /sys/kernel/debug
@@ -209,9 +105,6 @@ Autobranch:
       # If the job was not present (e.g. was manually disabled), we still run.
       # But if it was present and failed, we fail.
       optional: true 
-
-    - job: Refresh-Caches
-      optional: true
 
   environment:
     # This grants the GITLAB_REPO_TOKEN variable allowing to push to the repo
@@ -322,10 +215,6 @@ Pages:
 
   stage: deploy
   pages: true
-
-  needs:
-    - job: Refresh-Caches
-      optional: true
 
   artifacts:
     paths:
